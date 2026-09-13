@@ -93,8 +93,11 @@ func configure(building: Building, value: Variant) -> void:
 		if target is BridgeConveyor and (target as BridgeConveyor).link == -(value as Vector2i):
 			target.set_config(null)
 			buildings.notify_changed(target)
+			simulation.on_building_reconfigured(target)
 	building.set_config(value)
 	buildings.notify_changed(building)
+	# Ленты, уснувшие перед зданием с прежней настройкой, должны проверить новый маршрут.
+	simulation.on_building_reconfigured(building)
 
 
 ## Сносит здание игроком: возврат стоимости, содержимое — в ядро (засчитывается как доставка).

@@ -139,6 +139,15 @@ func notify_space(target_id: int) -> void:
 		wake_id(id)
 
 
+## Здание изменилось так, что соседи могут снова передавать через него (настройка, связь моста):
+## будим его самого, соседей и всех, кто ждал у него места.
+func on_building_reconfigured(building: Building) -> void:
+	wake(building)
+	notify_space(building.id)
+	for other in building.proximity:
+		wake(other)
+
+
 func get_awake_building_count() -> int:
 	return _awake.size()
 

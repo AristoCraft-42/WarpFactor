@@ -43,6 +43,7 @@ func _ready() -> void:
 	_test_separator_weights()
 	_test_pulverizer_separator_chain()
 	_test_alloy_mixer_and_contents()
+	_test_config_wakes_blocked_belts()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -782,3 +783,31 @@ func _test_recipes_data() -> void:
 			_check(recipe != null and not recipe.consumes.is_empty() and not recipe.output_items().is_empty(), "рецепт завода %s" % def.id)
 			_check(not def.get_stat_lines().is_empty(), "характеристики завода %s для меню" % def.id)
 	_check(crafters == 6, "заводов 6 (%d)" % crafters)
+
+
+## Регрессия: смена настройки будит ленты, уснувшие перед зданием (сортировщик без фильтра, мост без связи).
+func _test_config_wakes_blocked_belts() -> void:
+	var world := Worlds.empty_world(32, 16)
+	var copper := _item(&"copper")
+	_source(world, Vector2i(2, 4), [copper])
+	Worlds.conveyor_line(world, Vector2i(3, 4), 3, GameConst.Dir.RIGHT)
+	var sorter := _place(world, &"sorter", Vector2i(6, 4))
+	Worlds.conveyor_line(world, Vector2i(7, 4), 2, GameConst.Dir.RIGHT)
+	var sink := _sink(world, Vector2i(9, 4))
+	Worlds.run_ticks(world, 900)
+	_check(sink.received == 0, "сортировщик без фильтра и без боковых выходов ничего не пропускает")
+	world.configure(sorter, copper)
+	Worlds.run_ticks(world, 300)
+	_check(sink.received > 20, "после выбора фильтра уснувшая лента проснулась (%d)" % sink.received)
+
+	_source(world, Vector2i(2, 10), [copper])
+	Worlds.conveyor_line(world, Vector2i(3, 10), 2, GameConst.Dir.RIGHT)
+	var a := _place(world, &"bridge_conveyor", Vector2i(5, 10))
+	var b := _place(world, &"bridge_conveyor", Vector2i(8, 10))
+	var bridge_sink := _sink(world, Vector2i(9, 10))
+	Worlds.run_ticks(world, 900)
+	_check(bridge_sink.received == 0, "мост без связи не принимает")
+	world.configure(a, b.origin - a.origin)
+	Worlds.run_ticks(world, 300)
+	_check(bridge_sink.received > 20, "после связи мостов уснувшая лента проснулась (%d)" % bridge_sink.received)
+	world.dispose()

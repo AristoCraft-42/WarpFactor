@@ -246,6 +246,22 @@ func _run_interaction(game: Game) -> void:
 	await _key(KEY_X)
 	_expect(lone.world == null, "X сносит одиночное выделенное здание")
 
+	# Без выделения X сносит здание под курсором (и в руке с инструментом тоже); ядро не сносится.
+	var hovered := bm.place(conveyor, base + Vector2i(-10, 5), 0)
+	await _mouse_move(game, hovered.origin)
+	_expect(not tools.has_area() and tools.hover_building == hovered, "курсор над лентой, выделения нет")
+	await _key(KEY_X)
+	_expect(hovered.world == null, "X без выделения сносит здание под курсором")
+	var hovered_in_hand := bm.place(conveyor, base + Vector2i(-10, 7), 0)
+	tools.select_building(conveyor)
+	await _mouse_move(game, hovered_in_hand.origin)
+	await _key(KEY_X)
+	_expect(hovered_in_hand.world == null, "X сносит здание под курсором и с постройкой в руке")
+	await _key(KEY_ESCAPE)
+	await _mouse_move(game, core.origin)
+	await _key(KEY_X)
+	_expect(world.get_core() != null, "X над ядром его не сносит")
+
 	# Удаляем вставленную копию, чтобы не мешала следующим проверкам.
 	var cleanup := Rect2i(paste_at - Vector2i(12, 12), Vector2i(24, 24))
 	for x in bm.collect_in_rect(cleanup):

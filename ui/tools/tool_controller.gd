@@ -2,7 +2,8 @@ class_name ToolController
 extends Node
 ## Инструменты игрока.
 ## - ЛКМ: строительство (одиночное и протягиванием), вставка скопированного, выбор здания для настройки.
-## - ПКМ с зажатием: выделение области; X — снести выделенное, C — скопировать в руку.
+## - ПКМ с зажатием: выделение области; X — снести выделенное (без выделения — здание под курсором),
+##   C — скопировать выделенное в руку.
 ##   Клик ПКМ отменяет инструмент или выделение, а по зданию без инструмента выделяет его.
 ## - R: поворот здания в руке, скопированного плана или стоящего здания под курсором. Q — пипетка.
 ## Все изменения мира идут через GameWorld (стоимость, возврат, содержимое в ядро).
@@ -237,6 +238,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("delete_selection"):
 		if has_area():
 			delete_area()
+		elif _drag == Drag.NONE and hover_building != null and not _over_ui:
+			_world.demolish(hover_building)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("copy_selection"):
 		if has_area():

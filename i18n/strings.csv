@@ -175,7 +175,7 @@ HUD_INFO_ORE,"Ore: %s, hardness %d","Руда: %s, твёрдость %d"
 HUD_INFO_NO_ORE,No ore,Руды нет
 HUD_INFO_BUILDING,Building: %s,Здание: %s
 HINT_PLACE,%s  ·  %s — place (hold to drag a line)  ·  %s — rotate  ·  RMB or %s — cancel,%s  ·  %s — поставить (с зажатием — линией)  ·  %s — поворот  ·  ПКМ или %s — отмена
-HINT_IDLE,Pick a building on the right  ·  %s on a building — configure  ·  hold %s — select area  ·  %s — rotate  ·  %s — pipette  ·  %s / %s — overlays,Выберите здание справа  ·  %s по зданию — настройка  ·  %s с зажатием — выделение  ·  %s — повернуть  ·  %s — пипетка  ·  %s / %s — оверлеи
+HINT_IDLE,Pick a building on the right  ·  %s on a building — configure  ·  hold %s — select area  ·  %s — demolish hovered  ·  %s — rotate  ·  %s — pipette  ·  %s / %s — overlays,Выберите здание справа  ·  %s по зданию — настройка  ·  %s с зажатием — выделение  ·  %s — снести под курсором  ·  %s — повернуть  ·  %s — пипетка  ·  %s / %s — оверлеи
 CONFIRM_TITLE,Confirmation,Подтверждение
 CONFIRM_DELETE_OK,Demolish,Снести
 CONFIRM_CANCEL,Cancel,Отмена
@@ -232,7 +232,7 @@ HUD_BELT_FLOWING,Flowing,Поток
 HUD_BELT_DENSE,Dense flow,Плотный поток
 HUD_BELT_BLOCKED,Stopped (jam),Стоит (затор)
 ACTION_SELECT_AREA,Select area (hold),Выделение области (с зажатием)
-ACTION_DELETE_SELECTION,Demolish selection,Снести выделенное
+ACTION_DELETE_SELECTION,Demolish selection / hovered,Снести выделенное / под курсором
 ACTION_COPY_SELECTION,Copy selection,Копировать выделенное
 HINT_AREA,Selected buildings: %d  ·  %s — demolish  ·  %s — copy  ·  %s or %s — clear selection,Выделено построек: %d  ·  %s — снести  ·  %s — копировать  ·  %s или %s — снять выделение
 HINT_PASTE,Paste (%d buildings)  ·  %s — place  ·  %s — rotate  ·  %s or %s — cancel,Вставка (%d построек)  ·  %s — поставить  ·  %s — повернуть  ·  %s или %s — отмена

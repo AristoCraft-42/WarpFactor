@@ -338,8 +338,8 @@ func _update_hint() -> void:
 					InputActions.primary_label(&"cancel")]
 			else:
 				_hint_label.text = tr("HINT_IDLE") % [
-					primary, InputActions.primary_label(&"select_area"), InputActions.primary_label(&"rotate"),
-					InputActions.primary_label(&"pipette"),
+					primary, InputActions.primary_label(&"select_area"), InputActions.primary_label(&"delete_selection"),
+					InputActions.primary_label(&"rotate"), InputActions.primary_label(&"pipette"),
 					InputActions.primary_label(&"overlay_ores"), InputActions.primary_label(&"overlay_belts")]
 	_update_problem()
 
