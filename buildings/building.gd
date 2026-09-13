@@ -12,6 +12,8 @@ extends RefCounted
 
 ## Вид настройки здания (что показывает панель настройки).
 enum ConfigKind { NONE, ITEM, BRIDGE }
+## Состояние здания для подсказки.
+enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE }
 
 ## Уникальный id в BuildingManager (0 — «нет здания»).
 var id: int = 0
@@ -163,6 +165,10 @@ func collect_contents(_out: PackedInt32Array) -> void:
 ## Строки состояния для инфо-панели.
 func get_info_lines() -> PackedStringArray:
 	return PackedStringArray()
+
+
+func get_status() -> Status:
+	return Status.NONE
 
 
 # --- Хранилища (разгрузчик берёт из них предметы) ---

@@ -1,7 +1,9 @@
-[gd_resource type="Resource" script_class="BuildingDef" format=3]
+[gd_resource type="Resource" script_class="CrafterDef" format=3]
 
-[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://buildings/production/crafter_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/production/crafter.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/recipes/separator.tres" id="4_recipe"]
 [ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
 [ext_resource type="Resource" path="res://items/types/titanium.tres" id="item_titanium"]
 
@@ -29,3 +31,5 @@ sort_order = 50
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
 color = Color(0.416, 0.353, 0.478, 1)
 glyph = 13
+logic_script = ExtResource("3_logic")
+recipe = ExtResource("4_recipe")

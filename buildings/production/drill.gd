@@ -55,6 +55,12 @@ func update_tick(tick: int) -> bool:
 	return false
 
 
+func get_status() -> Status:
+	if ore == null:
+		return Status.NO_ORE
+	return Status.OUTPUT_BLOCKED if blocked else Status.WORKING
+
+
 func collect_contents(out: PackedInt32Array) -> void:
 	if _item >= 0:
 		out[_item] += buffer
@@ -72,6 +78,4 @@ func get_info_lines() -> PackedStringArray:
 	lines.append(tr("INFO_DRILL_ORE") % [tr(ore.item.name_key), ore_tiles, def.size * def.size])
 	lines.append(tr("INFO_RATE") % get_items_per_second())
 	lines.append(tr("INFO_BUFFER") % [buffer, (def as DrillDef).item_capacity])
-	if blocked:
-		lines.append(tr("INFO_OUTPUT_BLOCKED"))
 	return lines

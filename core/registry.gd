@@ -121,6 +121,12 @@ static func validate() -> PackedStringArray:
 		if ore.item == null:
 			errors.append("руда %s без предмета" % ore.id)
 	for def in buildings:
+		if def is CrafterDef:
+			var recipe := (def as CrafterDef).recipe
+			if recipe == null:
+				errors.append("завод %s без рецепта" % def.id)
+			else:
+				errors.append_array(recipe.validate())
 		if def.size < 1 or def.size > GameConst.MAX_BUILDING_SIZE:
 			errors.append("здание %s: недопустимый размер %d" % [def.id, def.size])
 		for stack in def.cost:

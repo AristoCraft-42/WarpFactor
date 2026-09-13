@@ -237,3 +237,15 @@ ACTION_COPY_SELECTION,Copy selection,Копировать выделенное
 HINT_AREA,Selected buildings: %d  ·  %s — demolish  ·  %s — copy  ·  %s or %s — clear selection,Выделено построек: %d  ·  %s — снести  ·  %s — копировать  ·  %s или %s — снять выделение
 HINT_PASTE,Paste (%d buildings)  ·  %s — place  ·  %s — rotate  ·  %s or %s — cancel,Вставка (%d построек)  ·  %s — поставить  ·  %s — повернуть  ·  %s или %s — отмена
 TOAST_COPIED,Copied buildings: %d,Скопировано построек: %d
+STAT_RECIPE_IN,Input: %s,Вход: %s
+STAT_RECIPE_OUT,Output: %s,Выход: %s
+STAT_RECIPE_TIME,Cycle: %.1f s,Цикл: %.1f с
+INFO_INPUTS,Input: %s,Вход: %s
+INFO_OUTPUTS,Output: %s,Выход: %s
+TOOLTIP_CRAFT_TIME,%.1f s,%.1f с
+STATUS_WORKING,Working,Работает
+STATUS_IDLE,Idle,Простаивает
+STATUS_NO_INPUT,No input,Нет сырья
+STATUS_NO_INPUT_ITEMS,No input: %s,Нет сырья: %s
+STATUS_OUTPUT_BLOCKED,Output blocked,Выход забит
+STATUS_NO_ORE,No suitable ore,Нет подходящей руды

@@ -44,6 +44,7 @@ func _run_game(game: Game) -> void:
 
 	await _run_interaction(game)
 	await _run_production_chain(game)
+	await _run_factory(game)
 	await _run_logistics(game)
 
 	game.ore_overlay.visible = true
@@ -311,6 +312,68 @@ func _run_production_chain(game: Game) -> void:
 	var delivered_after_fix := world.core_storage.delivered[copper]
 	await _wait_ticks(world, 20 * GameConst.TICK_RATE)
 	_expect(world.core_storage.delivered[copper] > delivered_after_fix, "после обратного поворота поток восстановился")
+
+
+## Производство: камень → дробилка → сепаратор → ядро; подсказки со статусами.
+func _run_factory(game: Game) -> void:
+	var world := game.world
+	var bm := world.buildings
+	var core := world.get_core()
+	var drill := Registry.get_building(&"mechanical_drill")
+	var spot := _find_ore_spot(world, drill, core.origin, 30, &"stone")
+	_expect(spot != Vector2i(-1, -1), "есть место для бура на камне")
+	if spot == Vector2i(-1, -1):
+		return
+	bm.place(drill, spot, 0, true)
+	bm.place(drill, spot + Vector2i(0, 2), 0, true)
+	var pulverizer := bm.place(Registry.get_building(&"pulverizer"), spot + Vector2i(2, 1), 0, true)
+	var separator := bm.place(Registry.get_building(&"separator"), spot + Vector2i(3, 1), 0, true) as Crafter
+	var start := spot + Vector2i(5, 1)
+	var finish := Vector2i(core.origin.x - 1, core.origin.y + 1)
+	for step in LinePlanner.l_path(start, finish, false, GameConst.Dir.RIGHT):
+		bm.place(Registry.get_building(&"conveyor"), Vector2i(step.x, step.y), step.z, true)
+	_expect(pulverizer != null and separator != null, "дробилка и сепаратор поставлены")
+	var kiln := bm.place(Registry.get_building(&"kiln"), spot + Vector2i(0, -4), 0, true) as Crafter
+
+	var delivered_before := 0
+	for item in [&"copper", &"lead", &"coal", &"titanium"]:
+		delivered_before += world.core_storage.delivered[Registry.get_item(item).index]
+	game.clock.set_speed_index(2)
+	await _wait_ticks(world, 60 * GameConst.TICK_RATE)
+	game.clock.set_speed_index(0)
+	var delivered_after := 0
+	for item in [&"copper", &"lead", &"coal", &"titanium"]:
+		delivered_after += world.core_storage.delivered[Registry.get_item(item).index]
+	_expect(separator != null and separator.get_status() != Building.Status.NO_INPUT or delivered_after > delivered_before,
+		"сепаратор получает дроблёную породу")
+	_expect(delivered_after > delivered_before, "руды из сепаратора дошли до ядра (+%d)" % (delivered_after - delivered_before))
+	_expect(kiln != null and kiln.get_status() == Building.Status.NO_INPUT, "печь без сырья в статусе «нет сырья»")
+
+	game.camera.focus_on(Vector2((spot + Vector2i(3, 1)) * GameConst.TILE_SIZE), 1.4)
+	await _frames(5)
+	await _mouse_move(game, separator.origin)
+	await _frames(40)
+	await _shot("g11_tooltip_separator.png")
+	await _mouse_move(game, kiln.origin)
+	await _frames(40)
+	await _shot("g12_tooltip_kiln.png")
+	await _mouse_move(game, spot + Vector2i(20, 20))
+	await _frames(3)
+
+
+func _find_ore_spot(world: GameWorld, drill: BuildingDef, center: Vector2i, radius: int, ore_id: StringName) -> Vector2i:
+	var best := Vector2i(-1, -1)
+	var best_tiles := 0
+	for y in range(center.y - radius, center.y + radius):
+		for x in range(center.x - radius, center.x + radius):
+			var origin := Vector2i(x, y)
+			if world.buildings.check_place(drill, origin, 0) != BuildingManager.Check.OK:
+				continue
+			var found := (drill as DrillDef).find_ore(world.grid, origin)
+			if found.x > 0 and Registry.ores[found.x - 1].id == ore_id and found.y > best_tiles:
+				best = origin
+				best_tiles = found.y
+	return best
 
 
 ## Логистика: витрина зданий, настройка кликами, мосты, оверлей загрузки лент.

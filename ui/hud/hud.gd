@@ -38,6 +38,9 @@ func setup(game: Game) -> void:
 	_build_build_menu()
 	_build_toasts()
 	_build_confirm()
+	var tooltip := BuildingTooltip.new()
+	_root.add_child(tooltip)
+	tooltip.setup(game)
 
 	game.tools.hover_changed.connect(_update_info)
 	game.tools.mode_changed.connect(_update_hint)

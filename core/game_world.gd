@@ -13,6 +13,8 @@ var buildings: BuildingManager
 var simulation: Simulation
 var core_storage: CoreStorage
 var stats: ItemStats
+## Генератор случайных чисел мира (сепаратор): детерминирован от id уровня.
+var rng := RandomNumberGenerator.new()
 ## Режим песочницы: бесплатное строительство, всё открыто, цели не засчитываются.
 var sandbox: bool = false
 
@@ -23,6 +25,7 @@ static func create(level_def: LevelDef, map: LevelMap, p_sandbox: bool) -> GameW
 	world.level = level_def
 	world.sandbox = p_sandbox
 	world.grid = WorldGrid.from_level_map(map)
+	world.rng.seed = hash(String(level_def.id)) if level_def != null else 1
 	world.stats = ItemStats.new(Registry.items.size())
 	var core_def := Registry.get_building(&"core") as StorageDef
 	var capacity := core_def.item_capacity if core_def != null else DEFAULT_CORE_CAPACITY

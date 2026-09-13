@@ -36,6 +36,13 @@ func _ready() -> void:
 	_test_pass_through_chains()
 	_test_wake_through_pass_through()
 	_test_config_copy_and_contents()
+	_test_recipes_data()
+	_test_graphite_press()
+	_test_smelter_inputs()
+	_test_output_blocked()
+	_test_separator_weights()
+	_test_pulverizer_separator_chain()
+	_test_alloy_mixer_and_contents()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -641,3 +648,137 @@ func _test_config_copy_and_contents() -> void:
 	_check(world.demolish(router), "снос делителя")
 	_check(world.core_storage.delivered[lead] == delivered_before + 1, "предмет из делителя ушёл в ядро")
 	world.dispose()
+
+
+# --- Производство (этап 4) ---
+
+func _item(id: StringName) -> int:
+	return Registry.get_item(id).index
+
+
+## Графитовый пресс: уголь 2 → графит 1 за 1.5 с.
+func _test_graphite_press() -> void:
+	var world := Worlds.empty_world(24, 16)
+	_source(world, Vector2i(2, 4), [_item(&"coal")])
+	Worlds.conveyor_line(world, Vector2i(3, 4), 3, GameConst.Dir.RIGHT)
+	var press := _place(world, &"graphite_press", Vector2i(6, 4)) as Crafter
+	Worlds.conveyor_line(world, Vector2i(8, 4), 2, GameConst.Dir.RIGHT)
+	var sink := _sink(world, Vector2i(10, 4))
+	Worlds.run_ticks(world, 30 * GameConst.TICK_RATE)
+	var graphite: int = sink.count_of(_item(&"graphite"))
+	_check(graphite >= 16 and graphite <= 20, "пресс выдал графит за 30 с: %d (≈19)" % graphite)
+	_check(sink.count_of(_item(&"coal")) == 0, "уголь не проходит сквозь пресс")
+	_check(not press.accept_item(null, _item(&"copper")), "пресс не принимает медь")
+	_check(press.get_status() == Building.Status.WORKING, "пресс работает")
+	world.dispose()
+
+
+## Кремниевый завод ждёт все входы; без угля — «нет сырья».
+func _test_smelter_inputs() -> void:
+	var world := Worlds.empty_world(24, 16)
+	_source(world, Vector2i(2, 4), [_item(&"sand")])
+	Worlds.conveyor_line(world, Vector2i(3, 4), 3, GameConst.Dir.RIGHT)
+	var smelter := _place(world, &"silicon_smelter", Vector2i(6, 4)) as Crafter
+	Worlds.conveyor_line(world, Vector2i(8, 4), 2, GameConst.Dir.RIGHT)
+	var sink := _sink(world, Vector2i(10, 4))
+	Worlds.run_ticks(world, 300)
+	_check(sink.received == 0 and smelter.get_status() == Building.Status.NO_INPUT, "без угля завод стоит со статусом «нет сырья»")
+	_check(smelter.get_missing_inputs().size() == 1, "подсказка называет недостающий уголь")
+	_source(world, Vector2i(6, 1), [_item(&"coal")])
+	Worlds.conveyor_line(world, Vector2i(6, 2), 2, GameConst.Dir.DOWN)
+	Worlds.run_ticks(world, 600)
+	_check(sink.count_of(_item(&"silicon")) > 10, "с углём завод выдаёт кремний (%d)" % sink.count_of(_item(&"silicon")))
+	world.dispose()
+
+
+## Печь без выхода: буфер заполняется, статус «выход забит», входные ленты засыпают.
+func _test_output_blocked() -> void:
+	var world := Worlds.empty_world(24, 16)
+	_source(world, Vector2i(2, 4), [_item(&"sand"), _item(&"lead")])
+	Worlds.conveyor_line(world, Vector2i(3, 4), 3, GameConst.Dir.RIGHT)
+	var kiln := _place(world, &"kiln", Vector2i(6, 4)) as Crafter
+	Worlds.run_ticks(world, 1200)
+	var metaglass := _item(&"metaglass")
+	_check(kiln.outputs[metaglass] == kiln.get_output_capacity(), "выходной буфер печи заполнен (%d)" % kiln.outputs[metaglass])
+	_check(kiln.get_status() == Building.Status.OUTPUT_BLOCKED, "статус «выход забит»")
+	Worlds.run_ticks(world, 60)
+	_check(world.simulation.conveyors.get_awake_count() == 0 and world.simulation.get_awake_building_count() == 0,
+		"забитая печь и ленты спят")
+	var sink := _sink(world, Vector2i(8, 4))
+	Worlds.run_ticks(world, 300)
+	_check(sink.count_of(metaglass) > 10, "после появления выхода печь снова работает (%d)" % sink.count_of(metaglass))
+	world.dispose()
+
+
+## Сепаратор: распределение по весам (5:3:2:2) и воспроизводимость.
+func _test_separator_weights() -> void:
+	var world := Worlds.empty_world(16, 16)
+	var separator := _place(world, &"separator", Vector2i(4, 4)) as Crafter
+	var produce := separator.get_recipe().produces[0] as ProduceWeighted
+	var counts := {}
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 42
+	var rolls := 6000
+	for i in rolls:
+		separator.outputs.fill(0)
+		produce.produce(separator, rng)
+		for item in produce.output_items():
+			if separator.outputs[item] > 0:
+				counts[item] = int(counts.get(item, 0)) + 1
+	var weights := {_item(&"copper"): 5, _item(&"lead"): 3, _item(&"coal"): 2, _item(&"titanium"): 2}
+	for item in weights:
+		var share := float(counts.get(item, 0)) / rolls
+		var expected := float(weights[item]) / 12.0
+		_check(absf(share - expected) < 0.03, "сепаратор: доля %s %.3f (ожидалось %.3f)" % [Registry.items[item].id, share, expected])
+	world.dispose()
+
+
+## Цепочка: камень → дробилка → сепаратор → руды.
+func _test_pulverizer_separator_chain() -> void:
+	var world := Worlds.empty_world(32, 16)
+	_source(world, Vector2i(2, 4), [_item(&"stone")])
+	Worlds.conveyor_line(world, Vector2i(3, 4), 2, GameConst.Dir.RIGHT)
+	_place(world, &"pulverizer", Vector2i(5, 4))
+	Worlds.conveyor_line(world, Vector2i(6, 4), 2, GameConst.Dir.RIGHT)
+	_place(world, &"separator", Vector2i(8, 4))
+	Worlds.conveyor_line(world, Vector2i(10, 4), 2, GameConst.Dir.RIGHT)
+	var sink := _sink(world, Vector2i(12, 4))
+	Worlds.run_ticks(world, 60 * GameConst.TICK_RATE)
+	var ores: int = sink.count_of(_item(&"copper")) + sink.count_of(_item(&"lead")) + sink.count_of(_item(&"coal")) + sink.count_of(_item(&"titanium"))
+	_check(ores > 20 and ores == sink.received, "цепочка дробилка → сепаратор выдаёт руды (%d)" % ores)
+	world.dispose()
+
+
+## Смеситель 3×3 со всеми тремя входами; снос посреди цикла возвращает сырьё.
+func _test_alloy_mixer_and_contents() -> void:
+	var map := LevelMap.new(32, 24, Registry.get_floor(&"stone").index)
+	map.add_placement(Registry.get_building(&"core"), Vector2i(26, 18))
+	var world := GameWorld.create(null, map, true)
+	var mixer := world.build(Registry.get_building(&"alloy_mixer"), Vector2i(10, 10), 0) as Crafter
+	_source(world, Vector2i(9, 10), [_item(&"copper")])
+	_source(world, Vector2i(9, 11), [_item(&"lead")])
+	_source(world, Vector2i(9, 12), [_item(&"titanium")])
+	Worlds.run_ticks(world, 200)
+	_check(mixer.outputs[_item(&"alloy")] > 0, "смеситель делает сплав (%d)" % mixer.outputs[_item(&"alloy")])
+	var totals := PackedInt32Array()
+	totals.resize(Registry.items.size())
+	totals.fill(0)
+	mixer.collect_contents(totals)
+	var delivered_before: int = world.core_storage.delivered[_item(&"alloy")] + world.core_storage.delivered[_item(&"copper")]
+	var expected_back := totals[_item(&"alloy")] + totals[_item(&"copper")]
+	_check(world.demolish(mixer), "снос смесителя")
+	_check(world.core_storage.delivered[_item(&"alloy")] + world.core_storage.delivered[_item(&"copper")] == delivered_before + expected_back,
+		"сырьё, продукт и начатый цикл ушли в ядро")
+	world.dispose()
+
+
+## Данные рецептов: у каждого завода рецепт с входами и выходами.
+func _test_recipes_data() -> void:
+	var crafters := 0
+	for def in Registry.buildings:
+		if def is CrafterDef:
+			crafters += 1
+			var recipe := (def as CrafterDef).recipe
+			_check(recipe != null and not recipe.consumes.is_empty() and not recipe.output_items().is_empty(), "рецепт завода %s" % def.id)
+			_check(not def.get_stat_lines().is_empty(), "характеристики завода %s для меню" % def.id)
+	_check(crafters == 6, "заводов 6 (%d)" % crafters)

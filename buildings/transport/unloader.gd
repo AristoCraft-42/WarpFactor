@@ -74,6 +74,10 @@ func update_tick(tick: int) -> bool:
 	return false
 
 
+func get_status() -> Status:
+	return Status.OUTPUT_BLOCKED if blocked else Status.NONE
+
+
 func get_info_lines() -> PackedStringArray:
 	var lines := PackedStringArray()
 	if filter < 0:
@@ -81,8 +85,6 @@ func get_info_lines() -> PackedStringArray:
 	else:
 		lines.append(tr("INFO_FILTER") % tr(Registry.items[filter].name_key))
 	lines.append(tr("INFO_RATE") % (float(GameConst.TICK_RATE) / maxi((def as LogisticDef).transfer_ticks, 1)))
-	if blocked:
-		lines.append(tr("INFO_OUTPUT_BLOCKED"))
 	return lines
 
 
