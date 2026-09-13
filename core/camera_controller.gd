@@ -1,17 +1,14 @@
 class_name CameraController
 extends Camera2D
-## Камера: панорама перетаскиванием (ПКМ/СКМ), клавишами и краем экрана, зум колесом к курсору.
+## Камера: панорама перетаскиванием (СКМ), клавишами и краем экрана, зум колесом к курсору.
 ## Пользовательский масштаб user_zoom не зависит от масштаба интерфейса:
 ## content_scale_factor корневого окна компенсируется делением.
 
 ## Камера сдвинулась или изменила масштаб.
 signal view_changed
-## Клик кнопкой панорамы без перетаскивания (отменяет инструмент).
-signal pan_clicked
 
 const KEY_PAN_SPEED := 900.0
 const EDGE_PAN_MARGIN := 6.0
-const DRAG_THRESHOLD := 5.0
 const ZOOM_STEP := 1.15
 
 var input_enabled: bool = true
@@ -23,8 +20,6 @@ var _map_size_px: Vector2 = Vector2.ZERO
 var _target_zoom: float = 1.0
 var _zoom_anchor: Vector2 = Vector2.ZERO
 var _panning: bool = false
-var _pan_moved: bool = false
-var _pan_accum: float = 0.0
 var _last_position: Vector2 = Vector2.INF
 var _last_zoom: float = -1.0
 ## Последняя позиция курсора из событий ввода (координаты viewport).
@@ -80,8 +75,6 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("cam_pan"):
 		_panning = true
-		_pan_moved = false
-		_pan_accum = 0.0
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("cam_home"):
 		get_viewport().set_input_as_handled()
@@ -96,19 +89,15 @@ func _input(event: InputEvent) -> void:
 	if not _panning:
 		return
 	if event is InputEventMouseMotion:
-		var motion := event as InputEventMouseMotion
-		_pan_accum += motion.relative.length()
-		if _pan_accum > DRAG_THRESHOLD:
-			_pan_moved = true
-		position -= motion.relative / zoom
+		position -= (event as InputEventMouseMotion).relative / zoom
 		_clamp_position()
 	elif event.is_action_released("cam_pan"):
-		_finish_pan()
+		_panning = false
 
 
 func _process(delta: float) -> void:
 	if _panning and not Input.is_action_pressed("cam_pan"):
-		_finish_pan()
+		_panning = false
 
 	if input_enabled:
 		var dir := Vector2(
@@ -160,14 +149,6 @@ func _set_zoom_keep_anchor(new_zoom: float, anchor: Vector2) -> void:
 func _apply_zoom_property() -> void:
 	var ui_scale := maxf(get_tree().root.content_scale_factor, 0.01)
 	zoom = Vector2.ONE * (user_zoom / ui_scale)
-
-
-func _finish_pan() -> void:
-	var was_click := not _pan_moved
-	_panning = false
-	_pan_moved = false
-	if was_click:
-		pan_clicked.emit()
 
 
 func _edge_direction() -> Vector2:

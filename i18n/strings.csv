@@ -141,7 +141,7 @@ CONTROLS_CONFLICT,«%s» was removed from: %s,«%s» снято с действ�
 INPUT_GROUP_CAMERA,Camera,Камера
 INPUT_GROUP_BUILD,Building,Строительство
 INPUT_GROUP_VIEW,View,Вид
-ACTION_CAM_PAN,Pan (drag),Панорама (перетаскивание)
+ACTION_CAM_PAN,Pan camera (drag),Панорама камеры (перетаскивание)
 ACTION_CAM_UP,Move up,Камера вверх
 ACTION_CAM_DOWN,Move down,Камера вниз
 ACTION_CAM_LEFT,Move left,Камера влево
@@ -152,8 +152,6 @@ ACTION_CAM_HOME,Camera to core,Камера к ядру
 ACTION_BUILD_PRIMARY,Build / select,Строить / выбрать
 ACTION_ROTATE,Rotate,Поворот
 ACTION_PIPETTE,Pipette,Пипетка
-ACTION_DELETE_MODE,Demolition mode,Режим сноса
-ACTION_AREA_MODIFIER,Area demolition (hold),Снос областью (удерживать)
 ACTION_CANCEL,Cancel / menu,Отмена / меню
 ACTION_OVERLAY_ORES,Resource map,Карта ресурсов
 ACTION_TOGGLE_GRID,Toggle grid,Сетка
@@ -177,8 +175,7 @@ HUD_INFO_ORE,"Ore: %s, hardness %d","Руда: %s, твёрдость %d"
 HUD_INFO_NO_ORE,No ore,Руды нет
 HUD_INFO_BUILDING,Building: %s,Здание: %s
 HINT_PLACE,%s  ·  %s — place (hold to drag a line)  ·  %s — rotate  ·  RMB or %s — cancel,%s  ·  %s — поставить (с зажатием — линией)  ·  %s — поворот  ·  ПКМ или %s — отмена
-HINT_DELETE,Demolition  ·  %s — remove (hold to select an area)  ·  %s — leave the mode,Снос  ·  %s — снести (с зажатием — рамкой)  ·  %s — выйти из режима
-HINT_IDLE,Pick a building on the right  ·  %s on a building — configure  ·  %s — rotate  ·  %s+%s — demolish area  ·  %s — demolition  ·  %s — pipette  ·  %s / %s — overlays,Выберите здание справа  ·  %s по зданию — настройка  ·  %s — повернуть  ·  %s+%s — снос рамкой  ·  %s — снос  ·  %s — пипетка  ·  %s / %s — оверлеи
+HINT_IDLE,Pick a building on the right  ·  %s on a building — configure  ·  hold %s — select area  ·  %s — rotate  ·  %s — pipette  ·  %s / %s — overlays,Выберите здание справа  ·  %s по зданию — настройка  ·  %s с зажатием — выделение  ·  %s — повернуть  ·  %s — пипетка  ·  %s / %s — оверлеи
 CONFIRM_TITLE,Confirmation,Подтверждение
 CONFIRM_DELETE_OK,Demolish,Снести
 CONFIRM_CANCEL,Cancel,Отмена
@@ -234,3 +231,9 @@ HUD_BELT_EMPTY,Empty,Пустая
 HUD_BELT_FLOWING,Flowing,Поток
 HUD_BELT_DENSE,Dense flow,Плотный поток
 HUD_BELT_BLOCKED,Stopped (jam),Стоит (затор)
+ACTION_SELECT_AREA,Select area (hold),Выделение области (с зажатием)
+ACTION_DELETE_SELECTION,Demolish selection,Снести выделенное
+ACTION_COPY_SELECTION,Copy selection,Копировать выделенное
+HINT_AREA,Selected buildings: %d  ·  %s — demolish  ·  %s — copy  ·  %s or %s — clear selection,Выделено построек: %d  ·  %s — снести  ·  %s — копировать  ·  %s или %s — снять выделение
+HINT_PASTE,Paste (%d buildings)  ·  %s — place  ·  %s — rotate  ·  %s or %s — cancel,Вставка (%d построек)  ·  %s — поставить  ·  %s — повернуть  ·  %s или %s — отмена
+TOAST_COPIED,Copied buildings: %d,Скопировано построек: %d

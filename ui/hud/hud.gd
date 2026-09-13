@@ -42,6 +42,7 @@ func setup(game: Game) -> void:
 	game.tools.hover_changed.connect(_update_info)
 	game.tools.mode_changed.connect(_update_hint)
 	game.tools.plan_changed.connect(_update_problem)
+	game.tools.area_changed.connect(_update_hint)
 	game.tools.delete_confirmation_requested.connect(_on_delete_confirmation)
 	game.clock.state_changed.connect(_update_paused_badge)
 	Settings.changed.connect(_on_setting_changed)
@@ -322,14 +323,21 @@ func _update_hint() -> void:
 			_hint_label.text = tr("HINT_PLACE") % [
 				tr(tools.place_def.name_key), primary,
 				InputActions.primary_label(&"rotate"), InputActions.primary_label(&"cancel")]
-		ToolController.Mode.DELETE:
-			_hint_label.text = tr("HINT_DELETE") % [primary, InputActions.primary_label(&"delete_mode")]
+		ToolController.Mode.PASTE:
+			_hint_label.text = tr("HINT_PASTE") % [
+				tools.plan.size(), primary, InputActions.primary_label(&"rotate"),
+				InputActions.primary_label(&"select_area"), InputActions.primary_label(&"cancel")]
 		_:
-			_hint_label.text = tr("HINT_IDLE") % [
-				primary, InputActions.primary_label(&"rotate"),
-				InputActions.primary_label(&"area_modifier"), primary,
-				InputActions.primary_label(&"delete_mode"), InputActions.primary_label(&"pipette"),
-				InputActions.primary_label(&"overlay_ores"), InputActions.primary_label(&"overlay_belts")]
+			if tools.has_area():
+				_hint_label.text = tr("HINT_AREA") % [
+					tools.area_buildings.size(), InputActions.primary_label(&"delete_selection"),
+					InputActions.primary_label(&"copy_selection"), InputActions.primary_label(&"select_area"),
+					InputActions.primary_label(&"cancel")]
+			else:
+				_hint_label.text = tr("HINT_IDLE") % [
+					primary, InputActions.primary_label(&"select_area"), InputActions.primary_label(&"rotate"),
+					InputActions.primary_label(&"pipette"),
+					InputActions.primary_label(&"overlay_ores"), InputActions.primary_label(&"overlay_belts")]
 	_update_problem()
 
 

@@ -128,7 +128,7 @@ func load_from_disk() -> void:
 		var parts := String(e.key).split("/")
 		if cfg.has_section_key(parts[0], parts[1]):
 			_values[e.key] = e.sanitize(cfg.get_value(parts[0], parts[1]))
-	if cfg.has_section("input"):
+	if cfg.has_section("input") and int(cfg.get_value("meta", "bindings_version", 1)) >= InputActions.BINDINGS_VERSION:
 		var bindings: Dictionary = {}
 		for action in cfg.get_section_keys("input"):
 			var v: Variant = cfg.get_value("input", action)
@@ -145,6 +145,7 @@ func save_now() -> void:
 	for e in entries:
 		var parts := String(e.key).split("/")
 		cfg.set_value(parts[0], parts[1], _values[e.key])
+	cfg.set_value("meta", "bindings_version", InputActions.BINDINGS_VERSION)
 	var bindings := InputActions.current_bindings()
 	for action in bindings:
 		cfg.set_value("input", String(action), bindings[action])

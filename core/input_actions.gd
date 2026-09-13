@@ -12,12 +12,15 @@ const GROUP_VIEW := "INPUT_GROUP_VIEW"
 
 ## Максимум привязок на действие в меню управления.
 const SLOTS := 2
+## Версия схемы управления. Сохранённые привязки старой версии сбрасываются к умолчаниям,
+## если схема изменилась несовместимо (например, ПКМ перестала двигать камеру).
+const BINDINGS_VERSION := 2
 
 
 ## Описание всех действий: имя, ключ перевода, группа, привязки по умолчанию.
 static func definitions() -> Array[Dictionary]:
 	return [
-		{"name": &"cam_pan", "label": "ACTION_CAM_PAN", "group": GROUP_CAMERA, "events": ["mouse:2", "mouse:3"]},
+		{"name": &"cam_pan", "label": "ACTION_CAM_PAN", "group": GROUP_CAMERA, "events": ["mouse:3"]},
 		{"name": &"cam_up", "label": "ACTION_CAM_UP", "group": GROUP_CAMERA, "events": ["key:W", "key:Up"]},
 		{"name": &"cam_down", "label": "ACTION_CAM_DOWN", "group": GROUP_CAMERA, "events": ["key:S", "key:Down"]},
 		{"name": &"cam_left", "label": "ACTION_CAM_LEFT", "group": GROUP_CAMERA, "events": ["key:A", "key:Left"]},
@@ -29,8 +32,9 @@ static func definitions() -> Array[Dictionary]:
 		{"name": &"build_primary", "label": "ACTION_BUILD_PRIMARY", "group": GROUP_BUILD, "events": ["mouse:1"]},
 		{"name": &"rotate", "label": "ACTION_ROTATE", "group": GROUP_BUILD, "events": ["key:R"]},
 		{"name": &"pipette", "label": "ACTION_PIPETTE", "group": GROUP_BUILD, "events": ["key:Q"]},
-		{"name": &"delete_mode", "label": "ACTION_DELETE_MODE", "group": GROUP_BUILD, "events": ["key:X", "key:Delete"]},
-		{"name": &"area_modifier", "label": "ACTION_AREA_MODIFIER", "group": GROUP_BUILD, "events": ["key:Shift"]},
+		{"name": &"select_area", "label": "ACTION_SELECT_AREA", "group": GROUP_BUILD, "events": ["mouse:2"]},
+		{"name": &"delete_selection", "label": "ACTION_DELETE_SELECTION", "group": GROUP_BUILD, "events": ["key:X", "key:Delete"]},
+		{"name": &"copy_selection", "label": "ACTION_COPY_SELECTION", "group": GROUP_BUILD, "events": ["key:C"]},
 		{"name": &"cancel", "label": "ACTION_CANCEL", "group": GROUP_BUILD, "events": ["key:Escape"]},
 
 		{"name": &"pause", "label": "ACTION_PAUSE", "group": GROUP_TIME, "events": ["key:Space"]},

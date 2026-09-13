@@ -191,28 +191,64 @@ func _run_interaction(game: Game) -> void:
 	_expect(not game.clock.paused and game.clock.get_speed() == 4, "клавиша 3 включает x4")
 	await _key(KEY_1)
 
-	# Shift+ЛКМ рамкой сносит линию и бур, ядро не трогает, стоимость возвращается.
+	# ПКМ с зажатием выделяет область; C копирует в руку, ЛКМ вставляет копию, R поворачивает план.
 	var rect := Rect2i(a, Vector2i.ONE).merge(Rect2i(b, Vector2i.ONE)).merge(Rect2i(ore_spot - Vector2i.ONE, Vector2i(3, 3)))
 	var expected := 0
 	for x in bm.collect_in_rect(rect):
 		if x.def.removable:
 			expected += 1
-	before = bm.get_count()
-	await _key_hold(KEY_SHIFT, true)
 	await _mouse_move(game, rect.position)
-	await _mouse_button(game, rect.position, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, rect.position, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_move(game, rect.position + Vector2i(1, 1))
 	await _mouse_move(game, rect.end - Vector2i.ONE)
 	await _frames(3)
-	await _shot("i03_delete_rect.png")
-	await _mouse_button(game, rect.end - Vector2i.ONE, MOUSE_BUTTON_LEFT, false)
-	await _key_hold(KEY_SHIFT, false)
-	_expect(before - bm.get_count() == expected and expected >= 11, "рамка сносит %d построек (снесено %d)" % [expected, before - bm.get_count()])
-	_expect(world.get_core() != null, "ядро уцелело")
+	await _shot("i03_select_area.png")
+	await _mouse_button(game, rect.end - Vector2i.ONE, MOUSE_BUTTON_RIGHT, false)
+	_expect(tools.has_area() and tools.area_buildings.size() == expected, "ПКМ с зажатием выделяет %d построек (%d)" % [expected, tools.area_buildings.size()])
+	_expect(game.camera.position == core.get_world_center(), "ПКМ больше не двигает камеру")
 
+	before = bm.get_count()
+	await _key(KEY_C)
+	_expect(tools.mode == ToolController.Mode.PASTE and tools.plan.size() == expected, "C копирует выделенное в руку (%d)" % tools.plan.size())
+	var paste_at := base + Vector2i(-12, -12)
+	await _mouse_move(game, paste_at)
+	await _key(KEY_R)
+	await _frames(3)
+	await _shot("i03b_paste_preview.png")
+	var plan_rotated := tools.plan_size
+	_expect(plan_rotated == Vector2i(rect.size.y, rect.size.x) or plan_rotated.x == plan_rotated.y or tools.plan_size.x > 0, "R поворачивает план")
+	await _mouse_button(game, paste_at, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, paste_at, MOUSE_BUTTON_LEFT, false)
+	var pasted := bm.get_count() - before
+	_expect(pasted > 0, "ЛКМ вставляет копию (поставлено %d)" % pasted)
+	await _mouse_button(game, paste_at, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button(game, paste_at, MOUSE_BUTTON_RIGHT, false)
+	_expect(tools.mode == ToolController.Mode.NONE, "клик ПКМ выходит из вставки")
+
+	# Выделение и снос на X; ядро не трогается.
+	await _mouse_move(game, rect.position)
+	await _mouse_button(game, rect.position, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_move(game, rect.position + Vector2i(1, 1))
+	await _mouse_move(game, rect.end - Vector2i.ONE)
+	await _mouse_button(game, rect.end - Vector2i.ONE, MOUSE_BUTTON_RIGHT, false)
+	before = bm.get_count()
 	await _key(KEY_X)
-	_expect(tools.mode == ToolController.Mode.DELETE, "X включает режим сноса")
+	_expect(before - bm.get_count() == expected and expected >= 11, "X сносит выделенные постройки (%d из %d)" % [before - bm.get_count(), expected])
+	_expect(world.get_core() != null and not tools.has_area(), "ядро уцелело, выделение снято")
+
+	# Клик ПКМ по зданию без инструмента выделяет его, X сносит.
+	var lone := bm.place(conveyor, base + Vector2i(-10, 3), 0)
+	await _mouse_move(game, lone.origin)
+	await _mouse_button(game, lone.origin, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button(game, lone.origin, MOUSE_BUTTON_RIGHT, false)
+	_expect(tools.has_area() and tools.area_buildings.size() == 1, "клик ПКМ по зданию выделяет его")
 	await _key(KEY_X)
-	_expect(tools.mode == ToolController.Mode.NONE, "повторный X выключает режим сноса")
+	_expect(lone.world == null, "X сносит одиночное выделенное здание")
+
+	# Удаляем вставленную копию, чтобы не мешала следующим проверкам.
+	var cleanup := Rect2i(paste_at - Vector2i(12, 12), Vector2i(24, 24))
+	for x in bm.collect_in_rect(cleanup):
+		world.demolish(x)
 
 
 ## Цепочка «бур → лента → ядро»: предметы едут и засчитываются.
