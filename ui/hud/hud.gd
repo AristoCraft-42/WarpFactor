@@ -15,6 +15,7 @@ var _problem_label: Label
 var _paused_badge: Label
 var _fps_label: Label
 var _ore_legend: PanelContainer
+var _belt_legend: PanelContainer
 var _debug: DebugOverlay
 var _confirm: ConfirmationDialog
 var _pending_delete: Array[Building] = []
@@ -56,6 +57,36 @@ func set_ore_legend_visible(value: bool) -> void:
 	_ore_legend.visible = value
 
 
+func set_belt_legend_visible(value: bool) -> void:
+	_belt_legend.visible = value
+
+
+func _make_belt_legend() -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.theme_type_variation = &"HudPanel"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.visible = false
+	var column := UiUtil.vbox(4)
+	panel.add_child(column)
+	column.add_child(UiUtil.label("HUD_BELT_LEGEND", &"DimLabel"))
+	var entries := [
+		[BeltLoadOverlay.COLOR_EMPTY, "HUD_BELT_EMPTY"],
+		[BeltLoadOverlay.COLOR_LOW, "HUD_BELT_FLOWING"],
+		[BeltLoadOverlay.COLOR_HIGH, "HUD_BELT_DENSE"],
+		[BeltLoadOverlay.COLOR_BLOCKED, "HUD_BELT_BLOCKED"],
+	]
+	for entry in entries:
+		var row := UiUtil.hbox(8)
+		var swatch := ColorRect.new()
+		swatch.color = Color(entry[0], 1.0)
+		swatch.custom_minimum_size = Vector2(18, 18)
+		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(swatch)
+		row.add_child(UiUtil.label(entry[1]))
+		column.add_child(row)
+	return panel
+
+
 func toggle_debug() -> bool:
 	_debug.visible = not _debug.visible
 	return _debug.visible
@@ -90,6 +121,9 @@ func _build_top_left() -> void:
 	var resources := ResourcePanel.new()
 	column.add_child(resources)
 	resources.setup(_game.world)
+
+	_belt_legend = _make_belt_legend()
+	column.add_child(_belt_legend)
 
 	_ore_legend = PanelContainer.new()
 	_ore_legend.theme_type_variation = &"HudPanel"
@@ -200,13 +234,22 @@ func _build_top_center() -> void:
 
 
 func _build_build_menu() -> void:
+	# Правая колонка: панель настройки над меню строительства. Высота меню постоянная,
+	# поэтому панель настройки не прыгает, пока курсор движется к ней.
+	var column := UiUtil.vbox(8)
+	column.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	column.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	column.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	column.offset_right = -16
+	column.offset_bottom = -16
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(column)
+	var config := ConfigPanel.new()
+	config.size_flags_horizontal = Control.SIZE_SHRINK_END
+	column.add_child(config)
+	config.setup(_game.tools, _game.world)
 	var menu := BuildMenu.new()
-	menu.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	menu.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	menu.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	menu.offset_right = -16
-	menu.offset_bottom = -16
-	_root.add_child(menu)
+	column.add_child(menu)
 	menu.setup(_game.tools, _game.world)
 
 
@@ -283,10 +326,10 @@ func _update_hint() -> void:
 			_hint_label.text = tr("HINT_DELETE") % [primary, InputActions.primary_label(&"delete_mode")]
 		_:
 			_hint_label.text = tr("HINT_IDLE") % [
-				InputActions.primary_label(&"rotate"),
+				primary, InputActions.primary_label(&"rotate"),
 				InputActions.primary_label(&"area_modifier"), primary,
 				InputActions.primary_label(&"delete_mode"), InputActions.primary_label(&"pipette"),
-				InputActions.primary_label(&"overlay_ores")]
+				InputActions.primary_label(&"overlay_ores"), InputActions.primary_label(&"overlay_belts")]
 	_update_problem()
 
 

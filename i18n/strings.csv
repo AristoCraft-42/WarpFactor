@@ -47,7 +47,7 @@ BUILDING_OVERFLOW_GATE_DESC,"Outputs forward; when the front is blocked, outputs
 BUILDING_UNDERFLOW_GATE,Underflow Gate,Обратный шлюз
 BUILDING_UNDERFLOW_GATE_DESC,"Outputs to the sides; when they are blocked, outputs forward.","Отдаёт в стороны, а когда там занято — вперёд."
 BUILDING_BRIDGE_CONVEYOR,Bridge Conveyor,Мостовой конвейер
-BUILDING_BRIDGE_CONVEYOR_DESC,"Carries items over other buildings, up to 4 tiles.",Переносит предметы над другими постройками на расстояние до 4 тайлов.
+BUILDING_BRIDGE_CONVEYOR_DESC,Carries items over other buildings to a linked bridge up to 4 tiles away. Bridges placed in a row link automatically.,"Переносит предметы над постройками к связанному мосту на расстоянии до 4 тайлов. Мосты, поставленные в ряд, связываются сами."
 BUILDING_UNLOADER,Unloader,Разгрузчик
 BUILDING_UNLOADER_DESC,Takes items out of an adjacent storage or the core.,Достаёт предметы из соседнего хранилища или ядра.
 BUILDING_PULVERIZER,Pulverizer,Дробилка
@@ -178,7 +178,7 @@ HUD_INFO_NO_ORE,No ore,Руды нет
 HUD_INFO_BUILDING,Building: %s,Здание: %s
 HINT_PLACE,%s  ·  %s — place (hold to drag a line)  ·  %s — rotate  ·  RMB or %s — cancel,%s  ·  %s — поставить (с зажатием — линией)  ·  %s — поворот  ·  ПКМ или %s — отмена
 HINT_DELETE,Demolition  ·  %s — remove (hold to select an area)  ·  %s — leave the mode,Снос  ·  %s — снести (с зажатием — рамкой)  ·  %s — выйти из режима
-HINT_IDLE,Pick a building on the right  ·  %s — rotate building  ·  %s+%s — demolish area  ·  %s — demolition mode  ·  %s — pipette  ·  %s — resource map,Выберите здание справа  ·  %s — повернуть здание  ·  %s+%s — снос рамкой  ·  %s — режим сноса  ·  %s — пипетка  ·  %s — карта ресурсов
+HINT_IDLE,Pick a building on the right  ·  %s on a building — configure  ·  %s — rotate  ·  %s+%s — demolish area  ·  %s — demolition  ·  %s — pipette  ·  %s / %s — overlays,Выберите здание справа  ·  %s по зданию — настройка  ·  %s — повернуть  ·  %s+%s — снос рамкой  ·  %s — снос  ·  %s — пипетка  ·  %s / %s — оверлеи
 CONFIRM_TITLE,Confirmation,Подтверждение
 CONFIRM_DELETE_OK,Demolish,Снести
 CONFIRM_CANCEL,Cancel,Отмена
@@ -212,3 +212,25 @@ ACTION_PAUSE,Pause,Пауза
 ACTION_SPEED_1,Speed ×1,Скорость ×1
 ACTION_SPEED_2,Speed ×2,Скорость ×2
 ACTION_SPEED_3,Speed ×4,Скорость ×4
+STAT_BRIDGE_RANGE,Range: %d tiles,Дальность: %d тайла
+STAT_TRANSFER_TIME,Delay: %.2f s,Задержка: %.2f с
+INFO_FILTER,Filter: %s,Фильтр: %s
+INFO_FILTER_NONE,No filter selected,Фильтр не выбран
+INFO_FILTER_ANY,Unloads any items,Выгружает любые предметы
+INFO_EMPTY,Empty,Пусто
+INFO_HOLDING,Holding: %s,Держит: %s
+INFO_BUFFERED,Buffered: %d,В буфере: %d
+INFO_BRIDGE_LINKED,Linked to a bridge %d tiles away,Связан с мостом через %d тайла
+INFO_BRIDGE_END,End of chain: outputs to neighbours,Конец цепочки: отдаёт соседям
+CONFIG_SORTER_HINT,Choose the filter item.,Выберите предмет для фильтра.
+CONFIG_UNLOADER_HINT,Choose what to take from the adjacent storage.,"Выберите, что забирать из соседнего хранилища."
+CONFIG_NO_ITEM,No filter,Без фильтра
+CONFIG_ANY_ITEM,Any items,Любые предметы
+CONFIG_BRIDGE_HINT,Click another bridge within %d tiles in a straight line to link. Click a linked bridge again to unlink.,"Кликните по другому мосту в пределах %d тайлов по прямой, чтобы связать. Повторный клик по связанному мосту разрывает связь."
+CONFIG_BRIDGE_UNLINK,Unlink,Разорвать связь
+ACTION_OVERLAY_BELTS,Belt load,Загрузка лент
+HUD_BELT_LEGEND,Belt load,Загрузка лент
+HUD_BELT_EMPTY,Empty,Пустая
+HUD_BELT_FLOWING,Flowing,Поток
+HUD_BELT_DENSE,Dense flow,Плотный поток
+HUD_BELT_BLOCKED,Stopped (jam),Стоит (затор)

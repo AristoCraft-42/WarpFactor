@@ -39,6 +39,7 @@ static func definitions() -> Array[Dictionary]:
 		{"name": &"speed_3", "label": "ACTION_SPEED_3", "group": GROUP_TIME, "events": ["key:3"]},
 
 		{"name": &"overlay_ores", "label": "ACTION_OVERLAY_ORES", "group": GROUP_VIEW, "events": ["key:O"]},
+		{"name": &"overlay_belts", "label": "ACTION_OVERLAY_BELTS", "group": GROUP_VIEW, "events": ["key:L"]},
 		{"name": &"toggle_grid", "label": "ACTION_TOGGLE_GRID", "group": GROUP_VIEW, "events": ["key:G"]},
 		{"name": &"toggle_debug", "label": "ACTION_TOGGLE_DEBUG", "group": GROUP_VIEW, "events": ["key:F3"]},
 	]

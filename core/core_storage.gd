@@ -67,6 +67,18 @@ func add_without_delivery(item: int, amount: int) -> void:
 	_store(item, amount)
 
 
+## Изъять предметы (разгрузчик). Доставка учитывается нетто: изъятое вычитается из счётчика,
+## иначе петля «ядро → разгрузчик → лента → ядро» давала бы бесконечный прогресс.
+func take(item: int, amount: int = 1) -> bool:
+	if counts[item] < amount:
+		return false
+	counts[item] -= amount
+	delivered[item] -= amount
+	_stats.record_outcome(item, amount)
+	revision += 1
+	return true
+
+
 func can_afford(cost: Array[ItemStack]) -> bool:
 	for stack in cost:
 		if counts[stack.item.index] < stack.amount:

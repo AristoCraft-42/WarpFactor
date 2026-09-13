@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="BuildingDef" format=3]
+[gd_resource type="Resource" script_class="LogisticDef" format=3]
 
-[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://buildings/transport/logistic_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/transport/router.gd" id="3_logic"]
 [ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
 
 [sub_resource type="Resource" id="cost_0"]
@@ -23,3 +24,6 @@ sort_order = 40
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
 color = Color(0.478, 0.420, 0.310, 1)
 glyph = 3
+logic_script = ExtResource("3_logic")
+transfer_ticks = 3
+capacity = 1

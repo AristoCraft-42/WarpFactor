@@ -95,6 +95,27 @@ func schedule(building: Building, at_tick: int) -> void:
 
 
 func add_waiter(target_id: int, waiter_id: int) -> void:
+	# Мгновенные здания (сортировщик, шлюзы) не имеют буфера и сами никого не будят:
+	# ждём их соседей — именно у них освободится место.
+	var target := _manager.get_by_id(target_id)
+	if target is PassThroughBuilding:
+		_add_waiter_through(target, waiter_id, 0)
+		return
+	_add_waiter_direct(target_id, waiter_id)
+
+
+func _add_waiter_through(target: Building, waiter_id: int, depth: int) -> void:
+	for other in target.proximity:
+		if other.id == waiter_id:
+			continue
+		if other is PassThroughBuilding:
+			if depth < PassThroughBuilding.MAX_DEPTH:
+				_add_waiter_through(other, waiter_id, depth + 1)
+		else:
+			_add_waiter_direct(other.id, waiter_id)
+
+
+func _add_waiter_direct(target_id: int, waiter_id: int) -> void:
 	if not _waiters.has(target_id):
 		_waiters[target_id] = PackedInt32Array()
 	var list := _waiters[target_id]

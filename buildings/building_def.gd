@@ -57,6 +57,11 @@ func check_placement(_grid: WorldGrid, _origin: Vector2i) -> int:
 	return BuildingManager.Check.OK
 
 
+## Шаг при протягивании ряда (для моста — его дальность).
+func get_line_step() -> int:
+	return size
+
+
 ## Строки характеристик для подсказок меню строительства.
 func get_stat_lines() -> PackedStringArray:
 	return PackedStringArray()

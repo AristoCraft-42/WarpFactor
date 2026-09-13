@@ -10,6 +10,9 @@ extends RefCounted
 ## Передача предметов: источник спрашивает accept_item и, получив true, вызывает handle_item.
 ## Задел под энергию и жидкости: такие протоколы добавятся методами с поведением «нет» по умолчанию.
 
+## Вид настройки здания (что показывает панель настройки).
+enum ConfigKind { NONE, ITEM, BRIDGE }
+
 ## Уникальный id в BuildingManager (0 — «нет здания»).
 var id: int = 0
 var def: BuildingDef
@@ -162,10 +165,36 @@ func get_info_lines() -> PackedStringArray:
 	return PackedStringArray()
 
 
-## Настройка здания (фильтр сортировщика, связь моста и т. п.). Используется пипеткой.
+# --- Хранилища (разгрузчик берёт из них предметы) ---
+
+func can_unload() -> bool:
+	return false
+
+
+func has_item(_item: int) -> bool:
+	return false
+
+
+## Забрать один предмет. true — предмет изъят.
+func unload_item(_item: int) -> bool:
+	return false
+
+
+# --- Настройка ---
+
+func get_config_kind() -> ConfigKind:
+	return ConfigKind.NONE
+
+
+## Настройка здания (фильтр сортировщика, связь моста и т. п.). Копируется пипеткой.
 func get_config() -> Variant:
 	return null
 
 
 func set_config(_value: Variant) -> void:
 	pass
+
+
+## Предмет, иконку которого показать на здании (-1 — нет).
+func get_display_item() -> int:
+	return -1

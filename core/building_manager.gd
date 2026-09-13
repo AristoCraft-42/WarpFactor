@@ -7,6 +7,8 @@ extends RefCounted
 signal building_added(building: Building)
 signal building_removed(building: Building)
 signal building_rotated(building: Building)
+## Изменилась настройка или внешний вид здания (перерисовать чанк).
+signal building_changed(building: Building)
 
 ## Результат проверки размещения.
 enum Check {
@@ -135,6 +137,11 @@ func rotate(building: Building, new_rotation: int) -> bool:
 	building.on_rotated(old)
 	building_rotated.emit(building)
 	return true
+
+
+func notify_changed(building: Building) -> void:
+	if building != null and building.id != 0:
+		building_changed.emit(building)
 
 
 ## Сносит здание. Неудаляемые (ядро) сносятся только с force=true.

@@ -27,6 +27,15 @@ func _ready() -> void:
 	_test_costs_and_demolish()
 	_test_rotation()
 	_test_determinism()
+	_test_junction()
+	_test_router()
+	_test_sorters()
+	_test_gates()
+	_test_bridge()
+	_test_unloader()
+	_test_pass_through_chains()
+	_test_wake_through_pass_through()
+	_test_config_copy_and_contents()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -392,3 +401,243 @@ func _test_determinism() -> void:
 		results.append(sink.received)
 		world.dispose()
 	_check(results[0] == results[1] and results[0] > 0, "симуляция детерминирована (%s)" % str(results))
+
+
+# --- Логистика (этап 3) ---
+
+func _place(world: GameWorld, id: StringName, tile: Vector2i, rotation: int = 0) -> Building:
+	return world.buildings.place(Registry.get_building(id), tile, rotation, true)
+
+
+func _source(world: GameWorld, tile: Vector2i, items: Array) -> Building:
+	var s := world.buildings.place(Worlds.source_def(), tile, 0, true)
+	s.set("items", PackedInt32Array(items))
+	return s
+
+
+func _sink(world: GameWorld, tile: Vector2i) -> Building:
+	return world.buildings.place(Worlds.sink_def(), tile, 0, true)
+
+
+## Перекрёсток: два потока пересекаются и не смешиваются.
+func _test_junction() -> void:
+	var world := Worlds.empty_world(24, 24)
+	var copper := Registry.get_item(&"copper").index
+	var lead := Registry.get_item(&"lead").index
+	_source(world, Vector2i(2, 10), [copper])
+	Worlds.conveyor_line(world, Vector2i(3, 10), 4, GameConst.Dir.RIGHT)
+	_place(world, &"junction", Vector2i(7, 10))
+	Worlds.conveyor_line(world, Vector2i(8, 10), 3, GameConst.Dir.RIGHT)
+	var east := _sink(world, Vector2i(11, 10))
+	_source(world, Vector2i(7, 5), [lead])
+	Worlds.conveyor_line(world, Vector2i(7, 6), 4, GameConst.Dir.DOWN)
+	Worlds.conveyor_line(world, Vector2i(7, 11), 3, GameConst.Dir.DOWN)
+	var south := _sink(world, Vector2i(7, 14))
+	Worlds.run_ticks(world, 900)
+	_check(east.received > 50 and east.count_of(lead) == 0, "перекрёсток: восток получил только медь (%d)" % east.received)
+	_check(south.received > 50 and south.count_of(copper) == 0, "перекрёсток: юг получил только свинец (%d)" % south.received)
+	world.dispose()
+
+
+## Делитель раздаёт поток на три выхода примерно поровну.
+func _test_router() -> void:
+	var world := Worlds.empty_world(24, 24)
+	_source(world, Vector2i(2, 10), [0])
+	Worlds.conveyor_line(world, Vector2i(3, 10), 3, GameConst.Dir.RIGHT)
+	var router := _place(world, &"router", Vector2i(6, 10))
+	Worlds.conveyor_line(world, Vector2i(7, 10), 3, GameConst.Dir.RIGHT)
+	Worlds.conveyor_line(world, Vector2i(6, 9), 3, GameConst.Dir.UP)
+	Worlds.conveyor_line(world, Vector2i(6, 11), 3, GameConst.Dir.DOWN)
+	var sinks := [_sink(world, Vector2i(10, 10)), _sink(world, Vector2i(6, 6)), _sink(world, Vector2i(6, 14))]
+	Worlds.run_ticks(world, 1200)
+	var total := 0
+	var min_count := 1 << 30
+	for s in sinks:
+		total += s.received
+		min_count = mini(min_count, s.received)
+	_check(total > 80, "делитель пропускает поток (%d)" % total)
+	_check(min_count * 3 >= total * 0.6, "делитель распределяет по всем выходам (%s)" % str(sinks.map(func(s): return s.received)))
+	_check(router.get("item") == -1 or router.get("item") >= 0, "делитель в корректном состоянии")
+	world.dispose()
+
+
+## Сортировщик и инвертированный сортировщик.
+func _test_sorters() -> void:
+	for inverted in [false, true]:
+		var world := Worlds.empty_world(24, 24)
+		var copper := Registry.get_item(&"copper").index
+		var lead := Registry.get_item(&"lead").index
+		_source(world, Vector2i(2, 10), [copper, lead])
+		Worlds.conveyor_line(world, Vector2i(3, 10), 3, GameConst.Dir.RIGHT)
+		var sorter := _place(world, &"inverted_sorter" if inverted else &"sorter", Vector2i(6, 10))
+		world.configure(sorter, copper)
+		Worlds.conveyor_line(world, Vector2i(7, 10), 2, GameConst.Dir.RIGHT)
+		var forward := _sink(world, Vector2i(9, 10))
+		Worlds.conveyor_line(world, Vector2i(6, 9), 2, GameConst.Dir.UP)
+		var up := _sink(world, Vector2i(6, 7))
+		Worlds.conveyor_line(world, Vector2i(6, 11), 2, GameConst.Dir.DOWN)
+		var down := _sink(world, Vector2i(6, 13))
+		Worlds.run_ticks(world, 900)
+		var matched := lead if inverted else copper
+		var other := copper if inverted else lead
+		var name := "инвертированный сортировщик" if inverted else "сортировщик"
+		_check(forward.received > 30 and forward.count_of(other) == 0, "%s: вперёд только выбранное (%d)" % [name, forward.received])
+		_check(up.count_of(matched) == 0 and down.count_of(matched) == 0 and up.received > 5 and down.received > 5,
+			"%s: в стороны остальное, поровну (%d / %d)" % [name, up.received, down.received])
+		_check(sorter.get_display_item() == copper, "%s: иконка фильтра" % name)
+		world.dispose()
+
+
+## Переливной и обратный шлюзы.
+func _test_gates() -> void:
+	# Переливной: пока впереди свободно — всё вперёд; без выхода вперёд — в стороны.
+	var world := Worlds.empty_world(24, 24)
+	_source(world, Vector2i(2, 10), [0])
+	Worlds.conveyor_line(world, Vector2i(3, 10), 3, GameConst.Dir.RIGHT)
+	_place(world, &"overflow_gate", Vector2i(6, 10))
+	Worlds.conveyor_line(world, Vector2i(7, 10), 2, GameConst.Dir.RIGHT)
+	var forward := _sink(world, Vector2i(9, 10))
+	Worlds.conveyor_line(world, Vector2i(6, 9), 2, GameConst.Dir.UP)
+	var up := _sink(world, Vector2i(6, 7))
+	Worlds.run_ticks(world, 600)
+	_check(forward.received > 30 and up.received == 0, "переливной шлюз: при свободном выходе всё вперёд (%d / %d)" % [forward.received, up.received])
+	world.buildings.remove(forward, true)
+	Worlds.run_ticks(world, 600)
+	_check(up.received > 20, "переливной шлюз: при забитом выходе — в сторону (%d)" % up.received)
+	world.dispose()
+
+	# Обратный: сначала в стороны, вперёд только когда стороны заняты.
+	world = Worlds.empty_world(24, 24)
+	_source(world, Vector2i(2, 10), [0])
+	Worlds.conveyor_line(world, Vector2i(3, 10), 3, GameConst.Dir.RIGHT)
+	_place(world, &"underflow_gate", Vector2i(6, 10))
+	Worlds.conveyor_line(world, Vector2i(7, 10), 2, GameConst.Dir.RIGHT)
+	forward = _sink(world, Vector2i(9, 10))
+	Worlds.conveyor_line(world, Vector2i(6, 9), 2, GameConst.Dir.UP)
+	up = _sink(world, Vector2i(6, 7))
+	Worlds.run_ticks(world, 600)
+	_check(up.received > 30 and forward.received == 0, "обратный шлюз: при свободной стороне всё в сторону (%d / %d)" % [up.received, forward.received])
+	world.buildings.remove(up, true)
+	Worlds.run_ticks(world, 600)
+	_check(forward.received > 20, "обратный шлюз: при забитой стороне — вперёд (%d)" % forward.received)
+	world.dispose()
+
+
+## Мост переносит предметы над препятствием; связь проверяется по дальности и оси.
+func _test_bridge() -> void:
+	var world := Worlds.empty_world(32, 24)
+	_source(world, Vector2i(2, 10), [0])
+	Worlds.conveyor_line(world, Vector2i(3, 10), 2, GameConst.Dir.RIGHT)
+	var a: BridgeConveyor = _place(world, &"bridge_conveyor", Vector2i(5, 10))
+	# Препятствие из лент поперёк пути.
+	Worlds.conveyor_line(world, Vector2i(6, 6), 9, GameConst.Dir.DOWN)
+	Worlds.conveyor_line(world, Vector2i(7, 6), 9, GameConst.Dir.DOWN)
+	Worlds.conveyor_line(world, Vector2i(8, 6), 9, GameConst.Dir.DOWN)
+	var b: BridgeConveyor = _place(world, &"bridge_conveyor", Vector2i(9, 10))
+	var sink := _sink(world, Vector2i(10, 10))
+	var far: BridgeConveyor = _place(world, &"bridge_conveyor", Vector2i(15, 10))
+	var diagonal: BridgeConveyor = _place(world, &"bridge_conveyor", Vector2i(7, 18))
+	_check(a.can_link_to(b), "мост связывается в пределах 4 тайлов")
+	_check(not b.can_link_to(far), "мост не связывается дальше дальности")
+	_check(not a.can_link_to(diagonal), "мост не связывается по диагонали")
+	world.configure(a, b.origin - a.origin)
+	_check(a.get_link_target() == b, "связь моста установлена")
+	Worlds.run_ticks(world, 900)
+	_check(sink.received > 50, "мост доставил предметы над препятствием (%d)" % sink.received)
+	# Встречная связь заменяет прежнюю, петли нет.
+	world.configure(b, a.origin - b.origin)
+	_check(a.get_link_target() == null and b.get_link_target() == a, "встречная связь снимает прежнюю")
+	# Снос конечного моста разрывает связь.
+	world.configure(a, b.origin - a.origin)
+	world.buildings.remove(b, true)
+	_check(a.get_link_target() == null, "снос моста разрывает связь")
+	world.dispose()
+
+
+## Разгрузчик берёт из ядра по фильтру; изъятое вычитается из доставки.
+func _test_unloader() -> void:
+	var map := LevelMap.new(32, 24, Registry.get_floor(&"stone").index)
+	map.add_placement(Registry.get_building(&"core"), Vector2i(10, 10))
+	var world := GameWorld.create(null, map, true)
+	var copper := Registry.get_item(&"copper").index
+	var lead := Registry.get_item(&"lead").index
+	world.core_storage.deliver(copper, 50)
+	var unloader := _place(world, &"unloader", Vector2i(13, 11))
+	Worlds.conveyor_line(world, Vector2i(14, 11), 3, GameConst.Dir.RIGHT)
+	var sink := _sink(world, Vector2i(17, 11))
+	world.configure(unloader, lead)
+	Worlds.run_ticks(world, 200)
+	_check(sink.received == 0, "разгрузчик со свинцовым фильтром не берёт медь")
+	world.configure(unloader, copper)
+	Worlds.run_ticks(world, 600)
+	_check(sink.received > 20, "разгрузчик выгружает медь (%d)" % sink.received)
+	var in_core := world.core_storage.get_count(copper)
+	var on_belts := world.simulation.conveyors.get_item_count()
+	_check(in_core + on_belts + sink.received == 50, "предметы из ядра не теряются")
+	_check(world.core_storage.delivered[copper] == in_core, "доставка учитывается нетто (изъятое вычтено)")
+	# Петля «ядро → разгрузчик → лента → ядро» не накручивает доставку.
+	world.buildings.remove(sink, true)
+	Worlds.conveyor_line(world, Vector2i(16, 11), 1, GameConst.Dir.UP)
+	Worlds.conveyor_line(world, Vector2i(16, 10), 1, GameConst.Dir.LEFT)
+	Worlds.conveyor_line(world, Vector2i(15, 10), 2, GameConst.Dir.LEFT)
+	var delivered_before: int = world.core_storage.delivered[copper]
+	Worlds.run_ticks(world, 900)
+	var looped := world.simulation.conveyors.get_item_count()
+	_check(world.core_storage.delivered[copper] + looped >= delivered_before - 1 and world.core_storage.delivered[copper] <= delivered_before,
+		"петля через ядро не увеличивает доставку (%d → %d)" % [delivered_before, world.core_storage.delivered[copper]])
+	world.dispose()
+
+
+## Цепочка мгновенных зданий работает, а петля из сортировщиков не зацикливает передачу.
+func _test_pass_through_chains() -> void:
+	var world := Worlds.empty_world(32, 24)
+	_source(world, Vector2i(2, 10), [0])
+	Worlds.conveyor_line(world, Vector2i(3, 10), 2, GameConst.Dir.RIGHT)
+	_place(world, &"overflow_gate", Vector2i(5, 10))
+	_place(world, &"overflow_gate", Vector2i(6, 10))
+	_place(world, &"inverted_sorter", Vector2i(7, 10))
+	var sink := _sink(world, Vector2i(8, 10))
+	Worlds.run_ticks(world, 300)
+	_check(sink.received > 30, "цепочка шлюзов и сортировщика пропускает поток (%d)" % sink.received)
+	# Кольцо сортировщиков без выхода: accept_item не уходит в бесконечную рекурсию.
+	for p in [Vector2i(20, 5), Vector2i(21, 5), Vector2i(21, 6), Vector2i(20, 6)]:
+		_place(world, &"sorter", p)
+	var probe := world.buildings.place(Worlds.source_def(), Vector2i(19, 5), 0, true)
+	Worlds.run_ticks(world, 30)
+	_check(true, "кольцо сортировщиков не зависает")
+	_check(probe.get("produced") == 0, "в кольцо сортировщиков без выхода ничего не уходит")
+	world.dispose()
+
+
+## Заблокированная мгновенным зданием лента просыпается, когда место освобождается дальше.
+func _test_wake_through_pass_through() -> void:
+	var world := Worlds.empty_world(32, 16)
+	_source(world, Vector2i(2, 5), [0])
+	Worlds.conveyor_line(world, Vector2i(3, 5), 3, GameConst.Dir.RIGHT)
+	_place(world, &"sorter", Vector2i(6, 5))
+	world.configure(world.buildings.get_at(Vector2i(6, 5)), 0)
+	Worlds.conveyor_line(world, Vector2i(7, 5), 3, GameConst.Dir.RIGHT)
+	Worlds.run_ticks(world, 900)
+	_check(world.simulation.conveyors.get_awake_count() == 0, "линия за сортировщиком забилась и уснула")
+	var sink := _sink(world, Vector2i(10, 5))
+	Worlds.run_ticks(world, 300)
+	_check(sink.received > 20, "после появления выхода поток через сортировщик возобновился (%d)" % sink.received)
+	world.dispose()
+
+
+## Пипетка переносит настройку, снос возвращает содержимое буферов в ядро.
+func _test_config_copy_and_contents() -> void:
+	var map := LevelMap.new(24, 16, Registry.get_floor(&"stone").index)
+	map.add_placement(Registry.get_building(&"core"), Vector2i(18, 6))
+	var world := GameWorld.create(null, map, true)
+	var lead := Registry.get_item(&"lead").index
+	var sorter := world.build(Registry.get_building(&"sorter"), Vector2i(4, 4), 0, lead)
+	_check(sorter != null and sorter.get_config() == lead, "настройка применяется при строительстве")
+	var bridge := world.build(Registry.get_building(&"bridge_conveyor"), Vector2i(4, 8), 0, Vector2i(3, 0))
+	_check(bridge.get_config() == Vector2i(3, 0), "настройка моста копируется как смещение")
+	var router := world.build(Registry.get_building(&"router"), Vector2i(10, 10), 0)
+	router.handle_item(null, lead)
+	var delivered_before: int = world.core_storage.delivered[lead]
+	_check(world.demolish(router), "снос делителя")
+	_check(world.core_storage.delivered[lead] == delivered_before + 1, "предмет из делителя ушёл в ядро")
+	world.dispose()

@@ -44,6 +44,7 @@ func _run_game(game: Game) -> void:
 
 	await _run_interaction(game)
 	await _run_production_chain(game)
+	await _run_logistics(game)
 
 	game.ore_overlay.visible = true
 	game.hud.set_ore_legend_visible(true)
@@ -274,6 +275,129 @@ func _run_production_chain(game: Game) -> void:
 	var delivered_after_fix := world.core_storage.delivered[copper]
 	await _wait_ticks(world, 20 * GameConst.TICK_RATE)
 	_expect(world.core_storage.delivered[copper] > delivered_after_fix, "после обратного поворота поток восстановился")
+
+
+## Логистика: витрина зданий, настройка кликами, мосты, оверлей загрузки лент.
+func _run_logistics(game: Game) -> void:
+	var world := game.world
+	var bm := world.buildings
+	var tools := game.tools
+	var copper := Registry.get_item(&"copper").index
+	var lead := Registry.get_item(&"lead").index
+	var core := world.get_core()
+	var base := core.origin
+	var conveyor := Registry.get_building(&"conveyor")
+
+	# Витрина: разгрузчик у ядра → сортировщик → делитель → мост над препятствием, перекрёсток.
+	var right := base + Vector2i(3, 1)
+	var unloader := bm.place(Registry.get_building(&"unloader"), right, 0, true)
+	world.configure(unloader, copper)
+	Worlds_line(world, right + Vector2i(1, 0), 3, GameConst.Dir.RIGHT)
+	var sorter := bm.place(Registry.get_building(&"sorter"), right + Vector2i(4, 0), 0, true)
+	world.configure(sorter, copper)
+	Worlds_line(world, right + Vector2i(5, 0), 2, GameConst.Dir.RIGHT)
+	bm.place(Registry.get_building(&"router"), right + Vector2i(7, 0), 0, true)
+	Worlds_line(world, right + Vector2i(8, 0), 2, GameConst.Dir.RIGHT)
+	var bridge_a := bm.place(Registry.get_building(&"bridge_conveyor"), right + Vector2i(10, 0), 0, true)
+	Worlds_line(world, right + Vector2i(11, -2), 5, GameConst.Dir.DOWN)
+	Worlds_line(world, right + Vector2i(12, -2), 5, GameConst.Dir.DOWN)
+	var bridge_b := bm.place(Registry.get_building(&"bridge_conveyor"), right + Vector2i(13, 0), 0, true)
+	world.configure(bridge_a, bridge_b.origin - bridge_a.origin)
+	Worlds_line(world, right + Vector2i(14, 0), 3, GameConst.Dir.RIGHT)
+	Worlds_line(world, right + Vector2i(7, 1), 3, GameConst.Dir.DOWN)
+	bm.place(Registry.get_building(&"junction"), right + Vector2i(7, 4), 0, true)
+	Worlds_line(world, right + Vector2i(7, 5), 2, GameConst.Dir.DOWN)
+	Worlds_line(world, right + Vector2i(4, 4), 3, GameConst.Dir.RIGHT)
+	Worlds_line(world, right + Vector2i(8, 4), 3, GameConst.Dir.RIGHT)
+	bm.place(Registry.get_building(&"overflow_gate"), right + Vector2i(7, -1), 0, true)
+	Worlds_line(world, right + Vector2i(7, -2), 2, GameConst.Dir.UP)
+
+	game.camera.focus_on(Vector2((right + Vector2i(8, 1)) * GameConst.TILE_SIZE), 1.1)
+	game.clock.set_speed_index(2)
+	await _wait_ticks(world, 15 * GameConst.TICK_RATE)
+	game.clock.set_speed_index(0)
+	await _frames(10)
+	await _shot("g09_logistics.png")
+	_expect(sorter.get_display_item() == copper, "сортировщик показывает фильтр")
+	_expect(bridge_a.get_link_target() == bridge_b, "мост витрины связан")
+
+	game.belt_overlay.visible = true
+	game.hud.set_belt_legend_visible(true)
+	await _frames(20)
+	await _shot("g10_belt_overlay.png")
+	game.belt_overlay.visible = false
+	game.hud.set_belt_legend_visible(false)
+
+	# Настройка сортировщика кликом: выбрать здание, затем предмет в панели.
+	await _mouse_move(game, sorter.origin)
+	await _mouse_button(game, sorter.origin, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, sorter.origin, MOUSE_BUTTON_LEFT, false)
+	_expect(tools.selected == sorter, "клик пустой рукой выбирает сортировщик")
+	var panel := _find_child_of_type(game.hud, "ConfigPanel") as ConfigPanel
+	await _frames(3)
+	_expect(panel != null and panel.visible, "открылась панель настройки")
+	await _shot("i04_config_panel.png")
+	var grid := _find_child_of_class(panel, "GridContainer")
+	if grid != null and grid.get_child_count() > lead + 1:
+		await _click_control(grid.get_child(lead + 1) as Control)
+	_expect(sorter.get_config() == lead, "клик по свинцу в панели меняет фильтр")
+	await _key(KEY_ESCAPE)
+	_expect(tools.selected == null and not panel.visible, "Esc снимает выбор и закрывает панель")
+
+	# Пипетка копирует фильтр.
+	await _mouse_move(game, sorter.origin)
+	await _key(KEY_Q)
+	_expect(tools.place_def == sorter.def and tools.place_config == lead, "пипетка копирует фильтр сортировщика")
+	await _key(KEY_ESCAPE)
+
+	# Связь мостов кликами.
+	var row := base + Vector2i(3, 7)
+	var first := bm.place(Registry.get_building(&"bridge_conveyor"), row, 0, true)
+	var second := bm.place(Registry.get_building(&"bridge_conveyor"), row + Vector2i(3, 0), 0, true)
+	await _mouse_move(game, first.origin)
+	await _mouse_button(game, first.origin, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, first.origin, MOUSE_BUTTON_LEFT, false)
+	await _mouse_move(game, second.origin)
+	await _frames(3)
+	await _shot("i05_bridge_range.png")
+	await _mouse_button(game, second.origin, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, second.origin, MOUSE_BUTTON_LEFT, false)
+	_expect(first.get_link_target() == second, "клик по второму мосту связывает мосты")
+	_expect(tools.selected == second, "после связи выбран второй мост (можно продолжать цепочку)")
+	await _key(KEY_ESCAPE)
+
+	# Протягивание мостов: шаг равен дальности, цепочка связывается сама.
+	var bridge_def := Registry.get_building(&"bridge_conveyor")
+	tools.select_building(bridge_def)
+	var start := base + Vector2i(3, 9)
+	var finish := start + Vector2i(8, 0)
+	await _mouse_move(game, start)
+	await _mouse_button(game, start, MOUSE_BUTTON_LEFT, true)
+	await _mouse_move(game, start + Vector2i(1, 0))
+	await _mouse_move(game, finish)
+	await _mouse_button(game, finish, MOUSE_BUTTON_LEFT, false)
+	var b0 := bm.get_at(start) as BridgeConveyor
+	var b1 := bm.get_at(start + Vector2i(4, 0)) as BridgeConveyor
+	var b2 := bm.get_at(finish) as BridgeConveyor
+	_expect(b0 != null and b1 != null and b2 != null, "протягивание ставит мосты через 4 тайла")
+	_expect(b0 != null and b1 != null and b0.get_link_target() == b1 and b1.get_link_target() == b2, "протянутые мосты связаны цепочкой")
+	await _key(KEY_ESCAPE)
+
+
+func Worlds_line(world: GameWorld, start: Vector2i, length: int, dir: int) -> void:
+	var def := Registry.get_building(&"conveyor")
+	for i in length:
+		world.buildings.place(def, start + GameConst.dir_vector(dir) * i, dir, true)
+
+
+func _find_child_of_class(node: Node, class_name_text: String) -> Node:
+	for child in node.get_children():
+		if child.get_class() == class_name_text:
+			return child
+		var nested := _find_child_of_class(child, class_name_text)
+		if nested != null:
+			return nested
+	return null
 
 
 # --- Утилиты ---

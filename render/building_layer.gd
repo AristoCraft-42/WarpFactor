@@ -14,6 +14,7 @@ func setup(world: GameWorld) -> void:
 	world.buildings.building_added.connect(_on_building_changed)
 	world.buildings.building_removed.connect(_on_building_changed)
 	world.buildings.building_rotated.connect(_on_building_changed)
+	world.buildings.building_changed.connect(_on_building_changed)
 	for b in world.buildings.get_all():
 		_on_building_changed(b)
 
@@ -40,6 +41,26 @@ func _process(_delta: float) -> void:
 			_views[chunk_idx] = view
 		view.queue_redraw()
 	_dirty.clear()
+
+
+## Детали поверх здания, зависящие от настройки: иконка фильтра, связь моста.
+static func draw_building_extras(canvas: CanvasItem, building: Building) -> void:
+	var item := building.get_display_item()
+	if item >= 0:
+		var t := float(GameConst.TILE_SIZE)
+		var icon_size := t * 0.5
+		var center := building.get_world_center()
+		canvas.draw_rect(Rect2(center - Vector2.ONE * (icon_size * 0.5 + 2.0), Vector2.ONE * (icon_size + 4.0)), Color(0, 0, 0, 0.55))
+		canvas.draw_texture_rect_region(ArtRegistry.item_atlas, Rect2(center - Vector2.ONE * icon_size * 0.5, Vector2.ONE * icon_size),
+			Rect2(item * t, 0, t, t))
+	if building is BridgeConveyor:
+		var target := (building as BridgeConveyor).get_link_target()
+		if target != null:
+			var from := building.get_world_center()
+			var to := target.get_world_center()
+			canvas.draw_line(from, to, Color(0.1, 0.1, 0.1, 0.6), 6.0)
+			canvas.draw_line(from, to, Color(0.98, 0.74, 0.18, 0.85), 3.0)
+			canvas.draw_circle(to, 4.0, Color(0.98, 0.74, 0.18, 0.95))
 
 
 ## Рисует здание (или «призрак» при размещении) на произвольном CanvasItem.

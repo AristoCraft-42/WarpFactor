@@ -63,7 +63,8 @@ func check_build(def: BuildingDef, origin: Vector2i, rotation: int, budget: Core
 
 
 ## Строит здание игроком: списывает стоимость (при замене — сначала сносит старое с возвратом).
-func build(def: BuildingDef, origin: Vector2i, rotation: int) -> Building:
+## config — настройка, скопированная пипеткой (фильтр, связь моста).
+func build(def: BuildingDef, origin: Vector2i, rotation: int, config: Variant = null) -> Building:
 	var check := check_build(def, origin, rotation)
 	if check != BuildingManager.Check.OK and check != BuildingManager.Check.REPLACE:
 		return null
@@ -75,7 +76,22 @@ func build(def: BuildingDef, origin: Vector2i, rotation: int) -> Building:
 	var building := buildings.place(def, origin, rotation)
 	if building == null and not sandbox:
 		core_storage.refund(def.cost)
+	if building != null and config != null:
+		configure(building, config)
 	return building
+
+
+## Меняет настройку здания. Для мостов убирает встречную связь (A→B при B→A).
+func configure(building: Building, value: Variant) -> void:
+	if building == null or building.world != self or building.get_config_kind() == Building.ConfigKind.NONE:
+		return
+	if building is BridgeConveyor and value is Vector2i and value != Vector2i.ZERO:
+		var target := buildings.get_at(building.origin + value)
+		if target is BridgeConveyor and (target as BridgeConveyor).link == -(value as Vector2i):
+			target.set_config(null)
+			buildings.notify_changed(target)
+	building.set_config(value)
+	buildings.notify_changed(building)
 
 
 ## Сносит здание игроком: возврат стоимости, содержимое — в ядро (засчитывается как доставка).

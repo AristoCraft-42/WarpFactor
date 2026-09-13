@@ -7,6 +7,7 @@ const COLOR_VALID := Color(0.72, 0.73, 0.15)
 const COLOR_REPLACE := Color(0.51, 0.65, 0.6)
 const COLOR_INVALID := Color(0.98, 0.29, 0.2)
 const COLOR_HOVER := Color(0.92, 0.86, 0.7, 0.8)
+const COLOR_SELECTED := Color(0.98, 0.74, 0.18)
 
 
 ## Один планируемый к установке объект.
@@ -27,6 +28,7 @@ var _ghosts: Array[Ghost] = []
 var _delete_rect: Rect2i = Rect2i()
 var _delete_targets: Array[Building] = []
 var _hover: Building
+var _selected: Building
 
 
 func set_ghosts(ghosts: Array[Ghost]) -> void:
@@ -47,6 +49,13 @@ func set_hover(building: Building) -> void:
 	queue_redraw()
 
 
+func set_selection(building: Building) -> void:
+	if building == _selected:
+		return
+	_selected = building
+	queue_redraw()
+
+
 func clear() -> void:
 	_ghosts = []
 	_delete_rect = Rect2i()
@@ -59,6 +68,11 @@ func _draw() -> void:
 
 	if _hover != null and _hover.id != 0 and _ghosts.is_empty() and _delete_rect.size == Vector2i.ZERO:
 		draw_rect(_hover.get_world_rect().grow(1.0), COLOR_HOVER, false, 2.0)
+
+	if _selected != null and _selected.id != 0:
+		if _selected is BridgeConveyor:
+			_draw_bridge_range(_selected as BridgeConveyor)
+		draw_rect(_selected.get_world_rect().grow(3.0), COLOR_SELECTED, false, 3.0)
 
 	for g in _ghosts:
 		var rect := Rect2(Vector2(g.origin) * t, g.def.get_pixel_size())
@@ -81,3 +95,19 @@ func _draw() -> void:
 	for b in _delete_targets:
 		if b.id != 0:
 			draw_rect(b.get_world_rect().grow(-1.0), COLOR_INVALID, false, 2.0)
+
+
+## Дальность моста: тайлы по четырём направлениям, мосты-кандидаты обведены.
+func _draw_bridge_range(bridge: BridgeConveyor) -> void:
+	if bridge.world == null:
+		return
+	var t := float(GameConst.TILE_SIZE)
+	for dir in 4:
+		var step := GameConst.dir_vector(dir)
+		for distance in range(1, bridge.get_range() + 1):
+			var tile := bridge.origin + step * distance
+			var rect := Rect2(Vector2(tile) * t, Vector2(t, t))
+			if bridge.world.buildings.get_at(tile) is BridgeConveyor:
+				draw_rect(rect.grow(-2.0), COLOR_SELECTED, false, 2.0)
+			else:
+				draw_rect(rect.grow(-6.0), Color(COLOR_SELECTED, 0.18), true)

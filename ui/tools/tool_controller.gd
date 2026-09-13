@@ -12,6 +12,8 @@ signal plan_changed
 signal pause_menu_requested
 ## Снос большого числа зданий — интерфейс спрашивает подтверждение и вызывает remove_buildings.
 signal delete_confirmation_requested(targets: Array[Building])
+## Выбрано здание для настройки (или выбор снят).
+signal selection_changed
 
 enum Mode { NONE, PLACE, DELETE }
 enum Drag { NONE, PLACE, DELETE }
@@ -19,6 +21,10 @@ enum Drag { NONE, PLACE, DELETE }
 var mode: Mode = Mode.NONE
 var place_def: BuildingDef
 var rotation: int = 0
+## Настройка, скопированная пипеткой; применяется к новым зданиям того же типа.
+var place_config: Variant = null
+## Здание, выбранное для настройки (фильтр, связь моста).
+var selected: Building
 var input_enabled: bool = true:
 	set(value):
 		input_enabled = value
@@ -46,6 +52,8 @@ var _last_key: Vector2i = Vector2i(-999999, -999999)
 var _dirty: bool = true
 var _over_ui: bool = false
 var _storage_revision: int = -1
+## Последний построенный мост — новый мост в линию с ним связывается автоматически.
+var _last_bridge: BridgeConveyor
 
 
 func setup(world: GameWorld, camera: CameraController, preview: PlacementPreview) -> void:
@@ -56,11 +64,15 @@ func setup(world: GameWorld, camera: CameraController, preview: PlacementPreview
 	_world.buildings.building_added.connect(_on_world_changed)
 	_world.buildings.building_removed.connect(_on_world_changed)
 	_world.buildings.building_rotated.connect(_on_world_changed)
+	_world.buildings.building_changed.connect(_on_world_changed)
+	_world.buildings.building_removed.connect(_on_building_removed)
 
 
-func select_building(def: BuildingDef) -> void:
+func select_building(def: BuildingDef, config: Variant = null) -> void:
 	_cancel_drag()
+	select(null)
 	place_def = def
+	place_config = config
 	mode = Mode.PLACE
 	_dirty = true
 	mode_changed.emit()
@@ -68,6 +80,7 @@ func select_building(def: BuildingDef) -> void:
 
 func set_delete_mode() -> void:
 	_cancel_drag()
+	select(null)
 	place_def = null
 	mode = Mode.DELETE
 	_dirty = true
@@ -77,9 +90,19 @@ func set_delete_mode() -> void:
 func clear_tool() -> void:
 	_cancel_drag()
 	place_def = null
+	place_config = null
 	mode = Mode.NONE
 	_dirty = true
 	mode_changed.emit()
+
+
+## Выбрать здание для настройки (null — снять выбор).
+func select(building: Building) -> void:
+	if building == selected:
+		return
+	selected = building
+	_dirty = true
+	selection_changed.emit()
 
 
 func is_dragging() -> bool:
@@ -100,6 +123,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_begin_drag(Drag.DELETE)
 		elif mode == Mode.PLACE:
 			_begin_drag(Drag.PLACE)
+		else:
+			_click_select()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_released("build_primary"):
 		if _drag != Drag.NONE:
@@ -120,6 +145,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("cancel"):
 		if _drag != Drag.NONE:
 			_cancel_drag()
+		elif selected != null:
+			select(null)
 		elif mode != Mode.NONE:
 			clear_tool()
 		else:
@@ -154,11 +181,12 @@ func _process(_delta: float) -> void:
 	var tile := GameConst.world_to_tile(mouse_world)
 	var in_bounds := _world.grid.in_bounds_v(tile)
 	var hovered := _world.buildings.get_at(tile) if in_bounds else null
-	if tile != hover_tile or hovered != hover_building or in_bounds != hover_in_bounds:
+	# Над интерфейсом «здание под курсором» не меняется: иначе инфо-панель прыгает под мышью.
+	if not (_over_ui and _drag == Drag.NONE):
 		hover_tile = tile
 		hover_building = hovered
 		hover_in_bounds = in_bounds
-	hover_changed.emit()
+		hover_changed.emit()
 
 	if not input_enabled or (_over_ui and _drag == Drag.NONE):
 		_set_ghosts([])
@@ -184,6 +212,7 @@ func _process(_delta: float) -> void:
 			_delete_targets = []
 			_preview.set_delete_selection(Rect2i(), [])
 			_preview.set_hover(hovered)
+	_preview.set_selection(selected)
 
 
 func _begin_drag(kind: Drag) -> void:
@@ -205,13 +234,18 @@ func _finish_drag() -> void:
 		Drag.PLACE:
 			var last_rotation := rotation
 			var short_of_resources := false
+			var built: Array[Building] = []
 			for g in _ghosts:
 				if g.check == BuildingManager.Check.OK or g.check == BuildingManager.Check.REPLACE:
-					if _world.build(g.def, g.origin, g.rotation) == null:
+					var b := _world.build(g.def, g.origin, g.rotation, place_config)
+					if b == null:
 						short_of_resources = true
+					else:
+						built.append(b)
 				elif g.check == BuildingManager.Check.NOT_AFFORDABLE:
 					short_of_resources = true
 				last_rotation = g.rotation
+			_link_new_bridges(built)
 			if short_of_resources:
 				Events.toast(tr("TOAST_NOT_ENOUGH_RESOURCES"), Events.ToastKind.WARNING)
 			if place_def != null and place_def.line_placement and _ghosts.size() > 1:
@@ -265,7 +299,7 @@ func _pipette() -> void:
 		Events.toast(tr("TOAST_PIPETTE_UNAVAILABLE") % tr(b.def.name_key), Events.ToastKind.WARNING)
 		return
 	rotation = b.rotation
-	select_building(b.def)
+	select_building(b.def, b.get_config())
 
 
 func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
@@ -283,7 +317,7 @@ func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, _world.check_build(def, origin, rot, budget)))
 	elif _drag == Drag.PLACE:
 		var end_origin := GameConst.origin_for_size(mouse_world, def.size)
-		for origin in LinePlanner.straight_line(_drag_start, end_origin, def.size):
+		for origin in LinePlanner.straight_line(_drag_start, end_origin, def.get_line_step()):
 			ghosts.append(PlacementPreview.Ghost.new(def, origin, rotation, _world.check_build(def, origin, rotation, budget)))
 	else:
 		var origin := GameConst.origin_for_size(mouse_world, def.size)
@@ -320,8 +354,52 @@ func _on_pan_clicked() -> void:
 		return
 	if _drag != Drag.NONE:
 		_cancel_drag()
+	elif selected != null:
+		select(null)
 	elif mode != Mode.NONE:
 		clear_tool()
+
+
+## Клик пустой рукой: выбрать настраиваемое здание; для выбранного моста клик по другому мосту
+## в пределах дальности связывает их (повторный клик по связанному — разрывает связь).
+func _click_select() -> void:
+	var clicked := hover_building
+	if selected is BridgeConveyor and clicked is BridgeConveyor and clicked != selected:
+		var bridge := selected as BridgeConveyor
+		if bridge.can_link_to(clicked):
+			var offset := clicked.origin - bridge.origin
+			_world.configure(bridge, null if bridge.link == offset else offset)
+			select(clicked)
+			return
+	if clicked != null and clicked.get_config_kind() != Building.ConfigKind.NONE and clicked != selected:
+		select(clicked)
+	else:
+		select(null)
+
+
+## Связывает только что построенные мосты цепочкой, а первый — с предыдущим построенным мостом.
+func _link_new_bridges(built: Array[Building]) -> void:
+	var bridges: Array[BridgeConveyor] = []
+	for b in built:
+		if b is BridgeConveyor:
+			bridges.append(b)
+	if bridges.is_empty():
+		return
+	if place_config == null:
+		var last := _last_bridge
+		if last != null and last.world != null and last.link == Vector2i.ZERO and last.can_link_to(bridges[0]):
+			_world.configure(last, bridges[0].origin - last.origin)
+		for i in bridges.size() - 1:
+			if bridges[i].can_link_to(bridges[i + 1]):
+				_world.configure(bridges[i], bridges[i + 1].origin - bridges[i].origin)
+	_last_bridge = bridges[bridges.size() - 1]
+
+
+func _on_building_removed(building: Building) -> void:
+	if building == selected:
+		select(null)
+	if building == _last_bridge:
+		_last_bridge = null
 
 
 func _on_world_changed(_building: Building) -> void:

@@ -10,6 +10,21 @@ func accept_item(_source: Building, _item: int) -> bool:
 
 func handle_item(_source: Building, item: int) -> void:
 	world.core_storage.deliver(item, 1)
+	# Разгрузчики, ждущие появления предметов.
+	if world.simulation.has_waiters(id):
+		notify_space()
+
+
+func can_unload() -> bool:
+	return true
+
+
+func has_item(item: int) -> bool:
+	return world.core_storage.get_count(item) > 0
+
+
+func unload_item(item: int) -> bool:
+	return world.core_storage.take(item, 1)
 
 
 func get_info_lines() -> PackedStringArray:

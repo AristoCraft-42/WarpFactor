@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="BuildingDef" format=3]
+[gd_resource type="Resource" script_class="LogisticDef" format=3]
 
-[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://buildings/transport/logistic_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/transport/unloader.gd" id="3_logic"]
 [ext_resource type="Resource" path="res://items/types/titanium.tres" id="item_titanium"]
 [ext_resource type="Resource" path="res://items/types/silicon.tres" id="item_silicon"]
 
@@ -29,3 +30,5 @@ sort_order = 100
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
 color = Color(0.310, 0.447, 0.447, 1)
 glyph = 7
+logic_script = ExtResource("3_logic")
+transfer_ticks = 3

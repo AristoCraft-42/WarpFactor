@@ -14,3 +14,8 @@ func _draw() -> void:
 		var b := manager.get_by_id(id)
 		if b != null:
 			BuildingLayer.draw_building(self, b.def, b.origin, b.rotation)
+	# Детали рисуются вторым проходом, чтобы не разрывать батч основных спрайтов.
+	for id in manager.get_chunk_ids(chunk_index):
+		var b := manager.get_by_id(id)
+		if b != null and (b.get_display_item() >= 0 or b is BridgeConveyor):
+			BuildingLayer.draw_building_extras(self, b)

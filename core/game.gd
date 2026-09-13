@@ -10,6 +10,7 @@ var grid_overlay: GridOverlay
 var building_layer: BuildingLayer
 var item_renderer: ItemRenderer
 var ore_overlay: OreOverlay
+var belt_overlay: BeltLoadOverlay
 var preview: PlacementPreview
 var camera: CameraController
 var tools: ToolController
@@ -114,6 +115,10 @@ func _build_scene() -> void:
 	add_child(ore_overlay)
 	ore_overlay.setup(world.grid)
 
+	belt_overlay = BeltLoadOverlay.new()
+	belt_overlay.name = "BeltLoadOverlay"
+	add_child(belt_overlay)
+
 	preview = PlacementPreview.new()
 	preview.name = "Preview"
 	add_child(preview)
@@ -125,6 +130,7 @@ func _build_scene() -> void:
 	camera.setup(world.grid.get_pixel_size())
 	camera.view_changed.connect(_on_view_changed)
 	item_renderer.setup(world, camera, clock)
+	belt_overlay.setup(world, camera)
 
 	tools = ToolController.new()
 	tools.name = "Tools"
@@ -151,6 +157,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("overlay_ores"):
 		ore_overlay.visible = not ore_overlay.visible
 		hud.set_ore_legend_visible(ore_overlay.visible)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("overlay_belts"):
+		belt_overlay.visible = not belt_overlay.visible
+		hud.set_belt_legend_visible(belt_overlay.visible)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_grid"):
 		Settings.set_value(&"game/show_grid", not Settings.get_bool(&"game/show_grid"))
