@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="LevelDef" format=3]
+
+[ext_resource type="Script" path="res://world/level_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"rift"
+title_key = "LEVEL_RIFT_TITLE"
+description_key = "LEVEL_RIFT_DESC"
+order = 2
+map_path = "res://levels/maps/02_rift.fwmap"

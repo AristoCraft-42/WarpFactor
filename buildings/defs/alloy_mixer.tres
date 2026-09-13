@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"alloy_mixer"
+name_key = "BUILDING_ALLOY_MIXER"
+description_key = "BUILDING_ALLOY_MIXER_DESC"
+category = 2
+size = 3
+rotatable = false
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 60
+color = Color(0.561, 0.498, 0.227, 1)
+glyph = 12

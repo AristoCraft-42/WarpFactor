@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"sand"
+name_key = "ITEM_SAND"
+color = Color(0.890, 0.800, 0.561, 1)
+icon_shape = 6
+sort_order = 40

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"silicon"
+name_key = "ITEM_SILICON"
+color = Color(0.490, 0.529, 0.580, 1)
+icon_shape = 8
+sort_order = 90

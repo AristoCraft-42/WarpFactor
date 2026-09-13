@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="FloorDef" format=3]
+
+[ext_resource type="Script" path="res://world/floor_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"gravel"
+name_key = "FLOOR_GRAVEL"
+color = Color(0.341, 0.314, 0.290, 1)
+buildable = true
+pattern = 1
+sort_order = 30

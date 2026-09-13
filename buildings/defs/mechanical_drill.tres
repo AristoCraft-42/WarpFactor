@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"mechanical_drill"
+name_key = "BUILDING_MECHANICAL_DRILL"
+description_key = "BUILDING_MECHANICAL_DRILL_DESC"
+category = 0
+size = 2
+rotatable = false
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 10
+color = Color(0.541, 0.427, 0.306, 1)
+glyph = 8

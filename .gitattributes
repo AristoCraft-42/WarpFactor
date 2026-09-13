@@ -1,0 +1,6 @@
+# Godot хранит текстовые файлы с LF
+* text=auto eol=lf
+
+*.png binary
+*.fwmap binary
+*.translation binary

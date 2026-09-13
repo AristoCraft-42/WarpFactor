@@ -1,0 +1,45 @@
+class_name DebugOverlay
+extends PanelContainer
+## Отладочная информация (F3): FPS, время кадра, вызовы отрисовки, число зданий и чанков.
+## Обновляется 4 раза в секунду, а не каждый кадр.
+
+const REFRESH_INTERVAL := 0.25
+
+var _game: Game
+var _label: Label
+var _timer: float = 0.0
+
+
+func setup(game: Game) -> void:
+	_game = game
+	theme_type_variation = &"HudPanel"
+	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_label = Label.new()
+	_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_label.add_theme_font_size_override("font_size", 14)
+	_label.add_theme_color_override("font_color", UiTheme.AQUA)
+	add_child(_label)
+	visible = false
+
+
+func _process(delta: float) -> void:
+	if not visible:
+		return
+	_timer -= delta
+	if _timer > 0.0:
+		return
+	_timer = REFRESH_INTERVAL
+	var world := _game.world
+	var lines := PackedStringArray()
+	lines.append("FPS: %d   frame: %.2f ms" % [Engine.get_frames_per_second(), Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0])
+	lines.append("draw calls: %d   objects: %d" % [
+		Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+		Performance.get_monitor(Performance.OBJECT_COUNT)])
+	lines.append("memory: %.1f MB   video: %.1f MB" % [
+		Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
+		Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0])
+	lines.append("map: %d×%d   chunks: %d×%d" % [world.grid.width, world.grid.height, world.grid.chunks_x(), world.grid.chunks_y()])
+	lines.append("buildings: %d   building chunks: %d   tile chunks: %d" % [
+		world.buildings.get_count(), _game.building_layer.get_view_count(), _game.terrain.get_filled_chunk_count()])
+	lines.append("zoom: %.2f   camera tile: %s" % [_game.camera.user_zoom, Vector2i(_game.camera.position / GameConst.TILE_SIZE)])
+	_label.text = "\n".join(lines)

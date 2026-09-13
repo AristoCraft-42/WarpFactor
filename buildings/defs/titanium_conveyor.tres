@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"titanium_conveyor"
+name_key = "BUILDING_TITANIUM_CONVEYOR"
+description_key = "BUILDING_TITANIUM_CONVEYOR_DESC"
+category = 1
+size = 1
+rotatable = true
+removable = true
+player_buildable = true
+line_placement = true
+sort_order = 20
+color = Color(0.337, 0.384, 0.478, 1)
+glyph = 1

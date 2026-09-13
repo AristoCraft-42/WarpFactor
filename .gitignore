@@ -1,0 +1,6 @@
+# Кэш и импорт Godot
+.godot/
+*.tmp
+
+# Сборки
+/builds/

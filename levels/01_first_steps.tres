@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="LevelDef" format=3]
+
+[ext_resource type="Script" path="res://world/level_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"first_steps"
+title_key = "LEVEL_FIRST_STEPS_TITLE"
+description_key = "LEVEL_FIRST_STEPS_DESC"
+order = 1
+map_path = "res://levels/maps/01_first_steps.fwmap"

@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"graphite"
+name_key = "ITEM_GRAPHITE"
+color = Color(0.353, 0.416, 0.561, 1)
+icon_shape = 7
+sort_order = 80

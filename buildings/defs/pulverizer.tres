@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"pulverizer"
+name_key = "BUILDING_PULVERIZER"
+description_key = "BUILDING_PULVERIZER_DESC"
+category = 2
+size = 1
+rotatable = false
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 10
+color = Color(0.478, 0.431, 0.384, 1)
+glyph = 9
