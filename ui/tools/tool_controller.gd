@@ -1,10 +1,14 @@
 class_name ToolController
 extends Node
 ## Инструменты игрока: строительство (одиночное и протягиванием), снос (клик и рамка),
-## пипетка, отмена. Превью обновляется только при смене тайла под курсором или состояния.
+## пипетка, поворот (здания в руке или стоящего под курсором), отмена.
+## Все изменения мира идут через GameWorld (стоимость, возврат, содержимое в ядро).
+## Превью обновляется только при смене тайла под курсором, состояния или запасов ядра.
 
 signal mode_changed
 signal hover_changed
+## Изменился план размещения (для подсказки о причине невалидности).
+signal plan_changed
 signal pause_menu_requested
 ## Снос большого числа зданий — интерфейс спрашивает подтверждение и вызывает remove_buildings.
 signal delete_confirmation_requested(targets: Array[Building])
@@ -24,6 +28,8 @@ var input_enabled: bool = true:
 var hover_tile: Vector2i = Vector2i(-1, -1)
 var hover_building: Building
 var hover_in_bounds: bool = false
+## Первая причина, по которой план нельзя построить (Check.OK — всё в порядке).
+var plan_problem: BuildingManager.Check = BuildingManager.Check.OK
 
 var _world: GameWorld
 var _camera: CameraController
@@ -39,6 +45,7 @@ var _delete_targets: Array[Building] = []
 var _last_key: Vector2i = Vector2i(-999999, -999999)
 var _dirty: bool = true
 var _over_ui: bool = false
+var _storage_revision: int = -1
 
 
 func setup(world: GameWorld, camera: CameraController, preview: PlacementPreview) -> void:
@@ -48,6 +55,7 @@ func setup(world: GameWorld, camera: CameraController, preview: PlacementPreview
 	_camera.pan_clicked.connect(_on_pan_clicked)
 	_world.buildings.building_added.connect(_on_world_changed)
 	_world.buildings.building_removed.connect(_on_world_changed)
+	_world.buildings.building_rotated.connect(_on_world_changed)
 
 
 func select_building(def: BuildingDef) -> void:
@@ -80,7 +88,7 @@ func is_dragging() -> bool:
 
 func remove_buildings(targets: Array[Building]) -> void:
 	for b in targets:
-		_world.buildings.remove(b)
+		_world.demolish(b)
 	_dirty = true
 
 
@@ -130,6 +138,10 @@ func _process(_delta: float) -> void:
 	if over_ui != _over_ui:
 		_over_ui = over_ui
 		_dirty = true
+	# Запасы ядра влияют на доступность построек в превью.
+	if mode == Mode.PLACE and _world.core_storage.revision != _storage_revision:
+		_storage_revision = _world.core_storage.revision
+		_dirty = true
 
 	var mouse_world := _camera.get_mouse_world()
 	var half := float(GameConst.TILE_SIZE) * 0.5
@@ -146,11 +158,11 @@ func _process(_delta: float) -> void:
 		hover_tile = tile
 		hover_building = hovered
 		hover_in_bounds = in_bounds
-		hover_changed.emit()
+	hover_changed.emit()
 
 	if not input_enabled or (_over_ui and _drag == Drag.NONE):
-		_ghosts = []
-		_preview.clear()
+		_set_ghosts([])
+		_preview.set_delete_selection(Rect2i(), [])
 		_preview.set_hover(null)
 		return
 
@@ -168,9 +180,9 @@ func _process(_delta: float) -> void:
 		Mode.DELETE:
 			_update_delete_selection(Rect2i(tile, Vector2i.ONE))
 		_:
-			_ghosts = []
+			_set_ghosts([])
 			_delete_targets = []
-			_preview.clear()
+			_preview.set_delete_selection(Rect2i(), [])
 			_preview.set_hover(hovered)
 
 
@@ -192,10 +204,16 @@ func _finish_drag() -> void:
 	match kind:
 		Drag.PLACE:
 			var last_rotation := rotation
+			var short_of_resources := false
 			for g in _ghosts:
 				if g.check == BuildingManager.Check.OK or g.check == BuildingManager.Check.REPLACE:
-					_world.buildings.place(g.def, g.origin, g.rotation)
+					if _world.build(g.def, g.origin, g.rotation) == null:
+						short_of_resources = true
+				elif g.check == BuildingManager.Check.NOT_AFFORDABLE:
+					short_of_resources = true
 				last_rotation = g.rotation
+			if short_of_resources:
+				Events.toast(tr("TOAST_NOT_ENOUGH_RESOURCES"), Events.ToastKind.WARNING)
 			if place_def != null and place_def.line_placement and _ghosts.size() > 1:
 				rotation = last_rotation
 		Drag.DELETE:
@@ -205,7 +223,7 @@ func _finish_drag() -> void:
 				delete_confirmation_requested.emit(targets)
 			else:
 				remove_buildings(targets)
-	_ghosts = []
+	_set_ghosts([])
 	_preview.clear()
 
 
@@ -221,15 +239,21 @@ func _cancel_drag() -> void:
 
 
 func _rotate() -> void:
-	if mode != Mode.PLACE or place_def == null:
-		return
-	if _drag == Drag.PLACE and place_def.line_placement:
-		# Во время протягивания R меняет, по какой оси трасса идёт сначала.
-		_x_first = not _x_first
-		_axis_locked = true
-	else:
-		rotation = (rotation + 1) % 4
-	_dirty = true
+	match mode:
+		Mode.PLACE:
+			if place_def == null:
+				return
+			if _drag == Drag.PLACE and place_def.line_placement:
+				# Во время протягивания R меняет, по какой оси трасса идёт сначала.
+				_x_first = not _x_first
+				_axis_locked = true
+			else:
+				rotation = (rotation + 1) % 4
+			_dirty = true
+		Mode.NONE:
+			# Пустой рукой R поворачивает здание под курсором.
+			if hover_building != null and _world.rotate_building(hover_building, 1):
+				_dirty = true
 
 
 func _pipette() -> void:
@@ -246,6 +270,7 @@ func _pipette() -> void:
 
 func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 	var def := place_def
+	var budget := _world.core_storage.make_budget()
 	var ghosts: Array[PlacementPreview.Ghost] = []
 	if _drag == Drag.PLACE and def.line_placement:
 		var delta := tile - _drag_start
@@ -255,17 +280,29 @@ func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 		for step in LinePlanner.l_path(_drag_start, tile, _x_first, rotation):
 			var origin := Vector2i(step.x, step.y)
 			var rot := step.z if def.rotatable else 0
-			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, _world.buildings.check_place(def, origin, rot)))
+			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, _world.check_build(def, origin, rot, budget)))
 	elif _drag == Drag.PLACE:
 		var end_origin := GameConst.origin_for_size(mouse_world, def.size)
 		for origin in LinePlanner.straight_line(_drag_start, end_origin, def.size):
-			ghosts.append(PlacementPreview.Ghost.new(def, origin, rotation, _world.buildings.check_place(def, origin, rotation)))
+			ghosts.append(PlacementPreview.Ghost.new(def, origin, rotation, _world.check_build(def, origin, rotation, budget)))
 	else:
 		var origin := GameConst.origin_for_size(mouse_world, def.size)
-		ghosts.append(PlacementPreview.Ghost.new(def, origin, rotation, _world.buildings.check_place(def, origin, rotation)))
-	_ghosts = ghosts
+		ghosts.append(PlacementPreview.Ghost.new(def, origin, rotation, _world.check_build(def, origin, rotation, budget)))
 	_preview.set_delete_selection(Rect2i(), [])
+	_set_ghosts(ghosts)
+
+
+func _set_ghosts(ghosts: Array[PlacementPreview.Ghost]) -> void:
+	_ghosts = ghosts
 	_preview.set_ghosts(ghosts)
+	var problem := BuildingManager.Check.OK
+	for g in ghosts:
+		if not BuildingManager.is_valid_check(g.check):
+			problem = g.check
+			break
+	if problem != plan_problem:
+		plan_problem = problem
+		plan_changed.emit()
 
 
 func _update_delete_selection(rect: Rect2i) -> void:
@@ -274,7 +311,7 @@ func _update_delete_selection(rect: Rect2i) -> void:
 		if b.def.removable:
 			targets.append(b)
 	_delete_targets = targets
-	_preview.set_ghosts([])
+	_set_ghosts([])
 	_preview.set_delete_selection(rect if _drag == Drag.DELETE else Rect2i(), targets)
 
 

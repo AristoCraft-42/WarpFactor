@@ -91,8 +91,8 @@ static func load_map(path: String) -> LevelMap:
 		push_error("LevelIO: %s — файл обрезан" % path)
 		return null
 
-	_remap_layer(map.floors, _build_floor_lut(floor_ids))
-	_remap_layer(map.ores, _build_ore_lut(ore_ids))
+	map.floors = _remap_layer(map.floors, _build_floor_lut(floor_ids))
+	map.ores = _remap_layer(map.ores, _build_ore_lut(ore_ids))
 
 	var placement_count := file.get_32()
 	for i in placement_count:
@@ -164,8 +164,8 @@ static func _build_ore_lut(ids: PackedStringArray) -> PackedByteArray:
 
 
 ## Переназначает значения слоя по LUT. Если для всех встречающихся значений
-## LUT тождественна (обычный случай) — слой не трогается.
-static func _remap_layer(layer: PackedByteArray, lut: PackedByteArray) -> void:
+## LUT тождественна (обычный случай) — возвращает слой без изменений.
+static func _remap_layer(layer: PackedByteArray, lut: PackedByteArray) -> PackedByteArray:
 	var used := PackedByteArray()
 	used.resize(256)
 	used.fill(0)
@@ -178,6 +178,7 @@ static func _remap_layer(layer: PackedByteArray, lut: PackedByteArray) -> void:
 			needs = true
 			break
 	if not needs:
-		return
+		return layer
 	for i in n:
 		layer[i] = lut[layer[i]]
+	return layer

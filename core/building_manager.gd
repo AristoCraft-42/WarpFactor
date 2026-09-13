@@ -6,6 +6,7 @@ extends RefCounted
 
 signal building_added(building: Building)
 signal building_removed(building: Building)
+signal building_rotated(building: Building)
 
 ## Результат проверки размещения.
 enum Check {
@@ -15,6 +16,8 @@ enum Check {
 	OUT_OF_BOUNDS,
 	BAD_TERRAIN,
 	OCCUPIED,
+	NO_ORE, ## буру нечего добывать
+	NOT_AFFORDABLE, ## не хватает ресурсов в ядре (выставляет GameWorld)
 }
 
 var grid: WorldGrid
@@ -68,6 +71,9 @@ func check_place(def: BuildingDef, origin: Vector2i, rotation: int) -> Check:
 					existing_id = id
 				elif existing_id != id:
 					occupied_by_other = true
+	var extra := def.check_placement(grid, origin)
+	if extra != Check.OK:
+		return extra as Check
 	if existing_id == 0:
 		return Check.OK
 	if occupied_by_other:
@@ -109,16 +115,26 @@ func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = fals
 		for x in range(rect.position.x, rect.end.x):
 			grid.building_ids[grid.index_of(x, y)] = building.id
 
-	# Packed-массивы копируются при записи — работаем через локальную копию и записываем обратно.
 	var chunk_idx := grid.chunk_index(GameConst.tile_to_chunk(origin))
-	var list := _chunk_lists[chunk_idx]
-	list.append(building.id)
-	_chunk_lists[chunk_idx] = list
+	_chunk_lists[chunk_idx].append(building.id)
 	_count += 1
 
 	building.on_placed()
 	building_added.emit(building)
 	return building
+
+
+## Поворачивает здание на новое направление. false — если поворот невозможен или не нужен.
+func rotate(building: Building, new_rotation: int) -> bool:
+	if building == null or building.id == 0 or not building.def.rotatable:
+		return false
+	var old := building.rotation
+	building.rotation = posmod(new_rotation, 4)
+	if building.rotation == old:
+		return false
+	building.on_rotated(old)
+	building_rotated.emit(building)
+	return true
 
 
 ## Сносит здание. Неудаляемые (ядро) сносятся только с force=true.
@@ -136,11 +152,9 @@ func remove(building: Building, force: bool = false) -> bool:
 			grid.building_ids[grid.index_of(x, y)] = 0
 
 	var chunk_idx := grid.chunk_index(GameConst.tile_to_chunk(building.origin))
-	var list := _chunk_lists[chunk_idx]
-	var pos := list.find(building.id)
+	var pos := _chunk_lists[chunk_idx].find(building.id)
 	if pos >= 0:
-		list.remove_at(pos)
-		_chunk_lists[chunk_idx] = list
+		_chunk_lists[chunk_idx].remove_at(pos)
 
 	_by_id[building.id] = null
 	_free_ids.append(building.id)
@@ -196,6 +210,7 @@ func dispose() -> void:
 	for b in _by_id:
 		if b != null:
 			b.world = null
+			b.proximity = []
 	_by_id.clear()
 	_world = null
 

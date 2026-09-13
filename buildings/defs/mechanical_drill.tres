@@ -1,18 +1,31 @@
-[gd_resource type="Resource" script_class="BuildingDef" format=3]
+[gd_resource type="Resource" script_class="DrillDef" format=3]
 
-[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_script"]
+[ext_resource type="Script" path="res://buildings/production/drill_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/production/drill.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_copper")
+amount = 12
 
 [resource]
-script = ExtResource("1_script")
+script = ExtResource("1_def")
 id = &"mechanical_drill"
 name_key = "BUILDING_MECHANICAL_DRILL"
 description_key = "BUILDING_MECHANICAL_DRILL_DESC"
 category = 0
 size = 2
-rotatable = false
 removable = true
 player_buildable = true
 line_placement = false
 sort_order = 10
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
 color = Color(0.541, 0.427, 0.306, 1)
 glyph = 8
+logic_script = ExtResource("3_logic")
+tier = 2
+base_seconds = 8.0
+hardness_seconds = 2.0
+item_capacity = 10

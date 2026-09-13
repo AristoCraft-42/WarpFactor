@@ -13,6 +13,7 @@ func setup(world: GameWorld) -> void:
 	_world = world
 	world.buildings.building_added.connect(_on_building_changed)
 	world.buildings.building_removed.connect(_on_building_changed)
+	world.buildings.building_rotated.connect(_on_building_changed)
 	for b in world.buildings.get_all():
 		_on_building_changed(b)
 

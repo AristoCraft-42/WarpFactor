@@ -1,18 +1,31 @@
 [gd_resource type="Resource" script_class="BuildingDef" format=3]
 
-[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_script"]
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_copper")
+amount = 2
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_lead")
+amount = 2
 
 [resource]
-script = ExtResource("1_script")
+script = ExtResource("1_def")
 id = &"inverted_sorter"
 name_key = "BUILDING_INVERTED_SORTER"
 description_key = "BUILDING_INVERTED_SORTER_DESC"
 category = 1
 size = 1
-rotatable = false
 removable = true
 player_buildable = true
 line_placement = false
 sort_order = 60
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
 color = Color(0.439, 0.314, 0.416, 1)
 glyph = 4

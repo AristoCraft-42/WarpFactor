@@ -296,6 +296,10 @@ static func make_building(def: BuildingDef) -> Image:
 	var k := float(s) / T # масштаб глифа
 	var glyph_col := LIGHT.lerp(body, 0.2)
 	var dark := body.darkened(0.6)
+
+	# Метка «лица» здания на правой грани: спрайты нарисованы «вправо», так виден поворот.
+	var notch := 3.0 + def.size
+	_poly(img, PackedVector2Array([Vector2(s - 2, c.y), Vector2(s - 2 - notch, c.y - notch), Vector2(s - 2 - notch, c.y + notch)]), ACCENT.darkened(0.15))
 	match def.glyph:
 		BuildingDef.Glyph.CROSS:
 			_rect(img, Rect2i(Vector2i(c - Vector2(11, 3) * k), Vector2i(Vector2(22, 6) * k)), glyph_col)

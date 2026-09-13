@@ -15,6 +15,8 @@ const BUILDING_ATLAS_WIDTH := 512
 const BUILDING_ATLAS_PADDING := 2
 
 static var terrain_tileset: TileSet
+## Иконки всех предметов в одну полосу (ячейка на индекс предмета) — для MultiMesh предметов.
+static var item_atlas: Texture2D
 static var _floor_row_offset: int = 0
 static var _ore_row_offset: int = 0
 static var _building_textures: Dictionary[StringName, Texture2D] = {}
@@ -32,6 +34,7 @@ static func ensure_built() -> void:
 	Registry.ensure_loaded()
 	_build_terrain()
 	_build_building_atlas()
+	_build_item_atlas()
 
 
 ## Текстура здания — область общего атласа (AtlasTexture).
@@ -53,6 +56,26 @@ static func get_item_icon(item: ItemType) -> Texture2D:
 		tex = ImageTexture.create_from_image(PlaceholderArt.make_item_icon(item))
 		_item_icons[item.id] = tex
 	return tex
+
+
+static func _build_item_atlas() -> void:
+	var t := GameConst.TILE_SIZE
+	var atlas := Image.create_empty(t * maxi(Registry.items.size(), 1), t, false, Image.FORMAT_RGBA8)
+	atlas.fill(Color(0, 0, 0, 0))
+	for item in Registry.items:
+		var img: Image = null
+		if item.icon != null:
+			img = item.icon.get_image()
+			if img != null:
+				if img.is_compressed():
+					img.decompress()
+				img.convert(Image.FORMAT_RGBA8)
+				if img.get_width() != t or img.get_height() != t:
+					img.resize(t, t, Image.INTERPOLATE_NEAREST)
+		if img == null:
+			img = PlaceholderArt.make_item_icon(item)
+		atlas.blit_rect(img, Rect2i(0, 0, t, t), Vector2i(item.index * t, 0))
+	item_atlas = ImageTexture.create_from_image(atlas)
 
 
 ## Координаты тайла пола в атласе (вариант выбирается хешем позиции).

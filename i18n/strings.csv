@@ -63,7 +63,7 @@ BUILDING_SEPARATOR_DESC,Separates crushed rock into random ores.,Разделя�
 BUILDING_ALLOY_MIXER,Alloy Mixer,Смеситель сплава
 BUILDING_ALLOY_MIXER_DESC,"Mixes copper, lead and titanium into alloy.","Смешивает медь, свинец и титан в сплав."
 BUILDING_CORE,Core,Ядро
-BUILDING_CORE_DESC,The heart of the base: resources are delivered here.,Сердце базы: сюда доставляются ресурсы.
+BUILDING_CORE_DESC,The heart of the base: accepts any items from all sides. Items over the limit are burned but still count as delivered.,"Сердце базы: принимает любые предметы со всех сторон. Сверх лимита предметы сгорают, но засчитываются как доставленные."
 BUILDING_CONTAINER,Container,Контейнер
 BUILDING_CONTAINER_DESC,A small local storage.,Небольшое локальное хранилище.
 BUILDING_VAULT,Vault,Хранилище
@@ -178,10 +178,37 @@ HUD_INFO_NO_ORE,No ore,Руды нет
 HUD_INFO_BUILDING,Building: %s,Здание: %s
 HINT_PLACE,%s  ·  %s — place (hold to drag a line)  ·  %s — rotate  ·  RMB or %s — cancel,%s  ·  %s — поставить (с зажатием — линией)  ·  %s — поворот  ·  ПКМ или %s — отмена
 HINT_DELETE,Demolition  ·  %s — remove (hold to select an area)  ·  %s — leave the mode,Снос  ·  %s — снести (с зажатием — рамкой)  ·  %s — выйти из режима
-HINT_IDLE,Pick a building on the right  ·  %s+%s — demolish area  ·  %s — demolition mode  ·  %s — pipette  ·  %s — resource map,Выберите здание справа  ·  %s+%s — снос рамкой  ·  %s — режим сноса  ·  %s — пипетка  ·  %s — карта ресурсов
+HINT_IDLE,Pick a building on the right  ·  %s — rotate building  ·  %s+%s — demolish area  ·  %s — demolition mode  ·  %s — pipette  ·  %s — resource map,Выберите здание справа  ·  %s — повернуть здание  ·  %s+%s — снос рамкой  ·  %s — режим сноса  ·  %s — пипетка  ·  %s — карта ресурсов
 CONFIRM_TITLE,Confirmation,Подтверждение
 CONFIRM_DELETE_OK,Demolish,Снести
 CONFIRM_CANCEL,Cancel,Отмена
 CONFIRM_MASS_DELETE,Demolish %d buildings?,Снести построек: %d?
 TOAST_PIPETTE_UNAVAILABLE,«%s» cannot be copied with the pipette,«%s» нельзя скопировать пипеткой
 TOAST_LEVEL_LOAD_FAILED,Failed to load level «%s»,Не удалось загрузить уровень «%s»
+STAT_THROUGHPUT,Throughput: %.1f items/s,Пропускная способность: %.1f предм./с
+STAT_DRILL_TIER,Tier %d: %s,Уровень %d: %s
+STAT_DRILL_SPEED,Fully on hardness-1 ore: %.2f items/s,На руде твёрдости 1 целиком: %.2f предм./с
+STAT_CAPACITY,Capacity: %d of each item,Вместимость: %d каждого предмета
+INFO_CONVEYOR_ITEMS,Items on belt: %d / %d,Предметов на ленте: %d / %d
+INFO_DRILL_NO_ORE,No suitable ore,Нет подходящей руды
+INFO_DRILL_ORE,Mining: %s (%d of %d tiles),Добывает: %s (%d из %d тайлов)
+INFO_RATE,Rate: %.2f items/s,Скорость: %.2f предм./с
+INFO_BUFFER,Buffer: %d / %d,Буфер: %d / %d
+INFO_OUTPUT_BLOCKED,Output blocked,Выход забит
+HUD_CORE_RESOURCES,Core,Ядро
+HUD_CORE_EMPTY,Empty,Пусто
+HUD_CORE_CAPACITY,%d of %d,%d из %d
+HUD_PAUSED,PAUSED,ПАУЗА
+BUILD_COST_FREE,Free,Бесплатно
+BUILD_COST,Cost: %s,Стоимость: %s
+TOAST_NOT_ENOUGH_RESOURCES,Not enough resources,Не хватает ресурсов
+PROBLEM_NOT_AFFORDABLE,Not enough resources in the core,Не хватает ресурсов в ядре
+PROBLEM_NO_ORE,No suitable ore under the drill,Под буром нет подходящей руды
+PROBLEM_BAD_TERRAIN,Cannot build here,Здесь нельзя строить
+PROBLEM_OCCUPIED,The place is occupied,Место занято
+PROBLEM_OUT_OF_BOUNDS,Outside the map,За пределами карты
+INPUT_GROUP_TIME,Time,Время
+ACTION_PAUSE,Pause,Пауза
+ACTION_SPEED_1,Speed ×1,Скорость ×1
+ACTION_SPEED_2,Speed ×2,Скорость ×2
+ACTION_SPEED_3,Speed ×4,Скорость ×4

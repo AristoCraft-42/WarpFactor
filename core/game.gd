@@ -4,9 +4,11 @@ extends Node2D
 ## связывает камеру, инструменты и интерфейс. Собственной игровой логики не содержит.
 
 var world: GameWorld
+var clock: SimClock
 var terrain: TerrainView
 var grid_overlay: GridOverlay
 var building_layer: BuildingLayer
+var item_renderer: ItemRenderer
 var ore_overlay: OreOverlay
 var preview: PlacementPreview
 var camera: CameraController
@@ -78,6 +80,11 @@ func open_pause_menu() -> void:
 
 
 func _build_scene() -> void:
+	clock = SimClock.new()
+	clock.name = "SimClock"
+	add_child(clock)
+	clock.setup(world.simulation)
+
 	terrain = TerrainView.new()
 	terrain.name = "Terrain"
 	add_child(terrain)
@@ -98,6 +105,10 @@ func _build_scene() -> void:
 	add_child(building_layer)
 	building_layer.setup(world)
 
+	item_renderer = ItemRenderer.new()
+	item_renderer.name = "Items"
+	add_child(item_renderer)
+
 	ore_overlay = OreOverlay.new()
 	ore_overlay.name = "OreOverlay"
 	add_child(ore_overlay)
@@ -113,6 +124,7 @@ func _build_scene() -> void:
 	camera.make_current()
 	camera.setup(world.grid.get_pixel_size())
 	camera.view_changed.connect(_on_view_changed)
+	item_renderer.setup(world, camera, clock)
 
 	tools = ToolController.new()
 	tools.name = "Tools"
@@ -143,6 +155,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("toggle_grid"):
 		Settings.set_value(&"game/show_grid", not Settings.get_bool(&"game/show_grid"))
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("pause"):
+		clock.toggle_pause()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("speed_1"):
+		clock.set_speed_index(0)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("speed_2"):
+		clock.set_speed_index(1)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("speed_3"):
+		clock.set_speed_index(2)
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_debug"):
 		_debug_enabled = hud.toggle_debug()
 		grid_overlay.set_chunk_lines_visible(_debug_enabled)
@@ -163,6 +187,8 @@ func _update_input_enabled() -> void:
 	var enabled := not pause_menu.is_open() and not hud.is_modal_open()
 	tools.input_enabled = enabled
 	camera.input_enabled = enabled
+	# Пока открыто меню паузы, время мира стоит (выбор скорости игрока не меняется).
+	clock.blocked = pause_menu.is_open()
 
 
 func _on_view_changed() -> void:

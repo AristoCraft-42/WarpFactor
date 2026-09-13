@@ -37,6 +37,12 @@ func _run(game: Game) -> void:
 				placed += 1
 	var place_ms := (Time.get_ticks_usec() - t0) / 1000.0
 	print("stress: поставлено %d зданий за %.1f мс" % [placed, place_ms])
+	# Заполняем ленты предметами, чтобы нагрузить и симуляцию, и отрисовку предметов.
+	var sys := game.world.simulation.conveyors
+	for c in sys.count:
+		for s in ConveyorSystem.CAP:
+			sys.call("_insert", c, s % Registry.items.size(), ConveyorSystem.UNITS - (s + 1) * ConveyorSystem.SPACE + 120, 0.0, 0)
+	print("stress: предметов на лентах %d" % sys.get_item_count())
 
 	var center := grid.get_pixel_size() * 0.5
 	for zoom in [1.0, 0.5, 0.31, 0.2, 0.1]:
@@ -52,7 +58,8 @@ func _run(game: Game) -> void:
 			var now := Time.get_ticks_usec()
 			worst = maxi(worst, now - last)
 			last = now
-		print("stress: масштаб %.2f — средний кадр %.2f мс (%.0f FPS), худший %.2f мс, draw calls %d" % [
+		print("stress: масштаб %.2f — средний кадр %.2f мс (%.0f FPS), худший %.2f мс, draw calls %d, предметов в кадре %d, тик %.2f мс" % [
 			zoom, (last - start) / 180000.0, 180000000.0 / (last - start), worst / 1000.0,
-			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)])
+			Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME),
+			game.item_renderer.drawn_count, game.world.simulation.avg_tick_usec / 1000.0])
 	get_tree().quit()

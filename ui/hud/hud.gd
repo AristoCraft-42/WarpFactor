@@ -1,19 +1,25 @@
 class_name Hud
 extends CanvasLayer
-## Игровой интерфейс: заголовок уровня, кнопка меню, панель строительства, инфо-строка,
-## подсказки режима, легенда оверлея руд, отладка, уведомления, подтверждение массового сноса.
+## Игровой интерфейс: заголовок уровня и запасы ядра, пауза и скорость, кнопка меню,
+## панель строительства, инфо-строка, подсказки режима, легенда оверлея руд, отладка,
+## уведомления, подтверждение массового сноса.
+
+const INFO_REFRESH := 0.25
+const HINT_WIDTH := 720
 
 var _game: Game
 var _root: Control
 var _info_label: Label
 var _hint_label: Label
-var _hint_panel: PanelContainer
+var _problem_label: Label
+var _paused_badge: Label
 var _fps_label: Label
 var _ore_legend: PanelContainer
 var _debug: DebugOverlay
 var _confirm: ConfirmationDialog
 var _pending_delete: Array[Building] = []
 var _fps_timer: float = 0.0
+var _info_timer: float = 0.0
 
 
 func setup(game: Game) -> void:
@@ -34,11 +40,15 @@ func setup(game: Game) -> void:
 
 	game.tools.hover_changed.connect(_update_info)
 	game.tools.mode_changed.connect(_update_hint)
+	game.tools.plan_changed.connect(_update_problem)
 	game.tools.delete_confirmation_requested.connect(_on_delete_confirmation)
+	game.clock.state_changed.connect(_update_paused_badge)
 	Settings.changed.connect(_on_setting_changed)
 	Settings.bindings_changed.connect(_update_hint)
 	_update_info()
 	_update_hint()
+	_update_problem()
+	_update_paused_badge()
 	_on_setting_changed(&"graphics/show_fps")
 
 
@@ -77,6 +87,10 @@ func _build_top_left() -> void:
 		title_row.add_child(badge)
 	column.add_child(title_panel)
 
+	var resources := ResourcePanel.new()
+	column.add_child(resources)
+	resources.setup(_game.world)
+
 	_ore_legend = PanelContainer.new()
 	_ore_legend.theme_type_variation = &"HudPanel"
 	_ore_legend.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -110,14 +124,20 @@ func _build_top_right() -> void:
 	column.offset_left = -16
 	column.offset_right = -16
 	column.offset_top = 16
-	column.alignment = BoxContainer.ALIGNMENT_BEGIN
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(column)
 
+	var row := UiUtil.hbox(8)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.size_flags_horizontal = Control.SIZE_SHRINK_END
+	column.add_child(row)
+	var speed := SpeedPanel.new()
+	row.add_child(speed)
+	speed.setup(_game.clock)
 	var menu_button := UiUtil.button("HUD_MENU", func() -> void: _game.open_pause_menu())
-	menu_button.size_flags_horizontal = Control.SIZE_SHRINK_END
 	menu_button.focus_mode = Control.FOCUS_NONE
-	column.add_child(menu_button)
+	menu_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(menu_button)
 
 	_fps_label = Label.new()
 	_fps_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
@@ -143,21 +163,40 @@ func _build_bottom_left() -> void:
 
 
 func _build_top_center() -> void:
-	var holder := HBoxContainer.new()
-	holder.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
-	holder.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	holder.offset_top = 16
-	holder.alignment = BoxContainer.ALIGNMENT_CENTER
-	holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_root.add_child(holder)
-	_hint_panel = PanelContainer.new()
-	_hint_panel.theme_type_variation = &"HudPanel"
-	_hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	holder.add_child(_hint_panel)
+	var column := UiUtil.vbox(6)
+	column.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	column.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	column.offset_top = 16
+	column.alignment = BoxContainer.ALIGNMENT_BEGIN
+	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_root.add_child(column)
+
+	var hint_panel := PanelContainer.new()
+	hint_panel.theme_type_variation = &"HudPanel"
+	hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	column.add_child(hint_panel)
+	var hint_column := UiUtil.vbox(2)
+	hint_panel.add_child(hint_column)
 	_hint_label = Label.new()
 	_hint_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_hint_label.add_theme_font_size_override("font_size", 15)
-	_hint_panel.add_child(_hint_label)
+	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	# Ограниченная ширина: длинная подсказка переносится и не наезжает на панель скорости.
+	_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_hint_label.custom_minimum_size = Vector2(HINT_WIDTH, 0)
+	hint_column.add_child(_hint_label)
+	_problem_label = Label.new()
+	_problem_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_problem_label.add_theme_font_size_override("font_size", 15)
+	_problem_label.add_theme_color_override("font_color", UiTheme.RED)
+	_problem_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint_column.add_child(_problem_label)
+
+	_paused_badge = UiUtil.label("HUD_PAUSED", &"BadgeLabel")
+	_paused_badge.add_theme_font_size_override("font_size", 18)
+	_paused_badge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	column.add_child(_paused_badge)
 
 
 func _build_build_menu() -> void:
@@ -168,14 +207,14 @@ func _build_build_menu() -> void:
 	menu.offset_right = -16
 	menu.offset_bottom = -16
 	_root.add_child(menu)
-	menu.setup(_game.tools)
+	menu.setup(_game.tools, _game.world)
 
 
 func _build_toasts() -> void:
 	var toasts := ToastStack.new()
 	toasts.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	toasts.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	toasts.offset_top = 64
+	toasts.offset_top = 110
 	_root.add_child(toasts)
 
 
@@ -198,6 +237,12 @@ func _process(delta: float) -> void:
 		if _fps_timer <= 0.0:
 			_fps_timer = 0.25
 			_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
+	# Состояние здания под курсором меняется со временем (буфер бура, предметы на ленте).
+	_info_timer -= delta
+	if _info_timer <= 0.0:
+		_info_timer = INFO_REFRESH
+		if _game.tools.hover_building != null:
+			_update_info()
 
 
 func _update_info() -> void:
@@ -219,8 +264,10 @@ func _update_info() -> void:
 		lines.append(tr("HUD_INFO_ORE") % [tr(ore.get_name_key()), ore.hardness])
 	else:
 		lines.append(tr("HUD_INFO_NO_ORE"))
-	if tools.hover_building != null:
-		lines.append(tr("HUD_INFO_BUILDING") % tr(tools.hover_building.def.name_key))
+	var b := tools.hover_building
+	if b != null and b.world != null:
+		lines.append(tr("HUD_INFO_BUILDING") % tr(b.def.name_key))
+		lines.append_array(b.get_info_lines())
 	_info_label.text = "\n".join(lines)
 
 
@@ -236,9 +283,33 @@ func _update_hint() -> void:
 			_hint_label.text = tr("HINT_DELETE") % [primary, InputActions.primary_label(&"delete_mode")]
 		_:
 			_hint_label.text = tr("HINT_IDLE") % [
+				InputActions.primary_label(&"rotate"),
 				InputActions.primary_label(&"area_modifier"), primary,
 				InputActions.primary_label(&"delete_mode"), InputActions.primary_label(&"pipette"),
 				InputActions.primary_label(&"overlay_ores")]
+	_update_problem()
+
+
+func _update_problem() -> void:
+	var key := ""
+	if _game.tools.mode == ToolController.Mode.PLACE:
+		match _game.tools.plan_problem:
+			BuildingManager.Check.NOT_AFFORDABLE:
+				key = "PROBLEM_NOT_AFFORDABLE"
+			BuildingManager.Check.NO_ORE:
+				key = "PROBLEM_NO_ORE"
+			BuildingManager.Check.BAD_TERRAIN:
+				key = "PROBLEM_BAD_TERRAIN"
+			BuildingManager.Check.OCCUPIED:
+				key = "PROBLEM_OCCUPIED"
+			BuildingManager.Check.OUT_OF_BOUNDS:
+				key = "PROBLEM_OUT_OF_BOUNDS"
+	_problem_label.text = tr(key) if not key.is_empty() else ""
+	_problem_label.visible = not key.is_empty()
+
+
+func _update_paused_badge() -> void:
+	_paused_badge.visible = _game.clock.paused
 
 
 func _on_delete_confirmation(targets: Array[Building]) -> void:

@@ -1,11 +1,31 @@
 [gd_resource type="Resource" script_class="LevelDef" format=3]
 
-[ext_resource type="Script" path="res://world/level_def.gd" id="1_script"]
+[ext_resource type="Script" path="res://world/level_def.gd" id="1_level"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
+[ext_resource type="Resource" path="res://items/types/graphite.tres" id="item_graphite"]
+
+[sub_resource type="Resource" id="start_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_copper")
+amount = 500
+
+[sub_resource type="Resource" id="start_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_lead")
+amount = 200
+
+[sub_resource type="Resource" id="start_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_graphite")
+amount = 50
 
 [resource]
-script = ExtResource("1_script")
+script = ExtResource("1_level")
 id = &"rift"
 title_key = "LEVEL_RIFT_TITLE"
 description_key = "LEVEL_RIFT_DESC"
 order = 2
 map_path = "res://levels/maps/02_rift.fwmap"
+starting_items = Array[ExtResource("2_stack")]([SubResource("start_0"), SubResource("start_1"), SubResource("start_2")])

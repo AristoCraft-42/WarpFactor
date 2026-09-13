@@ -7,6 +7,7 @@ extends RefCounted
 
 const GROUP_CAMERA := "INPUT_GROUP_CAMERA"
 const GROUP_BUILD := "INPUT_GROUP_BUILD"
+const GROUP_TIME := "INPUT_GROUP_TIME"
 const GROUP_VIEW := "INPUT_GROUP_VIEW"
 
 ## Максимум привязок на действие в меню управления.
@@ -31,6 +32,11 @@ static func definitions() -> Array[Dictionary]:
 		{"name": &"delete_mode", "label": "ACTION_DELETE_MODE", "group": GROUP_BUILD, "events": ["key:X", "key:Delete"]},
 		{"name": &"area_modifier", "label": "ACTION_AREA_MODIFIER", "group": GROUP_BUILD, "events": ["key:Shift"]},
 		{"name": &"cancel", "label": "ACTION_CANCEL", "group": GROUP_BUILD, "events": ["key:Escape"]},
+
+		{"name": &"pause", "label": "ACTION_PAUSE", "group": GROUP_TIME, "events": ["key:Space"]},
+		{"name": &"speed_1", "label": "ACTION_SPEED_1", "group": GROUP_TIME, "events": ["key:1"]},
+		{"name": &"speed_2", "label": "ACTION_SPEED_2", "group": GROUP_TIME, "events": ["key:2"]},
+		{"name": &"speed_3", "label": "ACTION_SPEED_3", "group": GROUP_TIME, "events": ["key:3"]},
 
 		{"name": &"overlay_ores", "label": "ACTION_OVERLAY_ORES", "group": GROUP_VIEW, "events": ["key:O"]},
 		{"name": &"toggle_grid", "label": "ACTION_TOGGLE_GRID", "group": GROUP_VIEW, "events": ["key:G"]},
