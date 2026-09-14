@@ -180,6 +180,9 @@ func _update_counts() -> void:
 func _tooltip_for(def: BuildingDef, owned: int) -> String:
 	var lines := PackedStringArray(["%s  (%d×%d)" % [tr(def.name_key), def.size, def.size], tr(def.description_key)])
 	lines.append_array(def.get_stat_lines())
+	lines.append(tr("STAT_HEALTH") % roundi(def.get_max_health()))
+	if not def.solid:
+		lines.append(tr("STAT_WALKABLE"))
 	if not def.cost.is_empty():
 		var inventory := _world.drone.inventory
 		var parts := PackedStringArray()

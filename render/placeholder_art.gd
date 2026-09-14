@@ -117,6 +117,51 @@ static func _scale_pts(pts: PackedVector2Array, c: Vector2, k: float) -> PackedV
 	return out
 
 
+# --- Враги ---
+
+## Враг в ячейке size×size, нарисован «вправо» (как здания). Масштаб на экране — EnemyDef.draw_size.
+static func make_enemy(def: EnemyDef, size: int = 48) -> Image:
+	var img := _blank(size, size)
+	var c := Vector2(size, size) * 0.5
+	var col := def.color
+	var dark := col.darkened(0.45)
+	var light := col.lightened(0.35)
+	match def.shape:
+		EnemyDef.Shape.BUG:
+			# Ползун: овальное тело, лапки, жвала вперёд.
+			for i in 3:
+				var x := c.x - 8.0 + i * 7.0
+				_line(img, Vector2(x, c.y - 4), Vector2(x - 4, c.y - 15), 2.5, INK)
+				_line(img, Vector2(x, c.y + 4), Vector2(x - 4, c.y + 15), 2.5, INK)
+			_poly(img, _ngon(c, 13.0, 10), INK)
+			_poly(img, _scale_pts(_ngon(c, 13.0, 10), c, 0.82), col)
+			_circle(img, c + Vector2(-3, 0), 5.0, dark)
+			_line(img, c + Vector2(9, -4), c + Vector2(18, -7), 2.5, light)
+			_line(img, c + Vector2(9, 4), c + Vector2(18, 7), 2.5, light)
+			_circle(img, c + Vector2(7, -3), 1.6, FIRE)
+			_circle(img, c + Vector2(7, 3), 1.6, FIRE)
+		EnemyDef.Shape.SOLDIER:
+			# Стрелок: квадратный корпус на гусеницах, ствол вперёд.
+			_rect(img, Rect2i(int(c.x) - 14, int(c.y) - 15, 26, 6), INK)
+			_rect(img, Rect2i(int(c.x) - 14, int(c.y) + 9, 26, 6), INK)
+			_rect(img, Rect2i(int(c.x) - 12, int(c.y) - 11, 22, 22), INK)
+			_rect(img, Rect2i(int(c.x) - 10, int(c.y) - 9, 18, 18), col)
+			_rect(img, Rect2i(int(c.x) + 2, int(c.y) - 2, 20, 5), INK)
+			_rect(img, Rect2i(int(c.x) + 3, int(c.y) - 1, 18, 3), light)
+			_circle(img, c + Vector2(-1, 0), 5.0, dark)
+			_circle(img, c + Vector2(-1, 0), 2.0, FIRE)
+		EnemyDef.Shape.BRUTE:
+			# Громила: массивный шестиугольник с бронеплитами и рогами.
+			_poly(img, _ngon(c, 21.0, 6), INK)
+			_poly(img, _ngon(c, 18.0, 6), col)
+			_poly(img, _ngon(c + Vector2(-2, 0), 10.0, 6), dark)
+			_line(img, c + Vector2(12, -10), c + Vector2(22, -17), 4.0, LIGHT)
+			_line(img, c + Vector2(12, 10), c + Vector2(22, 17), 4.0, LIGHT)
+			_circle(img, c + Vector2(8, -5), 2.2, FIRE)
+			_circle(img, c + Vector2(8, 5), 2.2, FIRE)
+	return img
+
+
 # --- Пол ---
 
 static func make_floor(def: FloorDef, variant: int) -> Image:

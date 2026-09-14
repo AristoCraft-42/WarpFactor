@@ -110,6 +110,7 @@ func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = fals
 	building.origin = origin
 	building.rotation = posmod(rotation, 4) if def.rotatable else 0
 	building.world = _world
+	building.health = def.get_max_health()
 	building.id = _reserve_id(forced_id) if forced_id > 0 else _allocate_id()
 	_by_id[building.id] = building
 

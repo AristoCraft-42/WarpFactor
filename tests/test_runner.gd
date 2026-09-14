@@ -63,6 +63,15 @@ func _ready() -> void:
 	_test_save_roundtrip_and_determinism()
 	_test_save_remap()
 	_test_save_files()
+	_test_enemy_data()
+	_test_building_damage()
+	_test_flow_field()
+	_test_enemy_attack()
+	_test_threat_schedule()
+	_test_spawn_points()
+	_test_drone_death_and_crate()
+	_test_breach_teleport()
+	_test_enemy_save_determinism()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -1641,3 +1650,429 @@ func _test_save_files() -> void:
 	run.dispose()
 	if loaded != null:
 		loaded.dispose()
+
+
+# --- Этап 9: угроза и враги ---
+
+func _test_enemy_data() -> void:
+	_check(Registry.enemies.size() == 3, "три типа врагов, есть %d" % Registry.enemies.size())
+	for id in [&"crawler", &"soldier", &"brute"]:
+		_check(Registry.get_enemy(id) != null, "враг %s загружен" % id)
+	var normal: PlanetTypeDef = null
+	var wasteland: PlanetTypeDef = null
+	for t in Registry.planet_types:
+		if t.id == &"normal":
+			normal = t
+		elif t.id == &"wasteland":
+			wasteland = t
+	_check(normal != null and normal.threat != null and not normal.safe, "у обычной планеты есть кривая угрозы")
+	_check(wasteland != null and wasteland.safe, "пустошь безопасна")
+	_check(ArtRegistry.enemy_atlas != null and ArtRegistry.enemy_atlas.get_width() == ArtRegistry.ENEMY_CELL * 3, "атлас врагов собран")
+	var conveyor := Registry.get_building(&"conveyor")
+	var container := Registry.get_building(&"container")
+	var gate := Registry.get_building(&"central_gateway")
+	_check(not conveyor.solid and conveyor.get_path_cost() == 1 and conveyor.get_max_health() > 0.0, "лента проходима для врагов и имеет прочность")
+	_check(container.solid and container.get_path_cost() > 8, "склад твёрдый, проход сквозь него дорог")
+	_check(gate.get_max_health() >= 1000.0, "у шлюза большая прочность")
+	var threat := normal.threat
+	_check(threat.get_gap_ticks(1) > threat.get_gap_ticks(3) and threat.get_gap_ticks(40) == 0, "затишья сокращаются и исчезают")
+	_check(threat.get_spawn_ticks(1) < threat.get_spawn_ticks(5), "время появления растёт с волной")
+	_check(threat.get_budget(2, 5.0, 0) > threat.get_budget(1, 0.0, 0) and threat.get_budget(1, 0.0, 3) > threat.get_budget(1, 0.0, 0),
+		"бюджет растёт с волной, временем и глубиной")
+
+
+func _test_building_damage() -> void:
+	var world := Worlds.empty_world(16, 8, false)
+	var copper := _item(&"copper")
+	var storage := world.buildings.place(Registry.get_building(&"container"), Vector2i(4, 2), 0, true) as StorageBuilding
+	storage.inventory.add(copper, 40)
+	_check(storage.health == storage.get_max_health() and not storage.is_damaged(), "новое здание с полной прочностью")
+	var destroyed := [0]
+	world.building_destroyed.connect(func(_def: BuildingDef, _rect: Rect2i) -> void: destroyed[0] += 1)
+	var before := world.drone.inventory.count(copper)
+	world.damage_building(storage, 100.0)
+	_check(storage.health == storage.get_max_health() - 100.0 and world.damaged.has(storage.id), "урон уменьшает прочность, здание повреждено")
+	world.damage_building(storage, 1000.0)
+	_check(world.buildings.get_at(Vector2i(4, 2)) == null and destroyed[0] == 1 and world.destroyed_count == 1, "при нуле здание разрушено")
+	_check(world.drone.inventory.count(copper) == before and world.damaged.is_empty(), "разрушение без возврата: содержимое потеряно")
+	var belt := world.buildings.place(Registry.get_building(&"conveyor"), Vector2i(8, 2), 0, true)
+	world.damage_building(belt, 10.0)
+	world.drone.position = Vector2(8.5, 2.5) * GameConst.TILE_SIZE
+	_check(world.damaged.has(belt.id) and world.demolish(belt) and world.damaged.is_empty(), "снесённое игроком повреждённое здание уходит из списка повреждённых")
+	var belt2 := world.buildings.place(Registry.get_building(&"conveyor"), Vector2i(9, 2), 0, true)
+	world.damage_building(belt2, 5.0)
+	var saved := SaveIO.world_to_dict(world)
+	var entry: Dictionary = (saved["buildings"] as Array)[0]
+	_check(entry.has("hp") and float(entry["hp"]) == belt2.health, "прочность повреждённого здания пишется в сохранение")
+	world.dispose()
+
+
+## Мир с тестовой картой: скальная стена с проходом, шлюз справа.
+func _flow_world(width: int, height: int, wall_x: int, gap_y: int) -> GameWorld:
+	var map := LevelMap.new(width, height, Registry.get_floor(&"stone").index)
+	var rock := Registry.get_floor(&"rock").index
+	for y in height:
+		if y != gap_y:
+			map.set_floor(wall_x, y, rock)
+	var world := GameWorld.create(null, map, false)
+	world.place_gateway(Registry.get_building(&"central_gateway") as GatewayDef, Vector2i(width - 5, height / 2 - 1))
+	return world
+
+
+func _follow_path(flow: FlowField, start: Vector2i, limit: int = 500) -> Array[Vector2i]:
+	var path: Array[Vector2i] = [start]
+	var tile := start.y * flow.width + start.x
+	for i in limit:
+		var next := flow.best_neighbor(tile)
+		if next < 0:
+			break
+		tile = next
+		path.append(Vector2i(tile % flow.width, tile / flow.width))
+	return path
+
+
+func _test_flow_field() -> void:
+	var world := _flow_world(24, 14, 10, 12)
+	var flow := world.ensure_flow()
+	var gate := world.gateway
+	_check(flow.get_dist(gate.origin) == 0 and flow.get_dist(Vector2i(2, 6)) < FlowField.INF, "до шлюза есть путь")
+	_check(flow.get_dist(Vector2i(10, 3)) == FlowField.INF and flow.blocked[3 * 24 + 10] == FlowField.ROCK, "скала непроходима")
+	var path := _follow_path(flow, Vector2i(2, 6))
+	_check(path.has(Vector2i(10, 12)) and gate.get_rect().has_point(path[path.size() - 1]), "путь идёт через проход в стене к шлюзу")
+	var before := flow.get_dist(Vector2i(2, 6))
+	var version := flow.version
+	var blocker := world.buildings.place(Registry.get_building(&"pulverizer"), Vector2i(10, 12), 0, true)
+	_check(flow.is_dirty() and flow.blocked[12 * 24 + 10] == FlowField.SOLID, "твёрдая постройка помечает поле грязным")
+	Worlds.run_ticks(world, 2)
+	_check(flow.version > version and flow.get_dist(Vector2i(2, 6)) == before + blocker.def.get_path_cost() - 1,
+		"постройка в проходе проходима с ценой")
+	var belt := world.buildings.place(Registry.get_building(&"conveyor"), Vector2i(12, 6), 0, true)
+	_check(not flow.is_dirty() and flow.blocked[6 * 24 + 12] == FlowField.OPEN, "лента не перегораживает путь")
+	world.buildings.remove(belt, true)
+	world.buildings.remove(blocker, true)
+	Worlds.run_ticks(world, 2)
+	_check(flow.get_dist(Vector2i(2, 6)) == before, "после сноса цена пути прежняя")
+	world.dispose()
+
+	# Большая карта считается порциями: пока идёт пересчёт, враги пользуются старым полем.
+	var big := _flow_world(220, 160, 100, 20)
+	var big_flow := big.ensure_flow()
+	var old_dist := big_flow.get_dist(Vector2i(5, 80))
+	big.buildings.place(Registry.get_building(&"vault"), Vector2i(99, 19), 0, true)
+	big_flow.update()
+	_check(big_flow.is_computing() and big_flow.get_dist(Vector2i(5, 80)) == old_dist, "пересчёт идёт порциями, старое поле действует")
+	var ticks := 1
+	while big_flow.is_computing() and ticks < 100:
+		big_flow.update()
+		ticks += 1
+	_check(not big_flow.is_computing() and ticks >= 5 and big_flow.get_dist(Vector2i(5, 80)) > old_dist,
+		"пересчёт закончился за %d тиков, новое поле учитывает постройку" % ticks)
+	big.dispose()
+
+
+func _enemy_run() -> Run:
+	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
+	var run := Run.create(null, map, false)
+	run.planet.threat.delay_next_wave(1000000)
+	return run
+
+
+func _test_enemy_attack() -> void:
+	var run := _enemy_run()
+	var planet := run.planet
+	var gate := planet.gateway
+	run.drone.position = Vector2(4, 4) * GameConst.TILE_SIZE
+	_check(planet.flow != null and planet.threat != null and planet.spawn_points.size() >= 2, "у опасной планеты есть поле потоков, угроза и точки появления")
+	var crawler := Registry.get_enemy(&"crawler")
+	var start := gate.get_world_center() + Vector2(-12, 0) * GameConst.TILE_SIZE
+	# Лента поперёк пути: враг проходит поверх.
+	Worlds.conveyor_line(planet, GameConst.world_to_tile(start) + Vector2i(4, -3), 7, GameConst.Dir.DOWN)
+	planet.spawn_enemy(crawler, start)
+	for i in 240:
+		run.step()
+	var enemies := planet.enemies
+	var pos := enemies.get_position(0)
+	var rect := gate.get_world_rect()
+	var gap := pos.distance_to(pos.clamp(rect.position, rect.end))
+	_check(enemies.count == 1 and gap < crawler.radius + 8.0, "ползун дошёл до шлюза (зазор %.1f px)" % gap)
+	_check(gate.health < gate.get_max_health() and planet.damaged.has(gate.id), "ползун бьёт шлюз")
+	_check(planet.buildings.get_at(GameConst.world_to_tile(start) + Vector2i(4, 0)) != null, "ленту на пути враг прошёл, не сломав целиком")
+	_check(enemies.damage(0, 1000.0) and enemies.count == 0 and enemies.killed == 1, "враг погибает от урона")
+	run.dispose()
+
+	# Шлюз окружён складами: пути нет — громилы ломают склад.
+	run = _enemy_run()
+	planet = run.planet
+	gate = planet.gateway
+	run.drone.position = Vector2(2, 2) * GameConst.TILE_SIZE
+	var container := Registry.get_building(&"container")
+	var ring := Rect2i(gate.origin - Vector2i(2, 2), Vector2i(7, 7))
+	for y in range(ring.position.y, ring.end.y, 2):
+		for x in range(ring.position.x, ring.end.x, 2):
+			var r := Rect2i(Vector2i(x, y), Vector2i(2, 2))
+			if not r.intersects(gate.get_rect()):
+				planet.buildings.place(container, Vector2i(x, y), 0, true)
+	Worlds.run_ticks(planet, 1)
+	var brute := Registry.get_enemy(&"brute")
+	for k in 3:
+		planet.spawn_enemy(brute, gate.get_world_center() + Vector2(-10, -2 + 2 * k) * GameConst.TILE_SIZE)
+	var hit := false
+	for i in 1500:
+		run.step()
+		if planet.destroyed_count > 0 and gate.is_damaged():
+			hit = true
+			break
+	_check(hit, "громилы ломают перегородивший путь склад и добираются до шлюза (разрушено %d)" % planet.destroyed_count)
+	run.dispose()
+
+
+func _test_threat_schedule() -> void:
+	var def := ThreatDef.new()
+	def.first_wave_seconds = 2.0
+	def.first_gap_seconds = 4.0
+	def.gap_multiplier = 0.5
+	def.continuous_below_seconds = 1.0
+	def.spawn_seconds = 1.0
+	def.spawn_seconds_per_wave = 0.0
+	def.budget_base = 3.0
+	def.budget_per_wave = 1.0
+	def.budget_per_minute = 0.0
+	def.warning_seconds = 1.0
+	def.enemy_ids = [&"crawler", &"brute"]
+	def.enemy_from_wave = PackedInt32Array([1, 3])
+	def.enemy_weights = PackedFloat32Array([1, 1])
+	def.spawn_point_count = 2
+	var run := _enemy_run()
+	var planet := run.planet
+	planet.threat = ThreatDirector.new(planet, def, 0, planet.simulation.tick, 99)
+	# Шлюз не должен пасть за время теста (иначе аварийный телепорт сменит планету).
+	planet.gateway.health = 1.0e9
+	var threat := planet.threat
+	_check(threat.get_ticks_to_next_wave(planet.simulation.tick) == 60 and threat.wave == 0, "первая волна через заданное время")
+	var warned := false
+	for i in 60:
+		warned = warned or threat.is_warning(planet.simulation.tick)
+		run.step()
+	_check(warned and threat.wave == 1 and threat.is_spawning(planet.simulation.tick), "предупреждение, затем волна 1")
+	for i in 31:
+		run.step()
+	_check(planet.enemies.count == 3 and planet.enemies.spawned == 3, "волна 1 — бюджет 3 → 3 ползуна (%d)" % planet.enemies.count)
+	var crawler := Registry.get_enemy(&"crawler").index
+	var only_crawlers := true
+	for i in planet.enemies.count:
+		only_crawlers = only_crawlers and planet.enemies.types[i] == crawler
+	_check(only_crawlers, "до волны 3 громил нет")
+	var continuous_at := -1
+	for i in 900:
+		run.step()
+		if threat.is_continuous() and continuous_at < 0:
+			continuous_at = threat.wave
+	_check(continuous_at > 1 and threat.wave > continuous_at, "затишья исчезают — волны идут встык (с волны %d, сейчас %d)" % [continuous_at, threat.wave])
+	_check(planet.enemies.spawned > 20, "врагов становится больше (%d)" % planet.enemies.spawned)
+	run.dispose()
+
+	# Предел живых врагов откладывает появление.
+	run = _enemy_run()
+	planet = run.planet
+	def.max_alive = 2
+	planet.threat = ThreatDirector.new(planet, def, 0, planet.simulation.tick, 99)
+	for i in 120:
+		run.step()
+	_check(planet.enemies.count == 2 and planet.threat.get_pending_spawns() > 0, "сверх предела враги ждут в очереди")
+	run.dispose()
+
+	# Одинаковый сид — одинаковые волны.
+	var a := _enemy_run()
+	var b := _enemy_run()
+	def.max_alive = 1500
+	a.planet.threat = ThreatDirector.new(a.planet, def, 2, 0, 7)
+	b.planet.threat = ThreatDirector.new(b.planet, def, 2, 0, 7)
+	for i in 400:
+		a.step()
+		b.step()
+	_check(a.planet.enemies.types.slice(0, a.planet.enemies.count) == b.planet.enemies.types.slice(0, b.planet.enemies.count)
+		and a.planet.enemies.count > 0, "состав волн детерминирован")
+	a.dispose()
+	b.dispose()
+
+
+func _test_spawn_points() -> void:
+	var star_map := StarMap.new(31337, Registry.run_def, Registry.planet_types)
+	var checked := 0
+	for node in star_map.nodes:
+		if node.type.safe or checked >= 3:
+			continue
+		checked += 1
+		var map := PlanetGenerator.generate(node, Run.PAD_SIZE)
+		_check(map.spawn_points.size() == node.type.threat.spawn_point_count, "у планеты %s все точки появления (%d)" % [node.code, map.spawn_points.size()])
+		var reach := PackedByteArray()
+		reach.resize(map.width * map.height)
+		reach.fill(0)
+		SpawnPoints._flood(map.width, map.height, map.floors, reach, Vector2i(map.width / 2, map.height / 2))
+		for p in map.spawn_points:
+			var edge := mini(mini(p.x, p.y), mini(map.width - 1 - p.x, map.height - 1 - p.y))
+			_check(edge <= SpawnPoints.INSET + SpawnPoints.SEARCH_RADIUS and reach[p.y * map.width + p.x] == 1,
+				"точка %s у края и с проходом к центру" % p)
+	# Посадка в скальном кольце: генератор прорубает коридоры.
+	var map := LevelMap.new(60, 40, Registry.get_floor(&"stone").index)
+	var rock := Registry.get_floor(&"rock").index
+	for y in 40:
+		for x in 60:
+			var d := Vector2(x - 30, y - 20).length()
+			if d > 9.0 and d < 13.0:
+				map.set_floor(x, y, rock)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var found := SpawnPoints.find(60, 40, map.floors, Vector2i(30, 20), 3, rng, Registry.get_floor(&"stone").index)
+	var ring_reach := PackedByteArray()
+	ring_reach.resize(60 * 40)
+	ring_reach.fill(0)
+	SpawnPoints._flood(60, 40, map.floors, ring_reach, Vector2i(30, 20))
+	var all_reachable := not found.is_empty()
+	for p in found:
+		all_reachable = all_reachable and ring_reach[p.y * 60 + p.x] == 1
+	_check(found.size() == 3 and all_reachable, "сквозь скальное кольцо прорублены коридоры (%d точек)" % found.size())
+	var no_carve := LevelMap.new(60, 40, Registry.get_floor(&"stone").index)
+	for y in 40:
+		for x in 60:
+			var d := Vector2(x - 30, y - 20).length()
+			if d > 9.0 and d < 13.0:
+				no_carve.set_floor(x, y, rock)
+	_check(SpawnPoints.find(60, 40, no_carve.floors, Vector2i(30, 20), 3, rng).is_empty(), "без прорубания замкнутая посадка не получает точек")
+	# Безопасная планета — без угрозы.
+	for node in star_map.nodes:
+		if node.type.safe:
+			var world := GameWorld.create(null, LevelMap.new(40, 30, Registry.get_floor(&"stone").index), false)
+			var run := Run.new()
+			run._setup_threat(world, node, 0)
+			_check(world.threat == null and world.flow == null, "у пустоши нет угрозы")
+			world.dispose()
+			break
+
+
+func _test_drone_death_and_crate() -> void:
+	var run := _enemy_run()
+	var planet := run.planet
+	var drone := run.drone
+	var copper := _item(&"copper")
+	drone.inventory.add(copper, 70)
+	var recipe := Registry.get_hand_recipe(Registry.get_building(&"conveyor").item.index)
+	drone.crafting.enqueue(recipe, 5)
+	var totals := PackedInt32Array()
+	totals.resize(Registry.items.size())
+	totals.fill(0)
+	drone.inventory.collect_into(totals)
+	var expected := TeleportSummary.total(totals) + 5
+	var death_pos := planet.gateway.get_world_center() + Vector2(8, 0) * GameConst.TILE_SIZE
+	drone.position = death_pos
+	var tick := planet.simulation.tick
+	planet.damage_drone(drone.def.health * 0.5, tick)
+	_check(not drone.dead and drone.health == drone.def.health * 0.5, "урон дрону уменьшает прочность")
+	planet.damage_drone(drone.def.health, tick)
+	_check(drone.dead and drone.inventory.is_empty() and drone.crafting.is_empty(), "сбитый дрон теряет инвентарь и очередь")
+	_check(planet.crates.size() == 1 and planet.crates[0].total() == expected, "груз содержит инвентарь и сырьё отменённого крафта (%d из %d)" % [planet.crates[0].total(), expected])
+	_check(not run.can_use_gateway() and planet.check_build(Registry.get_building(&"conveyor"), GameConst.world_to_tile(death_pos), 0) == BuildingManager.Check.OUT_OF_RANGE,
+		"сбитый дрон не ходит через шлюз и не строит")
+	for i in drone.def.get_respawn_ticks():
+		run.step()
+	_check(not drone.dead and drone.position == planet.gateway.get_world_center() and drone.health == drone.def.health, "дрон появляется у шлюза с полной прочностью")
+	planet.damage_drone(1000.0, planet.simulation.tick)
+	_check(not drone.dead, "после появления дрон неуязвим")
+	drone.position = death_pos + Vector2(12, 0)
+	run.step()
+	_check(planet.crates.is_empty() and drone.inventory.count(copper) > 0, "дрон подбирает груз, подлетев к нему")
+	var saved := SaveIO.world_to_dict(planet)
+	_check((saved["crates"] as Array).is_empty(), "подобранный груз не сохраняется")
+	run.dispose()
+
+	var creative_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), true)
+	creative_run.planet.damage_drone(10000.0, 0)
+	_check(not creative_run.drone.dead, "в творческом режиме дрона не сбить")
+	creative_run.dispose()
+
+
+func _test_breach_teleport() -> void:
+	var run := Run.create_new(4242, false)
+	var planet := run.planet
+	var pad := planet.pad_rect
+	var copper := _item(&"copper")
+	var container := Registry.get_building(&"container")
+	var damaged := planet.buildings.place(container, pad.position + Vector2i(1, 1), 0, true) as StorageBuilding
+	damaged.inventory.add(copper, 20)
+	planet.damage_building(damaged, 100.0)
+	var doomed := planet.buildings.place(container, pad.position + Vector2i(4, 1), 0, true)
+	planet.damage_building(doomed, 10000.0)
+	planet.crates.append(DroneCrate.from_counts(Vector2(pad.position + Vector2i(10, 10)) * GameConst.TILE_SIZE, _counts(copper, 15)))
+	planet.crates.append(DroneCrate.from_counts(Vector2(pad.position + Vector2i(-8, 0)) * GameConst.TILE_SIZE, _counts(copper, 9)))
+	var old_node := run.star_map.get_current()
+	var neighbors := old_node.links.duplicate()
+	run.start_teleport(neighbors[0])
+	planet.damage_building(planet.gateway, 100000.0)
+	_check(planet.breached and planet.gateway != null and planet.gateway.health == 0.0, "шлюз не исчезает, мир прорван")
+	var changed := [0]
+	run.planet_changed.connect(func() -> void: changed[0] += 1)
+	run.step()
+	var summary := run.last_summary
+	_check(changed[0] == 1 and run.planet != planet and neighbors.has(run.star_map.current_id), "прорыв — сразу телепорт на соседнюю планету")
+	_check(summary.emergency and not run.is_charging(), "итог отмечен как аварийный, зарядка сброшена")
+	_check(summary.buildings_destroyed == 1 and summary.buildings_moved == 1, "разрушенное потеряно, уцелевшее переехало")
+	var moved := run.planet.buildings.get_at(run.planet.pad_rect.position + Vector2i(1, 1)) as StorageBuilding
+	_check(moved != null and moved.health == moved.get_max_health() - 100.0 and run.planet.damaged.has(moved.id) and moved.inventory.count(copper) == 20,
+		"повреждённый склад переехал с прочностью и содержимым")
+	_check(run.planet.gateway.health == run.planet.gateway.get_max_health() and not run.planet.breached, "шлюз на новой планете цел")
+	_check(run.planet.crates.size() == 1 and run.planet.crates[0].total() == 15 and summary.items_lost[copper] >= 9, "груз на площадке переехал, вне площадки — потерян")
+	var node := run.star_map.get_current()
+	_check((run.planet.threat != null) == (not node.type.safe), "угроза новой планеты по её типу")
+	run.dispose()
+
+
+func _counts(item: int, amount: int) -> PackedInt32Array:
+	var counts := PackedInt32Array()
+	counts.resize(Registry.items.size())
+	counts.fill(0)
+	counts[item] = amount
+	return counts
+
+
+func _test_enemy_save_determinism() -> void:
+	var map := LevelMap.new(64, 48, Registry.get_floor(&"stone").index)
+	var rock := Registry.get_floor(&"rock").index
+	for y in range(6, 40):
+		map.set_floor(20, y, rock)
+	var run := Run.create(null, map, false)
+	var planet := run.planet
+	var gate := planet.gateway
+	var container := Registry.get_building(&"container")
+	planet.buildings.place(container, gate.origin + Vector2i(-4, -1), 0, true)
+	planet.buildings.place(container, gate.origin + Vector2i(-4, 1), 0, true)
+	Worlds.conveyor_line(planet, gate.origin + Vector2i(-8, -3), 9, GameConst.Dir.DOWN)
+	var k := 0
+	for def in Registry.enemies:
+		for j in 8:
+			planet.spawn_enemy(def, Vector2(3 + (k % 5), 4 + k % 40) * GameConst.TILE_SIZE + Vector2(k % 7, k % 3))
+			k += 1
+	run.drone.position = gate.get_world_center() + Vector2(-6, 6) * GameConst.TILE_SIZE
+	planet.threat.call_next_wave(planet.simulation.tick)
+	for i in 150:
+		run.step()
+	planet.buildings.place(container, gate.origin + Vector2i(-10, 3), 0, true)
+	run.step()
+	_check(planet.flow.is_computing(), "сохраняем посреди пересчёта поля потоков")
+	_check(planet.threat.get_pending_spawns() > 0 or planet.threat.wave > 0, "у угрозы есть состояние")
+	var saved := SaveIO.run_to_dict(run)
+	var bytes := var_to_bytes(saved)
+	var loaded := SaveIO.run_from_dict(bytes_to_var(bytes))
+	var reloaded := SaveIO.run_to_dict(loaded)
+	var diff := _first_diff(saved, reloaded)
+	_check(diff.is_empty() and var_to_bytes(reloaded) == bytes, "враги, угроза и поле потоков сохраняются точно (отличие: %s)" % diff)
+	for i in 400:
+		run.step()
+		loaded.step()
+	var a := SaveIO.run_to_dict(run)
+	var b := SaveIO.run_to_dict(loaded)
+	diff = _first_diff(a, b)
+	_check(diff.is_empty() and var_to_bytes(a) == var_to_bytes(b), "бой после загрузки идёт так же, как без неё (отличие: %s)" % diff)
+	_check(run.planet.gateway == null or run.planet.gateway.is_damaged() or run.planet.destroyed_count > 0 or run.last_summary != null,
+		"в сценарии враги успели навредить")
+	run.dispose()
+	loaded.dispose()

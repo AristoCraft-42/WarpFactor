@@ -76,6 +76,17 @@ func cancel(index: int) -> void:
 	revision += 1
 
 
+## Отменяет всю очередь: списанное сырьё добавляется в out (индекс = предмет), а не в инвентарь.
+## Нужно, когда дрона сбили: всё уходит в выпавший груз.
+func drain_into(out: PackedInt32Array) -> void:
+	for unit in units:
+		for item in unit.consumed:
+			out[item] += unit.consumed[item]
+	units.clear()
+	blocked = false
+	revision += 1
+
+
 ## Отменяет до count последних единиц с этим рецептом (с конца очереди). Возвращает, сколько отменено.
 func cancel_last(recipe: HandRecipe, count: int = 1) -> int:
 	var cancelled := 0

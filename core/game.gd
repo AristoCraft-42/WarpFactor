@@ -258,6 +258,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("speed_3"):
 		clock.set_speed_index(2)
 		get_viewport().set_input_as_handled()
+	elif _debug_enabled and event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo \
+			and (event as InputEventKey).physical_keycode == KEY_N and run.planet.threat != null:
+		# Отладка (F3): вызвать следующую волну сейчас.
+		run.planet.threat.call_next_wave(run.planet.simulation.tick)
+		Events.toast(tr("TOAST_WAVE_CALLED"), Events.ToastKind.INFO)
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_debug"):
 		_debug_enabled = hud.toggle_debug()
 		grid_overlay.set_chunk_lines_visible(_debug_enabled)

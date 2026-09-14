@@ -22,6 +22,8 @@ var floors: PackedByteArray = PackedByteArray()
 ## 0 — нет руды, иначе индекс OreDef + 1.
 var ores: PackedByteArray = PackedByteArray()
 var placements: Array[Placement] = []
+## Точки появления врагов (генератор планет; у готовых карт ищутся при запуске).
+var spawn_points: Array[Vector2i] = []
 
 
 func _init(p_width: int = 0, p_height: int = 0, fill_floor: int = 0) -> void:

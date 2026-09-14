@@ -1,7 +1,8 @@
 class_name DroneView
 extends Node2D
 ## Отрисовка дрона игрока: корпус по интерполированной позиции, луч добычи с прогрессом,
-## круг радиуса строительства, пока в руке постройка или план вставки.
+## круг радиуса строительства, пока в руке постройка или план вставки, полоска прочности при уроне.
+## Сбитый дрон не рисуется; после появления мигает, пока неуязвим.
 ## Плейсхолдер рисуется примитивами; спрайт из DroneDef.sprite подменяет его без правки логики.
 
 const BODY_RADIUS := 13.0
@@ -35,7 +36,17 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if _drone == null:
 		return
+	if _drone.dead or _drone.world == null:
+		return
 	var pos := _drone.get_draw_position(_clock.alpha)
+	var tick := _drone.world.simulation.tick
+	if tick < _drone.invulnerable_until and fmod(_time, 0.24) < 0.12:
+		return
+	if _drone.health < _drone.def.health:
+		var fraction := clampf(_drone.health / _drone.def.health, 0.0, 1.0)
+		var bar := Rect2(pos + Vector2(-16, BODY_RADIUS + 8), Vector2(32, 4))
+		draw_rect(bar.grow(1.0), Color(0, 0, 0, 0.7), true)
+		draw_rect(Rect2(bar.position, Vector2(bar.size.x * fraction, bar.size.y)), CombatOverlay.bar_color(fraction), true)
 	if _tools != null and _tools.mode != ToolController.Mode.NONE and not _drone.world.creative:
 		_draw_range(pos)
 	if _drone.is_mining():

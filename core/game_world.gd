@@ -6,6 +6,19 @@ extends RefCounted
 ## постройки в инвентаре, снос возвращает постройку и содержимое, игрок перекладывает предметы.
 ## Творческий режим: постройки не расходуются и не возвращаются, радиус не ограничен.
 ## В забеге миров два (планета и база) с общим дроном: действовать можно только в мире, где дрон.
+##
+## Бой: здания получают урон и разрушаются без возврата вместе с содержимым. Центральный шлюз планеты
+## не разрушается — при нуле прочности мир помечается «прорван» (breached), и забег уводит базу
+## аварийным телепортом. Сбитый дрон роняет груз (DroneCrate) и появляется у шлюза через паузу.
+## Угроза (волны), враги и поле потоков есть только у опасной планеты (setup_threat).
+
+## Постройку разрушили враги (содержимое потеряно).
+signal building_destroyed(def: BuildingDef, rect: Rect2i)
+## Дрона сбили; груз — в crates.
+signal drone_destroyed
+signal drone_respawned
+## Дрон подобрал moved предметов из выпавшего груза.
+signal crate_picked(moved: int)
 
 ## Почему не удалось последнее действие игрока (для уведомлений).
 enum ActionError { NONE, OUT_OF_RANGE, INVENTORY_FULL, NOT_ALLOWED }
@@ -26,6 +39,24 @@ var last_error: ActionError = ActionError.NONE
 ## Сколько предметов из содержимого не поместилось в инвентарь при последнем сносе (они теряются).
 var last_lost_items: int = 0
 
+## Центральный шлюз (или его пара в базе) этого мира.
+var gateway: GatewayBuilding
+var enemies: EnemySystem
+## Поле потоков к шлюзу (null — врагов в мире не бывает).
+var flow: FlowField
+## Угроза планеты (null — база или безопасная планета).
+var threat: ThreatDirector
+## Точки появления врагов у краёв карты.
+var spawn_points: Array[Vector2i] = []
+## Выпавший из сбитого дрона груз.
+var crates: Array[DroneCrate] = []
+## id повреждённых зданий (для полосок прочности).
+var damaged: Dictionary[int, bool] = {}
+## Сколько построек разрушили враги.
+var destroyed_count: int = 0
+## Шлюз планеты разрушен — нужна аварийная телепортация.
+var breached: bool = false
+
 
 ## Создаёт мир из карты уровня: копирует слои, ставит предустановленные здания, создаёт дрона
 ## со стартовым инвентарём. shared_drone — дрон уже созданного мира забега (тогда свой не создаётся).
@@ -37,6 +68,9 @@ static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_
 	world.rng.seed = hash(String(level_def.id)) if level_def != null else 1
 	world.buildings = BuildingManager.new(world, world.grid)
 	world.simulation = Simulation.new(world, world.buildings)
+	world.enemies = EnemySystem.new(world)
+	world.spawn_points = map.spawn_points.duplicate()
+	world.buildings.building_removed.connect(world._on_building_removed)
 	for p in map.placements:
 		if world.buildings.place(p.def, p.origin, p.rotation, true) == null:
 			push_warning("GameWorld: не удалось поставить %s в %s" % [p.def.id, p.origin])
@@ -71,12 +105,130 @@ func place_gateway(def: GatewayDef, origin: Vector2i, rotation: int = 0) -> Gate
 		return null
 	for old in buildings.collect_in_rect(Rect2i(origin, Vector2i(def.size, def.size))):
 		buildings.remove(old, true)
-	return buildings.place(def, origin, rotation, true) as GatewayBuilding
+	gateway = buildings.place(def, origin, rotation, true) as GatewayBuilding
+	return gateway
 
 
-## Дрон сейчас в этом мире (действовать можно только здесь).
+## Угроза опасной планеты: поле потоков к шлюзу, точки появления, расписание волн.
+## compute — сразу посчитать поле (при загрузке оно восстанавливается из сохранения).
+func setup_threat(def: ThreatDef, depth: int, start_tick: int, seed_value: int, compute: bool = true) -> void:
+	if def == null:
+		return
+	ensure_flow(compute)
+	if spawn_points.is_empty() and gateway != null:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = hash([seed_value, "spawns"])
+		var center := gateway.origin + Vector2i.ONE * (gateway.def.size / 2)
+		spawn_points = SpawnPoints.find(grid.width, grid.height, grid.floors, center, def.spawn_point_count, rng)
+	threat = ThreatDirector.new(self, def, depth, start_tick, hash([seed_value, "threat"]))
+
+
+## Поле потоков создаётся при первой необходимости (угроза или появление врага).
+func ensure_flow(compute: bool = true) -> FlowField:
+	if flow == null:
+		flow = FlowField.new(self)
+		if compute:
+			flow.compute_now()
+	return flow
+
+
+func spawn_enemy(def: EnemyDef, position: Vector2) -> int:
+	ensure_flow()
+	return enemies.spawn(def, position, simulation.tick)
+
+
+# --- Урон ---
+
+func damage_building(building: Building, amount: float) -> void:
+	if building == null or building.world != self or amount <= 0.0:
+		return
+	building.health -= amount
+	if building.health > 0.0:
+		damaged[building.id] = true
+		return
+	if building == gateway and not is_base:
+		# Шлюз не исчезает: база уходит аварийным телепортом (Run.step).
+		building.health = 0.0
+		damaged[building.id] = true
+		breached = true
+		return
+	destroy_building(building)
+
+
+## Разрушение врагами: без возврата постройки, содержимое теряется.
+func destroy_building(building: Building) -> void:
+	if building == null or building.world != self:
+		return
+	var def := building.def
+	var rect := building.get_rect()
+	if buildings.remove(building, true):
+		destroyed_count += 1
+		building_destroyed.emit(def, rect)
+
+
+## Урон дрону (творческий режим — неуязвим).
+func damage_drone(amount: float, tick: int) -> void:
+	if creative or drone == null or drone.world != self or not drone.is_targetable(tick):
+		return
+	drone.health -= amount
+	if drone.health <= 0.0:
+		kill_drone(tick)
+
+
+## Дрон сбит: инвентарь и отменённая очередь крафта падают грузом, через паузу — появление у шлюза.
+func kill_drone(tick: int) -> void:
+	if drone == null or drone.dead:
+		return
+	var counts := PackedInt32Array()
+	counts.resize(Registry.items.size())
+	counts.fill(0)
+	drone.crafting.drain_into(counts)
+	drone.inventory.collect_into(counts)
+	drone.inventory.clear()
+	var crate := DroneCrate.from_counts(drone.position, counts)
+	if not crate.is_empty():
+		crates.append(crate)
+	drone.stop_mining()
+	drone.move_input = Vector2.ZERO
+	drone.health = 0.0
+	drone.dead = true
+	drone.respawn_tick = tick + drone.def.get_respawn_ticks()
+	drone_destroyed.emit()
+
+
+func respawn_drone(tick: int) -> void:
+	if drone == null or not drone.dead:
+		return
+	drone.dead = false
+	drone.health = drone.def.health
+	drone.invulnerable_until = tick + drone.def.get_invulnerable_ticks()
+	if gateway != null and gateway.world == self:
+		drone.position = gateway.get_world_center()
+	drone.prev_position = drone.position
+	drone_respawned.emit()
+
+
+## Дрон подбирает груз в радиусе: сколько поместится; пустой груз исчезает.
+func pickup_crates() -> int:
+	if crates.is_empty() or drone == null or drone.dead:
+		return 0
+	var radius := drone.def.pickup_radius * GameConst.TILE_SIZE
+	var moved := 0
+	for i in range(crates.size() - 1, -1, -1):
+		var crate := crates[i]
+		if crate.position.distance_to(drone.position) > radius:
+			continue
+		moved += crate.transfer_to(drone.inventory)
+		if crate.is_empty():
+			crates.remove_at(i)
+	if moved > 0:
+		crate_picked.emit(moved)
+	return moved
+
+
+## Дрон сейчас в этом мире и не сбит (действовать можно только здесь).
 func has_drone() -> bool:
-	return drone != null and drone.world == self
+	return drone != null and drone.world == self and not drone.dead
 
 
 ## Может ли игрок взаимодействовать со зданием (настройка, окно, поворот): в радиусе дрона.
@@ -219,8 +371,25 @@ func player_put(building: Building, item: int, amount: int) -> int:
 	return put
 
 
+func _on_building_removed(building: Building) -> void:
+	damaged.erase(building.id)
+	if building == gateway:
+		gateway = null
+
+
 ## Разрывает циклические ссылки перед выгрузкой.
 func dispose() -> void:
+	if threat != null:
+		threat.dispose()
+	threat = null
+	if flow != null:
+		flow.dispose()
+	flow = null
+	if enemies != null:
+		enemies.dispose()
+	enemies = null
+	crates.clear()
+	gateway = null
 	if buildings != null:
 		buildings.dispose()
 	buildings = null

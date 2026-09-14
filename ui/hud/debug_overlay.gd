@@ -49,4 +49,17 @@ func _process(delta: float) -> void:
 	lines.append("conveyors: %d (awake %d)   items on belts: %d   drawn: %d" % [
 		sim.conveyors.count, sim.conveyors.last_updated, sim.conveyors.get_item_count(), _game.item_renderer.drawn_count])
 	lines.append("awake buildings: %d" % sim.last_awake_buildings)
+	var planet := _game.run.planet
+	var enemies := planet.enemies
+	var flow := planet.flow
+	lines.append("enemies: %d (spawned %d, killed %d)   update: %.3f ms   drawn: %d" % [
+		enemies.count, enemies.spawned, enemies.killed, enemies.last_update_usec / 1000.0,
+		_game.planet_view.enemy_renderer.drawn_count])
+	if flow != null:
+		lines.append("flow: v%d %s   last recompute: %d ticks" % [flow.version,
+			"computing" if flow.is_computing() else ("dirty" if flow.is_dirty() else "ready"), flow.last_compute_ticks])
+	if planet.threat != null:
+		lines.append("threat: wave %d   next in %d ticks   budget %.1f   queued %d   N — call wave" % [
+			planet.threat.wave, planet.threat.get_ticks_to_next_wave(planet.simulation.tick), planet.threat.last_budget,
+			planet.threat.get_pending_spawns()])
 	_label.text = "\n".join(lines)

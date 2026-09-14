@@ -6,8 +6,10 @@ extends Resource
 @export var id: StringName
 @export var name_key: String
 @export_multiline var description_key: String
-## На безопасной планете враг не нападает (враги появятся на этапе угрозы).
+## На безопасной планете враг не нападает.
 @export var safe: bool = false
+## Кривая угрозы (волны врагов). У безопасной планеты не используется.
+@export var threat: ThreatDef
 ## Шанс, что узел звёздной карты (кроме первого) будет этого типа — вес при выборе.
 @export var weight: float = 1.0
 @export var min_size: Vector2i = Vector2i(112, 84)

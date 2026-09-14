@@ -7,6 +7,10 @@ extends RefCounted
 ## Телепорт: у шлюза выбирается соседняя планета звёздной карты, идёт зарядка (игра продолжается,
 ## можно отменить). По окончании мир планеты заменяется новым: площадка шлюза переезжает со всеми
 ## постройками и их содержимым, остальное на старой планете теряется. База не меняется.
+##
+## Прорыв: враги обнулили прочность центрального шлюза — сразу, без зарядки, аварийный телепорт
+## на случайную соседнюю планету. Площадка переезжает как обычно (разрушенное уже потеряно),
+## шлюз на новой планете пересобирается с полной прочностью.
 
 ## Сторона площадки центрального шлюза на планете, тайлов (площадка переезжает вместе с базой).
 const PAD_SIZE := 15
@@ -87,12 +91,16 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	planet_gate.link = link
 	base_gate.link = link
 	planet.pad_rect = _pad_around(planet_gate)
+	_setup_threat(planet, star_map.get_current(), 0)
 
 
 ## Один логический тик обоих миров и зарядки телепорта.
 func step() -> void:
 	planet.simulation.step()
 	base.simulation.step()
+	if planet.breached:
+		emergency_teleport()
+		return
 	if charge_target >= 0:
 		charge_ticks_left -= 1
 		if charge_ticks_left <= 0:
@@ -120,10 +128,19 @@ func is_planet_safe() -> bool:
 	return star_map.get_current().type.safe
 
 
+## Угроза планеты по типу узла звёздной карты (у безопасной планеты и в творческом режиме её нет).
+func _setup_threat(world: GameWorld, node: StarMap.StarNode, start_tick: int, compute: bool = true) -> void:
+	if creative or node.type.safe or node.type.threat == null:
+		return
+	world.setup_threat(node.type.threat, node.depth, start_tick, node.planet_seed, compute)
+
+
 # --- Дрон и шлюз ---
 
 ## Дрон над центральным шлюзом своего мира — можно пройти в другой мир.
 func can_use_gateway() -> bool:
+	if drone.dead:
+		return false
 	var gate := get_gateway(drone.world)
 	return gate != null and gate.world != null and gate.get_world_rect().has_point(drone.position)
 
@@ -181,8 +198,21 @@ func cancel_teleport() -> void:
 	teleport_state_changed.emit()
 
 
+## Аварийный телепорт при прорыве: случайная соседняя планета, без зарядки.
+func emergency_teleport() -> void:
+	var next := star_map.get_next()
+	if next.is_empty():
+		planet.breached = false
+		if link.planet_gateway != null:
+			link.planet_gateway.health = link.planet_gateway.get_max_health()
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([run_seed, star_map.current_id, planet.simulation.tick, "breach"])
+	_teleport(next[rng.randi_range(0, next.size() - 1)].id, true)
+
+
 ## Перелёт: новая планета, переезд площадки со всеми постройками и их содержимым.
-func _teleport(node_id: int) -> void:
+func _teleport(node_id: int, emergency: bool = false) -> void:
 	teleport_starting.emit()
 	var node := star_map.get_node(node_id)
 	var old := planet
@@ -191,6 +221,9 @@ func _teleport(node_id: int) -> void:
 	summary.from_title = get_world_title(old)
 	summary.seconds_on_planet = float(old.simulation.tick - planet_arrival_tick) / GameConst.TICK_RATE
 	summary.sent_to_base = link.sent_to_base.duplicate()
+	summary.emergency = emergency
+	summary.buildings_destroyed = old.destroyed_count
+	summary.waves = old.threat.wave if old.threat != null else 0
 
 	# Что переезжает: постройки целиком на площадке (кроме самого шлюза — он ставится заново).
 	var pad := old.pad_rect
@@ -200,7 +233,7 @@ func _teleport(node_id: int) -> void:
 			continue
 		if pad.size != Vector2i.ZERO and pad.encloses(b.get_rect()):
 			entries.append({"def": b.def, "offset": b.origin - pad.position, "rotation": b.rotation,
-				"config": b.get_config(), "state": b.save_state()})
+				"config": b.get_config(), "state": b.save_state(), "health": b.health})
 		else:
 			summary.buildings_lost += 1
 			b.collect_contents(summary.items_lost)
@@ -209,6 +242,14 @@ func _teleport(node_id: int) -> void:
 	var drone_on_planet := drone.world == old
 	var drone_offset := drone.position - old_gate.get_world_center() if old_gate != null else Vector2.ZERO
 	var drone_on_pad := pad.has_point(drone.get_tile())
+	var gate_center := old_gate.get_world_center() if old_gate != null else Vector2.ZERO
+	var crates: Array[DroneCrate] = []
+	for crate in old.crates:
+		if pad.size != Vector2i.ZERO and pad.has_point(GameConst.world_to_tile(crate.position)):
+			crate.position -= gate_center
+			crates.append(crate)
+		else:
+			crate.collect_into(summary.items_lost)
 
 	# Новая планета: тики синхронны с базой, шлюз и площадка — в центре карты.
 	star_map.move_to(node_id)
@@ -227,7 +268,13 @@ func _teleport(node_id: int) -> void:
 			b.set_config(e["config"])
 			fresh.buildings.notify_changed(b)
 		b.load_state(e["state"])
+		b.health = minf(float(e["health"]), b.get_max_health())
+		if b.is_damaged():
+			fresh.damaged[b.id] = true
 		summary.buildings_moved += 1
+	for crate in crates:
+		crate.position += new_gate.get_world_center() if new_gate != null else Vector2.ZERO
+		fresh.crates.append(crate)
 
 	if old_gate != null:
 		old_gate.link = null
@@ -245,6 +292,7 @@ func _teleport(node_id: int) -> void:
 		drone.prev_position = target
 		drone.move_input = Vector2.ZERO
 
+	_setup_threat(fresh, node, fresh.simulation.tick)
 	old.dispose()
 	planet = fresh
 	planet_arrival_tick = fresh.simulation.tick

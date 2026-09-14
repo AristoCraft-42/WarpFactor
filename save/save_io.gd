@@ -6,13 +6,14 @@ extends RefCounted
 ## дата, творческий режим), тело (u32 исходная длина, u32 сжатая длина, ZSTD от var_to_bytes словаря).
 ## Заголовок читается без распаковки тела — список сохранений строится быстро.
 ##
-## Тело — словарь секций: tables (id предметов, полов, руд), run, link, drone, planet, base.
+## Тело — словарь секций: tables (id предметов, полов, руд, врагов), run, link, drone, planet, base.
+## У мира планеты — ещё враги, угроза, поле потоков и выпавший груз (версия 2).
 ## Здания пишутся с их id, состоянием и настройкой; внутренности симуляции — как есть, поэтому после
 ## загрузки игра продолжается с того же тика так же, как без неё. Предметы, полы и руды хранятся
 ## индексами вместе с таблицами id: при изменении контента индексы переносятся (SaveContext).
 
 const MAGIC := "FWSV"
-const VERSION := 1
+const VERSION := 2
 const DIR := "user://saves/"
 ## Автопрогон пишет в отдельную папку, чтобы не трогать сохранения игрока.
 const AUTOSHOT_DIR := "user://saves_autoshot/"
@@ -22,6 +23,8 @@ const EXT := ".fwsave"
 static var _floor_map := PackedInt32Array()
 static var _dir: String = ""
 static var _ore_map := PackedInt32Array()
+## Перенос индексов врагов (пусто — без переноса).
+static var _enemy_map := PackedInt32Array()
 
 
 # --- Файлы ---
@@ -155,9 +158,12 @@ static func run_to_dict(run: Run) -> Dictionary:
 	var ore_ids := PackedStringArray()
 	for o in Registry.ores:
 		ore_ids.append(String(o.id))
+	var enemy_ids := PackedStringArray()
+	for e in Registry.enemies:
+		enemy_ids.append(String(e.id))
 	return {
 		"version": VERSION,
-		"tables": {"items": item_ids, "floors": floor_ids, "ores": ore_ids},
+		"tables": {"items": item_ids, "floors": floor_ids, "ores": ore_ids, "enemies": enemy_ids},
 		"run": {
 			"seed": run.run_seed, "creative": run.creative, "level": String(run.level_id),
 			"star_map": run.star_map.save_data(),
@@ -176,6 +182,7 @@ static func run_from_dict(data: Dictionary) -> Run:
 	SaveContext.begin(tables.get("items", PackedStringArray()))
 	_floor_map = _layer_map(tables.get("floors", PackedStringArray()), true)
 	_ore_map = _layer_map(tables.get("ores", PackedStringArray()), false)
+	_enemy_map = _enemy_table(tables.get("enemies", PackedStringArray()))
 	var run_data: Dictionary = data.get("run", {})
 	var run := Run.new()
 	run.run_seed = int(run_data.get("seed", 0))
@@ -206,6 +213,19 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.charge_ticks_left = int(run_data.get("charge_left", 0))
 	run.charge_ticks_total = int(run_data.get("charge_total", 0))
 	run.planet_arrival_tick = int(run_data.get("arrival_tick", 0))
+
+	# Угроза планеты: расписание, поле потоков — как в сохранении (старые сохранения начинают угрозу заново).
+	var planet_data: Dictionary = data.get("planet", {})
+	run._setup_threat(run.planet, run.star_map.get_current(), run.planet_arrival_tick, false)
+	if run.planet.threat != null and planet_data.has("threat"):
+		run.planet.threat.load_data(planet_data["threat"], _enemy_map)
+	if run.planet.flow == null and run.planet.enemies.count > 0:
+		run.planet.ensure_flow(false)
+	if run.planet.flow != null:
+		if planet_data.has("flow"):
+			run.planet.flow.load_data(planet_data["flow"])
+		else:
+			run.planet.flow.compute_now()
 	SaveContext.end()
 	return run
 
@@ -215,9 +235,15 @@ static func run_from_dict(data: Dictionary) -> Run:
 static func world_to_dict(world: GameWorld) -> Dictionary:
 	var entries: Array = []
 	for b in world.buildings.get_all():
-		entries.append({"id": b.id, "def": String(b.def.id), "origin": b.origin, "rotation": b.rotation,
-			"config": b.get_config(), "state": b.save_state(), "dump": b.get_dump_cursor()})
-	return {
+		var entry := {"id": b.id, "def": String(b.def.id), "origin": b.origin, "rotation": b.rotation,
+			"config": b.get_config(), "state": b.save_state(), "dump": b.get_dump_cursor()}
+		if b.is_damaged():
+			entry["hp"] = b.health
+		entries.append(entry)
+	var crates: Array = []
+	for crate in world.crates:
+		crates.append(crate.save_data())
+	var result := {
 		"width": world.grid.width, "height": world.grid.height,
 		"floors": world.grid.floors.duplicate(), "ores": world.grid.ores.duplicate(),
 		"is_base": world.is_base, "creative": world.creative, "pad": world.pad_rect,
@@ -226,7 +252,15 @@ static func world_to_dict(world: GameWorld) -> Dictionary:
 		"buildings": entries,
 		"id_capacity": world.buildings.get_id_capacity(), "free_ids": world.buildings.get_free_ids(),
 		"sim": world.simulation.save_runtime(),
+		"spawn_points": world.spawn_points.duplicate(), "crates": crates,
+		"destroyed": world.destroyed_count, "breached": world.breached,
+		"enemies": world.enemies.save_data(),
 	}
+	if world.threat != null:
+		result["threat"] = world.threat.save_data()
+	if world.flow != null:
+		result["flow"] = world.flow.save_data()
+	return result
 
 
 static func world_from_dict(d: Dictionary, drone: Drone) -> GameWorld:
@@ -261,6 +295,21 @@ static func world_from_dict(d: Dictionary, drone: Drone) -> GameWorld:
 			_place_entry(world, entry)
 	world.buildings.restore_ids(int(d.get("id_capacity", 1)), d.get("free_ids", PackedInt32Array()))
 	world.simulation.load_runtime(sim)
+	for b in world.buildings.get_all():
+		if b is GatewayBuilding and world.gateway == null:
+			world.gateway = b
+		if b.is_damaged():
+			world.damaged[b.id] = true
+	world.spawn_points.clear()
+	for p in (d.get("spawn_points", []) as Array):
+		world.spawn_points.append(p)
+	for crate_data in (d.get("crates", []) as Array):
+		var crate := DroneCrate.from_data(crate_data)
+		if not crate.is_empty():
+			world.crates.append(crate)
+	world.destroyed_count = int(d.get("destroyed", 0))
+	world.breached = bool(d.get("breached", false))
+	world.enemies.load_data(d.get("enemies", {}), _enemy_map)
 	return world
 
 
@@ -279,6 +328,8 @@ static func _place_entry(world: GameWorld, entry: Dictionary) -> void:
 		b.set_config(config)
 	b.set_dump_cursor(int(entry.get("dump", 0)))
 	b.load_state(entry.get("state", {}))
+	if entry.has("hp"):
+		b.health = clampf(float(entry["hp"]), 0.0, b.get_max_health())
 
 
 static func _remap_item_config(config: Variant) -> Variant:
@@ -300,6 +351,18 @@ static func _find_gateway(world: GameWorld, id: int) -> GatewayBuilding:
 		if other is GatewayBuilding:
 			return other
 	return null
+
+
+## Таблица переноса врагов: старый индекс → новый (-1 — тип исчез). Пусто — порядок не изменился.
+static func _enemy_table(saved_ids: PackedStringArray) -> PackedInt32Array:
+	var result := PackedInt32Array()
+	var identity := saved_ids.size() == Registry.enemies.size()
+	for i in saved_ids.size():
+		var e := Registry.get_enemy(StringName(saved_ids[i]))
+		result.append(e.index if e != null else -1)
+		if result[i] != i:
+			identity = false
+	return PackedInt32Array() if identity else result
 
 
 ## Таблица переноса слоя: старый индекс → новый. Для руды значения в слое — индекс + 1.

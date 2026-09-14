@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="PlanetTypeDef" format=3]
 
 [ext_resource type="Script" path="res://world/planet_type_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://enemies/threats/normal.tres" id="2_threat"]
 
 [resource]
 script = ExtResource("1_def")
@@ -8,6 +9,7 @@ id = &"normal"
 name_key = "PLANET_NORMAL"
 description_key = "PLANET_NORMAL_DESC"
 safe = false
+threat = ExtResource("2_threat")
 weight = 3.0
 min_size = Vector2i(112, 84)
 max_size = Vector2i(160, 120)

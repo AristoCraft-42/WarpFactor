@@ -7,7 +7,8 @@ extends RefCounted
 ##   1. планировщик будит здания, чьё время пришло;
 ##   2. ConveyorSystem двигает бодрствующие ленты;
 ##   3. бодрствующие здания выполняют update_tick;
-##   4. дрон игрока (движение, добыча, ручной крафт).
+##   4. угроза выпускает врагов, поле потоков пересчитывается порцией, враги двигаются и атакуют;
+##   5. дрон игрока (движение, добыча, ручной крафт, подбор груза).
 ## Здание, разбуженное во время тика, обновится на следующем тике — так предмет не может
 ## пройти несколько построек за один тик независимо от порядка обновления.
 
@@ -67,6 +68,13 @@ func step() -> void:
 		if b.world != null and b.update_tick(tick):
 			wake(b)
 	last_awake_buildings = current.size()
+
+	if _world.threat != null:
+		_world.threat.update(tick)
+	if _world.flow != null:
+		_world.flow.update()
+	if _world.enemies.count > 0:
+		_world.enemies.update(tick)
 
 	# Дрон один на забег и обновляется в симуляции того мира, где находится.
 	if _world.drone != null and _world.drone.world == _world:

@@ -12,8 +12,13 @@ var sent_to_base := PackedInt32Array()
 var buildings_moved: int = 0
 ## Постройки вне площадки, оставшиеся на старой планете.
 var buildings_lost: int = 0
-## Содержимое потерянных построек (по индексу предмета).
+## Содержимое потерянных построек и груза (по индексу предмета).
 var items_lost := PackedInt32Array()
+## Аварийный телепорт: враги прорвались к шлюзу.
+var emergency: bool = false
+## Сколько построек разрушили враги на покинутой планете и сколько волн там началось.
+var buildings_destroyed: int = 0
+var waves: int = 0
 
 
 func _init() -> void:

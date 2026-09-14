@@ -13,10 +13,13 @@ const CELL := 34
 const TERRAIN_SOURCE_ID := 0
 const BUILDING_ATLAS_WIDTH := 512
 const BUILDING_ATLAS_PADDING := 2
+const ENEMY_CELL := 48
 
 static var terrain_tileset: TileSet
 ## Иконки всех предметов в одну полосу (ячейка на индекс предмета) — для MultiMesh предметов.
 static var item_atlas: Texture2D
+## Спрайты врагов в одну полосу (ячейка ENEMY_CELL на индекс EnemyDef) — для MultiMesh врагов.
+static var enemy_atlas: Texture2D
 static var _floor_row_offset: int = 0
 static var _ore_row_offset: int = 0
 static var _building_textures: Dictionary[StringName, Texture2D] = {}
@@ -35,6 +38,7 @@ static func ensure_built() -> void:
 	_build_terrain()
 	_build_building_atlas()
 	_build_item_atlas()
+	_build_enemy_atlas()
 
 
 ## Текстура здания — область общего атласа (AtlasTexture).
@@ -65,6 +69,28 @@ static func _build_item_atlas() -> void:
 	for item in Registry.items:
 		atlas.blit_rect(_item_image(item), Rect2i(0, 0, t, t), Vector2i(item.index * t, 0))
 	item_atlas = ImageTexture.create_from_image(atlas)
+
+
+static func _build_enemy_atlas() -> void:
+	var cell := ENEMY_CELL
+	var atlas := Image.create_empty(cell * maxi(Registry.enemies.size(), 1), cell, false, Image.FORMAT_RGBA8)
+	atlas.fill(Color(0, 0, 0, 0))
+	for def in Registry.enemies:
+		atlas.blit_rect(_enemy_image(def), Rect2i(0, 0, cell, cell), Vector2i(def.index * cell, 0))
+	enemy_atlas = ImageTexture.create_from_image(atlas)
+
+
+static func _enemy_image(def: EnemyDef) -> Image:
+	if def.sprite != null:
+		var img := def.sprite.get_image()
+		if img != null:
+			if img.is_compressed():
+				img.decompress()
+			img.convert(Image.FORMAT_RGBA8)
+			if img.get_width() != ENEMY_CELL or img.get_height() != ENEMY_CELL:
+				img.resize(ENEMY_CELL, ENEMY_CELL, Image.INTERPOLATE_NEAREST)
+			return img
+	return PlaceholderArt.make_enemy(def, ENEMY_CELL)
 
 
 ## Иконка 32x32: готовая текстура, уменьшенный спрайт постройки или процедурный плейсхолдер.

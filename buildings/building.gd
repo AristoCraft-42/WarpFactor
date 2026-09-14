@@ -28,12 +28,22 @@ var world: GameWorld
 var proximity: Array[Building] = []
 ## Флаг списка бодрствующих (управляется Simulation).
 var awake: bool = false
+## Прочность; при нуле здание разрушается (GameWorld.damage_building).
+var health: float = 0.0
 
 var _dump_index: int = 0
 
 
 func get_size() -> int:
 	return def.size
+
+
+func get_max_health() -> float:
+	return def.get_max_health()
+
+
+func is_damaged() -> bool:
+	return health < def.get_max_health()
 
 
 func get_rect() -> Rect2i:

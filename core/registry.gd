@@ -1,6 +1,6 @@
 class_name Registry
 extends RefCounted
-## Реестр статических данных: предметы, полы, руды, здания, уровни, дрон.
+## Реестр статических данных: предметы, полы, руды, здания, уровни, дрон, враги.
 ## Всё загружается из .tres-файлов в фиксированных папках; порядок — по sort_order, затем по id.
 ## Реестр статический, поэтому доступен из любых скриптов, потоков и тестов без автозагрузки.
 ##
@@ -17,6 +17,7 @@ const DRONE_PATH := "res://player/drone.tres"
 const BASE_PATH := "res://world/base.tres"
 const RUN_PATH := "res://world/run.tres"
 const PLANET_TYPES_DIR := "res://world/planet_types/"
+const ENEMIES_DIR := "res://enemies/defs/"
 
 static var items: Array[ItemType] = []
 static var floors: Array[FloorDef] = []
@@ -28,6 +29,7 @@ static var drone_def: DroneDef
 static var base_def: BaseDef
 static var run_def: RunDef
 static var planet_types: Array[PlanetTypeDef] = []
+static var enemies: Array[EnemyDef] = []
 
 ## Размер стака по индексу предмета (горячий путь инвентаря).
 static var stack_sizes: PackedInt32Array = PackedInt32Array()
@@ -39,6 +41,7 @@ static var _floors_by_id: Dictionary[StringName, FloorDef] = {}
 static var _ores_by_id: Dictionary[StringName, OreDef] = {}
 static var _buildings_by_id: Dictionary[StringName, BuildingDef] = {}
 static var _levels_by_id: Dictionary[StringName, LevelDef] = {}
+static var _enemies_by_id: Dictionary[StringName, EnemyDef] = {}
 static var _recipe_by_item: Dictionary[int, HandRecipe] = {}
 
 static var _loaded: bool = false
@@ -81,6 +84,13 @@ static func ensure_loaded() -> void:
 		if res is PlanetTypeDef:
 			planet_types.append(res)
 	planet_types.sort_custom(func(a: PlanetTypeDef, b: PlanetTypeDef) -> bool: return String(a.id) < String(b.id))
+	for res in _load_dir(ENEMIES_DIR):
+		if res is EnemyDef:
+			enemies.append(res)
+	enemies.sort_custom(func(a: EnemyDef, b: EnemyDef) -> bool: return _less(a.sort_order, a.id, b.sort_order, b.id))
+	for i in enemies.size():
+		enemies[i].index = i
+		_register(_enemies_by_id, enemies[i].id, enemies[i], "enemy")
 
 	items.sort_custom(func(a: ItemType, b: ItemType) -> bool: return _less(a.sort_order, a.id, b.sort_order, b.id))
 	floors.sort_custom(func(a: FloorDef, b: FloorDef) -> bool: return _less(a.sort_order, a.id, b.sort_order, b.id))
@@ -145,6 +155,10 @@ static func get_level(id: StringName) -> LevelDef:
 	return _levels_by_id.get(id)
 
 
+static func get_enemy(id: StringName) -> EnemyDef:
+	return _enemies_by_id.get(id)
+
+
 ## Рецепт ручного крафта предмета (null — руками не делается).
 static func get_hand_recipe(item: int) -> HandRecipe:
 	return _recipe_by_item.get(item)
@@ -201,6 +215,24 @@ static func validate() -> PackedStringArray:
 		for ore_id in t.ore_ids:
 			if get_ore(ore_id) == null:
 				errors.append("тип планеты %s: нет руды %s" % [t.id, ore_id])
+	for t in planet_types:
+		if t.safe or t.threat == null:
+			if not t.safe:
+				errors.append("тип планеты %s: опасная планета без кривой угрозы" % t.id)
+			continue
+		var threat := t.threat
+		if threat.enemy_ids.is_empty():
+			errors.append("угроза типа %s: нет врагов" % t.id)
+		if threat.enemy_ids.size() != threat.enemy_from_wave.size() or threat.enemy_ids.size() != threat.enemy_weights.size():
+			errors.append("угроза типа %s: число врагов, волн и весов не совпадает" % t.id)
+		for enemy_id in threat.enemy_ids:
+			if get_enemy(enemy_id) == null:
+				errors.append("угроза типа %s: нет врага %s" % [t.id, enemy_id])
+	for enemy in enemies:
+		if enemy.health <= 0.0 or enemy.speed <= 0.0 or enemy.threat_cost <= 0.0:
+			errors.append("враг %s: прочность, скорость и стоимость должны быть больше нуля" % enemy.id)
+		if enemy.radius >= GameConst.TILE_SIZE * 0.5:
+			errors.append("враг %s: радиус должен быть меньше половины тайла" % enemy.id)
 	for stack in run_def.starting_items:
 		if stack == null or stack.item == null:
 			errors.append("забег: пустая позиция стартового инвентаря")

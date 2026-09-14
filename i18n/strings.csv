@@ -299,7 +299,7 @@ STARMAP_SIZE,Size: %d × %d,Размер: %d × %d
 STARMAP_ORES,Deposits: %s,Месторождения: %s
 STARMAP_NO_ORES,No deposits,Месторождений нет
 STARMAP_SAFE,Safe: the enemy does not attack,Безопасно: враг не нападает
-STARMAP_DANGEROUS,The enemy will find the base over time,Со временем враг найдёт базу
+STARMAP_DANGEROUS,"Enemy waves: the longer you stay, the stronger they get","Волны врагов: чем дольше стоишь, тем они сильнее"
 STARMAP_UNREACHABLE,Not reachable from the current planet,Недоступна с текущей планеты
 TELEPORT_MAP_HINT,Star map: pick one of the highlighted planets — the next step of the journey.,Звёздная карта: выберите одну из подсвеченных планет — следующий шаг пути.
 TELEPORT_START,Teleport (%d s),Телепорт (%d с)
@@ -337,3 +337,26 @@ SAVE_NAME_QUICK,Quick save,Быстрое сохранение
 INPUT_GROUP_GAME,Game,Игра
 ACTION_QUICK_SAVE,Quick save,Быстрое сохранение
 ACTION_QUICK_LOAD,Quick load,Быстрая загрузка
+ENEMY_CRAWLER,Crawler,Ползун
+ENEMY_SOLDIER,Gunner,Стрелок
+ENEMY_BRUTE,Brute,Громила
+THREAT_FIRST_WAVE,First wave in %s,Первая волна через %s
+THREAT_NEXT_WAVE,Wave %d in %s,Волна %d через %s
+THREAT_WAVE_ACTIVE,Wave %d is coming,Идёт волна %d
+THREAT_CONTINUOUS,Endless assault · wave %d,Непрерывная атака · волна %d
+THREAT_ENEMIES,Enemies: %d,Врагов: %d
+THREAT_GATEWAY,Gateway: %d / %d,Шлюз: %d / %d
+TOAST_WAVE_WARNING,Wave %d in %d seconds!,Волна %d через %d с!
+TOAST_WAVE_STARTED,Wave %d has begun,Началась волна %d
+TOAST_CONTINUOUS,The waves no longer stop — the assault is endless,Волны больше не прекращаются — атака стала непрерывной
+TOAST_GATEWAY_ATTACKED,The gateway is under attack!,Шлюз атакован!
+TOAST_DRONE_DESTROYED,Drone shot down! Its cargo dropped where it fell,Дрон сбит! Груз выпал на месте гибели
+TOAST_CRATE_PICKED,Picked up from the cargo: %d,Подобрано из груза: %d
+TOAST_WAVE_CALLED,Next wave called (debug),Следующая волна вызвана (отладка)
+HUD_DRONE_RESPAWN,Drone shot down — back at the gateway in %d s,Дрон сбит — появится у шлюза через %d с
+HUD_INFO_HEALTH,Health: %d / %d,Прочность: %d / %d
+STAT_HEALTH,Health: %d,Прочность: %d
+STAT_WALKABLE,Enemies walk over it,Враги проходят поверх
+SUMMARY_EMERGENCY_TITLE,Emergency jump: %s,Аварийный переход: %s
+SUMMARY_EMERGENCY,Enemies destroyed the gateway — the base escaped by emergency teleport.,Враги разрушили шлюз — база ушла аварийным телепортом.
+SUMMARY_COMBAT,"Waves: %d, buildings destroyed by enemies: %d","Волн: %d, разрушено врагами построек: %d"

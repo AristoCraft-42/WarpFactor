@@ -4,6 +4,8 @@ extends RefCounted
 ## Пол — шум с пятнами, скалы — второй шум (края карты всегда скальные), руды — залежи-кляксы
 ## из списка руд узла. Центр карты — место посадки: вокруг площадки земля расчищена,
 ## под самой площадкой — металлическая платформа без руды.
+## У опасной планеты у краёв карты выбираются точки появления врагов; если к центру нет прохода,
+## через скалы прорубается коридор.
 
 ## Запас расчищенной земли вокруг площадки, тайлов.
 const LANDING_MARGIN := 6
@@ -47,6 +49,11 @@ static func generate(node: StarMap.StarNode, pad_size: int) -> LevelMap:
 			if at_edge or (not near_landing and rocks.get_noise_2d(x, y) > rock_threshold):
 				floor_index = rock
 			map.set_floor(x, y, floor_index)
+
+	if not type.safe and type.threat != null:
+		var spawn_rng := RandomNumberGenerator.new()
+		spawn_rng.seed = hash([node.planet_seed, "spawns"])
+		map.spawn_points = SpawnPoints.find(w, h, map.floors, center, type.threat.spawn_point_count, spawn_rng, base_floor)
 
 	_place_ores(map, node, rng, center, clear_radius)
 

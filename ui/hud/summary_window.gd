@@ -1,6 +1,7 @@
 class_name SummaryWindow
 extends PanelContainer
-## Итог планеты после телепорта: время, что ушло в базу, что переехало с площадкой, что потеряно.
+## Итог планеты после телепорта: время, что ушло в базу, что переехало с площадкой, что потеряно,
+## сколько было волн и что разрушили враги. Аварийный телепорт (прорыв к шлюзу) отмечен отдельно.
 
 const MAX_ICONS := 10
 
@@ -41,11 +42,16 @@ func setup() -> void:
 func show_summary(summary: TeleportSummary) -> void:
 	if summary == null:
 		return
-	_title.text = tr("SUMMARY_TITLE") % summary.to_title
+	_title.text = tr("SUMMARY_EMERGENCY_TITLE" if summary.emergency else "SUMMARY_TITLE") % summary.to_title
+	_title.add_theme_color_override("font_color", UiTheme.RED if summary.emergency else UiTheme.YELLOW)
 	var lines := PackedStringArray()
+	if summary.emergency:
+		lines.append(tr("SUMMARY_EMERGENCY"))
 	lines.append(tr("SUMMARY_LEFT") % [summary.from_title, int(summary.seconds_on_planet) / 60, int(summary.seconds_on_planet) % 60])
 	lines.append(tr("SUMMARY_MOVED") % summary.buildings_moved)
 	lines.append(tr("SUMMARY_LOST") % [summary.buildings_lost, TeleportSummary.total(summary.items_lost)])
+	if summary.waves > 0 or summary.buildings_destroyed > 0:
+		lines.append(tr("SUMMARY_COMBAT") % [summary.waves, summary.buildings_destroyed])
 	if summary.to_safe:
 		lines.append(tr("SUMMARY_SAFE"))
 	_lines.text = "\n".join(lines)

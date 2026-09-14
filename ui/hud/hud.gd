@@ -1,6 +1,6 @@
 class_name Hud
 extends CanvasLayer
-## Игровой интерфейс: название текущего мира (планета или база), пауза и скорость, кнопка меню,
+## Игровой интерфейс: название текущего мира (планета или база), угроза планеты, пауза и скорость, кнопка меню,
 ## панель строительства, окно инвентаря и крафта, очередь крафта, инфо-строка, подсказки режима
 ## и перехода через шлюз, легенды оверлеев, отладка, уведомления, подтверждение массового сноса.
 
@@ -23,6 +23,9 @@ var _title_label: Label
 var _safe_badge: Label
 var _gateway_label: Label
 var _charge_label: Label
+var _respawn_label: Label
+var threat_panel: ThreatPanel
+var _drone_was_dead: bool = false
 var teleport_window: TeleportWindow
 var summary_window: SummaryWindow
 var _config_panel: ConfigPanel
@@ -59,6 +62,8 @@ func setup(game: Game) -> void:
 	game.tools.area_changed.connect(_update_hint)
 	game.tools.delete_confirmation_requested.connect(_on_delete_confirmation)
 	game.clock.state_changed.connect(_update_paused_badge)
+	_connect_world_signals()
+	_drone_was_dead = game.run.drone.dead
 	Settings.changed.connect(_on_setting_changed)
 	Settings.bindings_changed.connect(_update_hint)
 	_update_info()
@@ -138,6 +143,10 @@ func _build_top_left() -> void:
 		badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		title_row.add_child(badge)
 	column.add_child(title_panel)
+
+	threat_panel = ThreatPanel.new()
+	column.add_child(threat_panel)
+	threat_panel.setup(_game)
 
 	_belt_legend = _make_belt_legend()
 	column.add_child(_belt_legend)
@@ -261,6 +270,15 @@ func _build_top_center() -> void:
 	_charge_label.visible = false
 	column.add_child(_charge_label)
 
+	_respawn_label = Label.new()
+	_respawn_label.theme_type_variation = &"BadgeLabel"
+	_respawn_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_respawn_label.add_theme_font_size_override("font_size", 18)
+	_respawn_label.add_theme_color_override("font_color", UiTheme.RED)
+	_respawn_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_respawn_label.visible = false
+	column.add_child(_respawn_label)
+
 	_paused_badge = UiUtil.label("HUD_PAUSED", &"BadgeLabel")
 	_paused_badge.add_theme_font_size_override("font_size", 18)
 	_paused_badge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -351,7 +369,20 @@ func _update_title() -> void:
 ## Телепорт завершён: новая планета, показываем итог.
 func on_planet_changed() -> void:
 	on_world_changed()
+	_connect_world_signals()
+	threat_panel.refresh()
 	summary_window.show_summary(_game.run.last_summary)
+
+
+## Уведомления мира планеты (после телепорта мир новый — подписываемся заново).
+func _connect_world_signals() -> void:
+	for world in [_game.run.planet, _game.run.base]:
+		if not world.crate_picked.is_connected(_on_crate_picked):
+			world.crate_picked.connect(_on_crate_picked)
+
+
+func _on_crate_picked(moved: int) -> void:
+	Events.toast(tr("TOAST_CRATE_PICKED") % moved, Events.ToastKind.SUCCESS)
 
 func _process(delta: float) -> void:
 	if _fps_label.visible:
@@ -364,6 +395,16 @@ func _process(delta: float) -> void:
 	_charge_label.visible = charging
 	if charging:
 		_charge_label.text = tr("HUD_TELEPORT_CHARGING") % ceili(_game.run.get_charge_seconds_left())
+	# Сбитый дрон: отсчёт до появления у шлюза.
+	var drone := _game.run.drone if _game.run != null else null
+	var dead := drone != null and drone.dead
+	_respawn_label.visible = dead
+	if dead:
+		var world_tick := drone.world.simulation.tick if drone.world != null else 0
+		_respawn_label.text = tr("HUD_DRONE_RESPAWN") % ceili(maxi(drone.respawn_tick - world_tick, 0) / float(GameConst.TICK_RATE))
+		if not _drone_was_dead:
+			Events.toast(tr("TOAST_DRONE_DESTROYED"), Events.ToastKind.WARNING)
+	_drone_was_dead = dead
 	# Подсказка перехода: дрон над центральным шлюзом.
 	var can_pass := _game.run != null and _game.run.can_use_gateway()
 	if can_pass != _gateway_label.visible:
@@ -402,6 +443,7 @@ func _update_info() -> void:
 	var b := tools.hover_building
 	if b != null and b.world != null:
 		lines.append(tr("HUD_INFO_BUILDING") % tr(b.def.name_key))
+		lines.append(tr("HUD_INFO_HEALTH") % [ceili(b.health), roundi(b.get_max_health())])
 		lines.append_array(b.get_info_lines())
 	_info_label.text = "\n".join(lines)
 

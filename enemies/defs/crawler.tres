@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://enemies/enemy_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"crawler"
+name_key = "ENEMY_CRAWLER"
+sort_order = 10
+health = 70.0
+speed = 3.0
+radius = 7.0
+damage = 5.0
+attack_interval = 0.4
+attack_range = 0.15
+threat_cost = 1.0
+color = Color(0.800, 0.353, 0.227, 1)
+shape = 0
+draw_size = 26.0

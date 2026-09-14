@@ -22,6 +22,12 @@ var mine_tile: Vector2i = NO_TILE
 var mine_progress: int = 0
 ## Добыча стоит: нет руды, далеко, мешает здание или инвентарь полон.
 var mine_blocked: bool = false
+var health: float = 0.0
+## Дрон сбит и ждёт появления у шлюза (respawn_tick).
+var dead: bool = false
+var respawn_tick: int = 0
+## До этого тика враги дрона не трогают (после появления).
+var invulnerable_until: int = 0
 
 
 func _init(p_def: DroneDef, p_world: GameWorld, spawn: Vector2) -> void:
@@ -29,8 +35,18 @@ func _init(p_def: DroneDef, p_world: GameWorld, spawn: Vector2) -> void:
 	world = p_world
 	position = spawn
 	prev_position = spawn
+	health = def.health
 	inventory = Inventory.new(def.inventory_slots, true)
 	crafting = CraftQueue.new(inventory, def.craft_speed)
+
+
+func is_alive() -> bool:
+	return not dead
+
+
+## Могут ли враги атаковать дрона в этот тик.
+func is_targetable(tick: int) -> bool:
+	return not dead and tick >= invulnerable_until
 
 
 func get_reach_px() -> float:
@@ -90,6 +106,7 @@ func get_mine_fraction() -> float:
 func save_data() -> Dictionary:
 	return {"position": position, "prev_position": prev_position, "facing": facing,
 		"mine_tile": mine_tile, "mine_progress": mine_progress,
+		"health": health, "dead": dead, "respawn_tick": respawn_tick, "invulnerable_until": invulnerable_until,
 		"inventory": inventory.save_slots(), "crafting": crafting.save_data()}
 
 
@@ -99,6 +116,10 @@ func load_data(data: Dictionary) -> void:
 	facing = float(data.get("facing", 0.0))
 	mine_tile = data.get("mine_tile", NO_TILE)
 	mine_progress = int(data.get("mine_progress", 0))
+	health = float(data.get("health", def.health))
+	dead = bool(data.get("dead", false))
+	respawn_tick = int(data.get("respawn_tick", 0))
+	invulnerable_until = int(data.get("invulnerable_until", 0))
 	move_input = Vector2.ZERO
 	var slots: Dictionary = data.get("inventory", {})
 	inventory.load_slots(slots.get("slot_items", PackedInt32Array()), slots.get("slot_counts", PackedInt32Array()),
@@ -110,8 +131,12 @@ func get_draw_position(alpha: float) -> Vector2:
 	return prev_position.lerp(position, alpha)
 
 
-func update_tick(_tick: int) -> void:
+func update_tick(tick: int) -> void:
 	prev_position = position
+	if dead:
+		if tick >= respawn_tick:
+			world.respawn_drone(tick)
+		return
 	if move_input != Vector2.ZERO:
 		var step := move_input.limit_length(1.0) * def.get_speed_per_tick()
 		position = (position + step).clamp(Vector2.ZERO, world.grid.get_pixel_size())
@@ -119,6 +144,8 @@ func update_tick(_tick: int) -> void:
 	if is_mining():
 		_mine()
 	crafting.update_tick()
+	if not world.crates.is_empty():
+		world.pickup_crates()
 
 
 func _mine() -> void:

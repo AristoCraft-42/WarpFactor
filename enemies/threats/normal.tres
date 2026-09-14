@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ThreatDef" format=3]
+
+[ext_resource type="Script" path="res://enemies/threat_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+first_wave_seconds = 180.0
+first_gap_seconds = 120.0
+gap_multiplier = 0.8
+continuous_below_seconds = 10.0
+spawn_seconds = 8.0
+spawn_seconds_per_wave = 2.5
+max_spawn_seconds = 45.0
+warning_seconds = 15.0
+budget_base = 6.0
+budget_per_wave = 4.0
+budget_per_minute = 1.5
+budget_per_depth = 0.2
+enemy_ids = Array[StringName]([&"crawler", &"soldier", &"brute"])
+enemy_from_wave = PackedInt32Array(1, 3, 6)
+enemy_weights = PackedFloat32Array(3, 2, 1)
+spawn_point_count = 3
+max_alive = 1500

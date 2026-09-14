@@ -49,12 +49,14 @@ func _run_game(game: Game) -> void:
 	await _measure_frames("старт")
 	await _shot("g01_start.png")
 
+	_hold_threat(game)
 	await _run_gateway(game)
 	await _run_drone(game, base)
 	await _run_interaction(game, base)
 	await _run_production_chain(game, base)
 	await _run_factory(game, base)
 	await _run_logistics(game, base)
+	await _run_enemies(game, base)
 
 	await _drone_to(game, base)
 	game.ore_overlay.visible = true
@@ -74,7 +76,9 @@ func _run_game(game: Game) -> void:
 	game.grid_overlay.set_chunk_lines_visible(false)
 
 	await _run_teleport(game)
+	_hold_threat(game)
 	await _run_saves(game)
+	await _run_breach(game)
 
 	game.open_pause_menu()
 	await _frames(10)
@@ -100,6 +104,113 @@ func _run_game(game: Game) -> void:
 		print("autotest ", line)
 	print("autotest: провалов %d из %d" % [failed, _results.size()])
 	get_tree().quit()
+
+
+## Отложить волны текущей планеты, чтобы враги не мешали остальным сценариям.
+func _hold_threat(game: Game) -> void:
+	if game.run.planet.threat != null:
+		game.run.planet.threat.delay_next_wave(10000000)
+
+
+## Угроза и враги: панель угрозы, толпа врагов, полоски прочности, гибель дрона и груз, вызов волны (F3 + N).
+func _run_enemies(game: Game, base: Vector2i) -> void:
+	var run := game.run
+	var planet := run.planet
+	var gate := planet.gateway
+	_expect(planet.threat != null and planet.flow != null, "на опасной планете есть угроза и поле потоков")
+	_expect(not planet.spawn_points.is_empty(), "у готовой карты найдены точки появления (%d)" % planet.spawn_points.size())
+	await _frames(12)
+	var panel := game.hud.threat_panel
+	var wave_label: Label = panel.get("_wave_label")
+	_expect(panel.visible and not wave_label.text.is_empty(), "панель угрозы показывает отсчёт: %s" % wave_label.text)
+
+	# Толпа врагов западнее площадки: идут к шлюзу.
+	var t := float(GameConst.TILE_SIZE)
+	var origin := gate.get_world_center() + Vector2(-18, 9) * t
+	var k := 0
+	for def in Registry.enemies:
+		for j in (12 if def.id == &"crawler" else (6 if def.id == &"soldier" else 2)):
+			var p := origin + Vector2((k % 6) * 1.2, (k / 6) * 1.2) * t
+			if planet.flow.get_dist(GameConst.world_to_tile(p)) < FlowField.INF:
+				planet.spawn_enemy(def, p)
+			k += 1
+	_expect(planet.enemies.count > 10, "враги появились (%d)" % planet.enemies.count)
+	var damaged_target: Building = null
+	for b in planet.buildings.get_all():
+		if b != gate and b.def.solid and planet.pad_rect.encloses(b.get_rect()):
+			damaged_target = b
+			break
+	if damaged_target != null:
+		planet.damage_building(damaged_target, damaged_target.get_max_health() * 0.5)
+	planet.damage_building(gate, gate.get_max_health() * 0.2)
+	await _drone_to(game, GameConst.world_to_tile(gate.get_world_center()) + Vector2i(-4, 4))
+	game.camera.focus_on(origin.lerp(gate.get_world_center(), 0.5), 0.8)
+	await _wait_ticks(planet, 90)
+	_expect(game.planet_view.enemy_renderer.drawn_count > 0, "враги рисуются (%d в кадре)" % game.planet_view.enemy_renderer.drawn_count)
+	var gate_row: HBoxContainer = panel.get("_gate_row")
+	_expect(gate_row.visible, "повреждённый шлюз виден в панели угрозы")
+	await _shot("e01_enemies.png")
+	await _measure_frames("враги")
+
+	# Дрона сбивают: груз на месте гибели, отсчёт до появления, затем подбор.
+	var drone := run.drone
+	var death_tile := GameConst.world_to_tile(gate.get_world_center()) + Vector2i(-9, 0)
+	await _drone_to(game, death_tile)
+	drone.inventory.add(Registry.get_item(&"copper").index, 25)
+	planet.damage_drone(100000.0, planet.simulation.tick)
+	await _frames(6)
+	var respawn_label: Label = game.hud.get("_respawn_label")
+	_expect(drone.dead and respawn_label.visible and planet.crates.size() == 1, "дрон сбит: груз выпал, показан отсчёт")
+	await _shot("e02_drone_down.png")
+	await _wait_ticks(planet, drone.def.get_respawn_ticks() + 2)
+	_expect(not drone.dead and drone.position == gate.get_world_center(), "дрон появился у шлюза")
+	await _drone_to(game, death_tile)
+	await _wait_ticks(planet, 2)
+	_expect(planet.crates.is_empty() and drone.inventory.count(Registry.get_item(&"copper").index) >= 25, "груз подобран")
+
+	# Отладка: F3 и N вызывают волну.
+	var wave := planet.threat.wave
+	await _key(KEY_F3)
+	await _key(KEY_N)
+	await _wait_ticks(planet, 3)
+	_expect(planet.threat.wave == wave + 1, "F3 + N вызывают следующую волну")
+	await _key(KEY_F3)
+	await _frames(5)
+	await _shot("e03_wave.png")
+
+	# Убираем врагов и чиним шлюз, чтобы не мешать телепорту.
+	planet.enemies.clear()
+	planet.threat.delay_next_wave(10000000)
+	gate.health = gate.get_max_health()
+	planet.damaged.erase(gate.id)
+	await _frames(5)
+
+
+## Прорыв: шлюз разрушен — аварийный телепорт на соседнюю планету и итог.
+func _run_breach(game: Game) -> void:
+	var run := game.run
+	var planet := run.planet
+	var gate := planet.gateway
+	var ids := run.star_map.get_current().links.duplicate()
+	var crawler := Registry.get_enemy(&"crawler")
+	var flow := planet.ensure_flow()
+	planet.spawn_enemy(crawler, gate.get_world_center() + Vector2(-3, 0) * GameConst.TILE_SIZE)
+	await _drone_to(game, gate.origin + Vector2i(1, 5))
+	game.camera.focus_on(gate.get_world_center(), 1.0)
+	gate.health = 1.0
+	var guard := 0
+	while run.planet == planet and guard < 600:
+		await get_tree().process_frame
+		guard += 1
+	_expect(run.planet != planet and ids.has(run.star_map.current_id), "враг добил шлюз — аварийный телепорт на соседнюю планету")
+	await _frames(20)
+	var summary := run.last_summary
+	_expect(game.hud.summary_window.visible and summary != null and summary.emergency, "показан итог аварийного телепорта")
+	await _shot("e04_emergency_summary.png")
+	var ok_button: Button = game.hud.summary_window.get("_ok_button")
+	await _click_control(ok_button)
+	_hold_threat(game)
+	_expect(flow != null and run.planet.gateway.health == run.planet.gateway.get_max_health(), "шлюз на новой планете цел")
 
 
 ## База и планета: переход через шлюз по F, стройка в базе, предметы через шлюз в обе стороны.

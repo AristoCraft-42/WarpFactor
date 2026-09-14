@@ -1,6 +1,7 @@
 class_name WorldView
 extends Node2D
-## Все представления одного мира: террейн, сетка, граница карты, здания, предметы, оверлеи, площадка.
+## Все представления одного мира: террейн, сетка, граница карты, здания, предметы, оверлеи, площадка,
+## точки появления, враги и бой (полоски прочности, вспышки атак, груз дрона).
 ## В забеге два вида (планета и база). Неактивный вид скрыт и не обрабатывается, но симуляция
 ## его мира идёт; изменения зданий копятся грязными чанками и дорисовываются при переключении.
 
@@ -12,6 +13,9 @@ var item_renderer: ItemRenderer
 var ore_overlay: OreOverlay
 var belt_overlay: BeltLoadOverlay
 var pad_overlay: PadOverlay
+var spawn_markers: SpawnMarkers
+var enemy_renderer: EnemyRenderer
+var combat_overlay: CombatOverlay
 
 
 func setup(p_world: GameWorld, camera: CameraController, clock: SimClock) -> void:
@@ -46,6 +50,21 @@ func setup(p_world: GameWorld, camera: CameraController, clock: SimClock) -> voi
 	pad_overlay.name = "Pad"
 	add_child(pad_overlay)
 	pad_overlay.setup(world)
+
+	spawn_markers = SpawnMarkers.new()
+	spawn_markers.name = "SpawnMarkers"
+	add_child(spawn_markers)
+	spawn_markers.setup(world)
+
+	enemy_renderer = EnemyRenderer.new()
+	enemy_renderer.name = "Enemies"
+	add_child(enemy_renderer)
+	enemy_renderer.setup(world, camera, clock)
+
+	combat_overlay = CombatOverlay.new()
+	combat_overlay.name = "Combat"
+	add_child(combat_overlay)
+	combat_overlay.setup(world, camera, clock)
 
 	ore_overlay = OreOverlay.new()
 	ore_overlay.name = "OreOverlay"

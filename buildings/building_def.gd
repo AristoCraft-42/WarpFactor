@@ -33,6 +33,13 @@ enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL,
 ## Сколько построек даёт одна партия.
 @export var craft_amount: int = 1
 
+@export_group("Прочность")
+## Прочность постройки (0 — по размеру: 60 × size²).
+@export var health: float = 0.0
+## Твёрдая постройка: враги не проходят сквозь неё, а ломают. Ленты и логистика проходимы —
+## враги идут поверх, но могут бить их по дороге.
+@export var solid: bool = true
+
 @export_group("Внешний вид")
 @export var color: Color = Color(0.5, 0.5, 0.5)
 @export var glyph: Glyph = Glyph.NONE
@@ -51,6 +58,18 @@ var item_index: int = -1
 var item: ItemType:
 	get:
 		return Registry.items[item_index] if item_index >= 0 else null
+
+
+func get_max_health() -> float:
+	return health if health > 0.0 else 60.0 * size * size
+
+
+## Цена прохода тайла этой постройки для поля потоков врагов (1 — как пустая земля).
+## Твёрдые постройки проходимы «с ценой»: враг обойдёт их, если обход короче, иначе сломает.
+func get_path_cost() -> int:
+	if not solid:
+		return 1
+	return mini(8 + ceili(get_max_health() / 25.0), FlowField.MAX_COST)
 
 
 func create_building() -> Building:

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://enemies/enemy_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"soldier"
+name_key = "ENEMY_SOLDIER"
+sort_order = 20
+health = 160.0
+speed = 1.8
+radius = 9.0
+damage = 9.0
+attack_interval = 0.9
+attack_range = 3.5
+threat_cost = 3.0
+color = Color(0.722, 0.282, 0.247, 1)
+shape = 1
+draw_size = 32.0
