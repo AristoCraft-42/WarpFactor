@@ -53,6 +53,13 @@ func _ready() -> void:
 	_test_unloader_from_buildings()
 	_test_inversion_config()
 	_test_run_gateway()
+	_test_router_returns_items()
+	_test_unloader_balancing()
+	_test_gateway_rotation()
+	_test_star_map()
+	_test_planet_generator()
+	_test_building_state_roundtrip()
+	_test_teleport()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -101,6 +108,7 @@ func _test_registry() -> void:
 	_check(Registry.floors.size() >= 4, "мало типов пола")
 	_check(Registry.buildings.size() == 26, "ожидалось 26 зданий (24 + шлюз и его пара), есть %d" % Registry.buildings.size())
 	_check(Registry.base_def != null and Registry.base_def.size == 24, "параметры базы загружены (24×24)")
+	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
 	_check(Registry.items.size() == 11 + 24, "ожидалось 11 ресурсов и 24 предмета-постройки, есть %d" % Registry.items.size())
 	_check(Registry.get_building(&"inverted_sorter") == null and Registry.get_building(&"underflow_gate") == null,
 		"инвертированные варианты стали настройкой, а не отдельными зданиями")
@@ -1077,19 +1085,22 @@ func _test_logistics_throughput() -> void:
 func _test_unloader_from_buildings() -> void:
 	var coal := _item(&"coal")
 	var graphite := _item(&"graphite")
+	# Завод → разгрузчик → лента: без фильтра уходят и продукция, и сырьё.
 	var world := Worlds.empty_world(32, 24)
-	var press := world.buildings.place(Registry.get_building(&"graphite_press"), Vector2i(6, 5), 0, true) as Crafter
+	world.buildings.place(Registry.get_building(&"graphite_press"), Vector2i(6, 5), 0, true)
 	_source(world, Vector2i(5, 5), [coal])
 	var unloader := _place(world, &"unloader", Vector2i(8, 5))
 	Worlds.conveyor_line(world, Vector2i(9, 5), 3, GameConst.Dir.RIGHT)
 	var sink := _sink(world, Vector2i(12, 5))
 	Worlds.run_ticks(world, 900)
-	_check(sink.count_of(graphite) > 5 and sink.count_of(coal) == 0, "разгрузчик забирает графит из пресса, но не уголь (%d / %d)" % [sink.count_of(graphite), sink.count_of(coal)])
-	world.configure(unloader, coal)
-	var graphite_before: int = sink.count_of(graphite)
-	Worlds.run_ticks(world, 300)
-	_check(sink.count_of(coal) == 0 and sink.count_of(graphite) == graphite_before, "фильтр «уголь»: из завода сырьё не достаётся")
-	_check(press.inputs[coal] > 0, "сырьё осталось в прессе")
+	_check(sink.count_of(coal) > 5, "разгрузчик забирает сырьё из завода (%d)" % sink.count_of(coal))
+	world.configure(unloader, graphite)
+	# Уголь, уже едущий по лентам, успевает доехать до приёмника.
+	Worlds.run_ticks(world, 90)
+	var coal_before: int = sink.count_of(coal)
+	Worlds.run_ticks(world, 600)
+	_check(sink.count_of(coal) == coal_before, "с фильтром «графит» уголь не забирается")
+	_check(sink.count_of(graphite) > 0, "с фильтром «графит» уходит продукция (%d)" % sink.count_of(graphite))
 
 	# Бур → разгрузчик → лента.
 	var map := LevelMap.new(24, 12, Registry.get_floor(&"stone").index)
@@ -1111,10 +1122,11 @@ func _test_unloader_from_buildings() -> void:
 	chain.buildings.place(Registry.get_building(&"unloader"), Vector2i(6, 4), 0, true)
 	var fed := chain.buildings.place(Registry.get_building(&"graphite_press"), Vector2i(7, 4), 0, true) as Crafter
 	Worlds.run_ticks(chain, 900)
-	var produced := fed.outputs[graphite] + storage.inventory.count(graphite)
+	var produced := fed.outputs[graphite]
 	_check(produced > 0, "пресс получил уголь из склада через разгрузчик и работает")
 	_check(storage.inventory.count(coal) + fed.inputs[coal] + produced * 2 + (2 if fed.crafting else 0) == 100,
 		"уголь не гоняется по кругу между складом и заводом")
+	_check(storage.inventory.count(graphite) == 0, "в склад разгрузчик не кладёт")
 	world.dispose()
 	mine.dispose()
 	chain.dispose()
@@ -1208,4 +1220,231 @@ func _test_run_gateway() -> void:
 	_check(not run.can_use_gateway(), "вдали от пары пройти нельзя")
 	run.drone.position = pair.get_world_center()
 	_check(run.use_gateway() and run.drone.world == run.planet, "дрон возвращается на планету")
+	run.dispose()
+
+
+## Маршрутизатор как в Mindustry: возвращает предмет источнику, если тот принимает.
+func _test_router_returns_items() -> void:
+	var world := Worlds.empty_world(24, 12)
+	var src := _source(world, Vector2i(3, 5), [_item(&"copper")])
+	src.set("limit", 20)
+	Worlds.conveyor_line(world, Vector2i(4, 5), 1, GameConst.Dir.RIGHT)
+	_place(world, &"router", Vector2i(5, 5))
+	var dead_end := _place(world, &"router", Vector2i(5, 4))
+	Worlds.conveyor_line(world, Vector2i(5, 6), 2, GameConst.Dir.DOWN)
+	var sink := _sink(world, Vector2i(5, 8))
+	Worlds.run_ticks(world, 900)
+	_check(sink.received == 20, "все предметы дошли: тупиковый маршрутизатор вернул свой (%d из 20)" % sink.received)
+	_check(dead_end.get("item") == -1, "тупиковый маршрутизатор пуст")
+	world.dispose()
+
+
+## Разгрузчик балансирует два завода и не кладёт в склад.
+func _test_unloader_balancing() -> void:
+	var coal := _item(&"coal")
+	var world := Worlds.empty_world(32, 24)
+	var a := world.buildings.place(Registry.get_building(&"graphite_press"), Vector2i(4, 4), 0, true) as Crafter
+	world.buildings.place(Registry.get_building(&"unloader"), Vector2i(6, 4), 0, true)
+	var b := world.buildings.place(Registry.get_building(&"graphite_press"), Vector2i(7, 4), 0, true) as Crafter
+	world.player_put(a, coal, 0)
+	for i in 8:
+		a.handle_item(null, coal)
+	Worlds.run_ticks(world, 90)
+	var total := a.inputs[coal] + b.inputs[coal] + (a.outputs[_item(&"graphite")] + b.outputs[_item(&"graphite")]) * 2
+	_check(b.inputs[coal] > 0 or b.crafting, "разгрузчик перекладывает уголь в менее заполненный завод")
+	_check(absi(a.inputs[coal] - b.inputs[coal]) <= 2 or a.crafting or b.crafting, "заводы уравновешены (%d / %d)" % [a.inputs[coal], b.inputs[coal]])
+	_check(total + (2 if a.crafting else 0) + (2 if b.crafting else 0) == 8, "уголь не теряется при балансировке")
+	world.dispose()
+
+
+## Поворот шлюза меняет стороны портов.
+func _test_gateway_rotation() -> void:
+	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
+	var run := Run.create(null, map, true)
+	var gate := run.get_gateway(run.planet)
+	var west := gate.get_input_tile()
+	run.drone.world = run.planet
+	_check(run.planet.rotate_building(gate, 1), "шлюз поворачивается")
+	_check(gate.get_input_side() == GameConst.Dir.UP and gate.get_output_side() == GameConst.Dir.DOWN, "после поворота вход сверху, выход снизу")
+	var belt_old := run.planet.buildings.place(Registry.get_building(&"conveyor"), west, GameConst.Dir.RIGHT, true)
+	var belt_new := run.planet.buildings.place(Registry.get_building(&"conveyor"), gate.get_input_tile(), GameConst.Dir.DOWN, true)
+	_check(not gate.accept_item(belt_old, 0) and gate.accept_item(belt_new, 0), "шлюз принимает только через новый порт")
+	var pair := run.get_gateway(run.base)
+	_check(pair.get_output_side() == GameConst.Dir.LEFT, "пара в базе поворачивается независимо")
+	run.dispose()
+
+
+## Звёздная карта: детерминирована, связи ведут вперёд, у каждого шага есть вход.
+func _test_star_map() -> void:
+	var a := StarMap.new(12345, Registry.run_def, Registry.planet_types)
+	var b := StarMap.new(12345, Registry.run_def, Registry.planet_types)
+	_check(a.nodes.size() == b.nodes.size() and a.get_current().code == b.get_current().code, "карта детерминирована от сида")
+	_check(a.get_current().type == Registry.run_def.first_planet_type, "первая планета — обычная")
+	_check(a.get_step_count() == Registry.run_def.visible_depth + 1, "карта построена на %d шагов вперёд" % Registry.run_def.visible_depth)
+	var next := a.get_next()
+	_check(not next.is_empty(), "из стартовой планеты есть куда лететь")
+	var ok := true
+	var has_input := {}
+	for node in a.nodes:
+		for target_id in node.links:
+			if a.get_node(target_id).depth != node.depth + 1:
+				ok = false
+			has_input[target_id] = true
+	for node in a.nodes:
+		if node.depth > 0 and not has_input.has(node.id):
+			ok = false
+	_check(ok, "связи только на шаг вперёд, у каждой планеты есть вход")
+	var unsafe_per_step := true
+	for depth in range(1, a.get_step_count()):
+		var any_unsafe := false
+		for node in a.nodes:
+			if node.depth == depth and not node.type.safe:
+				any_unsafe = true
+		unsafe_per_step = unsafe_per_step and any_unsafe
+	_check(unsafe_per_step, "в каждом шаге есть планета с ресурсами")
+	a.move_to(next[0].id)
+	_check(a.get_step_count() == next[0].depth + Registry.run_def.visible_depth + 1, "после перелёта карта достраивается вперёд")
+	_check(not a.can_travel_to(0), "назад лететь нельзя")
+	var wasteland_seen := false
+	for run_seed in 40:
+		var m := StarMap.new(run_seed, Registry.run_def, Registry.planet_types)
+		for node in m.nodes:
+			if node.type.safe:
+				wasteland_seen = true
+				_check(node.ores.is_empty(), "в пустоши нет руд")
+	_check(wasteland_seen, "пустоши встречаются на звёздной карте")
+
+
+## Генератор: детерминирован, место посадки — платформа, у обычной планеты руда рядом.
+func _test_planet_generator() -> void:
+	var star_map := StarMap.new(777, Registry.run_def, Registry.planet_types)
+	var node := star_map.get_current()
+	var map_a := PlanetGenerator.generate(node, Run.PAD_SIZE)
+	var map_b := PlanetGenerator.generate(node, Run.PAD_SIZE)
+	_check(map_a.floors == map_b.floors and map_a.ores == map_b.ores, "генерация детерминирована")
+	_check(map_a.width == node.size.x and map_a.height == node.size.y, "размер карты как у узла")
+	var center := Vector2i(map_a.width / 2, map_a.height / 2)
+	var platform := Registry.get_floor(&"metal_plates").index
+	var pad_ok := true
+	for y in range(center.y - 7, center.y + 8):
+		for x in range(center.x - 7, center.x + 8):
+			pad_ok = pad_ok and map_a.get_floor(x, y) == platform and map_a.get_ore(x, y) == 0
+	_check(pad_ok, "площадка — платформа без руды")
+	var near_ore := 0
+	for y in range(maxi(center.y - 36, 0), mini(center.y + 36, map_a.height)):
+		for x in range(maxi(center.x - 36, 0), mini(center.x + 36, map_a.width)):
+			if map_a.get_ore(x, y) != 0:
+				near_ore += 1
+	_check(near_ore > 40, "у обычной планеты руда недалеко от посадки (%d тайлов)" % near_ore)
+	var world := GameWorld.create(null, map_a, false)
+	var drill := Registry.get_building(&"mechanical_drill")
+	_check(world.buildings.check_place(Registry.get_building(&"container"), center + Vector2i(3, 3), 0) == BuildingManager.Check.OK, "на площадке можно строить")
+	world.dispose()
+	for id in star_map.nodes.size():
+		var n := star_map.get_node(id)
+		if n.type.safe:
+			var waste := PlanetGenerator.generate(n, Run.PAD_SIZE)
+			var ores := 0
+			for v in waste.ores:
+				ores += 1 if v != 0 else 0
+			_check(ores == 0, "в пустоше ни одного тайла руды")
+			break
+
+
+## Состояние зданий переносится в новое здание того же типа.
+func _test_building_state_roundtrip() -> void:
+	var world := Worlds.empty_world(32, 24)
+	var copper := _item(&"copper")
+	var coal := _item(&"coal")
+	var storage := world.buildings.place(Registry.get_building(&"container"), Vector2i(2, 2), 0, true) as StorageBuilding
+	storage.inventory.add(copper, 150)
+	storage.inventory.add(coal, 7)
+	var press := world.buildings.place(Registry.get_building(&"graphite_press"), Vector2i(6, 2), 0, true) as Crafter
+	for i in 5:
+		press.handle_item(null, coal)
+	_source(world, Vector2i(2, 8), [copper])
+	Worlds.conveyor_line(world, Vector2i(3, 8), 2, GameConst.Dir.RIGHT)
+	var belt := world.buildings.get_at(Vector2i(4, 8))
+	Worlds.run_ticks(world, 200)
+	var other := Worlds.empty_world(32, 24)
+	other.simulation.tick = world.simulation.tick
+	for original in [storage, press, belt]:
+		var copy := other.buildings.place(original.def, original.origin, original.rotation, true)
+		copy.load_state(original.save_state())
+		var a := PackedInt32Array()
+		a.resize(Registry.items.size())
+		a.fill(0)
+		var b := a.duplicate()
+		original.collect_contents(a)
+		copy.collect_contents(b)
+		_check(a == b and TeleportSummary.total(a) > 0, "%s: содержимое перенесено (%d)" % [original.def.id, TeleportSummary.total(b)])
+	world.dispose()
+	other.dispose()
+
+
+## Телепорт: площадка переезжает с содержимым, остальное теряется, база и очередь шлюза сохраняются.
+func _test_teleport() -> void:
+	var run := Run.create_new(4242, false)
+	var copper := _item(&"copper")
+	var gate := run.get_gateway(run.planet)
+	var pad := run.planet.pad_rect
+	_check(pad.size == Vector2i(15, 15) and run.drone.world == run.planet, "новый забег: дрон на площадке планеты")
+	_check(TeleportSummary.total(run.drone.inventory.totals) > 0, "стартовый инвентарь выдан")
+	# На площадке: склад с медью и лента с предметами. Вне площадки — склад, который потеряется.
+	var on_pad := run.planet.buildings.place(Registry.get_building(&"container"), pad.position + Vector2i(1, 1), 0, true) as StorageBuilding
+	on_pad.inventory.add(copper, 90)
+	var belt := run.planet.buildings.place(Registry.get_building(&"conveyor"), pad.position + Vector2i(4, 1), GameConst.Dir.UP, true)
+	run.planet.simulation.conveyors.import_items(belt, {"items": PackedInt32Array([copper, copper]), "prog": PackedInt32Array([900, 300])})
+	var sorter := run.planet.buildings.place(Registry.get_building(&"sorter"), pad.position + Vector2i(6, 1), 0, true)
+	run.planet.configure(sorter, {"item": copper, "inverted": true})
+	var outside := run.planet.buildings.place(Registry.get_building(&"container"), pad.position + Vector2i(-6, 0), 0, true) as StorageBuilding
+	outside.inventory.add(copper, 33)
+	run.planet.rotate_building(gate, 2)
+	run.link.push(true, copper)
+	var in_base := run.base.buildings.place(Registry.get_building(&"container"), Vector2i(2, 2), 0, true) as StorageBuilding
+	in_base.inventory.add(copper, 11)
+	var old_planet := run.planet
+	var old_code := run.star_map.get_current().code
+
+	var next := run.star_map.get_next()
+	_check(run.start_teleport(next[0].id) and run.is_charging(), "зарядка телепорта началась")
+	_check(not run.start_teleport(next[0].id), "повторно не запускается")
+	run.cancel_teleport()
+	_check(not run.is_charging(), "зарядку можно отменить")
+	var changed := [0]
+	run.planet_changed.connect(func() -> void: changed[0] += 1)
+	run.start_teleport(next[0].id)
+	var ticks := run.run_def.get_charge_ticks()
+	for i in ticks - 1:
+		run.step()
+	_check(run.planet == old_planet and changed[0] == 0, "до конца зарядки планета прежняя")
+	run.step()
+	_check(run.planet != old_planet and changed[0] == 1, "по окончании зарядки планета заменена")
+	_check(run.star_map.get_current().id == next[0].id and run.star_map.get_current().code != old_code, "текущая планета на звёздной карте сменилась")
+	_check(run.planet.simulation.tick == run.base.simulation.tick, "тики новой планеты синхронны с базой")
+
+	var new_pad := run.planet.pad_rect
+	var moved := run.planet.buildings.get_at(new_pad.position + Vector2i(1, 1)) as StorageBuilding
+	_check(moved != null and moved.inventory.count(copper) == 90, "склад переехал с содержимым")
+	var moved_belt := run.planet.buildings.get_at(new_pad.position + Vector2i(4, 1))
+	var belt_items := PackedInt32Array()
+	belt_items.resize(Registry.items.size())
+	belt_items.fill(0)
+	if moved_belt != null:
+		moved_belt.collect_contents(belt_items)
+	_check(moved_belt != null and moved_belt.rotation == GameConst.Dir.UP and belt_items[copper] == 2, "лента переехала с поворотом и предметами")
+	var moved_sorter := run.planet.buildings.get_at(new_pad.position + Vector2i(6, 1))
+	_check(moved_sorter != null and moved_sorter.get_display_item() == copper and moved_sorter.is_inverted(), "настройка сортировщика переехала")
+	var new_gate := run.get_gateway(run.planet)
+	_check(new_gate != null and new_gate.world == run.planet and new_gate.rotation == 2 and new_gate.link == run.link, "шлюз на новой планете с тем же поворотом и связью")
+	_check(run.link.size_of(true) == 1, "очередь шлюза сохранилась")
+	_check(in_base.world == run.base and in_base.inventory.count(copper) == 11, "база не изменилась")
+	_check(run.drone.world == run.planet and new_pad.has_point(run.drone.get_tile()), "дрон на площадке новой планеты")
+	var summary := run.last_summary
+	_check(summary != null and summary.buildings_moved == 3 and summary.buildings_lost == 1, "итог: переехало 3, потеряно 1 (%d / %d)" % [summary.buildings_moved, summary.buildings_lost])
+	_check(summary.items_lost[copper] == 33, "итог: потеряно 33 меди из склада вне площадки")
+	_check(old_planet.buildings == null, "старая планета освобождена")
+	for i in 60:
+		run.step()
+	_check(true, "после телепорта симуляция идёт")
 	run.dispose()

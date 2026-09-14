@@ -15,6 +15,8 @@ const BUILDINGS_DIR := "res://buildings/defs/"
 const LEVELS_DIR := "res://levels/"
 const DRONE_PATH := "res://player/drone.tres"
 const BASE_PATH := "res://world/base.tres"
+const RUN_PATH := "res://world/run.tres"
+const PLANET_TYPES_DIR := "res://world/planet_types/"
 
 static var items: Array[ItemType] = []
 static var floors: Array[FloorDef] = []
@@ -24,6 +26,8 @@ static var levels: Array[LevelDef] = []
 static var hand_recipes: Array[HandRecipe] = []
 static var drone_def: DroneDef
 static var base_def: BaseDef
+static var run_def: RunDef
+static var planet_types: Array[PlanetTypeDef] = []
 
 ## Размер стака по индексу предмета (горячий путь инвентаря).
 static var stack_sizes: PackedInt32Array = PackedInt32Array()
@@ -69,6 +73,14 @@ static func ensure_loaded() -> void:
 		base_def = load(BASE_PATH) as BaseDef
 	if base_def == null:
 		base_def = BaseDef.new()
+	if ResourceLoader.exists(RUN_PATH):
+		run_def = load(RUN_PATH) as RunDef
+	if run_def == null:
+		run_def = RunDef.new()
+	for res in _load_dir(PLANET_TYPES_DIR):
+		if res is PlanetTypeDef:
+			planet_types.append(res)
+	planet_types.sort_custom(func(a: PlanetTypeDef, b: PlanetTypeDef) -> bool: return String(a.id) < String(b.id))
 
 	items.sort_custom(func(a: ItemType, b: ItemType) -> bool: return _less(a.sort_order, a.id, b.sort_order, b.id))
 	floors.sort_custom(func(a: FloorDef, b: FloorDef) -> bool: return _less(a.sort_order, a.id, b.sort_order, b.id))
@@ -181,6 +193,17 @@ static func validate() -> PackedStringArray:
 				errors.append("здание %s: нет рецепта крафта (cost)" % def.id)
 	if get_floor(base_def.floor_id) == null:
 		errors.append("база: нет пола %s" % base_def.floor_id)
+	if planet_types.is_empty():
+		errors.append("нет ни одного типа планеты в " + PLANET_TYPES_DIR)
+	for t in planet_types:
+		if t.ore_ids.size() != t.ore_chances.size():
+			errors.append("тип планеты %s: число руд и шансов не совпадает" % t.id)
+		for ore_id in t.ore_ids:
+			if get_ore(ore_id) == null:
+				errors.append("тип планеты %s: нет руды %s" % [t.id, ore_id])
+	for stack in run_def.starting_items:
+		if stack == null or stack.item == null:
+			errors.append("забег: пустая позиция стартового инвентаря")
 	for id in [&"central_gateway", &"base_gateway"]:
 		if not (get_building(id) is GatewayDef):
 			errors.append("нет шлюза %s" % id)

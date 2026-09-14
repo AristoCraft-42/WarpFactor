@@ -27,7 +27,7 @@ func _ready() -> void:
 func _run_menu(menu: MainMenu) -> void:
 	await _frames(40)
 	await _shot("m01_menu.png")
-	menu.call("_show_level_select")
+	menu.call("_show_new_run")
 	await _frames(10)
 	await _shot("m02_levels.png")
 	menu.call("_show_settings")
@@ -69,6 +69,8 @@ func _run_game(game: Game) -> void:
 	await _shot("g05_debug.png")
 	game.hud.toggle_debug()
 	game.grid_overlay.set_chunk_lines_visible(false)
+
+	await _run_teleport(game)
 
 	game.open_pause_menu()
 	await _frames(10)
@@ -159,6 +161,74 @@ func _run_gateway(game: Game) -> void:
 	await _shot("w03_planet_gateway.png")
 	_expect(planet_out.inventory.count(lead) > 0, "свинец из базы вышел на планету (%d)" % planet_out.inventory.count(lead))
 	_expect(run.base.simulation.tick == run.planet.simulation.tick, "база тикает, пока дрон на планете")
+
+
+## Телепорт: клик по шлюзу, звёздная карта, зарядка, итог; площадка переезжает, остальное теряется.
+func _run_teleport(game: Game) -> void:
+	var run := game.run
+	var gate := run.get_gateway(run.planet)
+	var old_planet := run.planet
+	var pad := run.planet.pad_rect
+	var lead := Registry.get_item(&"lead").index
+	# Склад у выхода шлюза (из сценария шлюза) стоит на площадке — должен переехать со свинцом.
+	var pad_storage := run.planet.buildings.get_at(gate.get_output_tile() + Vector2i(2, 0)) as StorageBuilding
+	var pad_lead := pad_storage.inventory.count(lead) if pad_storage != null else 0
+	var storage_offset := pad_storage.origin - pad.position if pad_storage != null else Vector2i.ZERO
+	var buildings_outside := 0
+	for b in run.planet.buildings.get_all():
+		if b != gate and not pad.encloses(b.get_rect()):
+			buildings_outside += 1
+
+	await _drone_to(game, gate.origin + Vector2i.ONE)
+	game.camera.focus_on(run.drone.position, 1.0)
+	await _frames(3)
+	var gate_tile := gate.origin + Vector2i.ONE
+	await _mouse_move(game, gate_tile)
+	await _mouse_button(game, gate_tile, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, gate_tile, MOUSE_BUTTON_LEFT, false)
+	var window := game.hud.teleport_window
+	_expect(window.visible and game.tools.selected == gate, "клик по шлюзу открывает окно телепорта")
+	var next := run.star_map.get_next()
+	_expect(not next.is_empty(), "со стартовой планеты есть куда лететь")
+	if next.is_empty():
+		return
+	window.select_node(next[next.size() - 1].id)
+	await _frames(10)
+	await _shot("t01_star_map.png")
+	var start_button: Button = window.get("_start_button")
+	await _click_control(start_button)
+	_expect(run.is_charging() and run.charge_target == next[next.size() - 1].id, "кнопка запускает зарядку телепорта")
+	await _frames(5)
+	await _shot("t02_charging.png")
+	await _key(KEY_ESCAPE)
+	_expect(not window.visible and run.is_charging(), "окно закрывается, зарядка продолжается")
+
+	game.clock.set_speed_index(2)
+	var guard := 0
+	while run.planet == old_planet and guard < 8000:
+		await get_tree().process_frame
+		guard += 1
+	game.clock.set_speed_index(0)
+	_expect(run.planet != old_planet and game.world == run.planet, "после зарядки дрон на новой планете")
+	await _frames(20)
+	_expect(game.hud.summary_window.visible, "показан итог планеты")
+	await _shot("t03_summary.png")
+	var summary := run.last_summary
+	_expect(summary != null and summary.buildings_lost == buildings_outside, "итог: потеряны постройки вне площадки (%d из %d)" % [summary.buildings_lost if summary != null else -1, buildings_outside])
+	var moved := run.planet.buildings.get_at(run.planet.pad_rect.position + storage_offset) as StorageBuilding
+	_expect(pad_storage == null or (moved != null and moved.inventory.count(lead) == pad_lead), "склад площадки переехал со свинцом (%d)" % pad_lead)
+	var ok_button: Button = game.hud.summary_window.get("_ok_button")
+	if ok_button != null:
+		await _click_control(ok_button)
+	_expect(not game.hud.summary_window.visible, "итог закрывается")
+	var title: Label = game.hud.get("_title_label")
+	_expect(title.text == run.get_world_title(run.planet), "заголовок — новая планета: %s" % title.text)
+	await _frames(20)
+	await _shot("t04_new_planet.png")
+	game.camera.focus_on(run.drone.position, 0.35)
+	await _frames(20)
+	await _shot("t05_new_planet_overview.png")
+	game.camera.recenter()
 
 
 ## Дрон: полёт, камера, добыча руды, окно инвентаря и ручной крафт.
@@ -428,7 +498,8 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	# Удаляем вставленную копию, чтобы не мешала следующим проверкам.
 	var cleanup := Rect2i(paste_at - Vector2i(8, 8), Vector2i(16, 16))
 	for x in bm.collect_in_rect(cleanup):
-		bm.remove(x, true)
+		if x.def.removable:
+			bm.remove(x, true)
 
 
 ## Цепочка «бур → лента → контейнер»: предметы едут и складываются.

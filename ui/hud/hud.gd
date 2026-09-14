@@ -20,7 +20,11 @@ var _debug: DebugOverlay
 var _confirm: ConfirmationDialog
 var inventory_window: InventoryWindow
 var _title_label: Label
+var _safe_badge: Label
 var _gateway_label: Label
+var _charge_label: Label
+var teleport_window: TeleportWindow
+var summary_window: SummaryWindow
 var _config_panel: ConfigPanel
 var _build_menu: BuildMenu
 var _pending_delete: Array[Building] = []
@@ -125,6 +129,9 @@ func _build_top_left() -> void:
 	_title_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_title_label.add_theme_font_size_override("font_size", 20)
 	title_row.add_child(_title_label)
+	_safe_badge = UiUtil.label("HUD_SAFE_PLANET", &"BadgeLabel")
+	_safe_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	title_row.add_child(_safe_badge)
 	_update_title()
 	if _game.world.creative:
 		var badge := UiUtil.label("HUD_CREATIVE", &"BadgeLabel")
@@ -245,6 +252,15 @@ func _build_top_center() -> void:
 	_gateway_label.visible = false
 	column.add_child(_gateway_label)
 
+	_charge_label = Label.new()
+	_charge_label.theme_type_variation = &"BadgeLabel"
+	_charge_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_charge_label.add_theme_font_size_override("font_size", 18)
+	_charge_label.add_theme_color_override("font_color", UiTheme.AQUA)
+	_charge_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_charge_label.visible = false
+	column.add_child(_charge_label)
+
 	_paused_badge = UiUtil.label("HUD_PAUSED", &"BadgeLabel")
 	_paused_badge.add_theme_font_size_override("font_size", 18)
 	_paused_badge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -285,6 +301,12 @@ func _build_inventory_window() -> void:
 	inventory_window = InventoryWindow.new()
 	_root.add_child(inventory_window)
 	inventory_window.setup(_game.tools, _game.world)
+	teleport_window = TeleportWindow.new()
+	_root.add_child(teleport_window)
+	teleport_window.setup(_game)
+	summary_window = SummaryWindow.new()
+	_root.add_child(summary_window)
+	summary_window.setup()
 
 
 func _build_toasts() -> void:
@@ -322,12 +344,14 @@ func on_world_changed() -> void:
 
 func _update_title() -> void:
 	var world := _game.world
-	if world.is_base:
-		_title_label.text = tr(Registry.base_def.title_key)
-	elif world.level != null:
-		_title_label.text = tr(world.level.title_key)
-	else:
-		_title_label.text = ""
+	_title_label.text = _game.run.get_world_title(world)
+	_safe_badge.visible = not world.is_base and _game.run.is_planet_safe()
+
+
+## Телепорт завершён: новая планета, показываем итог.
+func on_planet_changed() -> void:
+	on_world_changed()
+	summary_window.show_summary(_game.run.last_summary)
 
 func _process(delta: float) -> void:
 	if _fps_label.visible:
@@ -335,6 +359,11 @@ func _process(delta: float) -> void:
 		if _fps_timer <= 0.0:
 			_fps_timer = 0.25
 			_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
+	# Зарядка телепорта видна в любом мире.
+	var charging := _game.run != null and _game.run.is_charging()
+	_charge_label.visible = charging
+	if charging:
+		_charge_label.text = tr("HUD_TELEPORT_CHARGING") % ceili(_game.run.get_charge_seconds_left())
 	# Подсказка перехода: дрон над центральным шлюзом.
 	var can_pass := _game.run != null and _game.run.can_use_gateway()
 	if can_pass != _gateway_label.visible:
@@ -352,10 +381,10 @@ func _process(delta: float) -> void:
 func _update_info() -> void:
 	var tools := _game.tools
 	var grid := _game.world.grid
-	if not tools.hover_in_bounds:
+	var t := tools.hover_tile
+	if not tools.hover_in_bounds or not grid.in_bounds_v(t):
 		_info_label.text = tr("HUD_INFO_OUT_OF_MAP")
 		return
-	var t := tools.hover_tile
 	var lines := PackedStringArray()
 	lines.append(tr("HUD_INFO_TILE") % [t.x, t.y])
 	var floor_def := grid.get_floor_def(t.x, t.y)

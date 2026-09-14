@@ -69,6 +69,27 @@ func update_tick(tick: int) -> bool:
 	return false
 
 
+func save_state() -> Dictionary:
+	var queues: Array = []
+	var ticks: Array = []
+	for side in 4:
+		queues.append(_items[side].duplicate())
+		ticks.append(_ticks[side].duplicate())
+	return {"items": queues, "ticks": ticks, "next_out": _next_out.duplicate()}
+
+
+func load_state(state: Dictionary) -> void:
+	var queues: Array = state.get("items", [])
+	var ticks: Array = state.get("ticks", [])
+	for side in mini(4, mini(queues.size(), ticks.size())):
+		_items[side] = (queues[side] as PackedInt32Array).duplicate()
+		_ticks[side] = (ticks[side] as PackedInt32Array).duplicate()
+	var next_out: PackedInt32Array = state.get("next_out", PackedInt32Array())
+	if next_out.size() == 4:
+		_next_out = next_out.duplicate()
+	wake()
+
+
 func collect_contents(out: PackedInt32Array) -> void:
 	for side in 4:
 		for item in _items[side]:

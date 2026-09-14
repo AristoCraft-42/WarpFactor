@@ -57,6 +57,16 @@ func update_tick(tick: int) -> bool:
 	return false
 
 
+func save_state() -> Dictionary:
+	return {"buffer": buffer, "next_tick": _next_tick}
+
+
+func load_state(state: Dictionary) -> void:
+	buffer = int(state.get("buffer", 0))
+	_next_tick = int(state.get("next_tick", _next_tick))
+	wake()
+
+
 func get_status() -> Status:
 	if ore == null:
 		return Status.NO_ORE
@@ -86,6 +96,10 @@ func unload_item(item: int) -> bool:
 	buffer -= 1
 	wake()
 	return true
+
+
+func get_load_factor(item: int) -> float:
+	return float(buffer) / maxi((def as DrillDef).item_capacity, 1) if item == _item else 0.0
 
 
 func get_player_stacks() -> Array[Vector2i]:

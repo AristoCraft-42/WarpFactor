@@ -42,6 +42,14 @@ func collect_contents(out: PackedInt32Array) -> void:
 	_system().collect(self, out)
 
 
+func save_state() -> Dictionary:
+	return _system().export_items(self)
+
+
+func load_state(state: Dictionary) -> void:
+	_system().import_items(self, state)
+
+
 func get_info_lines() -> PackedStringArray:
 	var sys := _system()
 	var c := sys.index_of(id)

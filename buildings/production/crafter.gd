@@ -113,6 +113,24 @@ func collect_contents(out: PackedInt32Array) -> void:
 			c.refund(out)
 
 
+func save_state() -> Dictionary:
+	return {"inputs": inputs.duplicate(), "outputs": outputs.duplicate(), "crafting": crafting,
+		"start_tick": start_tick, "finish_tick": finish_tick}
+
+
+func load_state(state: Dictionary) -> void:
+	var src_inputs: PackedInt32Array = state.get("inputs", PackedInt32Array())
+	var src_outputs: PackedInt32Array = state.get("outputs", PackedInt32Array())
+	for i in mini(src_inputs.size(), inputs.size()):
+		inputs[i] = src_inputs[i]
+	for i in mini(src_outputs.size(), outputs.size()):
+		outputs[i] = src_outputs[i]
+	crafting = bool(state.get("crafting", false))
+	start_tick = int(state.get("start_tick", 0))
+	finish_tick = int(state.get("finish_tick", 0))
+	wake()
+
+
 func get_status() -> Status:
 	return status
 
@@ -121,21 +139,30 @@ func accepts_player_items() -> bool:
 	return true
 
 
-## Разгрузчик забирает только готовую продукцию: сырьё из входного буфера не трогается.
+## Разгрузчик забирает и готовую продукцию, и сырьё из входного буфера (сначала продукцию).
 func can_unload() -> bool:
 	return true
 
 
 func has_item(item: int) -> bool:
-	return outputs[item] > 0
+	return outputs[item] > 0 or inputs[item] > 0
 
 
 func unload_item(item: int) -> bool:
-	if outputs[item] <= 0:
+	if outputs[item] > 0:
+		outputs[item] -= 1
+	elif inputs[item] > 0:
+		inputs[item] -= 1
+		notify_space()
+	else:
 		return false
-	outputs[item] -= 1
 	wake()
 	return true
+
+
+func get_load_factor(item: int) -> float:
+	var capacity := maxi(get_input_capacity(item), get_output_capacity())
+	return float(inputs[item] + outputs[item]) / maxi(capacity, 1)
 
 
 ## Сначала готовая продукция, затем сырьё во входном буфере.

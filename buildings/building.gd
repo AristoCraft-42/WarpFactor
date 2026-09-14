@@ -160,6 +160,19 @@ func collect_contents(_out: PackedInt32Array) -> void:
 	pass
 
 
+# --- Состояние (переезд площадки, сохранения) ---
+
+## Внутреннее состояние здания — буферы, прогресс, тики (абсолютные: миры забега тикают синхронно).
+## Настройка сюда не входит — она переносится через get_config/set_config.
+func save_state() -> Dictionary:
+	return {}
+
+
+## Восстановить состояние на только что поставленном здании того же типа.
+func load_state(_state: Dictionary) -> void:
+	pass
+
+
 # --- Игрок (окно здания) ---
 
 ## Есть ли у здания окно или настройка (клик пустой рукой выбирает его).
@@ -202,6 +215,11 @@ func get_status() -> Status:
 
 func can_unload() -> bool:
 	return false
+
+
+## Заполненность здания предметом item (0..1) — для балансировки разгрузчика.
+func get_load_factor(_item: int) -> float:
+	return 0.0
 
 
 func has_item(_item: int) -> bool:

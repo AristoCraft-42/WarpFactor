@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="PlanetTypeDef" format=3]
+
+[ext_resource type="Script" path="res://world/planet_type_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"wasteland"
+name_key = "PLANET_WASTELAND"
+description_key = "PLANET_WASTELAND_DESC"
+safe = true
+weight = 1.0
+min_size = Vector2i(80, 60)
+max_size = Vector2i(112, 84)
+base_floor = &"dark_stone"
+patch_floors = Array[StringName]([&"gravel"])
+rock_density = 0.28
+ore_ids = Array[StringName]([])
+ore_chances = PackedFloat32Array()
+deposits_per_10k = 0.0
+map_color = Color(0.57, 0.51, 0.45, 1)

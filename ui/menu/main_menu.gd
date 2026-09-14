@@ -1,13 +1,13 @@
 class_name MainMenu
 extends Control
-## Главное меню: слева — кнопки, справа — открытая страница (выбор уровня или настройки).
+## Главное меню: слева — кнопки, справа — открытая страница (новый забег или настройки).
 ## На фоне медленно проплывает карта одного из уровней.
 
 const VERSION_TEXT := "v%s"
 
 var _background: TextureRect
 var _pages: CenterContainer
-var _level_select: LevelSelect
+var _new_run: NewRunScreen
 var _settings: SettingsMenu
 var _buttons: Array[Button] = []
 
@@ -42,7 +42,7 @@ func _ready() -> void:
 	gap.custom_minimum_size = Vector2(0, 28)
 	left.add_child(gap)
 
-	_add_menu_button(left, "MENU_PLAY", _show_level_select, &"BigButton")
+	_add_menu_button(left, "MENU_NEW_RUN", _show_new_run, &"BigButton")
 	var load_button := _add_menu_button(left, "MENU_LOAD", Callable(), &"BigButton")
 	load_button.disabled = true
 	load_button.tooltip_text = "TOOLTIP_SAVES_LATER"
@@ -61,10 +61,10 @@ func _ready() -> void:
 	_pages.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	layout.add_child(_pages)
 
-	_level_select = LevelSelect.new()
-	_level_select.visible = false
-	_level_select.back_requested.connect(_close_pages)
-	_pages.add_child(_level_select)
+	_new_run = NewRunScreen.new()
+	_new_run.visible = false
+	_new_run.back_requested.connect(_close_pages)
+	_pages.add_child(_new_run)
 
 	_settings = SettingsMenu.new()
 	_settings.visible = false
@@ -82,7 +82,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("cancel") and (_level_select.visible or _settings.visible):
+	if event.is_action_pressed("cancel") and (_new_run.visible or _settings.visible):
 		if _settings.visible and _settings.is_capturing():
 			return
 		get_viewport().set_input_as_handled()
@@ -99,19 +99,19 @@ func _add_menu_button(parent: Control, key: String, callback: Callable, variatio
 	return b
 
 
-func _show_level_select() -> void:
+func _show_new_run() -> void:
 	_settings.visible = false
-	_level_select.visible = true
+	_new_run.visible = true
 
 
 func _show_settings() -> void:
-	_level_select.visible = false
+	_new_run.visible = false
 	_settings.visible = true
 	_settings.refresh()
 
 
 func _close_pages() -> void:
-	_level_select.visible = false
+	_new_run.visible = false
 	_settings.visible = false
 
 

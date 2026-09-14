@@ -1,9 +1,11 @@
 class_name Unloader
 extends Building
-## Разгрузчик: достаёт предметы из соседних зданий, которые умеют их отдавать (can_unload):
-## складов, готовой продукции заводов, буфера буров. Кладёт их соседям, которые принимают:
-## лентам, заводам, складам. Из склада в склад не перекладывает (иначе предметы гонялись бы
-## по кругу), назад в здание-источник — тоже.
+## Разгрузчик: перекладывает предметы между соседями, балансируя их заполненность (как в Mindustry).
+## Источник — сосед, который отдаёт предмет (can_unload): склад, завод (и сырьё, и продукция), бур.
+## Получатель — сосед, который принимает предмет, кроме складов: в склад разгрузчик не кладёт.
+## Берёт у самого заполненного этим предметом источника (склады и буры — в первую очередь)
+## и отдаёт наименее заполненному получателю; между двумя заводами перекладывает, только пока
+## их заполненность различается — поэтому предметы не гоняются по кругу.
 ## Настройка — фильтр по предмету; без фильтра — любые предметы по очереди.
 ## Скорость — пропускная способность ленты своего уровня.
 
@@ -74,6 +76,16 @@ func update_tick(tick: int) -> bool:
 	return false
 
 
+func save_state() -> Dictionary:
+	return {"next_tick": _next_tick, "cursor": _item_cursor}
+
+
+func load_state(state: Dictionary) -> void:
+	_next_tick = int(state.get("next_tick", 0))
+	_item_cursor = int(state.get("cursor", 0))
+	wake()
+
+
 func get_status() -> Status:
 	return Status.OUTPUT_BLOCKED if blocked else Status.NONE
 
@@ -95,21 +107,45 @@ func _has_in_sources(sources: Array[Building], item: int) -> bool:
 	return false
 
 
-## Переложить один предмет item из какого-нибудь источника в какого-нибудь получателя (по кругу).
+## Переложить один предмет item: от самого заполненного источника к наименее заполненному получателю.
 func _move(sources: Array[Building], item: int) -> bool:
 	var n := proximity.size()
+	# Получатель: принимает предмет, не склад; при равной заполненности — по кругу.
+	var target: Building = null
+	var target_load := INF
+	var target_k := 0
 	for k in n:
-		var target := proximity[(_dump_index + k) % n]
-		var target_is_storage := target.get_inventory() != null
-		var source: Building = null
-		for candidate in sources:
-			if candidate != target and candidate.has_item(item) and not (target_is_storage and candidate.get_inventory() != null):
-				source = candidate
-				break
-		if source == null or not target.accept_item(self, item):
+		var other := proximity[(_dump_index + k) % n]
+		if other.get_inventory() != null or not other.accept_item(self, item):
 			continue
-		if source.unload_item(item):
-			_dump_index = (_dump_index + k + 1) % n
-			target.handle_item(self, item)
-			return true
-	return false
+		var load := other.get_load_factor(item)
+		if load < target_load:
+			target = other
+			target_load = load
+			target_k = k
+	if target == null:
+		return false
+	# Источник: сначала те, кто сам не принимает предмет (склады, буры), затем самые заполненные.
+	var source: Building = null
+	var source_can_load := true
+	var source_load := -1.0
+	for candidate in sources:
+		if candidate == target or not candidate.has_item(item):
+			continue
+		var can_load := candidate.get_inventory() == null and candidate.accept_item(self, item)
+		var load := candidate.get_load_factor(item)
+		var better := source == null or (source_can_load and not can_load) or (can_load == source_can_load and load > source_load)
+		if better:
+			source = candidate
+			source_can_load = can_load
+			source_load = load
+	if source == null:
+		return false
+	# Между двумя получателями одного уровня заполненности не перекладываем.
+	if source_can_load and source_load <= target_load:
+		return false
+	if not source.unload_item(item):
+		return false
+	_dump_index = (_dump_index + target_k + 1) % n
+	target.handle_item(self, item)
+	return true

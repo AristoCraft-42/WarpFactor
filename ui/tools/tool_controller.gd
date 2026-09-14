@@ -119,6 +119,9 @@ func set_world(world: GameWorld) -> void:
 	_world.buildings.building_changed.connect(_on_world_changed)
 	_world.buildings.building_removed.connect(_on_building_removed)
 	hover_building = null
+	hover_in_bounds = false
+	hover_tile = Vector2i(-1, -1)
+	_last_key = Vector2i(-999999, -999999)
 	_last_bridge = null
 	if _preview != null:
 		_preview.clear()
@@ -449,7 +452,7 @@ func _finish_drag() -> void:
 func _cancel_drag() -> void:
 	if _drag == Drag.NONE:
 		return
-	if _drag == Drag.MINE and _world != null:
+	if _drag == Drag.MINE and _world != null and _world.drone != null:
 		_world.drone.stop_mining()
 	_drag = Drag.NONE
 	_ghosts = []

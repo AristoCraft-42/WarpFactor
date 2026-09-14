@@ -49,6 +49,16 @@ func _ready() -> void:
 	Registry.ensure_loaded()
 	ArtRegistry.ensure_built()
 
+	var args := OS.get_cmdline_user_args()
+	var run_seed := Session.run_seed
+	for arg in args:
+		if arg.begins_with("--seed="):
+			run_seed = arg.substr("--seed=".length()).to_int()
+	if run_seed >= 0:
+		run = Run.create_new(run_seed, Session.creative)
+		_start()
+		return
+
 	var level := Session.level
 	if level == null:
 		# Сцена запущена напрямую (F6 в редакторе или из командной строки):
@@ -69,9 +79,14 @@ func _ready() -> void:
 		return
 
 	run = Run.create(level, map, Session.creative)
+	_start()
+
+
+func _start() -> void:
 	world = run.drone.world
 	_build_scene()
 	run.drone_changed_world.connect(_on_drone_changed_world)
+	run.planet_changed.connect(_on_planet_changed)
 
 	camera.focus_on(run.drone.position, 1.0)
 	_on_view_changed()
@@ -237,6 +252,30 @@ func _on_drone_changed_world() -> void:
 	tools.set_world(world)
 	camera.set_map_size(world.grid.get_pixel_size())
 	hud.on_world_changed()
+	_on_view_changed()
+	terrain.flush()
+
+
+## Телепорт: вид старой планеты заменяется видом новой, панели переключаются, показывается итог.
+func _on_planet_changed() -> void:
+	var old_view := planet_view
+	planet_view = WorldView.new()
+	planet_view.name = "PlanetView"
+	add_child(planet_view)
+	move_child(planet_view, old_view.get_index())
+	planet_view.setup(run.planet, camera, clock)
+	remove_child(old_view)
+	old_view.queue_free()
+	world = run.drone.world
+	active_view = _view_of(world)
+	planet_view.set_active(active_view == planet_view)
+	base_view.set_active(active_view == base_view)
+	ore_overlay.visible = _ores_shown
+	belt_overlay.visible = _belts_shown
+	grid_overlay.set_chunk_lines_visible(_debug_enabled)
+	tools.set_world(world)
+	camera.set_map_size(world.grid.get_pixel_size())
+	hud.on_planet_changed()
 	_on_view_changed()
 	terrain.flush()
 

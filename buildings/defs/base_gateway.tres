@@ -18,7 +18,6 @@ sort_order = 1
 color = Color(0.373, 0.498, 0.604, 1)
 glyph = 15
 logic_script = ExtResource("3_logic")
-rotatable = false
 in_base = true
 inbound_side = 2
 outbound_side = 0

@@ -231,6 +231,39 @@ func insert_from(conveyor: Conveyor, source: Building, item: int) -> void:
 		_insert(c, item, SIDE_INSERT, 1.0 if side == (d + 1) % 4 else -1.0, 0)
 
 
+## Предметы ленты от переднего к заднему: {"items", "prog"}.
+func export_items(conveyor: Conveyor) -> Dictionary:
+	var c := index_of(conveyor.id)
+	# Упакованные массивы в словаре хранятся по значению: сначала заполняем локальные.
+	var out_items := PackedInt32Array()
+	var out_prog := PackedInt32Array()
+	if c >= 0:
+		for s in counts[c]:
+			out_items.append(items[c * CAP + s])
+			out_prog.append(prog[c * CAP + s])
+	return {"items": out_items, "prog": out_prog}
+
+
+## Восстановить предметы ленты из export_items (лента должна быть пустой).
+func import_items(conveyor: Conveyor, state: Dictionary) -> void:
+	var c := index_of(conveyor.id)
+	if c < 0:
+		return
+	var src_items: PackedInt32Array = state.get("items", PackedInt32Array())
+	var src_prog: PackedInt32Array = state.get("prog", PackedInt32Array())
+	var n := mini(mini(src_items.size(), src_prog.size()), CAP)
+	for s in n:
+		var k := c * CAP + s
+		items[k] = src_items[s]
+		prog[k] = clampi(src_prog[s], 0, UNITS)
+		dprog[k] = 0
+		lat[k] = 0.0
+	counts[c] = n
+	mins[c] = prog[c * CAP + n - 1] if n > 0 else EMPTY_MIN
+	if n > 0:
+		_wake(c)
+
+
 func collect(conveyor: Conveyor, out: PackedInt32Array) -> void:
 	var c := index_of(conveyor.id)
 	if c < 0:

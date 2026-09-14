@@ -1,10 +1,14 @@
 class_name Router
 extends Building
-## Делитель: держит один предмет и отдаёт его по кругу любому соседу, кроме источника.
+## Маршрутизатор (как в Mindustry): принимает предметы со всех сторон и отдаёт по кругу во все стороны,
+## в том числе обратно источнику, если тот принимает (цепочки маршрутизаторов гоняют предметы туда-сюда).
+## Исключение — мгновенные здания (сортировщик, клапан): им назад не отдаёт, иначе предмет метался бы
+## между ними без задержки.
 ## Предмет выходит через get_ticks_per_item() − 1 тиков после входа: источник, разбуженный в тике
 ## отдачи, приносит следующий ровно через get_ticks_per_item() — это и есть пропускная способность.
 
 var item: int = -1
+## Источник-мгновенное здание, которому предмет назад не отдаётся (0 — такого нет).
 var _from_id: int = 0
 var _ready_tick: int = 0
 
@@ -15,7 +19,7 @@ func accept_item(_source: Building, _item: int) -> bool:
 
 func handle_item(source: Building, new_item: int) -> void:
 	item = new_item
-	_from_id = source.id if source != null else 0
+	_from_id = source.id if source is PassThroughBuilding else 0
 	_ready_tick = world.simulation.tick + maxi((def as LogisticDef).get_ticks_per_item() - 1, 1)
 	wake()
 
@@ -46,6 +50,17 @@ func update_tick(tick: int) -> bool:
 		if target.id != _from_id:
 			wait_for(target)
 	return false
+
+
+func save_state() -> Dictionary:
+	return {"item": item, "ready_tick": _ready_tick}
+
+
+func load_state(state: Dictionary) -> void:
+	item = int(state.get("item", -1))
+	_ready_tick = int(state.get("ready_tick", 0))
+	_from_id = 0
+	wake()
 
 
 func collect_contents(out: PackedInt32Array) -> void:

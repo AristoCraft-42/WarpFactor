@@ -66,12 +66,12 @@ static func create_base(base_def: BaseDef, p_creative: bool, shared_drone: Drone
 
 
 ## Ставит шлюз (или его пару), убирая всё, что стоит на его месте.
-func place_gateway(def: GatewayDef, origin: Vector2i) -> GatewayBuilding:
+func place_gateway(def: GatewayDef, origin: Vector2i, rotation: int = 0) -> GatewayBuilding:
 	if def == null:
 		return null
 	for old in buildings.collect_in_rect(Rect2i(origin, Vector2i(def.size, def.size))):
 		buildings.remove(old, true)
-	return buildings.place(def, origin, 0, true) as GatewayBuilding
+	return buildings.place(def, origin, rotation, true) as GatewayBuilding
 
 
 ## Дрон сейчас в этом мире (действовать можно только здесь).

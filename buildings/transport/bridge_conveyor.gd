@@ -121,6 +121,17 @@ func update_tick(tick: int) -> bool:
 	return false
 
 
+func save_state() -> Dictionary:
+	return {"items": _items.duplicate(), "ticks": _ticks.duplicate(), "next_out": _next_out}
+
+
+func load_state(state: Dictionary) -> void:
+	_items = (state.get("items", PackedInt32Array()) as PackedInt32Array).duplicate()
+	_ticks = (state.get("ticks", PackedInt32Array()) as PackedInt32Array).duplicate()
+	_next_out = int(state.get("next_out", 0))
+	wake()
+
+
 func collect_contents(out: PackedInt32Array) -> void:
 	for item in _items:
 		out[item] += 1

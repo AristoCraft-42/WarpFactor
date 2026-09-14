@@ -6,9 +6,23 @@ extends RefCounted
 var planet_gateway: GatewayBuilding
 var base_gateway: GatewayBuilding
 var capacity: int = 10
+## Сколько предметов каждого типа ушло в базу и на планету за время на текущей планете.
+var sent_to_base := PackedInt32Array()
+var sent_to_planet := PackedInt32Array()
 
 var _to_base := PackedInt32Array()
 var _to_planet := PackedInt32Array()
+
+
+func _init() -> void:
+	reset_counters()
+
+
+func reset_counters() -> void:
+	sent_to_base.resize(Registry.items.size())
+	sent_to_base.fill(0)
+	sent_to_planet.resize(Registry.items.size())
+	sent_to_planet.fill(0)
 
 
 func has_space(to_base: bool) -> bool:
@@ -22,8 +36,10 @@ func size_of(to_base: bool) -> int:
 func push(to_base: bool, item: int) -> void:
 	if to_base:
 		_to_base.append(item)
+		sent_to_base[item] += 1
 	else:
 		_to_planet.append(item)
+		sent_to_planet[item] += 1
 
 
 func peek(to_base: bool) -> int:

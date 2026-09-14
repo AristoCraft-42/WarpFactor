@@ -1,0 +1,44 @@
+[gd_resource type="Resource" script_class="RunDef" format=3]
+
+[ext_resource type="Script" path="res://world/run_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Resource" path="res://world/planet_types/normal.tres" id="3_normal"]
+[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
+[ext_resource type="Resource" path="res://items/types/buildings/conveyor.tres" id="item_conveyor"]
+[ext_resource type="Resource" path="res://items/types/buildings/mechanical_drill.tres" id="item_mechanical_drill"]
+[ext_resource type="Resource" path="res://items/types/buildings/container.tres" id="item_container"]
+
+[sub_resource type="Resource" id="start_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_copper")
+amount = 120
+
+[sub_resource type="Resource" id="start_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_lead")
+amount = 60
+
+[sub_resource type="Resource" id="start_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_conveyor")
+amount = 60
+
+[sub_resource type="Resource" id="start_3"]
+script = ExtResource("2_stack")
+item = ExtResource("item_mechanical_drill")
+amount = 6
+
+[sub_resource type="Resource" id="start_4"]
+script = ExtResource("2_stack")
+item = ExtResource("item_container")
+amount = 2
+
+[resource]
+script = ExtResource("1_def")
+starting_items = Array[ExtResource("2_stack")]([SubResource("start_0"), SubResource("start_1"), SubResource("start_2"), SubResource("start_3"), SubResource("start_4")])
+charge_seconds = 30.0
+first_planet_type = ExtResource("3_normal")
+visible_depth = 3
+min_nodes_per_step = 2
+max_nodes_per_step = 3

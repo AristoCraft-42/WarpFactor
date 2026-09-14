@@ -5,6 +5,7 @@ extends Building
 ## отдаёт очередь «наружу». В базе на тех же сторонах наоборот: inbound_side отдаёт «в базу»,
 ## outbound_side принимает «наружу». Отдача ограничена пропускной способностью ленты порта.
 ## Предмет принимается только от здания, стоящего на тайле входного порта.
+## Шлюз и пара поворачиваются независимо (R): стороны портов поворачиваются вместе со зданием.
 ## Через шлюз проходит дрон (Run.use_gateway).
 
 var link: GatewayLink
@@ -19,16 +20,16 @@ func is_in_base() -> bool:
 	return get_gateway_def().in_base
 
 
-## Сторона, через которую предметы входят в это здание.
+## Сторона, через которую предметы входят в это здание (с учётом поворота).
 func get_input_side() -> int:
 	var d := get_gateway_def()
-	return d.outbound_side if d.in_base else d.inbound_side
+	return posmod((d.outbound_side if d.in_base else d.inbound_side) + rotation, 4)
 
 
-## Сторона, через которую предметы выходят из этого здания.
+## Сторона, через которую предметы выходят из этого здания (с учётом поворота).
 func get_output_side() -> int:
 	var d := get_gateway_def()
-	return d.inbound_side if d.in_base else d.outbound_side
+	return posmod((d.inbound_side if d.in_base else d.outbound_side) + rotation, 4)
 
 
 func get_input_tile() -> Vector2i:
@@ -44,6 +45,26 @@ func on_placed() -> void:
 
 
 func on_proximity_changed() -> void:
+	wake()
+
+
+func on_rotated(_old_rotation: int) -> void:
+	# Выход сменил сторону: ждавшие у старого порта ленты должны проверить обстановку.
+	notify_space()
+	wake()
+
+
+## Клик по шлюзу открывает окно телепорта.
+func has_player_window() -> bool:
+	return true
+
+
+func save_state() -> Dictionary:
+	return {"next_out": _next_out}
+
+
+func load_state(state: Dictionary) -> void:
+	_next_out = int(state.get("next_out", 0))
 	wake()
 
 

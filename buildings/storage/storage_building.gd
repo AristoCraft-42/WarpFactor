@@ -31,6 +31,12 @@ func can_unload() -> bool:
 	return true
 
 
+func get_load_factor(item: int) -> float:
+	if inventory == null:
+		return 0.0
+	return float(inventory.count(item)) / maxi(inventory.count(item) + inventory.space_for(item), 1)
+
+
 func has_item(item: int) -> bool:
 	return inventory != null and inventory.count(item) > 0
 
@@ -54,6 +60,24 @@ func take_player_items(item: int, amount: int) -> int:
 	if taken > 0:
 		notify_space()
 	return taken
+
+
+func save_state() -> Dictionary:
+	if inventory == null:
+		return {}
+	return {"slot_items": inventory.slot_items.duplicate(), "slot_counts": inventory.slot_counts.duplicate()}
+
+
+func load_state(state: Dictionary) -> void:
+	if inventory == null:
+		return
+	inventory.clear()
+	var src_items: PackedInt32Array = state.get("slot_items", PackedInt32Array())
+	var src_counts: PackedInt32Array = state.get("slot_counts", PackedInt32Array())
+	for i in mini(src_items.size(), src_counts.size()):
+		if src_items[i] >= 0 and src_items[i] < Registry.items.size():
+			inventory.add(src_items[i], src_counts[i])
+	notify_space()
 
 
 func collect_contents(out: PackedInt32Array) -> void:

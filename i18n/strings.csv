@@ -35,8 +35,8 @@ BUILDING_TITANIUM_CONVEYOR,Titanium Conveyor,Титановый конвейер
 BUILDING_TITANIUM_CONVEYOR_DESC,A faster belt with higher throughput.,Быстрая лента с большей пропускной способностью.
 BUILDING_JUNCTION,Junction,Перекрёсток
 BUILDING_JUNCTION_DESC,Lets two crossing flows pass through without mixing.,"Пропускает два пересекающихся потока насквозь, не смешивая их."
-BUILDING_ROUTER,Router,Делитель
-BUILDING_ROUTER_DESC,Distributes items to all sides in turn.,Раздаёт предметы по очереди во все стороны.
+BUILDING_ROUTER,Router,Маршрутизатор
+BUILDING_ROUTER_DESC,"Accepts items from all sides and hands them out to all sides in turn — back to the source too, if it accepts.","Принимает предметы со всех сторон и раздаёт по очереди во все стороны — в том числе обратно, если там принимают."
 BUILDING_SORTER,Sorter,Сортировщик
 BUILDING_SORTER_DESC,"The selected item goes straight, everything else goes to the sides. Inversion in the settings swaps them.","Выбранный предмет проходит прямо, остальные уходят в стороны. Инверсия в настройке меняет их местами."
 BUILDING_OVERFLOW_GATE,Overflow Valve,Переливной клапан
@@ -44,7 +44,7 @@ BUILDING_OVERFLOW_GATE_DESC,"Outputs forward; when the front is blocked, outputs
 BUILDING_BRIDGE_CONVEYOR,Bridge Conveyor,Мостовой конвейер
 BUILDING_BRIDGE_CONVEYOR_DESC,Carries items over other buildings to a linked bridge up to 4 tiles away. Bridges placed in a row link automatically.,"Переносит предметы над постройками к связанному мосту на расстоянии до 4 тайлов. Мосты, поставленные в ряд, связываются сами."
 BUILDING_UNLOADER,Unloader,Разгрузчик
-BUILDING_UNLOADER_DESC,"Takes items out of adjacent storages, finished products of factories and drill buffers, and passes them on.","Достаёт предметы из соседних складов, готовую продукцию заводов и добычу буров и передаёт дальше."
+BUILDING_UNLOADER_DESC,"Balances items between neighbours: takes from storages, factories (inputs and products) and drills, and gives to non-storage buildings and belts.","Балансирует предметы между соседями: берёт из складов, заводов (и сырьё, и продукцию) и буров, отдаёт лентам и зданиям, кроме складов."
 BUILDING_PULVERIZER,Pulverizer,Дробилка
 BUILDING_PULVERIZER_DESC,Crushes stone into crushed rock.,Дробит камень в дроблёную породу.
 BUILDING_GRAPHITE_PRESS,Graphite Press,Графитовый пресс
@@ -65,7 +65,7 @@ LEVEL_FIRST_STEPS_TITLE,First Steps,Первые шаги
 LEVEL_FIRST_STEPS_DESC,"A small valley: copper, lead and sand next to the landing site, coal and stone a bit further, titanium behind a rocky ridge.","Небольшая долина: медь, свинец и песок рядом с местом посадки, уголь и камень чуть дальше, титан — за скалистым гребнем."
 LEVEL_RIFT_TITLE,The Rift,Разлом
 LEVEL_RIFT_DESC,"A long canyon with scattered deposits. Resources lie far apart, so expect long conveyor lines.",Длинный каньон с россыпью месторождений. Ресурсы лежат далеко друг от друга — придётся тянуть длинные линии.
-MENU_SUBTITLE,Automation. Logistics. Optimization.,Автоматизация. Логистика. Оптимизация.
+MENU_SUBTITLE,Build a mobile factory. Travel between worlds.,Мобильная фабрика. Путешествие между мирами.
 MENU_PLAY,Play,Играть
 MENU_LOAD,Load,Загрузить
 MENU_SETTINGS,Settings,Настройки
@@ -257,8 +257,8 @@ CRAFT_QUEUE_BLOCKED,inventory is full,инвентарь полон
 BUILDING_WINDOW_HINT,"LMB — take a stack, RMB — half, Shift+LMB — all of this item.","ЛКМ — забрать стопку, ПКМ — половину, Shift+ЛКМ — все такие предметы."
 BUILDING_TITANIUM_JUNCTION,Titanium Junction,Титановый перекрёсток
 BUILDING_TITANIUM_JUNCTION_DESC,A junction with titanium conveyor throughput.,Перекрёсток с пропускной способностью титановой ленты.
-BUILDING_TITANIUM_ROUTER,Titanium Router,Титановый делитель
-BUILDING_TITANIUM_ROUTER_DESC,A router with titanium conveyor throughput.,Делитель с пропускной способностью титановой ленты.
+BUILDING_TITANIUM_ROUTER,Titanium Router,Титановый маршрутизатор
+BUILDING_TITANIUM_ROUTER_DESC,A router with titanium conveyor throughput.,Маршрутизатор с пропускной способностью титановой ленты.
 BUILDING_TITANIUM_SORTER,Titanium Sorter,Титановый сортировщик
 BUILDING_TITANIUM_SORTER_DESC,A sorter with titanium conveyor throughput.,Сортировщик с пропускной способностью титановой ленты.
 BUILDING_TITANIUM_OVERFLOW_GATE,Titanium Overflow Valve,Титановый переливной клапан
@@ -276,9 +276,9 @@ INFO_GATE_NORMAL,Mode: forward first,Режим: сначала вперёд
 INFO_GATE_INVERTED,Mode: sides first (reverse),Режим: сначала в стороны (обратный)
 BUILD_BUTTON_HINT,"LMB — take in hand, RMB — craft 1, Shift+RMB — craft 5","ЛКМ — взять в руку, ПКМ — скрафтить 1, Shift+ПКМ — 5"
 BUILDING_CENTRAL_GATEWAY,Central Gateway,Центральный шлюз
-BUILDING_CENTRAL_GATEWAY_DESC,Connects the planet with the mobile base. Items entering the west port go to the base; items sent from the base leave through the east port. Fly over it and press F to enter the base.,"Связывает планету с мобильной базой. Предметы, вошедшие в западный порт, уходят в базу; отправленные из базы выходят из восточного порта. Зависните над ним и нажмите F, чтобы войти в базу."
+BUILDING_CENTRAL_GATEWAY_DESC,"Connects the planet with the mobile base: one port sends items to the base, the other receives them from the base. R rotates the ports. Fly over it and press F to enter the base; click it to open the star map and teleport.","Связывает планету с мобильной базой: один порт отправляет предметы в базу, другой принимает их из базы. R поворачивает порты. Зависните над ним и нажмите F, чтобы войти в базу; клик — звёздная карта и телепорт."
 BUILDING_BASE_GATEWAY,Base Gateway,Шлюз базы
-BUILDING_BASE_GATEWAY_DESC,The mirror pair of the central gateway inside the base. Items from the planet leave through the west port; items entering the east port go to the planet.,Зеркальная пара центрального шлюза внутри базы. Предметы с планеты выходят из западного порта; вошедшие в восточный порт уходят на планету.
+BUILDING_BASE_GATEWAY_DESC,"The pair of the central gateway inside the base: items from the planet leave through one port, items entering the other go to the planet. R rotates the ports.","Пара центрального шлюза внутри базы: предметы с планеты выходят из одного порта, вошедшие в другой уходят на планету. R поворачивает порты."
 INFO_GATEWAY_TO_BASE,To the base: %d / %d,В базу: %d / %d
 INFO_GATEWAY_TO_PLANET,To the planet: %d / %d,На планету: %d / %d
 LOCATION_BASE,Mobile base,Мобильная база
@@ -286,3 +286,35 @@ HINT_GATEWAY_TO_BASE,%s — enter the base,%s — войти в базу
 HINT_GATEWAY_TO_PLANET,%s — go out to the planet,%s — выйти на планету
 ACTION_USE_GATEWAY,Pass through the gateway,Пройти через шлюз
 HUD_INFO_PAD,Gateway pad: moves together with the base,Площадка шлюза: переезжает вместе с базой
+MENU_NEW_RUN,New run,Новый забег
+NEW_RUN_TITLE,New run,Новый забег
+NEW_RUN_INTRO,The base lands on the first planet. The star map shows where you can teleport next; everything outside the gateway pad stays behind.,"База высаживается на первую планету. Звёздная карта покажет, куда можно телепортироваться дальше; всё, что вне площадки шлюза, остаётся на планете."
+NEW_RUN_SEED,Seed:,Сид:
+NEW_RUN_REROLL,Random,Случайный
+NEW_RUN_START,Start,Начать
+PLANET_NORMAL,Planet,Планета
+PLANET_NORMAL_DESC,A world with deposits. The enemy will look for the base here.,Мир с месторождениями. Здесь враг будет искать базу.
+PLANET_WASTELAND,Wasteland,Пустошь
+PLANET_WASTELAND_DESC,"Nothing useful here, but the enemy does not attack: time to rebuild and catch your breath.","Ничего полезного, но враг не нападает: время перестроить базу и перевести дух."
+STARMAP_SIZE,Size: %d × %d,Размер: %d × %d
+STARMAP_ORES,Deposits: %s,Месторождения: %s
+STARMAP_NO_ORES,No deposits,Месторождений нет
+STARMAP_SAFE,Safe: the enemy does not attack,Безопасно: враг не нападает
+STARMAP_DANGEROUS,The enemy will find the base over time,Со временем враг найдёт базу
+STARMAP_UNREACHABLE,Not reachable from the current planet,Недоступна с текущей планеты
+TELEPORT_MAP_HINT,Star map: pick one of the highlighted planets — the next step of the journey.,Звёздная карта: выберите одну из подсвеченных планет — следующий шаг пути.
+TELEPORT_START,Teleport (%d s),Телепорт (%d с)
+TELEPORT_CANCEL,Cancel teleport,Отменить телепорт
+TELEPORT_CHARGING,Charging: %d s left,Зарядка: осталось %d с
+TELEPORT_PAD_HINT,Only the gateway pad moves along,Переезжает только площадка шлюза
+TELEPORT_NO_TARGET,No planet selected,Планета не выбрана
+HUD_TELEPORT_CHARGING,Teleport in %d s,Телепорт через %d с
+HUD_SAFE_PLANET,SAFE,БЕЗОПАСНО
+SUMMARY_TITLE,Arrived: %s,Прибытие: %s
+SUMMARY_LEFT,Left %s after %d min %02d s,Покинута %s через %d мин %02d с
+SUMMARY_MOVED,Moved with the pad: %d buildings,Переехало с площадкой построек: %d
+SUMMARY_LOST,Left behind: %d buildings and %d items,"Осталось на планете: построек %d, предметов %d"
+SUMMARY_SAFE,This planet is safe — the enemy will not attack.,Эта планета безопасна — враг не нападёт.
+SUMMARY_SENT,Sent to the base:,Отправлено в базу:
+SUMMARY_NOTHING,nothing,ничего
+SUMMARY_OK,Continue,Продолжить
