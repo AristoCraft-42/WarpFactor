@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/overflow_gate.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"overflow_gate"
+name_key = "BUILDING_OVERFLOW_GATE"
+color = Color(0.478, 0.416, 0.227, 1)
+sort_order = 1170
+stack_size = 50
+building = ExtResource("2_building")

@@ -42,14 +42,14 @@ BUILDING_SORTER,Sorter,Сортировщик
 BUILDING_SORTER_DESC,"The selected item goes straight, everything else goes to the sides.","Выбранный предмет проходит прямо, остальные уходят в стороны."
 BUILDING_INVERTED_SORTER,Inverted Sorter,Инвертированный сортировщик
 BUILDING_INVERTED_SORTER_DESC,"The selected item goes to the sides, everything else goes straight.","Выбранный предмет уходит в стороны, остальные проходят прямо."
-BUILDING_OVERFLOW_GATE,Overflow Gate,Переливной шлюз
+BUILDING_OVERFLOW_GATE,Overflow Valve,Переливной клапан
 BUILDING_OVERFLOW_GATE_DESC,"Outputs forward; when the front is blocked, outputs to the sides.","Отдаёт вперёд, а когда впереди занято — в стороны."
-BUILDING_UNDERFLOW_GATE,Underflow Gate,Обратный шлюз
+BUILDING_UNDERFLOW_GATE,Underflow Valve,Обратный клапан
 BUILDING_UNDERFLOW_GATE_DESC,"Outputs to the sides; when they are blocked, outputs forward.","Отдаёт в стороны, а когда там занято — вперёд."
 BUILDING_BRIDGE_CONVEYOR,Bridge Conveyor,Мостовой конвейер
 BUILDING_BRIDGE_CONVEYOR_DESC,Carries items over other buildings to a linked bridge up to 4 tiles away. Bridges placed in a row link automatically.,"Переносит предметы над постройками к связанному мосту на расстоянии до 4 тайлов. Мосты, поставленные в ряд, связываются сами."
 BUILDING_UNLOADER,Unloader,Разгрузчик
-BUILDING_UNLOADER_DESC,Takes items out of an adjacent storage or the core.,Достаёт предметы из соседнего хранилища или ядра.
+BUILDING_UNLOADER_DESC,Takes items out of an adjacent storage.,Достаёт предметы из соседнего склада.
 BUILDING_PULVERIZER,Pulverizer,Дробилка
 BUILDING_PULVERIZER_DESC,Crushes stone into crushed rock.,Дробит камень в дроблёную породу.
 BUILDING_GRAPHITE_PRESS,Graphite Press,Графитовый пресс
@@ -62,14 +62,12 @@ BUILDING_SEPARATOR,Separator,Сепаратор
 BUILDING_SEPARATOR_DESC,Separates crushed rock into random ores.,Разделяет дроблёную породу на случайные руды.
 BUILDING_ALLOY_MIXER,Alloy Mixer,Смеситель сплава
 BUILDING_ALLOY_MIXER_DESC,"Mixes copper, lead and titanium into alloy.","Смешивает медь, свинец и титан в сплав."
-BUILDING_CORE,Core,Ядро
-BUILDING_CORE_DESC,The heart of the base: accepts any items from all sides. Items over the limit are burned but still count as delivered.,"Сердце базы: принимает любые предметы со всех сторон. Сверх лимита предметы сгорают, но засчитываются как доставленные."
 BUILDING_CONTAINER,Container,Контейнер
-BUILDING_CONTAINER_DESC,A small local storage.,Небольшое локальное хранилище.
+BUILDING_CONTAINER_DESC,"A small storage with 16 slots. Belts load it from any side, unloaders take items out.","Небольшой склад на 16 ячеек. Ленты загружают его с любой стороны, разгрузчики достают предметы."
 BUILDING_VAULT,Vault,Хранилище
-BUILDING_VAULT_DESC,A large local storage.,Большое локальное хранилище.
+BUILDING_VAULT_DESC,A large storage with 48 slots.,Большой склад на 48 ячеек.
 LEVEL_FIRST_STEPS_TITLE,First Steps,Первые шаги
-LEVEL_FIRST_STEPS_DESC,"A small valley around the core: copper, lead and sand close by, coal and stone a bit further, titanium behind a rocky ridge.","Небольшая долина вокруг ядра: медь, свинец и песок под рукой, уголь и камень чуть дальше, титан — за скалистым гребнем."
+LEVEL_FIRST_STEPS_DESC,"A small valley: copper, lead and sand next to the landing site, coal and stone a bit further, titanium behind a rocky ridge.","Небольшая долина: медь, свинец и песок рядом с местом посадки, уголь и камень чуть дальше, титан — за скалистым гребнем."
 LEVEL_RIFT_TITLE,The Rift,Разлом
 LEVEL_RIFT_DESC,"A long canyon with scattered deposits. Resources lie far apart, so expect long conveyor lines.",Длинный каньон с россыпью месторождений. Ресурсы лежат далеко друг от друга — придётся тянуть длинные линии.
 MENU_SUBTITLE,Automation. Logistics. Optimization.,Автоматизация. Логистика. Оптимизация.
@@ -79,8 +77,6 @@ MENU_SETTINGS,Settings,Настройки
 MENU_QUIT,Quit,Выход
 TOOLTIP_SAVES_LATER,Saving is not available yet.,Сохранения пока недоступны.
 LEVELS_TITLE,Choose a level,Выбор уровня
-LEVELS_SANDBOX,Sandbox,Песочница
-LEVELS_SANDBOX_HINT,"Free building, everything unlocked, goals are not counted.","Бесплатное строительство, всё открыто, цели не засчитываются."
 LEVELS_START,Start,Начать
 LEVELS_EMPTY,No levels found,Уровни не найдены
 LEVELS_SIZE,Map size: %d × %d,Размер карты: %d × %d
@@ -114,11 +110,8 @@ SET_SHOW_FPS,Show FPS,Показывать FPS
 SET_LANGUAGE,Language,Язык
 SET_UI_SCALE,Interface scale,Масштаб интерфейса
 SET_UI_SCALE_HINT,Applied when you release the slider.,"Применяется, когда отпускаете ползунок."
-SET_PAN_SPEED,Camera pan speed,Скорость панорамы камеры
 SET_ZOOM_SPEED,Zoom speed,Скорость масштабирования
 SET_SMOOTH_ZOOM,Smooth zoom,Плавный зум
-SET_EDGE_PAN,Pan at screen edges,Панорама у краёв экрана
-SET_EDGE_PAN_HINT,Moves the camera when the cursor touches the window edge.,"Камера движется, когда курсор касается края окна."
 SET_SHOW_GRID,Show grid,Показывать сетку
 SET_CONFIRM_MASS_DELETE,Confirm mass demolition,Подтверждать массовый снос
 SET_CONFIRM_MASS_DELETE_HINT,Asks before removing many buildings at once.,Спрашивать перед сносом большого числа построек.
@@ -141,14 +134,10 @@ CONTROLS_CONFLICT,«%s» was removed from: %s,«%s» снято с действ�
 INPUT_GROUP_CAMERA,Camera,Камера
 INPUT_GROUP_BUILD,Building,Строительство
 INPUT_GROUP_VIEW,View,Вид
-ACTION_CAM_PAN,Pan camera (drag),Панорама камеры (перетаскивание)
-ACTION_CAM_UP,Move up,Камера вверх
-ACTION_CAM_DOWN,Move down,Камера вниз
-ACTION_CAM_LEFT,Move left,Камера влево
-ACTION_CAM_RIGHT,Move right,Камера вправо
+ACTION_CAM_PAN,Look around (drag),Осмотреться (перетаскивание)
 ACTION_ZOOM_IN,Zoom in,Приблизить
 ACTION_ZOOM_OUT,Zoom out,Отдалить
-ACTION_CAM_HOME,Camera to core,Камера к ядру
+ACTION_CAM_HOME,Camera back to drone,Камера к дрону
 ACTION_BUILD_PRIMARY,Build / select,Строить / выбрать
 ACTION_ROTATE,Rotate,Поворот
 ACTION_PIPETTE,Pipette,Пипетка
@@ -164,7 +153,6 @@ MOUSE_WHEEL_DOWN,Wheel down,Колесо вниз
 MOUSE_WHEEL_LEFT,Wheel left,Колесо влево
 MOUSE_WHEEL_RIGHT,Wheel right,Колесо вправо
 MOUSE_BUTTON_N,Mouse button %d,Кнопка мыши %d
-HUD_SANDBOX,SANDBOX,ПЕСОЧНИЦА
 HUD_ORE_LEGEND,Resource map,Карта ресурсов
 HUD_MENU,Menu,Меню
 HUD_INFO_OUT_OF_MAP,Outside the map,За пределами карты
@@ -175,7 +163,7 @@ HUD_INFO_ORE,"Ore: %s, hardness %d","Руда: %s, твёрдость %d"
 HUD_INFO_NO_ORE,No ore,Руды нет
 HUD_INFO_BUILDING,Building: %s,Здание: %s
 HINT_PLACE,%s  ·  %s — place (hold to drag a line)  ·  %s — rotate  ·  RMB or %s — cancel,%s  ·  %s — поставить (с зажатием — линией)  ·  %s — поворот  ·  ПКМ или %s — отмена
-HINT_IDLE,Pick a building on the right  ·  %s on a building — configure  ·  hold %s — select area  ·  %s — demolish hovered  ·  %s — rotate  ·  %s — pipette  ·  %s / %s — overlays,Выберите здание справа  ·  %s по зданию — настройка  ·  %s с зажатием — выделение  ·  %s — снести под курсором  ·  %s — повернуть  ·  %s — пипетка  ·  %s / %s — оверлеи
+HINT_IDLE,"%s — fly  ·  %s on ore — mine, on a building — open  ·  %s — inventory and crafting  ·  hold %s — select area  ·  %s — demolish hovered  ·  %s — rotate  ·  %s — pipette","%s — полёт  ·  %s по руде — добыча, по зданию — окно  ·  %s — инвентарь и крафт  ·  %s с зажатием — выделение  ·  %s — снести под курсором  ·  %s — повернуть  ·  %s — пипетка"
 CONFIRM_TITLE,Confirmation,Подтверждение
 CONFIRM_DELETE_OK,Demolish,Снести
 CONFIRM_CANCEL,Cancel,Отмена
@@ -185,21 +173,13 @@ TOAST_LEVEL_LOAD_FAILED,Failed to load level «%s»,Не удалось загр
 STAT_THROUGHPUT,Throughput: %.1f items/s,Пропускная способность: %.1f предм./с
 STAT_DRILL_TIER,Tier %d: %s,Уровень %d: %s
 STAT_DRILL_SPEED,Fully on hardness-1 ore: %.2f items/s,На руде твёрдости 1 целиком: %.2f предм./с
-STAT_CAPACITY,Capacity: %d of each item,Вместимость: %d каждого предмета
 INFO_CONVEYOR_ITEMS,Items on belt: %d / %d,Предметов на ленте: %d / %d
 INFO_DRILL_NO_ORE,No suitable ore,Нет подходящей руды
 INFO_DRILL_ORE,Mining: %s (%d of %d tiles),Добывает: %s (%d из %d тайлов)
 INFO_RATE,Rate: %.2f items/s,Скорость: %.2f предм./с
 INFO_BUFFER,Buffer: %d / %d,Буфер: %d / %d
 INFO_OUTPUT_BLOCKED,Output blocked,Выход забит
-HUD_CORE_RESOURCES,Core,Ядро
-HUD_CORE_EMPTY,Empty,Пусто
-HUD_CORE_CAPACITY,%d of %d,%d из %d
 HUD_PAUSED,PAUSED,ПАУЗА
-BUILD_COST_FREE,Free,Бесплатно
-BUILD_COST,Cost: %s,Стоимость: %s
-TOAST_NOT_ENOUGH_RESOURCES,Not enough resources,Не хватает ресурсов
-PROBLEM_NOT_AFFORDABLE,Not enough resources in the core,Не хватает ресурсов в ядре
 PROBLEM_NO_ORE,No suitable ore under the drill,Под буром нет подходящей руды
 PROBLEM_BAD_TERRAIN,Cannot build here,Здесь нельзя строить
 PROBLEM_OCCUPIED,The place is occupied,Место занято
@@ -249,3 +229,40 @@ STATUS_NO_INPUT,No input,Нет сырья
 STATUS_NO_INPUT_ITEMS,No input: %s,Нет сырья: %s
 STATUS_OUTPUT_BLOCKED,Output blocked,Выход забит
 STATUS_NO_ORE,No suitable ore,Нет подходящей руды
+INPUT_GROUP_DRONE,Drone,Дрон
+ACTION_MOVE_UP,Fly up,Полёт вверх
+ACTION_MOVE_DOWN,Fly down,Полёт вниз
+ACTION_MOVE_LEFT,Fly left,Полёт влево
+ACTION_MOVE_RIGHT,Fly right,Полёт вправо
+ACTION_INVENTORY,Inventory and crafting,Инвентарь и крафт
+DRONE_NAME,Drone,Дрон
+HUD_CREATIVE,CREATIVE,ТВОРЧЕСКИЙ
+LEVELS_CREATIVE,Creative mode,Творческий режим
+LEVELS_CREATIVE_HINT,Buildings are not consumed and the drone's reach is unlimited.,"Постройки не расходуются, радиус дрона не ограничен."
+STAT_SLOTS,Slots: %d,Ячеек: %d
+INFO_SLOTS,Slots used: %d of %d,Занято ячеек: %d из %d
+PROBLEM_NO_ITEM,Not in the inventory — craft it (E or the button below),Нет в инвентаре — скрафтите (E или кнопка ниже)
+PROBLEM_OUT_OF_RANGE,Too far from the drone,Слишком далеко от дрона
+TOAST_NO_ITEM,No «%s» in the inventory,В инвентаре нет «%s»
+TOAST_OUT_OF_RANGE,Too far from the drone,Слишком далеко от дрона
+TOAST_INVENTORY_FULL,Inventory is full,Инвентарь полон
+TOAST_ITEMS_LOST,Items did not fit into the inventory and were lost: %d,Не поместилось в инвентарь и потеряно предметов: %d
+TOAST_CANNOT_CRAFT,Not enough materials for «%s»,Не хватает материалов для «%s»
+INVENTORY_TITLE,Inventory,Инвентарь
+INVENTORY_SLOTS,%d / %d slots,ячеек: %d / %d
+INVENTORY_HINT,"Click a building item to take it in hand. With a storage or factory open: LMB — put a stack, RMB — half, Shift+LMB — all of this item.","Клик по постройке — взять в руку. При открытом складе или заводе: ЛКМ — положить стопку, ПКМ — половину, Shift+ЛКМ — все такие предметы."
+CRAFT_TITLE,Crafting,Крафт
+CRAFT_HINT,"LMB — craft 1, RMB — 5, Shift+LMB — as many as possible. Missing parts are crafted automatically.","ЛКМ — скрафтить 1, ПКМ — 5, Shift+ЛКМ — сколько хватит. Недостающие детали крафтятся автоматически."
+CRAFT_INGREDIENTS,Ingredients: %s,Нужно: %s
+CRAFT_TIME,Time: %.2f s,Время: %.2f с
+CRAFT_IN_INVENTORY,In inventory: %d,В инвентаре: %d
+CRAFT_AVAILABLE,Can craft now: %d,Можно скрафтить: %d
+CRAFT_QUEUE,Crafting,Крафт
+CRAFT_QUEUE_CANCEL,«%s» — click to cancel one,«%s» — клик отменяет одну
+CRAFT_QUEUE_BLOCKED,inventory is full,инвентарь полон
+BUILDING_WINDOW_HINT,"LMB — take a stack, RMB — half, Shift+LMB — all of this item.","ЛКМ — забрать стопку, ПКМ — половину, Shift+ЛКМ — все такие предметы."
+BUILD_CRAFT,Craft,Скрафтить
+BUILD_CRAFT_HINT,"LMB — 1, RMB — 5","ЛКМ — 1, ПКМ — 5"
+BUILD_CRAFT_FROM,Craft:,Крафт:
+BUILD_OWNED,In inventory: %d,В инвентаре: %d
+BUILD_CREATIVE_FREE,Creative mode: free,Творческий режим: бесплатно

@@ -54,7 +54,7 @@ func _first_steps() -> LevelMap:
 	_blob_ore(map, "stone", Vector2(22, 34), 5.0, 0.3, 5.2)
 	_blob_ore(map, "titanium", Vector2(86, 12), 3.6, 0.3, 0.6)
 
-	map.add_placement(Registry.get_building(&"core"), Vector2i(47, 31))
+	# Дрон появляется на металлических плитах (LevelDef.spawn).
 	return map
 
 
@@ -97,7 +97,7 @@ func _rift() -> LevelMap:
 	for i in ores.size():
 		_blob_ore(map, ores[i][0], ores[i][1], ores[i][2], 0.35, float(i) * 0.9)
 
-	map.add_placement(Registry.get_building(&"core"), Vector2i(40, 95))
+	# Дрон появляется на металлических плитах (LevelDef.spawn).
 	return map
 
 

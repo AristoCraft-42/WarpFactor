@@ -3,18 +3,18 @@
 [ext_resource type="Script" path="res://buildings/transport/logistic_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/transport/unloader.gd" id="3_logic"]
-[ext_resource type="Resource" path="res://items/types/titanium.tres" id="item_titanium"]
-[ext_resource type="Resource" path="res://items/types/silicon.tres" id="item_silicon"]
+[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/graphite.tres" id="item_graphite"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_titanium")
+item = ExtResource("item_copper")
 amount = 25
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_silicon")
-amount = 30
+item = ExtResource("item_graphite")
+amount = 10
 
 [resource]
 script = ExtResource("1_def")
@@ -28,6 +28,8 @@ player_buildable = true
 line_placement = false
 sort_order = 100
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
+craft_time = 1.0
+craft_amount = 1
 color = Color(0.310, 0.447, 0.447, 1)
 glyph = 7
 logic_script = ExtResource("3_logic")

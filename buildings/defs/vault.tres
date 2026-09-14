@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://buildings/storage/storage_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/storage/storage_building.gd" id="3_logic"]
 [ext_resource type="Resource" path="res://items/types/titanium.tres" id="item_titanium"]
 [ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
 [ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
@@ -9,17 +10,17 @@
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
 item = ExtResource("item_titanium")
-amount = 250
+amount = 60
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
 item = ExtResource("item_copper")
-amount = 125
+amount = 80
 
 [sub_resource type="Resource" id="cost_2"]
 script = ExtResource("2_stack")
 item = ExtResource("item_lead")
-amount = 100
+amount = 40
 
 [resource]
 script = ExtResource("1_def")
@@ -33,6 +34,9 @@ player_buildable = true
 line_placement = false
 sort_order = 20
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
+craft_time = 4.0
+craft_amount = 1
 color = Color(0.353, 0.353, 0.306, 1)
 glyph = 14
-item_capacity = 1000
+logic_script = ExtResource("3_logic")
+slots = 48

@@ -155,9 +155,36 @@ func dump(item: int) -> bool:
 
 
 ## Добавляет в out (индекс = индекс предмета) всё, что лежит внутри здания.
-## При сносе это содержимое уходит в ядро.
+## При сносе это содержимое уходит в инвентарь дрона.
 func collect_contents(_out: PackedInt32Array) -> void:
 	pass
+
+
+# --- Игрок (окно здания) ---
+
+## Есть ли у здания окно или настройка (клик пустой рукой выбирает его).
+func has_player_window() -> bool:
+	return get_config_kind() != ConfigKind.NONE or get_inventory() != null or accepts_player_items()
+
+
+## Инвентарь склада (null — здание не склад).
+func get_inventory() -> Inventory:
+	return null
+
+
+## Можно ли класть сюда предметы руками (через accept_item/handle_item с source = null).
+func accepts_player_items() -> bool:
+	return false
+
+
+## Что игрок видит в окне здания и может забрать: пары (предмет, количество).
+func get_player_stacks() -> Array[Vector2i]:
+	return []
+
+
+## Забрать до amount предметов item руками игрока. Возвращает, сколько забрано.
+func take_player_items(_item: int, _amount: int) -> int:
+	return 0
 
 
 # --- Интерфейс ---
@@ -171,7 +198,7 @@ func get_status() -> Status:
 	return Status.NONE
 
 
-# --- Хранилища (разгрузчик берёт из них предметы) ---
+# --- Склады (разгрузчик берёт из них предметы) ---
 
 func can_unload() -> bool:
 	return false

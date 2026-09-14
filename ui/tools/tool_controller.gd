@@ -1,13 +1,14 @@
 class_name ToolController
 extends Node
 ## Инструменты игрока.
-## - ЛКМ: строительство (одиночное и протягиванием), вставка скопированного, выбор здания для настройки.
+## - ЛКМ: строительство (одиночное и протягиванием), вставка скопированного; пустой рукой —
+##   выбор здания (настройка, окно склада/завода) или добыча руды дроном, пока кнопка зажата.
 ## - ПКМ с зажатием: выделение области; X — снести выделенное (без выделения — здание под курсором),
 ##   C — скопировать выделенное в руку.
 ##   Клик ПКМ отменяет инструмент или выделение, а по зданию без инструмента выделяет его.
 ## - R: поворот здания в руке, скопированного плана или стоящего здания под курсором. Q — пипетка.
-## Все изменения мира идут через GameWorld (стоимость, возврат, содержимое в ядро).
-## Превью обновляется только при смене тайла под курсором, состояния или запасов ядра.
+## Все изменения мира идут через GameWorld: радиус дрона, постройки из инвентаря, возврат при сносе.
+## Превью обновляется только при смене тайла под курсором, состояния, инвентаря или позиции дрона.
 
 signal mode_changed
 signal hover_changed
@@ -22,7 +23,7 @@ signal selection_changed
 signal area_changed
 
 enum Mode { NONE, PLACE, PASTE }
-enum Drag { NONE, PLACE, SELECT }
+enum Drag { NONE, PLACE, SELECT, MINE }
 
 ## Сдвиг мыши (пикселей), после которого нажатие ПКМ считается выделением, а не кликом.
 const SELECT_DRAG_THRESHOLD := 6.0
@@ -83,7 +84,9 @@ var _ghosts: Array[PlacementPreview.Ghost] = []
 var _last_key: Vector2i = Vector2i(-999999, -999999)
 var _dirty: bool = true
 var _over_ui: bool = false
-var _storage_revision: int = -1
+var _inventory_revision: int = -1
+## Тайл дрона на момент последнего расчёта превью (радиус зависит от позиции).
+var _drone_key: Vector2i = Vector2i(-999999, -999999)
 ## Последний построенный мост — новый мост в линию с ним связывается автоматически.
 var _last_bridge: BridgeConveyor
 
@@ -155,10 +158,25 @@ func is_dragging() -> bool:
 	return _drag != Drag.NONE
 
 
+## Сносит здания и сообщает, если что-то не удалось (далеко, инвентарь полон) или потерялось.
 func remove_buildings(targets: Array[Building]) -> void:
+	var out_of_range := 0
+	var inventory_full := 0
+	var lost := 0
 	for b in targets:
-		_world.demolish(b)
+		if _world.demolish(b):
+			lost += _world.last_lost_items
+		elif _world.last_error == GameWorld.ActionError.OUT_OF_RANGE:
+			out_of_range += 1
+		elif _world.last_error == GameWorld.ActionError.INVENTORY_FULL:
+			inventory_full += 1
 	_dirty = true
+	if inventory_full > 0:
+		Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
+	elif out_of_range > 0:
+		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
+	if lost > 0:
+		Events.toast(tr("TOAST_ITEMS_LOST") % lost, Events.ToastKind.WARNING)
 
 
 ## Снести выделенное (с подтверждением при большом количестве).
@@ -216,10 +234,13 @@ func _unhandled_input(event: InputEvent) -> void:
 				_paste()
 			_:
 				clear_area()
-				_click_select()
+				if hover_building == null and _world.drone.get_mineable_ore(hover_tile) != null:
+					_begin_mine_drag()
+				else:
+					_click_select()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_released("build_primary"):
-		if _drag == Drag.PLACE:
+		if _drag == Drag.PLACE or _drag == Drag.MINE:
 			_finish_drag()
 			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("select_area"):
@@ -239,7 +260,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if has_area():
 			delete_area()
 		elif _drag == Drag.NONE and hover_building != null and not _over_ui:
-			_world.demolish(hover_building)
+			var single: Array[Building] = [hover_building]
+			remove_buildings(single)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("copy_selection"):
 		if has_area():
@@ -270,7 +292,7 @@ func _process(_delta: float) -> void:
 	if _world == null:
 		return
 	# Отпускание кнопки над панелью интерфейса не доходит до _unhandled_input.
-	if _drag == Drag.PLACE and not Input.is_action_pressed("build_primary"):
+	if (_drag == Drag.PLACE or _drag == Drag.MINE) and not Input.is_action_pressed("build_primary"):
 		_finish_drag()
 	elif _drag == Drag.SELECT and not Input.is_action_pressed("select_area"):
 		_finish_drag()
@@ -279,10 +301,19 @@ func _process(_delta: float) -> void:
 	if over_ui != _over_ui:
 		_over_ui = over_ui
 		_dirty = true
-	# Запасы ядра влияют на доступность построек в превью.
-	if mode != Mode.NONE and _world.core_storage.revision != _storage_revision:
-		_storage_revision = _world.core_storage.revision
-		_dirty = true
+	# Инвентарь и позиция дрона влияют на доступность построек в превью.
+	var drone := _world.drone
+	if mode != Mode.NONE:
+		if drone.inventory.revision != _inventory_revision:
+			_inventory_revision = drone.inventory.revision
+			_dirty = true
+		var drone_key := Vector2i((drone.position / (GameConst.TILE_SIZE * 0.5)).floor())
+		if drone_key != _drone_key:
+			_drone_key = drone_key
+			_dirty = true
+	# Дрон улетел от выбранного здания — окно и настройка закрываются.
+	if selected != null and not _world.can_interact(selected):
+		select(null)
 
 	var mouse_world := _camera.get_mouse_world()
 	var half := float(GameConst.TILE_SIZE) * 0.5
@@ -310,6 +341,11 @@ func _process(_delta: float) -> void:
 		return
 
 	match _drag:
+		Drag.MINE:
+			if _world.drone.get_mineable_ore(tile) != null:
+				_world.drone.set_mine_target(tile)
+			_set_ghosts([])
+			return
 		Drag.SELECT:
 			if not _drag_moved and tile != _drag_start:
 				_drag_moved = true
@@ -346,6 +382,13 @@ func _begin_place_drag() -> void:
 	_dirty = true
 
 
+func _begin_mine_drag() -> void:
+	_drag = Drag.MINE
+	select(null)
+	_world.drone.set_mine_target(hover_tile)
+	_dirty = true
+
+
 func _begin_select_drag(event: InputEvent) -> void:
 	_cancel_drag()
 	_drag = Drag.SELECT
@@ -360,6 +403,8 @@ func _finish_drag() -> void:
 	_drag = Drag.NONE
 	_dirty = true
 	match kind:
+		Drag.MINE:
+			_world.drone.stop_mining()
 		Drag.PLACE:
 			_build_ghosts()
 		Drag.SELECT:
@@ -378,6 +423,8 @@ func _finish_drag() -> void:
 func _cancel_drag() -> void:
 	if _drag == Drag.NONE:
 		return
+	if _drag == Drag.MINE and _world != null:
+		_world.drone.stop_mining()
 	_drag = Drag.NONE
 	_ghosts = []
 	_dirty = true
@@ -399,25 +446,30 @@ func _right_click() -> void:
 
 func _build_ghosts() -> void:
 	var last_rotation := rotation
-	var short_of_resources := false
+	var no_item: BuildingDef = null
+	var out_of_range := false
 	var built: Array[Building] = []
 	for g in _ghosts:
 		if g.check == BuildingManager.Check.OK or g.check == BuildingManager.Check.REPLACE:
 			var config: Variant = g.config if mode == Mode.PASTE else place_config
 			var b := _world.build(g.def, g.origin, g.rotation, config)
-			if b == null:
-				short_of_resources = true
-			else:
+			if b != null:
 				built.append(b)
-		elif g.check == BuildingManager.Check.NOT_AFFORDABLE:
-			short_of_resources = true
+			elif _world.last_error == GameWorld.ActionError.INVENTORY_FULL:
+				Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
+		elif g.check == BuildingManager.Check.NO_ITEM:
+			no_item = g.def
+		elif g.check == BuildingManager.Check.OUT_OF_RANGE:
+			out_of_range = true
 		last_rotation = g.rotation
 	if mode == Mode.PLACE:
 		_link_new_bridges(built)
 		if place_def != null and place_def.line_placement and _ghosts.size() > 1:
 			rotation = last_rotation
-	if short_of_resources:
-		Events.toast(tr("TOAST_NOT_ENOUGH_RESOURCES"), Events.ToastKind.WARNING)
+	if no_item != null:
+		Events.toast(tr("TOAST_NO_ITEM") % tr(no_item.name_key), Events.ToastKind.WARNING)
+	elif out_of_range and built.is_empty():
+		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
 
 
 func _paste() -> void:
@@ -444,7 +496,11 @@ func _rotate() -> void:
 			_rotate_plan()
 		Mode.NONE:
 			# Пустой рукой R поворачивает здание под курсором.
-			if hover_building != null and _world.rotate_building(hover_building, 1):
+			if hover_building == null:
+				return
+			if not _world.can_interact(hover_building):
+				Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
+			elif _world.rotate_building(hover_building, 1):
 				_dirty = true
 
 
@@ -473,10 +529,13 @@ func _pipette() -> void:
 	select_building(b.def, b.get_config())
 
 
-## Клик ЛКМ пустой рукой: выбрать настраиваемое здание; для выбранного моста клик по другому мосту
-## в пределах дальности связывает их (повторный клик по связанному — разрывает связь).
+## Клик ЛКМ пустой рукой: выбрать здание с настройкой или окном (склад, завод, бур); для выбранного
+## моста клик по другому мосту в пределах дальности связывает их (повторный клик — разрывает связь).
 func _click_select() -> void:
 	var clicked := hover_building
+	if clicked != null and clicked.has_player_window() and not _world.can_interact(clicked):
+		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
+		return
 	if selected is BridgeConveyor and clicked is BridgeConveyor and clicked != selected:
 		var bridge := selected as BridgeConveyor
 		if bridge.can_link_to(clicked):
@@ -484,7 +543,7 @@ func _click_select() -> void:
 			_world.configure(bridge, null if bridge.link == offset else offset)
 			select(clicked)
 			return
-	if clicked != null and clicked.get_config_kind() != Building.ConfigKind.NONE and clicked != selected:
+	if clicked != null and clicked.has_player_window() and clicked != selected:
 		select(clicked)
 	else:
 		select(null)
@@ -494,7 +553,7 @@ func _click_select() -> void:
 
 func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 	var def := place_def
-	var budget := _world.core_storage.make_budget()
+	var budget := _world.drone.inventory.make_budget()
 	var ghosts: Array[PlacementPreview.Ghost] = []
 	if _drag == Drag.PLACE and def.line_placement:
 		var delta := tile - _drag_start
@@ -516,7 +575,7 @@ func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 
 
 func _update_paste_ghosts(tile: Vector2i) -> void:
-	var budget := _world.core_storage.make_budget()
+	var budget := _world.drone.inventory.make_budget()
 	var corner := tile - plan_size / 2
 	var ghosts: Array[PlacementPreview.Ghost] = []
 	for entry in plan:

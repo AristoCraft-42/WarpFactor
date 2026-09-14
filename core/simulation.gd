@@ -7,7 +7,7 @@ extends RefCounted
 ##   1. планировщик будит здания, чьё время пришло;
 ##   2. ConveyorSystem двигает бодрствующие ленты;
 ##   3. бодрствующие здания выполняют update_tick;
-##   4. статистика.
+##   4. дрон игрока (движение, добыча, ручной крафт).
 ## Здание, разбуженное во время тика, обновится на следующем тике — так предмет не может
 ## пройти несколько построек за один тик независимо от порядка обновления.
 
@@ -68,7 +68,8 @@ func step() -> void:
 			wake(b)
 	last_awake_buildings = current.size()
 
-	_world.stats.on_tick()
+	if _world.drone != null:
+		_world.drone.update_tick(tick)
 
 	last_tick_usec = Time.get_ticks_usec() - start
 	avg_tick_usec = lerpf(avg_tick_usec, float(last_tick_usec), 0.05)

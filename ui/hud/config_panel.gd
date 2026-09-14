@@ -3,7 +3,7 @@ extends PanelContainer
 ## Панель настройки выбранного здания: фильтр по предмету (сортировщики, разгрузчик)
 ## или связь моста (подсказка и разрыв связи). Изменения идут через GameWorld.configure.
 
-const ITEM_COLUMNS := 6
+const ITEM_COLUMNS := 10
 const ITEM_BUTTON := 40
 
 var _tools: ToolController
@@ -41,7 +41,7 @@ func _rebuild() -> void:
 	_building = _tools.selected
 	for child in _content.get_children():
 		child.queue_free()
-	if _building == null or _building.world == null:
+	if _building == null or _building.world == null or _building.get_config_kind() == Building.ConfigKind.NONE:
 		visible = false
 		return
 	visible = true

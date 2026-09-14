@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/pneumatic_drill.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"pneumatic_drill"
+name_key = "BUILDING_PNEUMATIC_DRILL"
+color = Color(0.427, 0.498, 0.541, 1)
+sort_order = 1020
+stack_size = 50
+building = ExtResource("2_building")

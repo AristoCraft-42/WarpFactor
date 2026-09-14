@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/separator.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"separator"
+name_key = "BUILDING_SEPARATOR"
+color = Color(0.416, 0.353, 0.478, 1)
+sort_order = 1250
+stack_size = 20
+building = ExtResource("2_building")

@@ -1,25 +1,29 @@
 class_name CameraController
 extends Camera2D
-## Камера: панорама перетаскиванием (СКМ), клавишами и краем экрана, зум колесом к курсору.
-## Пользовательский масштаб user_zoom не зависит от масштаба интерфейса:
+## Камера следует за дроном (follow_source). Перетаскивание СКМ временно смещает взгляд;
+## когда дрон снова летит, смещение плавно возвращается к нулю, cam_home сбрасывает его сразу.
+## Зум колесом к курсору. Пользовательский масштаб user_zoom не зависит от масштаба интерфейса:
 ## content_scale_factor корневого окна компенсируется делением.
 
 ## Камера сдвинулась или изменила масштаб.
 signal view_changed
 
-const KEY_PAN_SPEED := 900.0
-const EDGE_PAN_MARGIN := 6.0
 const ZOOM_STEP := 1.15
+## Скорость возврата смещённого взгляда к дрону, пока он движется.
+const RECENTER_SPEED := 2.5
 
 var input_enabled: bool = true
 var user_zoom: float = 1.0
-## Точка, куда возвращает действие cam_home (ядро уровня).
-var home_target: Vector2 = Vector2.ZERO
+## Источник точки слежения: Callable() -> Vector2. Пусто — камера смотрит от начала карты.
+var follow_source: Callable
+## Смещение взгляда от точки слежения (пиксели мира).
+var look_offset: Vector2 = Vector2.ZERO
 
 var _map_size_px: Vector2 = Vector2.ZERO
 var _target_zoom: float = 1.0
 var _zoom_anchor: Vector2 = Vector2.ZERO
 var _panning: bool = false
+var _anchor_point: Vector2 = Vector2.ZERO
 var _last_position: Vector2 = Vector2.INF
 var _last_zoom: float = -1.0
 ## Последняя позиция курсора из событий ввода (координаты viewport).
@@ -33,13 +37,20 @@ func setup(map_size_px: Vector2) -> void:
 	_apply_zoom_property()
 
 
+## Показать точку мира (смещением взгляда от дрона) и, при необходимости, задать масштаб.
 func focus_on(world_pos: Vector2, zoom_value: float = -1.0) -> void:
-	position = world_pos
 	if zoom_value > 0.0:
 		user_zoom = clampf(zoom_value, GameConst.ZOOM_MIN, GameConst.ZOOM_MAX)
 		_target_zoom = user_zoom
 		_apply_zoom_property()
-	_clamp_position()
+	look_offset = world_pos - _follow_point()
+	_apply_position()
+
+
+## Вернуть взгляд на дрона.
+func recenter() -> void:
+	look_offset = Vector2.ZERO
+	_apply_position()
 
 
 ## Видимая область в мировых координатах.
@@ -78,7 +89,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("cam_home"):
 		get_viewport().set_input_as_handled()
-		focus_on(home_target)
+		recenter()
 
 
 func _input(event: InputEvent) -> void:
@@ -89,8 +100,8 @@ func _input(event: InputEvent) -> void:
 	if not _panning:
 		return
 	if event is InputEventMouseMotion:
-		position -= (event as InputEventMouseMotion).relative / zoom
-		_clamp_position()
+		look_offset -= (event as InputEventMouseMotion).relative / zoom
+		_apply_position()
 	elif event.is_action_released("cam_pan"):
 		_panning = false
 
@@ -98,17 +109,14 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if _panning and not Input.is_action_pressed("cam_pan"):
 		_panning = false
-
-	if input_enabled:
-		var dir := Vector2(
-			Input.get_action_strength("cam_right") - Input.get_action_strength("cam_left"),
-			Input.get_action_strength("cam_down") - Input.get_action_strength("cam_up"))
-		if dir == Vector2.ZERO and Settings.get_bool(&"game/edge_pan") and not _panning:
-			dir = _edge_direction()
-		if dir != Vector2.ZERO:
-			position += dir.limit_length(1.0) * KEY_PAN_SPEED * Settings.get_float(&"game/pan_speed") * delta / user_zoom
-			_clamp_position()
-
+	var follow := _follow_point()
+	# Дрон полетел — смещённый взгляд плавно возвращается к нему.
+	if follow.distance_squared_to(_anchor_point) > 0.01 and not _panning and look_offset != Vector2.ZERO:
+		look_offset = look_offset.lerp(Vector2.ZERO, 1.0 - exp(-delta * RECENTER_SPEED))
+		if look_offset.length_squared() < 1.0:
+			look_offset = Vector2.ZERO
+	_anchor_point = follow
+	_apply_position()
 	if not is_equal_approx(user_zoom, _target_zoom):
 		if Settings.get_bool(&"game/smooth_zoom"):
 			var k := 1.0 - exp(-delta * 18.0)
@@ -118,11 +126,16 @@ func _process(delta: float) -> void:
 			_set_zoom_keep_anchor(next, _zoom_anchor)
 		else:
 			_set_zoom_keep_anchor(_target_zoom, _zoom_anchor)
-
 	if position != _last_position or not is_equal_approx(zoom.x, _last_zoom):
 		_last_position = position
 		_last_zoom = zoom.x
 		view_changed.emit()
+
+
+func _follow_point() -> Vector2:
+	if follow_source.is_valid():
+		return follow_source.call()
+	return Vector2.ZERO
 
 
 func _zoom_by(factor: float, event: InputEvent) -> void:
@@ -142,8 +155,8 @@ func _set_zoom_keep_anchor(new_zoom: float, anchor: Vector2) -> void:
 	user_zoom = new_zoom
 	_apply_zoom_property()
 	var after := screen_to_world(anchor)
-	position += before - after
-	_clamp_position()
+	look_offset += before - after
+	_apply_position()
 
 
 func _apply_zoom_property() -> void:
@@ -151,30 +164,14 @@ func _apply_zoom_property() -> void:
 	zoom = Vector2.ONE * (user_zoom / ui_scale)
 
 
-func _edge_direction() -> Vector2:
-	var window := get_window()
-	if window == null or not window.has_focus():
-		return Vector2.ZERO
-	var size := get_viewport().get_visible_rect().size
-	var mouse := get_mouse_screen()
-	if mouse.x < 0.0 or mouse.y < 0.0 or mouse.x > size.x or mouse.y > size.y:
-		return Vector2.ZERO
-	var dir := Vector2.ZERO
-	if mouse.x <= EDGE_PAN_MARGIN:
-		dir.x = -1.0
-	elif mouse.x >= size.x - EDGE_PAN_MARGIN:
-		dir.x = 1.0
-	if mouse.y <= EDGE_PAN_MARGIN:
-		dir.y = -1.0
-	elif mouse.y >= size.y - EDGE_PAN_MARGIN:
-		dir.y = 1.0
-	return dir
-
-
-func _clamp_position() -> void:
-	if _map_size_px == Vector2.ZERO:
-		return
-	position = position.clamp(Vector2.ZERO, _map_size_px)
+## Позиция = точка слежения + смещение, в пределах карты (смещение подрезается вместе с ней).
+func _apply_position() -> void:
+	var follow := _follow_point()
+	var wanted := follow + look_offset
+	if _map_size_px != Vector2.ZERO:
+		wanted = wanted.clamp(Vector2.ZERO, _map_size_px)
+	position = wanted
+	look_offset = wanted - follow
 
 
 func _notification(what: int) -> void:

@@ -1,84 +1,98 @@
 class_name GameWorld
 extends RefCounted
-## Модель запущенного уровня: сетка, здания, симуляция, склад ядра, статистика.
+## Модель запущенного уровня: сетка, здания, симуляция, дрон игрока.
 ## Не содержит нод — представления (render/, ui/) подписываются на её сигналы.
-## Все действия игрока (строительство, снос, поворот) проходят через этот класс:
-## здесь учитываются стоимость, возврат и перенос содержимого снесённых зданий в ядро.
+## Все действия игрока проходят через этот класс: здесь проверяются радиус дрона и наличие
+## постройки в инвентаре, снос возвращает постройку и содержимое, игрок перекладывает предметы.
+## Творческий режим: постройки не расходуются и не возвращаются, радиус не ограничен.
 
-const DEFAULT_CORE_CAPACITY := 4000
+## Почему не удалось последнее действие игрока (для уведомлений).
+enum ActionError { NONE, OUT_OF_RANGE, INVENTORY_FULL, NOT_ALLOWED }
 
 var level: LevelDef
 var grid: WorldGrid
 var buildings: BuildingManager
 var simulation: Simulation
-var core_storage: CoreStorage
-var stats: ItemStats
+var drone: Drone
 ## Генератор случайных чисел мира (сепаратор): детерминирован от id уровня.
 var rng := RandomNumberGenerator.new()
-## Режим песочницы: бесплатное строительство, всё открыто, цели не засчитываются.
-var sandbox: bool = false
+var creative: bool = false
+var last_error: ActionError = ActionError.NONE
+## Сколько предметов из содержимого не поместилось в инвентарь при последнем сносе (они теряются).
+var last_lost_items: int = 0
 
 
-## Создаёт мир из карты уровня: копирует слои, ставит предустановленные здания, кладёт стартовые запасы.
-static func create(level_def: LevelDef, map: LevelMap, p_sandbox: bool) -> GameWorld:
+## Создаёт мир из карты уровня: копирует слои, ставит предустановленные здания, создаёт дрона
+## со стартовым инвентарём.
+static func create(level_def: LevelDef, map: LevelMap, p_creative: bool) -> GameWorld:
 	var world := GameWorld.new()
 	world.level = level_def
-	world.sandbox = p_sandbox
+	world.creative = p_creative
 	world.grid = WorldGrid.from_level_map(map)
 	world.rng.seed = hash(String(level_def.id)) if level_def != null else 1
-	world.stats = ItemStats.new(Registry.items.size())
-	var core_def := Registry.get_building(&"core") as StorageDef
-	var capacity := core_def.item_capacity if core_def != null else DEFAULT_CORE_CAPACITY
-	world.core_storage = CoreStorage.new(Registry.items.size(), capacity, world.stats)
 	world.buildings = BuildingManager.new(world, world.grid)
 	world.simulation = Simulation.new(world, world.buildings)
 	for p in map.placements:
 		if world.buildings.place(p.def, p.origin, p.rotation, true) == null:
 			push_warning("GameWorld: не удалось поставить %s в %s" % [p.def.id, p.origin])
+	var spawn_tile := Vector2i(map.width / 2, map.height / 2)
+	if level_def != null and world.grid.in_bounds_v(level_def.spawn):
+		spawn_tile = level_def.spawn
+	var spawn := Vector2(spawn_tile * GameConst.TILE_SIZE) + Vector2.ONE * GameConst.TILE_SIZE * 0.5
+	world.drone = Drone.new(Registry.drone_def, world, spawn)
 	if level_def != null:
 		for stack in level_def.starting_items:
 			if stack != null and stack.item != null:
-				world.core_storage.add_without_delivery(stack.item.index, stack.amount)
+				world.drone.inventory.add(stack.item.index, stack.amount)
 	return world
 
 
-## Ядро уровня (первое найденное) или null.
-func get_core() -> Building:
-	return buildings.find_first(&"core")
+## Может ли игрок взаимодействовать со зданием (настройка, окно, поворот): в радиусе дрона.
+func can_interact(building: Building) -> bool:
+	if building == null or building.world != self:
+		return false
+	return creative or drone.can_reach_tiles(building.get_rect())
 
 
-## Проверка строительства с учётом стоимости. budget — для планирования ряда построек:
-## при успехе стоимость резервируется в нём, иначе проверяются текущие запасы ядра.
-func check_build(def: BuildingDef, origin: Vector2i, rotation: int, budget: CoreStorage.Budget = null) -> BuildingManager.Check:
+## Проверка строительства игроком: размещение, радиус дрона, постройка в инвентаре.
+## budget — для планирования ряда построек: при успехе постройка резервируется в нём,
+## иначе проверяется текущий инвентарь.
+func check_build(def: BuildingDef, origin: Vector2i, rotation: int, budget: Inventory.Budget = null) -> BuildingManager.Check:
 	var check := buildings.check_place(def, origin, rotation)
 	if check != BuildingManager.Check.OK and check != BuildingManager.Check.REPLACE:
 		return check
-	if sandbox:
+	if creative:
 		return check
-	var local := budget if budget != null else core_storage.make_budget()
+	if not drone.can_reach_tiles(Rect2i(origin, Vector2i(def.size, def.size))):
+		return BuildingManager.Check.OUT_OF_RANGE
+	if def.item == null:
+		return BuildingManager.Check.NO_ITEM
+	var local := budget if budget != null else drone.inventory.make_budget()
 	if check == BuildingManager.Check.REPLACE:
 		var existing := buildings.get_at(origin)
-		if existing != null:
-			local.add(existing.def.cost)
-	if not local.reserve(def.cost):
-		return BuildingManager.Check.NOT_AFFORDABLE
+		if existing != null and existing.def.item != null:
+			local.give(existing.def.item.index, 1)
+	if not local.take(def.item.index, 1):
+		return BuildingManager.Check.NO_ITEM
 	return check
 
 
-## Строит здание игроком: списывает стоимость (при замене — сначала сносит старое с возвратом).
-## config — настройка, скопированная пипеткой (фильтр, связь моста).
+## Строит здание игроком: берёт постройку из инвентаря (при замене старое здание сносится
+## с возвратом). config — настройка, скопированная пипеткой (фильтр, связь моста).
 func build(def: BuildingDef, origin: Vector2i, rotation: int, config: Variant = null) -> Building:
 	var check := check_build(def, origin, rotation)
 	if check != BuildingManager.Check.OK and check != BuildingManager.Check.REPLACE:
 		return null
+	# Сначала снос заменяемого (он возвращает свою постройку), затем списание новой.
 	if check == BuildingManager.Check.REPLACE:
 		for old in buildings.collect_in_rect(Rect2i(origin, Vector2i(def.size, def.size))):
-			demolish(old)
-	if not sandbox and not core_storage.spend(def.cost):
+			if not demolish(old):
+				return null
+	if not creative and drone.inventory.remove(def.item.index, 1) == 0:
 		return null
 	var building := buildings.place(def, origin, rotation)
-	if building == null and not sandbox:
-		core_storage.refund(def.cost)
+	if building == null and not creative:
+		drone.inventory.add(def.item.index, 1)
 	if building != null and config != null:
 		configure(building, config)
 	return building
@@ -100,29 +114,72 @@ func configure(building: Building, value: Variant) -> void:
 	simulation.on_building_reconfigured(building)
 
 
-## Сносит здание игроком: возврат стоимости, содержимое — в ядро (засчитывается как доставка).
+## Сносит здание игроком: постройка и содержимое уходят в инвентарь дрона.
+## Нужны радиус и место под саму постройку; не поместившееся содержимое теряется (last_lost_items).
 func demolish(building: Building) -> bool:
-	if building == null or building.world != self or not building.def.removable:
+	last_error = ActionError.NONE
+	last_lost_items = 0
+	if building == null or building.world != self:
 		return false
+	if not building.def.removable:
+		last_error = ActionError.NOT_ALLOWED
+		return false
+	var item := building.def.item
+	if not creative:
+		if not drone.can_reach_tiles(building.get_rect()):
+			last_error = ActionError.OUT_OF_RANGE
+			return false
+		if item != null and drone.inventory.space_for(item.index) < 1:
+			last_error = ActionError.INVENTORY_FULL
+			return false
 	var contents := PackedInt32Array()
 	contents.resize(Registry.items.size())
 	contents.fill(0)
 	building.collect_contents(contents)
 	if not buildings.remove(building):
 		return false
-	if not sandbox:
-		core_storage.refund(building.def.cost)
-	for item in contents.size():
-		if contents[item] > 0:
-			core_storage.deliver(item, contents[item])
+	if not creative and item != null:
+		drone.inventory.add(item.index, 1)
+	for i in contents.size():
+		if contents[i] > 0:
+			last_lost_items += contents[i] - drone.inventory.add(i, contents[i])
 	return true
 
 
 ## Поворачивает стоящее здание на delta шагов по часовой стрелке.
 func rotate_building(building: Building, delta: int = 1) -> bool:
-	if building == null or building.world != self:
+	if not can_interact(building):
 		return false
 	return buildings.rotate(building, building.rotation + delta)
+
+
+## Забрать предметы из здания в инвентарь дрона. Возвращает, сколько забрано.
+func player_take(building: Building, item: int, amount: int) -> int:
+	last_error = ActionError.NONE
+	if not can_interact(building) or item < 0 or amount <= 0:
+		return 0
+	var room := drone.inventory.space_for(item)
+	if room <= 0:
+		last_error = ActionError.INVENTORY_FULL
+		return 0
+	var taken := building.take_player_items(item, mini(amount, room))
+	if taken > 0:
+		drone.inventory.add(item, taken)
+	return taken
+
+
+## Положить предметы из инвентаря дрона в здание (сколько оно примет). Возвращает количество.
+func player_put(building: Building, item: int, amount: int) -> int:
+	if not can_interact(building) or not building.accepts_player_items() or item < 0:
+		return 0
+	var limit := mini(amount, drone.inventory.count(item))
+	var put := 0
+	while put < limit and building.accept_item(null, item):
+		building.handle_item(null, item)
+		put += 1
+	if put > 0:
+		drone.inventory.remove(item, put)
+	return put
 
 
 ## Разрывает циклические ссылки перед выгрузкой.
@@ -133,4 +190,6 @@ func dispose() -> void:
 	if simulation != null:
 		simulation.dispose()
 	simulation = null
+	if drone != null:
+		drone.world = null
 	grid = null

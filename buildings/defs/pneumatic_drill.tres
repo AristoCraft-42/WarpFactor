@@ -3,13 +3,13 @@
 [ext_resource type="Script" path="res://buildings/production/drill_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/production/drill.gd" id="3_logic"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/buildings/mechanical_drill.tres" id="item_mechanical_drill"]
 [ext_resource type="Resource" path="res://items/types/graphite.tres" id="item_graphite"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
-amount = 18
+item = ExtResource("item_mechanical_drill")
+amount = 1
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
@@ -28,6 +28,8 @@ player_buildable = true
 line_placement = false
 sort_order = 20
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
+craft_time = 2.0
+craft_amount = 1
 color = Color(0.427, 0.498, 0.541, 1)
 glyph = 8
 logic_script = ExtResource("3_logic")

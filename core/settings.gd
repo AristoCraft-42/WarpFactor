@@ -253,14 +253,10 @@ func _build_entries() -> void:
 	var ui_scale := SettingEntry.make_range(&"game/ui_scale", TAB_GAME, 1.0, "SET_UI_SCALE", 0.75, 2.0, 0.05, true, "SET_UI_SCALE_HINT")
 	ui_scale.apply_on_release = true
 	_add(ui_scale)
-	var pan := SettingEntry.make_range(&"game/pan_speed", TAB_GAME, 1.0, "SET_PAN_SPEED", 0.25, 3.0, 0.05)
-	pan.suffix = "×"
-	_add(pan)
 	var zoom := SettingEntry.make_range(&"game/zoom_speed", TAB_GAME, 1.0, "SET_ZOOM_SPEED", 0.25, 3.0, 0.05)
 	zoom.suffix = "×"
 	_add(zoom)
 	_add(SettingEntry.make_bool(&"game/smooth_zoom", TAB_GAME, true, "SET_SMOOTH_ZOOM"))
-	_add(SettingEntry.make_bool(&"game/edge_pan", TAB_GAME, false, "SET_EDGE_PAN", "SET_EDGE_PAN_HINT"))
 	_add(SettingEntry.make_bool(&"game/show_grid", TAB_GAME, true, "SET_SHOW_GRID"))
 	_add(SettingEntry.make_bool(&"game/confirm_mass_delete", TAB_GAME, true, "SET_CONFIRM_MASS_DELETE", "SET_CONFIRM_MASS_DELETE_HINT"))
 	var autosave := SettingEntry.make_choice(&"game/autosave", TAB_GAME, 5, "SET_AUTOSAVE",

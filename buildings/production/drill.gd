@@ -66,6 +66,27 @@ func collect_contents(out: PackedInt32Array) -> void:
 		out[_item] += buffer
 
 
+func has_player_window() -> bool:
+	return true
+
+
+func get_player_stacks() -> Array[Vector2i]:
+	var stacks: Array[Vector2i] = []
+	if _item >= 0 and buffer > 0:
+		stacks.append(Vector2i(_item, buffer))
+	return stacks
+
+
+func take_player_items(item: int, amount: int) -> int:
+	if item != _item:
+		return 0
+	var taken := mini(buffer, amount)
+	buffer -= taken
+	if taken > 0:
+		wake()
+	return taken
+
+
 func get_items_per_second() -> float:
 	return float(GameConst.TICK_RATE) / ticks_per_item if ticks_per_item > 0 else 0.0
 

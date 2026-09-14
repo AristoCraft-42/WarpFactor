@@ -1,6 +1,6 @@
 class_name LevelSelect
 extends PanelContainer
-## Выбор уровня кампании: список, превью карты, описание, флажок песочницы.
+## Выбор уровня: список, превью карты, описание, флажок творческого режима.
 
 signal back_requested
 
@@ -9,7 +9,7 @@ var _preview: TextureRect
 var _title: Label
 var _description: Label
 var _info: Label
-var _sandbox: CheckBox
+var _creative: CheckBox
 var _start_button: Button
 var _previews: Dictionary[StringName, Texture2D] = {}
 var _sizes: Dictionary[StringName, Vector2i] = {}
@@ -64,16 +64,16 @@ func _ready() -> void:
 	_info.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	details.add_child(_info)
 
-	var sandbox_row := UiUtil.hbox(10)
-	_sandbox = CheckBox.new()
-	_sandbox.text = "LEVELS_SANDBOX"
-	_sandbox.tooltip_text = "LEVELS_SANDBOX_HINT"
-	sandbox_row.add_child(_sandbox)
-	var sandbox_hint := UiUtil.label("LEVELS_SANDBOX_HINT", &"DimLabel")
-	sandbox_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sandbox_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	sandbox_row.add_child(sandbox_hint)
-	details.add_child(sandbox_row)
+	var creative_row := UiUtil.hbox(10)
+	_creative = CheckBox.new()
+	_creative.text = "LEVELS_CREATIVE"
+	_creative.tooltip_text = "LEVELS_CREATIVE_HINT"
+	creative_row.add_child(_creative)
+	var creative_hint := UiUtil.label("LEVELS_CREATIVE_HINT", &"DimLabel")
+	creative_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	creative_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	creative_row.add_child(creative_hint)
+	details.add_child(creative_row)
 
 	var bottom := UiUtil.hbox(10)
 	root.add_child(bottom)
@@ -122,7 +122,7 @@ func _start() -> void:
 	var selected := _list.get_selected_items()
 	if selected.is_empty() or _start_button.disabled:
 		return
-	Session.start_level(Registry.levels[selected[0]], _sandbox.button_pressed)
+	Session.start_level(Registry.levels[selected[0]], _creative.button_pressed)
 
 
 func _notification(what: int) -> void:

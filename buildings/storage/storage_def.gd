@@ -1,10 +1,10 @@
 class_name StorageDef
 extends BuildingDef
-## Параметры хранилища (ядро, контейнер, склад).
+## Параметры склада (контейнер, хранилище).
 
-## Лимит по каждому предмету.
-@export var item_capacity: int = 300
+## Число ячеек; в ячейке лежит один тип предмета до размера его стака.
+@export var slots: int = 16
 
 
 func get_stat_lines() -> PackedStringArray:
-	return PackedStringArray([tr("STAT_CAPACITY") % item_capacity])
+	return PackedStringArray([tr("STAT_SLOTS") % slots])

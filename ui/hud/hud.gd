@@ -1,8 +1,8 @@
 class_name Hud
 extends CanvasLayer
-## Игровой интерфейс: заголовок уровня и запасы ядра, пауза и скорость, кнопка меню,
-## панель строительства, инфо-строка, подсказки режима, легенда оверлея руд, отладка,
-## уведомления, подтверждение массового сноса.
+## Игровой интерфейс: заголовок уровня, пауза и скорость, кнопка меню, панель строительства,
+## окно инвентаря и крафта, очередь крафта, инфо-строка, подсказки режима, легенды оверлеев,
+## отладка, уведомления, подтверждение массового сноса.
 
 const INFO_REFRESH := 0.25
 const HINT_WIDTH := 720
@@ -18,6 +18,7 @@ var _ore_legend: PanelContainer
 var _belt_legend: PanelContainer
 var _debug: DebugOverlay
 var _confirm: ConfirmationDialog
+var inventory_window: InventoryWindow
 var _pending_delete: Array[Building] = []
 var _fps_timer: float = 0.0
 var _info_timer: float = 0.0
@@ -36,6 +37,8 @@ func setup(game: Game) -> void:
 	_build_bottom_left()
 	_build_top_center()
 	_build_build_menu()
+	_build_craft_queue()
+	_build_inventory_window()
 	_build_toasts()
 	_build_confirm()
 	var tooltip := BuildingTooltip.new()
@@ -116,15 +119,11 @@ func _build_top_left() -> void:
 	var title := UiUtil.label(_game.world.level.title_key, &"HeaderLabel")
 	title.add_theme_font_size_override("font_size", 20)
 	title_row.add_child(title)
-	if _game.world.sandbox:
-		var badge := UiUtil.label("HUD_SANDBOX", &"BadgeLabel")
+	if _game.world.creative:
+		var badge := UiUtil.label("HUD_CREATIVE", &"BadgeLabel")
 		badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		title_row.add_child(badge)
 	column.add_child(title_panel)
-
-	var resources := ResourcePanel.new()
-	column.add_child(resources)
-	resources.setup(_game.world)
 
 	_belt_legend = _make_belt_legend()
 	column.add_child(_belt_legend)
@@ -257,6 +256,22 @@ func _build_build_menu() -> void:
 	menu.setup(_game.tools, _game.world)
 
 
+func _build_craft_queue() -> void:
+	var queue := CraftQueuePanel.new()
+	queue.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	queue.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	queue.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	queue.offset_bottom = -16
+	_root.add_child(queue)
+	queue.setup(_game.world.drone)
+
+
+func _build_inventory_window() -> void:
+	inventory_window = InventoryWindow.new()
+	_root.add_child(inventory_window)
+	inventory_window.setup(_game.tools, _game.world)
+
+
 func _build_toasts() -> void:
 	var toasts := ToastStack.new()
 	toasts.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
@@ -337,10 +352,12 @@ func _update_hint() -> void:
 					InputActions.primary_label(&"copy_selection"), InputActions.primary_label(&"select_area"),
 					InputActions.primary_label(&"cancel")]
 			else:
+				var move := "%s%s%s%s" % [InputActions.primary_label(&"move_up"), InputActions.primary_label(&"move_left"),
+					InputActions.primary_label(&"move_down"), InputActions.primary_label(&"move_right")]
 				_hint_label.text = tr("HINT_IDLE") % [
-					primary, InputActions.primary_label(&"select_area"), InputActions.primary_label(&"delete_selection"),
-					InputActions.primary_label(&"rotate"), InputActions.primary_label(&"pipette"),
-					InputActions.primary_label(&"overlay_ores"), InputActions.primary_label(&"overlay_belts")]
+					move, primary, InputActions.primary_label(&"inventory"), InputActions.primary_label(&"select_area"),
+					InputActions.primary_label(&"delete_selection"), InputActions.primary_label(&"rotate"),
+					InputActions.primary_label(&"pipette")]
 	_update_problem()
 
 
@@ -348,8 +365,10 @@ func _update_problem() -> void:
 	var key := ""
 	if _game.tools.mode == ToolController.Mode.PLACE:
 		match _game.tools.plan_problem:
-			BuildingManager.Check.NOT_AFFORDABLE:
-				key = "PROBLEM_NOT_AFFORDABLE"
+			BuildingManager.Check.NO_ITEM:
+				key = "PROBLEM_NO_ITEM"
+			BuildingManager.Check.OUT_OF_RANGE:
+				key = "PROBLEM_OUT_OF_RANGE"
 			BuildingManager.Check.NO_ORE:
 				key = "PROBLEM_NO_ORE"
 			BuildingManager.Check.BAD_TERRAIN:

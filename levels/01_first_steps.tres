@@ -4,16 +4,34 @@
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
 [ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
+[ext_resource type="Resource" path="res://items/types/buildings/conveyor.tres" id="item_conveyor"]
+[ext_resource type="Resource" path="res://items/types/buildings/mechanical_drill.tres" id="item_mechanical_drill"]
+[ext_resource type="Resource" path="res://items/types/buildings/container.tres" id="item_container"]
 
 [sub_resource type="Resource" id="start_0"]
 script = ExtResource("2_stack")
 item = ExtResource("item_copper")
-amount = 300
+amount = 120
 
 [sub_resource type="Resource" id="start_1"]
 script = ExtResource("2_stack")
 item = ExtResource("item_lead")
-amount = 100
+amount = 60
+
+[sub_resource type="Resource" id="start_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_conveyor")
+amount = 60
+
+[sub_resource type="Resource" id="start_3"]
+script = ExtResource("2_stack")
+item = ExtResource("item_mechanical_drill")
+amount = 6
+
+[sub_resource type="Resource" id="start_4"]
+script = ExtResource("2_stack")
+item = ExtResource("item_container")
+amount = 2
 
 [resource]
 script = ExtResource("1_level")
@@ -22,4 +40,5 @@ title_key = "LEVEL_FIRST_STEPS_TITLE"
 description_key = "LEVEL_FIRST_STEPS_DESC"
 order = 1
 map_path = "res://levels/maps/01_first_steps.fwmap"
-starting_items = Array[ExtResource("2_stack")]([SubResource("start_0"), SubResource("start_1")])
+spawn = Vector2i(48, 32)
+starting_items = Array[ExtResource("2_stack")]([SubResource("start_0"), SubResource("start_1"), SubResource("start_2"), SubResource("start_3"), SubResource("start_4")])

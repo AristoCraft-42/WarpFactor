@@ -6,12 +6,13 @@ const GAME_SCENE := "res://core/game.tscn"
 
 ## Уровень, который нужно запустить в игровой сцене.
 var level: LevelDef
-var sandbox: bool = false
+## Творческий режим: постройки не расходуются, радиус дрона не ограничен.
+var creative: bool = false
 
 
-func start_level(level_def: LevelDef, p_sandbox: bool) -> void:
+func start_level(level_def: LevelDef, p_creative: bool) -> void:
 	level = level_def
-	sandbox = p_sandbox
+	creative = p_creative
 	get_tree().paused = false
 	get_tree().change_scene_to_file(GAME_SCENE)
 

@@ -114,6 +114,34 @@ func get_status() -> Status:
 	return status
 
 
+func accepts_player_items() -> bool:
+	return true
+
+
+## Сначала готовая продукция, затем сырьё во входном буфере.
+func get_player_stacks() -> Array[Vector2i]:
+	var stacks: Array[Vector2i] = []
+	for item in outputs.size():
+		if outputs[item] > 0:
+			stacks.append(Vector2i(item, outputs[item]))
+	for item in inputs.size():
+		if inputs[item] > 0:
+			stacks.append(Vector2i(item, inputs[item]))
+	return stacks
+
+
+func take_player_items(item: int, amount: int) -> int:
+	var from_outputs := mini(outputs[item], amount)
+	outputs[item] -= from_outputs
+	var from_inputs := mini(inputs[item], amount - from_outputs)
+	inputs[item] -= from_inputs
+	if from_inputs > 0:
+		notify_space()
+	if from_outputs + from_inputs > 0:
+		wake()
+	return from_outputs + from_inputs
+
+
 func get_missing_inputs() -> PackedStringArray:
 	var missing := PackedStringArray()
 	for c in get_recipe().consumes:

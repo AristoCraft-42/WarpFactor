@@ -53,7 +53,7 @@ static func get_item_icon(item: ItemType) -> Texture2D:
 		return item.icon
 	var tex: Texture2D = _item_icons.get(item.id)
 	if tex == null:
-		tex = ImageTexture.create_from_image(PlaceholderArt.make_item_icon(item))
+		tex = ImageTexture.create_from_image(_item_image(item))
 		_item_icons[item.id] = tex
 	return tex
 
@@ -63,19 +63,30 @@ static func _build_item_atlas() -> void:
 	var atlas := Image.create_empty(t * maxi(Registry.items.size(), 1), t, false, Image.FORMAT_RGBA8)
 	atlas.fill(Color(0, 0, 0, 0))
 	for item in Registry.items:
-		var img: Image = null
-		if item.icon != null:
-			img = item.icon.get_image()
-			if img != null:
-				if img.is_compressed():
-					img.decompress()
-				img.convert(Image.FORMAT_RGBA8)
-				if img.get_width() != t or img.get_height() != t:
-					img.resize(t, t, Image.INTERPOLATE_NEAREST)
-		if img == null:
-			img = PlaceholderArt.make_item_icon(item)
-		atlas.blit_rect(img, Rect2i(0, 0, t, t), Vector2i(item.index * t, 0))
+		atlas.blit_rect(_item_image(item), Rect2i(0, 0, t, t), Vector2i(item.index * t, 0))
 	item_atlas = ImageTexture.create_from_image(atlas)
+
+
+## Иконка 32x32: готовая текстура, уменьшенный спрайт постройки или процедурный плейсхолдер.
+static func _item_image(item: ItemType) -> Image:
+	var t := GameConst.TILE_SIZE
+	if item.icon != null:
+		var img := item.icon.get_image()
+		if img != null:
+			if img.is_compressed():
+				img.decompress()
+			img.convert(Image.FORMAT_RGBA8)
+			if img.get_width() != t or img.get_height() != t:
+				img.resize(t, t, Image.INTERPOLATE_NEAREST)
+			return img
+	if item.building != null:
+		var building_img := _building_image(item.building)
+		building_img.resize(t - 4, t - 4, Image.INTERPOLATE_BILINEAR)
+		var framed := Image.create_empty(t, t, false, Image.FORMAT_RGBA8)
+		framed.fill(Color(0, 0, 0, 0))
+		framed.blit_rect(building_img, Rect2i(Vector2i.ZERO, building_img.get_size()), Vector2i(2, 2))
+		return framed
+	return PlaceholderArt.make_item_icon(item)
 
 
 ## Координаты тайла пола в атласе (вариант выбирается хешем позиции).

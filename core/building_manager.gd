@@ -19,7 +19,8 @@ enum Check {
 	BAD_TERRAIN,
 	OCCUPIED,
 	NO_ORE, ## буру нечего добывать
-	NOT_AFFORDABLE, ## не хватает ресурсов в ядре (выставляет GameWorld)
+	NO_ITEM, ## постройки нет в инвентаре дрона (выставляет GameWorld)
+	OUT_OF_RANGE, ## вне радиуса дрона (выставляет GameWorld)
 }
 
 var grid: WorldGrid
@@ -144,7 +145,7 @@ func notify_changed(building: Building) -> void:
 		building_changed.emit(building)
 
 
-## Сносит здание. Неудаляемые (ядро) сносятся только с force=true.
+## Сносит здание. Неудаляемые сносятся только с force=true.
 func remove(building: Building, force: bool = false) -> bool:
 	if building == null or building.id == 0 or get_by_id(building.id) != building:
 		return false

@@ -5,6 +5,7 @@ extends RefCounted
 ##
 ## Формат привязки в настройках: "key:W", "key:Ctrl+S", "key:Shift", "mouse:1".
 
+const GROUP_DRONE := "INPUT_GROUP_DRONE"
 const GROUP_CAMERA := "INPUT_GROUP_CAMERA"
 const GROUP_BUILD := "INPUT_GROUP_BUILD"
 const GROUP_TIME := "INPUT_GROUP_TIME"
@@ -13,18 +14,19 @@ const GROUP_VIEW := "INPUT_GROUP_VIEW"
 ## Максимум привязок на действие в меню управления.
 const SLOTS := 2
 ## Версия схемы управления. Сохранённые привязки старой версии сбрасываются к умолчаниям,
-## если схема изменилась несовместимо (например, ПКМ перестала двигать камеру).
-const BINDINGS_VERSION := 2
+## если схема изменилась несовместимо (например, WASD стали двигать дрона, а не камеру).
+const BINDINGS_VERSION := 3
 
 
 ## Описание всех действий: имя, ключ перевода, группа, привязки по умолчанию.
 static func definitions() -> Array[Dictionary]:
 	return [
+		{"name": &"move_up", "label": "ACTION_MOVE_UP", "group": GROUP_DRONE, "events": ["key:W", "key:Up"]},
+		{"name": &"move_down", "label": "ACTION_MOVE_DOWN", "group": GROUP_DRONE, "events": ["key:S", "key:Down"]},
+		{"name": &"move_left", "label": "ACTION_MOVE_LEFT", "group": GROUP_DRONE, "events": ["key:A", "key:Left"]},
+		{"name": &"move_right", "label": "ACTION_MOVE_RIGHT", "group": GROUP_DRONE, "events": ["key:D", "key:Right"]},
+		{"name": &"inventory", "label": "ACTION_INVENTORY", "group": GROUP_DRONE, "events": ["key:E", "key:Tab"]},
 		{"name": &"cam_pan", "label": "ACTION_CAM_PAN", "group": GROUP_CAMERA, "events": ["mouse:3"]},
-		{"name": &"cam_up", "label": "ACTION_CAM_UP", "group": GROUP_CAMERA, "events": ["key:W", "key:Up"]},
-		{"name": &"cam_down", "label": "ACTION_CAM_DOWN", "group": GROUP_CAMERA, "events": ["key:S", "key:Down"]},
-		{"name": &"cam_left", "label": "ACTION_CAM_LEFT", "group": GROUP_CAMERA, "events": ["key:A", "key:Left"]},
-		{"name": &"cam_right", "label": "ACTION_CAM_RIGHT", "group": GROUP_CAMERA, "events": ["key:D", "key:Right"]},
 		{"name": &"zoom_in", "label": "ACTION_ZOOM_IN", "group": GROUP_CAMERA, "events": ["mouse:4", "key:Equal"]},
 		{"name": &"zoom_out", "label": "ACTION_ZOOM_OUT", "group": GROUP_CAMERA, "events": ["mouse:5", "key:Minus"]},
 		{"name": &"cam_home", "label": "ACTION_CAM_HOME", "group": GROUP_CAMERA, "events": ["key:H"]},

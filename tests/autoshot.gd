@@ -3,6 +3,8 @@ extends Node
 ## Добавляется главным меню или игровой сценой только при флаге командной строки:
 ##   godot --path D:/Mind res://core/game.tscn -- --autoshot --autoshot-dir=C:/путь/к/папке
 ## Мышь не двигает; изменённые настройки в конце восстанавливает.
+## Сцены разворачиваются вокруг места появления дрона; перед действиями дрон переносится
+## к нужному месту, чтобы всё было в его радиусе.
 
 var _dir: String = "user://autoshot"
 var _results := PackedStringArray()
@@ -38,18 +40,21 @@ func _run_menu(menu: MainMenu) -> void:
 
 func _run_game(game: Game) -> void:
 	var original_language: Variant = Settings.get_value(&"game/language")
+	var base := game.world.drone.get_tile()
 	await _frames(30)
 	await _measure_frames("старт")
 	await _shot("g01_start.png")
 
-	await _run_interaction(game)
-	await _run_production_chain(game)
-	await _run_factory(game)
-	await _run_logistics(game)
+	await _run_drone(game, base)
+	await _run_interaction(game, base)
+	await _run_production_chain(game, base)
+	await _run_factory(game, base)
+	await _run_logistics(game, base)
 
+	await _drone_to(game, base)
 	game.ore_overlay.visible = true
 	game.hud.set_ore_legend_visible(true)
-	game.camera.focus_on(game.world.get_core().get_world_center(), 0.6)
+	game.camera.focus_on(game.world.drone.position, 0.6)
 	await _frames(10)
 	await _shot("g04_ore_overlay.png")
 	game.ore_overlay.visible = false
@@ -57,7 +62,7 @@ func _run_game(game: Game) -> void:
 
 	game.hud.toggle_debug()
 	game.grid_overlay.set_chunk_lines_visible(true)
-	game.camera.focus_on(game.world.get_core().get_world_center(), 0.8)
+	game.camera.focus_on(game.world.drone.position, 0.8)
 	await _frames(20)
 	await _shot("g05_debug.png")
 	game.hud.toggle_debug()
@@ -89,23 +94,87 @@ func _run_game(game: Game) -> void:
 	get_tree().quit()
 
 
+## Дрон: полёт, камера, добыча руды, окно инвентаря и ручной крафт.
+func _run_drone(game: Game, base: Vector2i) -> void:
+	var world := game.world
+	var drone := world.drone
+	var inv := drone.inventory
+
+	# Полёт на D и слежение камеры.
+	var start := drone.position
+	await _key_hold(KEY_D, true)
+	await _frames(20)
+	await _key_hold(KEY_D, false)
+	_expect(drone.position.x > start.x + 16.0, "D двигает дрона вправо (%.0f px)" % (drone.position.x - start.x))
+	await _frames(20)
+	_expect(game.camera.position.distance_to(drone.get_draw_position(game.clock.alpha)) < 2.0, "камера следует за дроном")
+	await _shot("d00_drone.png")
+
+	# Добыча: ЛКМ по руде с зажатием.
+	var ore_tile := _find_ore_tile(world, &"copper", base, 30)
+	_expect(ore_tile != Vector2i(-1, -1), "рядом есть медная руда")
+	if ore_tile == Vector2i(-1, -1):
+		return
+	await _drone_to(game, ore_tile + Vector2i(-3, 1))
+	var copper := Registry.get_item(&"copper").index
+	var copper_before := inv.count(copper)
+	await _mouse_move(game, ore_tile)
+	await _mouse_button(game, ore_tile, MOUSE_BUTTON_LEFT, true)
+	_expect(drone.is_mining() and drone.mine_tile == ore_tile, "ЛКМ по руде включает добычу")
+	game.clock.set_speed_index(2)
+	await _wait_ticks(world, drone.def.mine_ticks(Registry.get_ore(&"copper")) * 2 + 4)
+	game.clock.set_speed_index(0)
+	await _frames(3)
+	await _shot("d01_mining.png")
+	await _mouse_button(game, ore_tile, MOUSE_BUTTON_LEFT, false)
+	_expect(inv.count(copper) >= copper_before + 2, "дрон добыл медь (+%d)" % (inv.count(copper) - copper_before))
+	_expect(not drone.is_mining(), "отпускание кнопки останавливает добычу")
+
+	# Окно инвентаря (E) и крафт кликом по рецепту.
+	await _drone_to(game, base)
+	await _key(KEY_E)
+	var window := game.hud.inventory_window
+	_expect(window.visible and window.mode == InventoryWindow.Mode.CRAFT, "E открывает инвентарь и крафт")
+	await _frames(5)
+	await _shot("d02_inventory.png")
+	var belt := Registry.get_building(&"conveyor").item.index
+	var belt_recipe := Registry.get_hand_recipe(belt)
+	var belts_before := inv.count(belt)
+	var recipe_slots: Dictionary = window.get("_recipe_slots")
+	var belt_slot := recipe_slots.get(belt) as ItemSlot
+	_expect(belt_slot != null, "в крафте есть рецепт ленты")
+	if belt_slot == null:
+		return
+	await _click_control(belt_slot)
+	await _wait_ticks(world, belt_recipe.ticks + 3)
+	_expect(inv.count(belt) == belts_before + 1, "клик по рецепту крафтит ленту (+%d)" % (inv.count(belt) - belts_before))
+	var center := belt_slot.get_global_rect().get_center()
+	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, false)
+	_expect(drone.crafting.units.size() >= 4, "ПКМ по рецепту ставит 5 крафтов (в очереди %d)" % drone.crafting.units.size())
+	await _frames(3)
+	await _shot("d03_craft_queue.png")
+	await _key(KEY_ESCAPE)
+	_expect(not window.visible, "Esc закрывает инвентарь")
+	await _wait_ticks(world, belt_recipe.ticks * 6 + 4)
+	_expect(drone.crafting.is_empty() and inv.count(belt) == belts_before + 6, "очередь докрафтила ленты")
+
+
 ## Инструменты через настоящие события ввода.
-func _run_interaction(game: Game) -> void:
+func _run_interaction(game: Game, base: Vector2i) -> void:
 	var world := game.world
 	var bm := world.buildings
 	var tools := game.tools
-	var core := world.get_core()
-	var base := core.origin
+	var inv := world.drone.inventory
 	var conveyor := Registry.get_building(&"conveyor")
-	game.camera.focus_on(core.get_world_center(), 1.0)
-	await _frames(5)
+	await _drone_to(game, base)
 
-	# Протягивание L-линии лент: 7 тайлов вправо и 3 вниз = 10 лент.
-	var copper_before := world.core_storage.get_count(Registry.get_item(&"copper").index)
+	# Протягивание L-линии лент: 7 тайлов вправо и 3 вниз = 10 лент из инвентаря.
+	var belts_before := inv.count(conveyor.item.index)
 	var before := bm.get_count()
 	tools.select_building(conveyor)
-	var a := base + Vector2i(-12, 6)
-	var b := base + Vector2i(-6, 9)
+	var a := base + Vector2i(-6, 3)
+	var b := base + Vector2i(0, 6)
 	await _mouse_move(game, a)
 	await _mouse_button(game, a, MOUSE_BUTTON_LEFT, true)
 	await _mouse_move(game, a + Vector2i(1, 0))
@@ -114,9 +183,15 @@ func _run_interaction(game: Game) -> void:
 	await _shot("i01_drag_line.png")
 	await _mouse_button(game, b, MOUSE_BUTTON_LEFT, false)
 	_expect(bm.get_count() - before == 10, "протягивание L-линии ставит 10 лент (поставлено %d)" % (bm.get_count() - before))
-	_expect(copper_before - world.core_storage.get_count(Registry.get_item(&"copper").index) == 10, "линия списала 10 меди")
+	_expect(belts_before - inv.count(conveyor.item.index) == 10, "линия взяла 10 лент из инвентаря")
 	var corner := bm.get_at(Vector2i(b.x, a.y))
 	_expect(corner != null and corner.rotation == GameConst.Dir.DOWN, "угол линии повёрнут вниз")
+
+	# Вне радиуса дрона превью показывает причину.
+	var far := base + Vector2i(14, -2)
+	await _mouse_move(game, far)
+	_expect(tools.plan_problem == BuildingManager.Check.OUT_OF_RANGE, "превью за радиусом дрона показывает причину")
+	await _shot("i01b_out_of_range.png")
 
 	# Переключение раздела меню, когда здание уже в руке (настоящий клик по вкладке).
 	var menu := _find_child_of_type(game.hud, "BuildMenu") as BuildMenu
@@ -163,16 +238,19 @@ func _run_interaction(game: Game) -> void:
 	# Бур ставится только на руду.
 	var drill := Registry.get_building(&"mechanical_drill")
 	tools.select_building(drill)
-	var no_ore := _find_empty_spot(world, drill, base, 16)
+	var no_ore := _find_empty_spot(world, drill, base, 9)
 	await _mouse_move(game, no_ore)
 	_expect(tools.plan_problem == BuildingManager.Check.NO_ORE, "превью бура без руды показывает причину")
-	var ore_spot := _find_drill_spot(world, drill, base, 14)
-	_expect(ore_spot != Vector2i(-1, -1), "рядом с ядром есть место для бура на руде")
+	var ore_spot := _find_drill_spot(world, drill, base, 20)
+	_expect(ore_spot != Vector2i(-1, -1), "рядом с местом посадки есть место для бура на руде")
+	await _drone_to(game, ore_spot + Vector2i(1, 3))
 	before = bm.get_count()
+	var drills_before := inv.count(drill.item.index)
 	await _mouse_move(game, ore_spot)
 	await _mouse_button(game, ore_spot, MOUSE_BUTTON_LEFT, true)
 	await _mouse_button(game, ore_spot, MOUSE_BUTTON_LEFT, false)
-	_expect(bm.get_count() - before == 1, "клик ставит бур на руду")
+	_expect(bm.get_count() - before == 1 and drills_before - inv.count(drill.item.index) == 1, "клик ставит бур на руду из инвентаря")
+	await _drone_to(game, base)
 
 	# Esc сбрасывает инструмент, повторный Esc открывает меню паузы, пауза останавливает время.
 	await _key(KEY_ESCAPE)
@@ -193,7 +271,7 @@ func _run_interaction(game: Game) -> void:
 	await _key(KEY_1)
 
 	# ПКМ с зажатием выделяет область; C копирует в руку, ЛКМ вставляет копию, R поворачивает план.
-	var rect := Rect2i(a, Vector2i.ONE).merge(Rect2i(b, Vector2i.ONE)).merge(Rect2i(ore_spot - Vector2i.ONE, Vector2i(3, 3)))
+	var rect := Rect2i(a, Vector2i.ONE).merge(Rect2i(b, Vector2i.ONE))
 	var expected := 0
 	for x in bm.collect_in_rect(rect):
 		if x.def.removable:
@@ -206,39 +284,38 @@ func _run_interaction(game: Game) -> void:
 	await _shot("i03_select_area.png")
 	await _mouse_button(game, rect.end - Vector2i.ONE, MOUSE_BUTTON_RIGHT, false)
 	_expect(tools.has_area() and tools.area_buildings.size() == expected, "ПКМ с зажатием выделяет %d построек (%d)" % [expected, tools.area_buildings.size()])
-	_expect(game.camera.position == core.get_world_center(), "ПКМ больше не двигает камеру")
 
 	before = bm.get_count()
 	await _key(KEY_C)
 	_expect(tools.mode == ToolController.Mode.PASTE and tools.plan.size() == expected, "C копирует выделенное в руку (%d)" % tools.plan.size())
-	var paste_at := base + Vector2i(-12, -12)
+	var paste_at := base + Vector2i(-4, -5)
 	await _mouse_move(game, paste_at)
 	await _key(KEY_R)
 	await _frames(3)
 	await _shot("i03b_paste_preview.png")
-	var plan_rotated := tools.plan_size
-	_expect(plan_rotated == Vector2i(rect.size.y, rect.size.x) or plan_rotated.x == plan_rotated.y or tools.plan_size.x > 0, "R поворачивает план")
 	await _mouse_button(game, paste_at, MOUSE_BUTTON_LEFT, true)
 	await _mouse_button(game, paste_at, MOUSE_BUTTON_LEFT, false)
 	var pasted := bm.get_count() - before
-	_expect(pasted > 0, "ЛКМ вставляет копию (поставлено %d)" % pasted)
+	_expect(pasted == expected, "ЛКМ вставляет копию из инвентаря (поставлено %d из %d)" % [pasted, expected])
 	await _mouse_button(game, paste_at, MOUSE_BUTTON_RIGHT, true)
 	await _mouse_button(game, paste_at, MOUSE_BUTTON_RIGHT, false)
 	_expect(tools.mode == ToolController.Mode.NONE, "клик ПКМ выходит из вставки")
 
-	# Выделение и снос на X; ядро не трогается.
+	# Выделение и снос на X: постройки возвращаются в инвентарь.
 	await _mouse_move(game, rect.position)
 	await _mouse_button(game, rect.position, MOUSE_BUTTON_RIGHT, true)
 	await _mouse_move(game, rect.position + Vector2i(1, 1))
 	await _mouse_move(game, rect.end - Vector2i.ONE)
 	await _mouse_button(game, rect.end - Vector2i.ONE, MOUSE_BUTTON_RIGHT, false)
 	before = bm.get_count()
+	var belts_before_delete := inv.count(conveyor.item.index)
 	await _key(KEY_X)
-	_expect(before - bm.get_count() == expected and expected >= 11, "X сносит выделенные постройки (%d из %d)" % [before - bm.get_count(), expected])
-	_expect(world.get_core() != null and not tools.has_area(), "ядро уцелело, выделение снято")
+	_expect(before - bm.get_count() == expected and expected >= 10, "X сносит выделенные постройки (%d из %d)" % [before - bm.get_count(), expected])
+	_expect(inv.count(conveyor.item.index) - belts_before_delete == expected, "снесённые ленты вернулись в инвентарь")
+	_expect(not tools.has_area(), "выделение снято")
 
 	# Клик ПКМ по зданию без инструмента выделяет его, X сносит.
-	var lone := bm.place(conveyor, base + Vector2i(-10, 3), 0)
+	var lone := bm.place(conveyor, base + Vector2i(3, 3), 0)
 	await _mouse_move(game, lone.origin)
 	await _mouse_button(game, lone.origin, MOUSE_BUTTON_RIGHT, true)
 	await _mouse_button(game, lone.origin, MOUSE_BUTTON_RIGHT, false)
@@ -246,46 +323,42 @@ func _run_interaction(game: Game) -> void:
 	await _key(KEY_X)
 	_expect(lone.world == null, "X сносит одиночное выделенное здание")
 
-	# Без выделения X сносит здание под курсором (и в руке с инструментом тоже); ядро не сносится.
-	var hovered := bm.place(conveyor, base + Vector2i(-10, 5), 0)
+	# Без выделения X сносит здание под курсором (и в руке с инструментом тоже).
+	var hovered := bm.place(conveyor, base + Vector2i(3, 5), 0)
 	await _mouse_move(game, hovered.origin)
 	_expect(not tools.has_area() and tools.hover_building == hovered, "курсор над лентой, выделения нет")
 	await _key(KEY_X)
 	_expect(hovered.world == null, "X без выделения сносит здание под курсором")
-	var hovered_in_hand := bm.place(conveyor, base + Vector2i(-10, 7), 0)
+	var hovered_in_hand := bm.place(conveyor, base + Vector2i(3, 7), 0)
 	tools.select_building(conveyor)
 	await _mouse_move(game, hovered_in_hand.origin)
 	await _key(KEY_X)
 	_expect(hovered_in_hand.world == null, "X сносит здание под курсором и с постройкой в руке")
 	await _key(KEY_ESCAPE)
-	await _mouse_move(game, core.origin)
-	await _key(KEY_X)
-	_expect(world.get_core() != null, "X над ядром его не сносит")
 
 	# Удаляем вставленную копию, чтобы не мешала следующим проверкам.
-	var cleanup := Rect2i(paste_at - Vector2i(12, 12), Vector2i(24, 24))
+	var cleanup := Rect2i(paste_at - Vector2i(8, 8), Vector2i(16, 16))
 	for x in bm.collect_in_rect(cleanup):
-		world.demolish(x)
+		bm.remove(x, true)
 
 
-## Цепочка «бур → лента → ядро»: предметы едут и засчитываются.
-func _run_production_chain(game: Game) -> void:
+## Цепочка «бур → лента → контейнер»: предметы едут и складываются.
+func _run_production_chain(game: Game, base: Vector2i) -> void:
 	var world := game.world
 	var bm := world.buildings
-	var core := world.get_core()
 	var drill := Registry.get_building(&"mechanical_drill")
 	var conveyor := Registry.get_building(&"conveyor")
 	var copper := Registry.get_item(&"copper").index
-	var start_delivered := world.core_storage.delivered[copper]
 
-	# Несколько буров на ближайшей медной залежи, лента вдоль них и дальше к ядру.
-	var spot := _find_drill_spot(world, drill, core.origin, 20)
+	# Контейнер северо-западнее места посадки, буры на ближайшей меди, лента от буров к контейнеру.
+	var container := bm.place(Registry.get_building(&"container"), base + Vector2i(-3, -3), 0, true) as StorageBuilding
+	var spot := _find_drill_spot(world, drill, base, 20)
 	var placed_drills := 0
 	for dx in [0, 2, 4]:
 		for dy in [0, -2]:
 			if bm.place(drill, spot + Vector2i(dx, dy), 0) != null:
 				placed_drills += 1
-	var target := core.origin + Vector2i(1, -1)
+	var target := container.origin + Vector2i(0, -1)
 	var line_start := spot + Vector2i(0, 2)
 	for step in LinePlanner.l_path(line_start, Vector2i(target.x, line_start.y), true, 0):
 		bm.place(conveyor, Vector2i(step.x, step.y), step.z)
@@ -301,42 +374,67 @@ func _run_production_chain(game: Game) -> void:
 	game.clock.set_speed_index(0)
 	await _frames(20)
 	await _shot("g02_items_on_belts.png")
-	_expect(world.core_storage.delivered[copper] > start_delivered, "медь дошла до ядра (+%d)" % (world.core_storage.delivered[copper] - start_delivered))
+	var stored := container.inventory.count(copper)
+	_expect(stored > 0, "медь дошла до контейнера (%d)" % stored)
 	await _measure_frames("работающая цепочка")
 
-	# Все типы предметов на отдельной ленте (проверка ориентации иконок в MultiMesh).
-	var row_origin := core.origin + Vector2i(-6, 6)
+	# Окно контейнера: клик открывает содержимое, ЛКМ по ячейке забирает стопку в инвентарь.
+	await _drone_to(game, container.origin + Vector2i(2, 2))
+	await _mouse_move(game, container.origin)
+	await _mouse_button(game, container.origin, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, container.origin, MOUSE_BUTTON_LEFT, false)
+	var window := game.hud.inventory_window
+	_expect(game.tools.selected == container and window.visible and window.mode == InventoryWindow.Mode.BUILDING, "клик по контейнеру открывает его окно")
+	await _frames(12)
+	await _shot("g02c_container_window.png")
+	var slots: Array = window.get("_building_slots")
+	var inv := world.drone.inventory
+	var copper_before := inv.count(copper)
+	var in_container := container.inventory.count(copper)
+	if not slots.is_empty():
+		await _click_control(slots[0] as Control)
+	_expect(inv.count(copper) > copper_before and container.inventory.count(copper) < in_container, "ЛКМ по ячейке контейнера забирает медь")
+	await _key(KEY_ESCAPE)
+	_expect(not window.visible and game.tools.selected == null, "Esc закрывает окно контейнера")
+
+	# Все типы предметов на лентах (проверка ориентации иконок в MultiMesh), включая постройки.
+	var row_origin := base + Vector2i(-8, 8)
 	var sys := world.simulation.conveyors
+	var per_row := 16
 	for i in Registry.items.size():
-		var belt := bm.place(conveyor, row_origin + Vector2i(i, 0), GameConst.Dir.RIGHT, true)
-		sys.call("_insert", sys.index_of(belt.id), Registry.items[i].index, ConveyorSystem.UNITS / 2, 0.0, 0)
+		var tile := row_origin + Vector2i(i % per_row, i / per_row)
+		var belt := bm.place(conveyor, tile, GameConst.Dir.RIGHT, true)
+		if belt != null:
+			sys.call("_insert", sys.index_of(belt.id), Registry.items[i].index, ConveyorSystem.UNITS / 2, 0.0, 0)
 	game.clock.toggle_pause()
-	game.camera.focus_on(Vector2(row_origin * GameConst.TILE_SIZE) + Vector2(Registry.items.size() * 16, 16), 3.0)
+	game.camera.focus_on(Vector2(row_origin * GameConst.TILE_SIZE) + Vector2(per_row * 16, 32), 2.5)
 	await _frames(15)
 	await _shot("g02b_item_types.png")
 	game.clock.toggle_pause()
 	for i in Registry.items.size():
-		world.buildings.remove(bm.get_at(row_origin + Vector2i(i, 0)), true)
+		var tile := row_origin + Vector2i(i % per_row, i / per_row)
+		if bm.get_at(tile) != null:
+			bm.remove(bm.get_at(tile), true)
 	game.camera.focus_on(Vector2(spot * GameConst.TILE_SIZE) + Vector2(160, 48), 1.3)
 
 	# Поворот ленты посреди работающей линии: поток прерывается, обратный поворот его восстанавливает.
 	var middle := bm.get_at(line_start + Vector2i(3, 0))
-	world.rotate_building(middle, 1)
+	bm.rotate(middle, middle.rotation + 1)
 	await _frames(30)
 	await _shot("g03_rotated_belt.png")
-	world.rotate_building(middle, 3)
-	var delivered_after_fix := world.core_storage.delivered[copper]
+	bm.rotate(middle, middle.rotation + 3)
+	var stored_after_fix := container.inventory.count(copper)
 	await _wait_ticks(world, 20 * GameConst.TICK_RATE)
-	_expect(world.core_storage.delivered[copper] > delivered_after_fix, "после обратного поворота поток восстановился")
+	_expect(container.inventory.count(copper) > stored_after_fix, "после обратного поворота поток восстановился")
+	await _drone_to(game, base)
 
 
-## Производство: камень → дробилка → сепаратор → ядро; подсказки со статусами.
-func _run_factory(game: Game) -> void:
+## Производство: камень → дробилка → сепаратор → контейнер; подсказки со статусами.
+func _run_factory(game: Game, base: Vector2i) -> void:
 	var world := game.world
 	var bm := world.buildings
-	var core := world.get_core()
 	var drill := Registry.get_building(&"mechanical_drill")
-	var spot := _find_ore_spot(world, drill, core.origin, 30, &"stone")
+	var spot := _find_ore_spot(world, drill, base, 30, &"stone")
 	_expect(spot != Vector2i(-1, -1), "есть место для бура на камне")
 	if spot == Vector2i(-1, -1):
 		return
@@ -344,27 +442,25 @@ func _run_factory(game: Game) -> void:
 	bm.place(drill, spot + Vector2i(0, 2), 0, true)
 	var pulverizer := bm.place(Registry.get_building(&"pulverizer"), spot + Vector2i(2, 1), 0, true)
 	var separator := bm.place(Registry.get_building(&"separator"), spot + Vector2i(3, 1), 0, true) as Crafter
-	var start := spot + Vector2i(5, 1)
-	var finish := Vector2i(core.origin.x - 1, core.origin.y + 1)
-	for step in LinePlanner.l_path(start, finish, false, GameConst.Dir.RIGHT):
-		bm.place(Registry.get_building(&"conveyor"), Vector2i(step.x, step.y), step.z, true)
-	_expect(pulverizer != null and separator != null, "дробилка и сепаратор поставлены")
+	for x in range(5, 8):
+		bm.place(Registry.get_building(&"conveyor"), spot + Vector2i(x, 1), GameConst.Dir.RIGHT, true)
+	var output := bm.place(Registry.get_building(&"container"), spot + Vector2i(8, 1), 0, true) as StorageBuilding
+	_expect(pulverizer != null and separator != null and output != null, "дробилка, сепаратор и контейнер поставлены")
+	if pulverizer == null or separator == null or output == null:
+		return
 	var kiln := bm.place(Registry.get_building(&"kiln"), spot + Vector2i(0, -4), 0, true) as Crafter
 
-	var delivered_before := 0
-	for item in [&"copper", &"lead", &"coal", &"titanium"]:
-		delivered_before += world.core_storage.delivered[Registry.get_item(item).index]
+	var ores := [&"copper", &"lead", &"coal", &"titanium"]
 	game.clock.set_speed_index(2)
 	await _wait_ticks(world, 60 * GameConst.TICK_RATE)
 	game.clock.set_speed_index(0)
-	var delivered_after := 0
-	for item in [&"copper", &"lead", &"coal", &"titanium"]:
-		delivered_after += world.core_storage.delivered[Registry.get_item(item).index]
-	_expect(separator != null and separator.get_status() != Building.Status.NO_INPUT or delivered_after > delivered_before,
-		"сепаратор получает дроблёную породу")
-	_expect(delivered_after > delivered_before, "руды из сепаратора дошли до ядра (+%d)" % (delivered_after - delivered_before))
+	var collected := 0
+	for item in ores:
+		collected += output.inventory.count(Registry.get_item(item).index)
+	_expect(collected > 0, "руды из сепаратора дошли до контейнера (%d)" % collected)
 	_expect(kiln != null and kiln.get_status() == Building.Status.NO_INPUT, "печь без сырья в статусе «нет сырья»")
 
+	await _drone_to(game, spot + Vector2i(3, 4))
 	game.camera.focus_on(Vector2((spot + Vector2i(3, 1)) * GameConst.TILE_SIZE), 1.4)
 	await _frames(5)
 	await _mouse_move(game, separator.origin)
@@ -375,6 +471,7 @@ func _run_factory(game: Game) -> void:
 	await _shot("g12_tooltip_kiln.png")
 	await _mouse_move(game, spot + Vector2i(20, 20))
 	await _frames(3)
+	await _drone_to(game, base)
 
 
 func _find_ore_spot(world: GameWorld, drill: BuildingDef, center: Vector2i, radius: int, ore_id: StringName) -> Vector2i:
@@ -393,17 +490,17 @@ func _find_ore_spot(world: GameWorld, drill: BuildingDef, center: Vector2i, radi
 
 
 ## Логистика: витрина зданий, настройка кликами, мосты, оверлей загрузки лент.
-func _run_logistics(game: Game) -> void:
+func _run_logistics(game: Game, base: Vector2i) -> void:
 	var world := game.world
 	var bm := world.buildings
 	var tools := game.tools
 	var copper := Registry.get_item(&"copper").index
 	var lead := Registry.get_item(&"lead").index
-	var core := world.get_core()
-	var base := core.origin
-	var conveyor := Registry.get_building(&"conveyor")
+	await _drone_to(game, base)
 
-	# Витрина: разгрузчик у ядра → сортировщик → делитель → мост над препятствием, перекрёсток.
+	# Витрина: разгрузчик у склада → сортировщик → делитель → мост над препятствием, перекрёсток.
+	var storage := bm.place(Registry.get_building(&"vault"), base + Vector2i(0, -1), 0, true) as StorageBuilding
+	storage.inventory.add(copper, 2000)
 	var right := base + Vector2i(3, 1)
 	var unloader := bm.place(Registry.get_building(&"unloader"), right, 0, true)
 	world.configure(unloader, copper)
@@ -435,6 +532,7 @@ func _run_logistics(game: Game) -> void:
 	await _shot("g09_logistics.png")
 	_expect(sorter.get_display_item() == copper, "сортировщик показывает фильтр")
 	_expect(bridge_a.get_link_target() == bridge_b, "мост витрины связан")
+	_expect(storage.inventory.count(copper) < 2000, "разгрузчик достаёт медь из хранилища")
 
 	game.belt_overlay.visible = true
 	game.hud.set_belt_legend_visible(true)
@@ -450,7 +548,7 @@ func _run_logistics(game: Game) -> void:
 	_expect(tools.selected == sorter, "клик пустой рукой выбирает сортировщик")
 	var panel := _find_child_of_type(game.hud, "ConfigPanel") as ConfigPanel
 	await _frames(3)
-	_expect(panel != null and panel.visible, "открылась панель настройки")
+	_expect(panel != null and panel.visible and not game.hud.inventory_window.visible, "открылась панель настройки (без окна инвентаря)")
 	await _shot("i04_config_panel.png")
 	var grid := _find_child_of_class(panel, "GridContainer")
 	if grid != null and grid.get_child_count() > lead + 1:
@@ -483,8 +581,9 @@ func _run_logistics(game: Game) -> void:
 
 	# Протягивание мостов: шаг равен дальности, цепочка связывается сама.
 	var bridge_def := Registry.get_building(&"bridge_conveyor")
+	world.drone.inventory.add(bridge_def.item.index, 10)
 	tools.select_building(bridge_def)
-	var start := base + Vector2i(3, 9)
+	var start := base + Vector2i(-2, 8)
 	var finish := start + Vector2i(8, 0)
 	await _mouse_move(game, start)
 	await _mouse_button(game, start, MOUSE_BUTTON_LEFT, true)
@@ -551,6 +650,32 @@ func _measure_frames(label: String) -> void:
 		worst = maxi(worst, now - last)
 		last = now
 	print("autoshot perf (%s): средний кадр %.2f мс, худший %.2f мс" % [label, (last - start) / 120000.0, worst / 1000.0])
+
+
+## Переносит дрона в центр тайла и возвращает к нему камеру.
+func _drone_to(game: Game, tile: Vector2i) -> void:
+	var drone := game.world.drone
+	drone.position = Vector2(tile * GameConst.TILE_SIZE) + Vector2.ONE * GameConst.TILE_SIZE * 0.5
+	drone.prev_position = drone.position
+	game.camera.recenter()
+	await _frames(3)
+
+
+## Ближайший к center свободный тайл руды ore_id, который дрон может добывать.
+func _find_ore_tile(world: GameWorld, ore_id: StringName, center: Vector2i, radius: int) -> Vector2i:
+	var best := Vector2i(-1, -1)
+	var best_distance := INF
+	for y in range(center.y - radius, center.y + radius):
+		for x in range(center.x - radius, center.x + radius):
+			var tile := Vector2i(x, y)
+			var ore := world.drone.get_mineable_ore(tile)
+			if ore == null or ore.id != ore_id:
+				continue
+			var distance := Vector2(tile - center).length()
+			if distance < best_distance:
+				best = tile
+				best_distance = distance
+	return best
 
 
 func _find_drill_spot(world: GameWorld, drill: BuildingDef, center: Vector2i, radius: int) -> Vector2i:

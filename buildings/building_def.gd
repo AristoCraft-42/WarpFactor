@@ -3,6 +3,8 @@ extends Resource
 ## Статическое описание здания. Логика живёт в скрипте logic_script (наследник Building),
 ## внешний вид — в sprite (или процедурный плейсхолдер), параметры — в .tres.
 ## Параметры конкретных видов зданий задаются подклассами (ConveyorDef, DrillDef, StorageDef).
+## Постройка ставится из инвентаря дрона: у каждой строящейся постройки есть свой ItemType
+## (items/types/buildings/), а cost — рецепт её ручного крафта.
 
 enum Category { EXTRACTION, TRANSPORT, PRODUCTION, STORAGE }
 
@@ -17,13 +19,19 @@ enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL,
 ## Здание можно поворачивать (при строительстве и клавишей R по уже стоящему).
 @export var rotatable: bool = true
 @export var removable: bool = true
-## Показывать в меню строительства (ядро ставится только уровнем).
+## Показывать в меню строительства и крафта (служебные здания ставятся только картой).
 @export var player_buildable: bool = true
 ## Протягивание мышью строит цепочку с автоповоротом по трассе (ленты).
 @export var line_placement: bool = false
 @export var sort_order: int = 0
-## Стоимость строительства: списывается из ядра, при сносе возвращается.
+
+@export_group("Крафт")
+## Ингредиенты ручного крафта постройки.
 @export var cost: Array[ItemStack] = []
+## Время ручного крафта одной партии, секунд.
+@export var craft_time: float = 0.5
+## Сколько построек даёт одна партия.
+@export var craft_amount: int = 1
 
 @export_group("Внешний вид")
 @export var color: Color = Color(0.5, 0.5, 0.5)
@@ -36,6 +44,13 @@ enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL,
 @export var logic_script: Script
 
 var index: int = -1
+## Индекс предмета-постройки (назначается реестром; -1 — здание нельзя поставить из инвентаря).
+## Хранится индекс, а не ссылка: предмет уже ссылается на здание, и цикл ресурсов не освободился бы.
+var item_index: int = -1
+## Предмет-постройка или null.
+var item: ItemType:
+	get:
+		return Registry.items[item_index] if item_index >= 0 else null
 
 
 func create_building() -> Building:

@@ -1,15 +1,16 @@
 class_name BuildMenu
 extends PanelContainer
-## Панель строительства: вкладки категорий, сетка кнопок зданий, описание и стоимость.
+## Панель строительства: вкладки категорий, сетка кнопок зданий, описание и рецепт крафта.
 ## Вкладки переключаются свободно, даже когда здание уже в руке. Автоматически раздел меняется
 ## только если сменилось само выбранное здание (например, пипеткой).
-## Недоступные по ресурсам здания приглушены; стоимость показывается иконками.
+## На кнопке — сколько таких построек в инвентаре дрона; без построек кнопка приглушена,
+## но здание можно выбрать и скрафтить кнопкой в описании (ЛКМ — 1, ПКМ — 5).
 
 const CATEGORY_KEYS := ["CATEGORY_EXTRACTION", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_STORAGE"]
 const COLUMNS := 6
 const BUTTON_SIZE := 54
-const REFRESH_INTERVAL := 0.3
-const INFO_HEIGHT := 170
+const REFRESH_INTERVAL := 0.2
+const INFO_HEIGHT := 256
 
 var _tools: ToolController
 var _world: GameWorld
@@ -20,11 +21,15 @@ var _title: Label
 var _description: Label
 var _stats: Label
 var _cost_row: HBoxContainer
+var _craft_row: HBoxContainer
+var _owned_label: Label
+var _craft_button: Button
 var _building_buttons: Dictionary[StringName, Button] = {}
+var _count_labels: Dictionary[StringName, Label] = {}
 var _building_group := ButtonGroup.new()
 var _synced_def: BuildingDef
 var _shown_def: BuildingDef
-var _storage_revision: int = -1
+var _inventory_revision: int = -1
 var _timer: float = 0.0
 
 
@@ -88,6 +93,18 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 	info.add_child(_stats)
 	_cost_row = UiUtil.hbox(10)
 	info.add_child(_cost_row)
+	_craft_row = UiUtil.hbox(10)
+	info.add_child(_craft_row)
+	_owned_label = Label.new()
+	_owned_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_owned_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_owned_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_craft_row.add_child(_owned_label)
+	_craft_button = UiUtil.button("BUILD_CRAFT")
+	_craft_button.focus_mode = Control.FOCUS_NONE
+	_craft_button.tooltip_text = "BUILD_CRAFT_HINT"
+	_craft_button.gui_input.connect(_on_craft_button_input)
+	_craft_row.add_child(_craft_button)
 
 	tools.mode_changed.connect(_sync_with_tool)
 	_select_category(_category)
@@ -98,9 +115,10 @@ func _process(delta: float) -> void:
 	if _timer > 0.0:
 		return
 	_timer = REFRESH_INTERVAL
-	if _world.core_storage.revision != _storage_revision:
-		_storage_revision = _world.core_storage.revision
-		_update_affordability()
+	var inventory := _world.drone.inventory
+	if inventory.revision != _inventory_revision:
+		_inventory_revision = inventory.revision
+		_update_counts()
 		if _shown_def != null:
 			_show_cost(_shown_def)
 
@@ -113,6 +131,7 @@ func _select_category(category: int) -> void:
 	for child in _grid.get_children():
 		child.queue_free()
 	_building_buttons.clear()
+	_count_labels.clear()
 	for def in Registry.buildings_in_category(category as BuildingDef.Category):
 		var b := Button.new()
 		b.toggle_mode = true
@@ -127,10 +146,23 @@ func _select_category(category: int) -> void:
 		b.pressed.connect(_on_building_pressed.bind(def, b))
 		b.mouse_entered.connect(_show_info.bind(def))
 		b.mouse_exited.connect(_show_selected_info)
+		var count := Label.new()
+		count.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		count.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+		count.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		count.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		count.offset_right = -3
+		count.offset_bottom = 1
+		count.add_theme_font_size_override("font_size", 13)
+		count.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+		count.add_theme_constant_override("outline_size", 4)
+		count.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		b.add_child(count)
 		_grid.add_child(b)
 		_building_buttons[def.id] = b
+		_count_labels[def.id] = count
 	_refresh_pressed()
-	_update_affordability()
+	_update_counts()
 	_show_selected_info()
 
 
@@ -158,11 +190,14 @@ func _refresh_pressed() -> void:
 		_building_buttons[id].set_pressed_no_signal(id == selected_id)
 
 
-func _update_affordability() -> void:
+func _update_counts() -> void:
+	var inventory := _world.drone.inventory
 	for id in _building_buttons:
 		var def := Registry.get_building(id)
-		var affordable := _world.sandbox or _world.core_storage.can_afford(def.cost)
-		_building_buttons[id].modulate = Color.WHITE if affordable else Color(1, 1, 1, 0.45)
+		var owned := inventory.count(def.item.index) if def.item != null else 0
+		_count_labels[id].text = str(owned) if owned > 0 and not _world.creative else ""
+		var available := _world.creative or owned > 0
+		_building_buttons[id].modulate = Color.WHITE if available else Color(1, 1, 1, 0.45)
 
 
 func _show_info(def: BuildingDef) -> void:
@@ -177,10 +212,13 @@ func _show_info(def: BuildingDef) -> void:
 func _show_cost(def: BuildingDef) -> void:
 	for child in _cost_row.get_children():
 		child.queue_free()
-	if _world.sandbox or def.cost.is_empty():
-		var free_label := UiUtil.label("BUILD_COST_FREE", &"DimLabel")
-		_cost_row.add_child(free_label)
+	_craft_row.visible = true
+	if _world.creative:
+		_cost_row.add_child(UiUtil.label("BUILD_CREATIVE_FREE", &"DimLabel"))
+		_craft_row.visible = false
 		return
+	var inventory := _world.drone.inventory
+	_cost_row.add_child(UiUtil.label("BUILD_CRAFT_FROM", &"DimLabel"))
 	for stack in def.cost:
 		var cell := UiUtil.hbox(3)
 		var icon := TextureRect.new()
@@ -188,14 +226,21 @@ func _show_cost(def: BuildingDef) -> void:
 		icon.custom_minimum_size = Vector2(18, 18)
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.tooltip_text = stack.item.name_key
+		icon.mouse_filter = Control.MOUSE_FILTER_PASS
 		cell.add_child(icon)
 		var amount := Label.new()
 		amount.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		amount.text = str(stack.amount)
-		var enough := _world.core_storage.get_count(stack.item.index) >= stack.amount
-		amount.add_theme_color_override("font_color", UiTheme.FG if enough else UiTheme.RED)
+		var enough := inventory.count(stack.item.index) >= stack.amount
+		var craftable_part := Registry.get_hand_recipe(stack.item.index) != null
+		amount.add_theme_color_override("font_color", UiTheme.FG if enough else (UiTheme.YELLOW if craftable_part else UiTheme.RED))
 		cell.add_child(amount)
 		_cost_row.add_child(cell)
+	var owned := inventory.count(def.item.index) if def.item != null else 0
+	_owned_label.text = tr("BUILD_OWNED") % owned
+	var recipe := Registry.get_hand_recipe(def.item.index) if def.item != null else null
+	_craft_button.disabled = recipe == null or _world.drone.crafting.max_craftable(recipe, 1) == 0
 
 
 func _show_selected_info() -> void:
@@ -206,8 +251,26 @@ func _show_selected_info() -> void:
 		_title.text = tr(CATEGORY_KEYS[_category])
 		_description.text = tr("BUILD_MENU_HINT")
 		_stats.visible = false
+		_craft_row.visible = false
 		for child in _cost_row.get_children():
 			child.queue_free()
+
+
+## Кнопка «Скрафтить»: ЛКМ — одну, ПКМ — пять.
+func _on_craft_button_input(event: InputEvent) -> void:
+	var mb := event as InputEventMouseButton
+	if mb == null or not mb.pressed or _craft_button.disabled or _shown_def == null or _shown_def.item == null:
+		return
+	if mb.button_index != MOUSE_BUTTON_LEFT and mb.button_index != MOUSE_BUTTON_RIGHT:
+		return
+	var recipe := Registry.get_hand_recipe(_shown_def.item.index)
+	if recipe == null:
+		return
+	var count := 5 if mb.button_index == MOUSE_BUTTON_RIGHT else 1
+	if _world.drone.crafting.enqueue(recipe, count) == 0:
+		Events.toast(tr("TOAST_CANNOT_CRAFT") % tr(recipe.output.name_key), Events.ToastKind.WARNING)
+	_craft_button.accept_event()
+	_show_cost(_shown_def)
 
 
 func _tooltip_for(def: BuildingDef) -> String:
@@ -217,7 +280,7 @@ func _tooltip_for(def: BuildingDef) -> String:
 		var parts := PackedStringArray()
 		for stack in def.cost:
 			parts.append("%d %s" % [stack.amount, tr(stack.item.name_key)])
-		lines.append(tr("BUILD_COST") % ", ".join(parts))
+		lines.append(tr("CRAFT_INGREDIENTS") % ", ".join(parts))
 	return "\n".join(lines)
 
 

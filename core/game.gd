@@ -1,7 +1,8 @@
 class_name Game
 extends Node2D
 ## Корень игровой сцены: загружает уровень, создаёт модель мира и все представления,
-## связывает камеру, инструменты и интерфейс. Собственной игровой логики не содержит.
+## связывает камеру (следует за дроном), инструменты, управление дроном и интерфейс.
+## Собственной игровой логики не содержит.
 
 var world: GameWorld
 var clock: SimClock
@@ -12,8 +13,10 @@ var item_renderer: ItemRenderer
 var ore_overlay: OreOverlay
 var belt_overlay: BeltLoadOverlay
 var preview: PlacementPreview
+var drone_view: DroneView
 var camera: CameraController
 var tools: ToolController
+var drone_controller: DroneController
 var hud: Hud
 var pause_menu: PauseMenu
 
@@ -43,13 +46,10 @@ func _ready() -> void:
 		Session.exit_to_menu.call_deferred()
 		return
 
-	world = GameWorld.create(level, map, Session.sandbox)
+	world = GameWorld.create(level, map, Session.creative)
 	_build_scene()
 
-	var core := world.get_core()
-	var start := core.get_world_center() if core != null else world.grid.get_pixel_size() * 0.5
-	camera.home_target = start
-	camera.focus_on(start, 1.0)
+	camera.focus_on(world.drone.position, 1.0)
 	_on_view_changed()
 	terrain.flush()
 
@@ -123,11 +123,16 @@ func _build_scene() -> void:
 	preview.name = "Preview"
 	add_child(preview)
 
+	drone_view = DroneView.new()
+	drone_view.name = "Drone"
+	add_child(drone_view)
+
 	camera = CameraController.new()
 	camera.name = "Camera"
 	add_child(camera)
 	camera.make_current()
 	camera.setup(world.grid.get_pixel_size())
+	camera.follow_source = func() -> Vector2: return world.drone.get_draw_position(clock.alpha)
 	camera.view_changed.connect(_on_view_changed)
 	item_renderer.setup(world, camera, clock)
 	belt_overlay.setup(world, camera)
@@ -137,6 +142,12 @@ func _build_scene() -> void:
 	add_child(tools)
 	tools.setup(world, camera, preview)
 	tools.pause_menu_requested.connect(open_pause_menu)
+	drone_view.setup(world.drone, clock, tools)
+
+	drone_controller = DroneController.new()
+	drone_controller.name = "DroneController"
+	add_child(drone_controller)
+	drone_controller.setup(world.drone)
 
 	hud = Hud.new()
 	hud.name = "Hud"
@@ -197,6 +208,7 @@ func _update_input_enabled() -> void:
 	var enabled := not pause_menu.is_open() and not hud.is_modal_open()
 	tools.input_enabled = enabled
 	camera.input_enabled = enabled
+	drone_controller.input_enabled = enabled
 	# Пока открыто меню паузы, время мира стоит (выбор скорости игрока не меняется).
 	clock.blocked = pause_menu.is_open()
 
