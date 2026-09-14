@@ -344,7 +344,6 @@ THREAT_FIRST_WAVE,First wave in %s,Первая волна через %s
 THREAT_NEXT_WAVE,Wave %d in %s,Волна %d через %s
 THREAT_WAVE_ACTIVE,Wave %d is coming,Идёт волна %d
 THREAT_CONTINUOUS,Endless assault · wave %d,Непрерывная атака · волна %d
-THREAT_ENEMIES,Enemies: %d,Врагов: %d
 THREAT_GATEWAY,Gateway: %d / %d,Шлюз: %d / %d
 TOAST_WAVE_WARNING,Wave %d in %d seconds!,Волна %d через %d с!
 TOAST_WAVE_STARTED,Wave %d has begun,Началась волна %d
@@ -359,4 +358,28 @@ STAT_HEALTH,Health: %d,Прочность: %d
 STAT_WALKABLE,Enemies walk over it,Враги проходят поверх
 SUMMARY_EMERGENCY_TITLE,Emergency jump: %s,Аварийный переход: %s
 SUMMARY_EMERGENCY,Enemies destroyed the gateway — the base escaped by emergency teleport.,Враги разрушили шлюз — база ушла аварийным телепортом.
-SUMMARY_COMBAT,"Waves: %d, buildings destroyed by enemies: %d","Волн: %d, разрушено врагами построек: %d"
+SUMMARY_COMBAT,"Waves: %d, enemies destroyed: %d, buildings lost to enemies: %d","Волн: %d, уничтожено врагов: %d, разрушено врагами построек: %d"
+CATEGORY_DEFENSE,Defense,Оборона
+BUILDING_COPPER_WALL,Copper Wall,Медная стена
+BUILDING_COPPER_WALL_DESC,Cheap wall. Enemies go around walls when they can and break through when there is no other way.,"Дешёвая стена. Враги обходят стены, если есть путь, и ломают, если обхода нет."
+BUILDING_LARGE_COPPER_WALL,Large Copper Wall,Большая медная стена
+BUILDING_LARGE_COPPER_WALL_DESC,Four copper walls in one 2×2 block.,Четыре медные стены одним блоком 2×2.
+BUILDING_TITANIUM_WALL,Titanium Wall,Титановая стена
+BUILDING_TITANIUM_WALL_DESC,Sturdier than copper.,Прочнее медной.
+BUILDING_LARGE_TITANIUM_WALL,Large Titanium Wall,Большая титановая стена
+BUILDING_LARGE_TITANIUM_WALL_DESC,Four titanium walls in one 2×2 block.,Четыре титановые стены одним блоком 2×2.
+BUILDING_MACHINE_GUN,Machine Gun,Пулемёт
+BUILDING_MACHINE_GUN_DESC,"Rapid-fire turret. Ammo: copper, graphite (more damage) or silicon (faster fire). Feed it by belt or by hand.","Скорострельная турель. Патроны: медь, графит (больше урон) или кремний (чаще стреляет). Подавайте лентой или руками."
+BUILDING_ARTILLERY,Artillery,Артиллерия
+BUILDING_ARTILLERY_DESC,Long-range turret: shells burst and damage every enemy in the area. Cannot hit enemies close by. Ammo: graphite or silicon.,Дальнобойная турель: снаряд взрывается и бьёт всех врагов в области. Вплотную не стреляет. Патроны: графит или кремний.
+STAT_TURRET_RANGE,Range: %.1f tiles,Дальность: %.1f тайла
+STAT_TURRET_RANGE_MIN,Range: %.1f–%.1f tiles,Дальность: %.1f–%.1f тайла
+STAT_TURRET_RELOAD,Reload: %.2f s,Перезарядка: %.2f с
+STAT_TURRET_AMMO,Ammo (damage): %s,Патроны (урон): %s
+STAT_TURRET_SPLASH,blast %.1f,взрыв %.1f
+INFO_TURRET_AMMO,Ammo: %d / %d (%s),Патроны: %d / %d (%s)
+STATUS_NO_AMMO,No ammo,Нет патронов
+THREAT_ENEMIES_KILLED,Enemies: %d · destroyed: %d,Врагов: %d · уничтожено: %d
+TOAST_BUILDINGS_ATTACKED,Enemies are attacking your buildings!,Враги атакуют постройки!
+ACTION_OVERLAY_RANGES,Turret ranges,Радиусы турелей
+TURRET_WINDOW_HINT,"Click ammo in your inventory to load the turret: LMB — a stack, RMB — half, Shift+LMB — all. Ammo cannot be taken back.","Кликните по патронам в инвентаре, чтобы зарядить турель: ЛКМ — стопку, ПКМ — половину, Shift+ЛКМ — все. Забрать патроны нельзя."

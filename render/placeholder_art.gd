@@ -324,6 +324,9 @@ static func make_building(def: BuildingDef) -> Image:
 	if def.glyph == BuildingDef.Glyph.CHEVRONS:
 		_draw_conveyor(img, def)
 		return img
+	if def.glyph == BuildingDef.Glyph.WALL:
+		_draw_wall(img, def)
+		return img
 
 	# Корпус с фаской
 	_rect(img, Rect2i(1, 1, s - 2, s - 2), body.darkened(0.55))
@@ -344,7 +347,8 @@ static func make_building(def: BuildingDef) -> Image:
 
 	# Метка «лица» здания на правой грани: спрайты нарисованы «вправо», так виден поворот.
 	var notch := 3.0 + def.size
-	_poly(img, PackedVector2Array([Vector2(s - 2, c.y), Vector2(s - 2 - notch, c.y - notch), Vector2(s - 2 - notch, c.y + notch)]), ACCENT.darkened(0.15))
+	if def.rotatable:
+		_poly(img, PackedVector2Array([Vector2(s - 2, c.y), Vector2(s - 2 - notch, c.y - notch), Vector2(s - 2 - notch, c.y + notch)]), ACCENT.darkened(0.15))
 	match def.glyph:
 		BuildingDef.Glyph.CROSS:
 			_rect(img, Rect2i(Vector2i(c - Vector2(11, 3) * k), Vector2i(Vector2(22, 6) * k)), glyph_col)
@@ -412,6 +416,20 @@ static func make_building(def: BuildingDef) -> Image:
 			_rect(img, Rect2i(Vector2i(c + Vector2(-8, -8) * k), Vector2i(Vector2(16, 16) * k)), body.lightened(0.15))
 			_line(img, c + Vector2(-8, -8) * k, c + Vector2(8, 8) * k, 2.0 * k, dark)
 			_line(img, c + Vector2(8, -8) * k, c + Vector2(-8, 8) * k, 2.0 * k, dark)
+		BuildingDef.Glyph.TURRET:
+			# Основание турели: круглая площадка с болтами, ствол рисуется поверх (TurretView).
+			_circle(img, c, 12.5 * k, dark)
+			_circle(img, c, 10.5 * k, body.lightened(0.12))
+			for i in 4:
+				var a := PI * 0.25 + i * PI * 0.5
+				_circle(img, c + Vector2(cos(a), sin(a)) * 8.0 * k, 1.5 * k, dark)
+		BuildingDef.Glyph.ARTILLERY:
+			_rect(img, Rect2i(Vector2i(c - Vector2(12, 12) * k), Vector2i(Vector2(24, 24) * k)), dark)
+			_circle(img, c, 11.0 * k, body.lightened(0.1))
+			_ring(img, c, 9.0 * k, 7.5 * k, dark)
+			for i in 6:
+				var a := i * TAU / 6.0
+				_circle(img, c + Vector2(cos(a), sin(a)) * 10.0 * k, 1.2 * k, ACCENT.darkened(0.3))
 		BuildingDef.Glyph.CORE:
 			_rect(img, Rect2i(Vector2i(c + Vector2(-12, -12) * k), Vector2i(Vector2(24, 24) * k)), dark)
 			var gem := PackedVector2Array([c + Vector2(0, -10) * k, c + Vector2(9, 0) * k, c + Vector2(0, 10) * k, c + Vector2(-9, 0) * k])
@@ -421,6 +439,26 @@ static func make_building(def: BuildingDef) -> Image:
 		_:
 			pass
 	return img
+
+
+## Стена: кладка из блоков с фаской; у больших стен блоки крупнее.
+static func _draw_wall(img: Image, def: BuildingDef) -> void:
+	var s := def.size * T
+	var body := def.color
+	_rect(img, Rect2i(0, 0, s, s), body.darkened(0.6))
+	var rows := 2 * def.size
+	var row_h := s / rows
+	for row in rows:
+		var offset := 0 if row % 2 == 0 else row_h
+		var x := -offset
+		while x < s:
+			var r := Rect2i(x + 1, row * row_h + 1, row_h * 2 - 2, row_h - 2).intersection(Rect2i(1, 1, s - 2, s - 2))
+			if r.size.x > 2:
+				_rect(img, r, body)
+				_rect(img, Rect2i(r.position, Vector2i(r.size.x, 2)), body.lightened(0.25))
+				_rect(img, Rect2i(r.position.x, r.end.y - 2, r.size.x, 2), body.darkened(0.25))
+			x += row_h * 2
+	_frame(img, Rect2i(0, 0, s, s), 1, INK)
 
 
 ## Лента: тёмное полотно, рельсы по краям, шевроны «вправо».

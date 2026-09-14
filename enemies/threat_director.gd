@@ -75,6 +75,14 @@ func call_next_wave(tick: int) -> void:
 	next_wave_tick = mini(next_wave_tick, tick)
 
 
+## Отменить ещё не выпущенных врагов (отладка, автопрогон).
+func clear_pending() -> void:
+	_queue_ticks.clear()
+	_queue_types.clear()
+	_queue_points.clear()
+	_queue_cursor = 0
+
+
 ## Отложить следующую волну на ticks (автопрогон).
 func delay_next_wave(ticks: int) -> void:
 	next_wave_tick += ticks

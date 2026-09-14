@@ -42,6 +42,13 @@ var last_lost_items: int = 0
 ## Центральный шлюз (или его пара в базе) этого мира.
 var gateway: GatewayBuilding
 var enemies: EnemySystem
+var projectiles: ProjectileSystem
+## Турели мира по id (для отрисовки стволов и радиусов).
+var turrets: Dictionary[int, Turret] = {}
+## Последняя атака врагов на постройку: тик и точка (для тревоги в интерфейсе).
+var last_attack_tick: int = -1000000
+var last_attack_position: Vector2 = Vector2.ZERO
+var last_attack_gateway: bool = false
 ## Поле потоков к шлюзу (null — врагов в мире не бывает).
 var flow: FlowField
 ## Угроза планеты (null — база или безопасная планета).
@@ -69,6 +76,7 @@ static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_
 	world.buildings = BuildingManager.new(world, world.grid)
 	world.simulation = Simulation.new(world, world.buildings)
 	world.enemies = EnemySystem.new(world)
+	world.projectiles = ProjectileSystem.new(world)
 	world.spawn_points = map.spawn_points.duplicate()
 	world.buildings.building_removed.connect(world._on_building_removed)
 	for p in map.placements:
@@ -143,6 +151,9 @@ func damage_building(building: Building, amount: float) -> void:
 	if building == null or building.world != self or amount <= 0.0:
 		return
 	building.health -= amount
+	last_attack_tick = simulation.tick
+	last_attack_position = building.get_world_center()
+	last_attack_gateway = building == gateway
 	if building.health > 0.0:
 		damaged[building.id] = true
 		return
@@ -153,6 +164,18 @@ func damage_building(building: Building, amount: float) -> void:
 		breached = true
 		return
 	destroy_building(building)
+
+
+## Починка (дрон): прочность не выше полной; полностью целое здание уходит из списка повреждённых.
+func repair_building(building: Building, amount: float) -> void:
+	if building == null or building.world != self or amount <= 0.0:
+		return
+	if not building.is_damaged():
+		damaged.erase(building.id)
+		return
+	building.health = minf(building.health + amount, building.get_max_health())
+	if not building.is_damaged():
+		damaged.erase(building.id)
 
 
 ## Разрушение врагами: без возврата постройки, содержимое теряется.
@@ -388,6 +411,10 @@ func dispose() -> void:
 	if enemies != null:
 		enemies.dispose()
 	enemies = null
+	if projectiles != null:
+		projectiles.dispose()
+	projectiles = null
+	turrets.clear()
 	crates.clear()
 	gateway = null
 	if buildings != null:

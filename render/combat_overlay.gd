@@ -1,7 +1,8 @@
 class_name CombatOverlay
 extends Node2D
 ## Бой поверх мира: полоски прочности повреждённых зданий и раненых врагов, вспышки атак
-## (выстрел — трассер, ближний бой — искры), обломки разрушенных построек и выпавший груз дрона.
+## (выстрел — трассер, ближний бой — искры), обломки разрушенных построек и выпавший груз дрона,
+## снаряды турелей и дрона (пуля — штрих, снаряд артиллерии — шар по дуге), попадания, взрывы и гибель врагов.
 ## Перерисовывается каждый кадр, только пока есть что показывать.
 
 const BAR_HEIGHT := 4.0
@@ -9,6 +10,9 @@ const BAR_HEIGHT := 4.0
 const EVENT_TICKS := 4
 ## Сколько секунд видны обломки.
 const DEBRIS_SECONDS := 0.7
+## Сколько тиков видны взрывы и гибель врагов.
+const BLAST_TICKS := 10
+const DEATH_TICKS := 12
 const CRATE_COLOR := Color(0.98, 0.74, 0.18)
 
 var _world: GameWorld
@@ -35,8 +39,10 @@ func _process(delta: float) -> void:
 		_debris[i]["age"] = float(_debris[i]["age"]) + delta
 		if float(_debris[i]["age"]) >= DEBRIS_SECONDS:
 			_debris.remove_at(i)
+	var tick := _world.simulation.tick
 	var has_content := not _world.damaged.is_empty() or _world.enemies.count > 0 or not _debris.is_empty() \
-		or not _world.crates.is_empty()
+		or not _world.crates.is_empty() or _world.projectiles.count > 0 \
+		or tick - _world.projectiles.last_blast_tick <= BLAST_TICKS or tick - _world.enemies.last_death_tick <= DEATH_TICKS
 	if has_content or _had_content:
 		queue_redraw()
 	_had_content = has_content
@@ -48,7 +54,10 @@ func _draw() -> void:
 	var view := _camera.get_world_view_rect().grow(GameConst.TILE_SIZE * 2)
 	_draw_crates(view)
 	_draw_debris()
+	_draw_deaths(view)
 	_draw_events(view)
+	_draw_projectiles(view)
+	_draw_blasts(view)
 	if _camera.user_zoom >= 0.3:
 		_draw_building_bars(view)
 		_draw_enemy_bars(view)
@@ -117,6 +126,70 @@ func _draw_events(view: Rect2) -> void:
 			for s in 4:
 				var dir := Vector2.from_angle(base + s * PI * 0.5)
 				draw_line(to + dir * 2.0, to + dir * (4.0 + 5.0 * (1.0 - fade)), Color(1.0, 0.4, 0.3, fade), 2.0)
+
+
+func _draw_projectiles(view: Rect2) -> void:
+	var sys := _world.projectiles
+	var alpha := _clock.alpha
+	for i in sys.count:
+		var x := lerpf(sys.prev_x[i], sys.pos_x[i], alpha)
+		var y := lerpf(sys.prev_y[i], sys.pos_y[i], alpha)
+		if not view.has_point(Vector2(x, y)):
+			continue
+		var col := ProjectileSystem.color_of(sys.color[i])
+		if sys.kind[i] == ProjectileSystem.Kind.BULLET:
+			var tail := Vector2(sys.vel_x[i], sys.vel_y[i]) * 0.6
+			draw_line(Vector2(x, y) - tail, Vector2(x, y), Color(col, 0.95), 2.5)
+		else:
+			# Снаряд летит по дуге: тень на земле и шар над ней.
+			var total := maxf(sys.flight[i], 1.0)
+			var progress := clampf(1.0 - (float(sys.life[i]) - alpha) / total, 0.0, 1.0)
+			var height := sin(progress * PI) * minf(total * 1.2, 36.0)
+			draw_circle(Vector2(x, y), 3.5, Color(0, 0, 0, 0.35))
+			draw_circle(Vector2(x, y - height), 5.0, Color(0.11, 0.13, 0.13))
+			draw_circle(Vector2(x, y - height), 3.5, col.lightened(0.2))
+
+
+func _draw_blasts(view: Rect2) -> void:
+	var sys := _world.projectiles
+	var tick := _world.simulation.tick
+	for k in ProjectileSystem.BLAST_CAPACITY:
+		var o := k * ProjectileSystem.BLAST_STRIDE
+		var at := sys.blasts[o + 3]
+		if at < 0.0 or tick - int(at) > BLAST_TICKS:
+			continue
+		var p := Vector2(sys.blasts[o], sys.blasts[o + 1])
+		if not view.has_point(p):
+			continue
+		var t := float(tick - int(at)) / BLAST_TICKS
+		var col := ProjectileSystem.color_of(sys.blast_colors[k])
+		var radius := sys.blasts[o + 2]
+		if radius > 0.0:
+			draw_circle(p, radius * (0.4 + 0.6 * t), Color(col, 0.35 * (1.0 - t)))
+			draw_arc(p, radius * (0.5 + 0.5 * t), 0.0, TAU, 32, Color(col.lightened(0.3), 0.9 * (1.0 - t)), 3.0)
+		else:
+			draw_circle(p, 5.0 * (1.0 - t) + 1.0, Color(col.lightened(0.5), 0.9 * (1.0 - t)))
+
+
+func _draw_deaths(view: Rect2) -> void:
+	var sys := _world.enemies
+	var tick := _world.simulation.tick
+	for k in EnemySystem.DEATH_CAPACITY:
+		var o := k * EnemySystem.DEATH_STRIDE
+		var at := sys.deaths[o + 2]
+		if at < 0.0 or tick - int(at) > DEATH_TICKS:
+			continue
+		var p := Vector2(sys.deaths[o], sys.deaths[o + 1])
+		if not view.has_point(p):
+			continue
+		var t := float(tick - int(at)) / DEATH_TICKS
+		var type := clampi(int(sys.deaths[o + 3]), 0, Registry.enemies.size() - 1)
+		var def := Registry.enemies[type]
+		var size := def.draw_size * 0.5
+		draw_circle(p, size * (0.6 + 0.8 * t), Color(def.color.lightened(0.3), 0.55 * (1.0 - t)))
+		for s in 5:
+			var dir := Vector2.from_angle(s * TAU / 5.0 + p.x * 0.01)
+			draw_rect(Rect2(p + dir * size * (0.3 + 1.4 * t) - Vector2(2, 2), Vector2(4, 4)), Color(def.color.darkened(0.3), 1.0 - t), true)
 
 
 func _draw_debris() -> void:

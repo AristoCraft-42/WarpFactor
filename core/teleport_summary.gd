@@ -19,6 +19,7 @@ var emergency: bool = false
 ## Сколько построек разрушили враги на покинутой планете и сколько волн там началось.
 var buildings_destroyed: int = 0
 var waves: int = 0
+var enemies_killed: int = 0
 
 
 func _init() -> void:

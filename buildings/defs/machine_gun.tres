@@ -1,0 +1,80 @@
+[gd_resource type="Resource" script_class="TurretDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/defense/turret_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/defense/turret.gd" id="3_logic"]
+[ext_resource type="Script" path="res://buildings/defense/turret_ammo.gd" id="6_ammo"]
+[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
+[ext_resource type="Resource" path="res://items/types/graphite.tres" id="item_graphite"]
+[ext_resource type="Resource" path="res://items/types/silicon.tres" id="item_silicon"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_copper")
+amount = 35
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_lead")
+amount = 15
+
+[sub_resource type="Resource" id="ammo_0"]
+script = ExtResource("6_ammo")
+item = ExtResource("item_copper")
+shots_per_item = 2
+damage = 9.0
+splash_radius = 0.0
+speed = 14.0
+reload_multiplier = 1.0
+color = Color(0.910, 0.639, 0.416, 1)
+
+[sub_resource type="Resource" id="ammo_1"]
+script = ExtResource("6_ammo")
+item = ExtResource("item_graphite")
+shots_per_item = 2
+damage = 18.0
+splash_radius = 0.0
+speed = 14.0
+reload_multiplier = 1.0
+color = Color(0.722, 0.769, 0.847, 1)
+
+[sub_resource type="Resource" id="ammo_2"]
+script = ExtResource("6_ammo")
+item = ExtResource("item_silicon")
+shots_per_item = 2
+damage = 12.0
+splash_radius = 0.0
+speed = 16.0
+reload_multiplier = 0.75
+color = Color(0.835, 0.851, 0.416, 1)
+
+[resource]
+script = ExtResource("1_def")
+id = &"machine_gun"
+name_key = "BUILDING_MACHINE_GUN"
+description_key = "BUILDING_MACHINE_GUN_DESC"
+category = 4
+size = 1
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 30
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
+craft_time = 1.5
+craft_amount = 1
+health = 220.0
+solid = true
+color = Color(0.478, 0.416, 0.333, 1)
+glyph = 17
+logic_script = ExtResource("3_logic")
+rotatable = false
+shoot_range = 8.5
+reload_seconds = 0.3
+rotate_speed = 540.0
+shoot_cone = 12.0
+inaccuracy = 3.0
+max_ammo = 40
+artillery = false
+barrel_length = 13.0
+ammo = Array[ExtResource("6_ammo")]([SubResource("ammo_0"), SubResource("ammo_1"), SubResource("ammo_2")])

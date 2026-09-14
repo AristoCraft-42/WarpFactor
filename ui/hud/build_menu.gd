@@ -7,7 +7,7 @@ extends PanelContainer
 ## На кнопке — сколько таких построек в инвентаре дрона; без построек кнопка приглушена.
 ## ЛКМ — взять в руку, ПКМ — скрафтить одну, Shift+ПКМ — пять.
 
-const CATEGORY_KEYS := ["CATEGORY_EXTRACTION", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_STORAGE"]
+const CATEGORY_KEYS := ["CATEGORY_EXTRACTION", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_STORAGE", "CATEGORY_DEFENSE"]
 const COLUMNS := 8
 const ROWS := 2
 const BUTTON_SIZE := 54
@@ -46,11 +46,11 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 		b.text = CATEGORY_KEYS[i]
 		b.focus_mode = Control.FOCUS_NONE
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.add_theme_font_size_override("font_size", 14)
+		b.add_theme_font_size_override("font_size", 13)
 		var sample := Registry.buildings_in_category(i as BuildingDef.Category)
 		if not sample.is_empty():
 			b.icon = ArtRegistry.get_building_texture(sample[0])
-			b.add_theme_constant_override("icon_max_width", 20)
+			b.add_theme_constant_override("icon_max_width", 18)
 		b.pressed.connect(_select_category.bind(i))
 		tabs.add_child(b)
 		_category_buttons.append(b)

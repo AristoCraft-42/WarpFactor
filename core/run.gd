@@ -224,6 +224,7 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 	summary.emergency = emergency
 	summary.buildings_destroyed = old.destroyed_count
 	summary.waves = old.threat.wave if old.threat != null else 0
+	summary.enemies_killed = old.enemies.killed
 
 	# Что переезжает: постройки целиком на площадке (кроме самого шлюза — он ставится заново).
 	var pad := old.pad_rect

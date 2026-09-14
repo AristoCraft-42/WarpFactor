@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Resource" path="res://items/types/titanium.tres" id="item_titanium"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_titanium")
+amount = 6
+
+[resource]
+script = ExtResource("1_def")
+id = &"titanium_wall"
+name_key = "BUILDING_TITANIUM_WALL"
+description_key = "BUILDING_TITANIUM_WALL_DESC"
+category = 4
+size = 1
+removable = true
+player_buildable = true
+line_placement = true
+sort_order = 20
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
+craft_time = 0.3
+craft_amount = 1
+health = 440.0
+solid = true
+color = Color(0.435, 0.498, 0.588, 1)
+glyph = 16
+rotatable = false

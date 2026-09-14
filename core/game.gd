@@ -49,6 +49,7 @@ var _debug_enabled: bool = false
 var _last_autosave_tick: int = 0
 var _ores_shown: bool = false
 var _belts_shown: bool = false
+var _ranges_shown: bool = false
 
 
 func _ready() -> void:
@@ -238,6 +239,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		ore_overlay.visible = _ores_shown
 		hud.set_ore_legend_visible(_ores_shown)
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("overlay_ranges"):
+		_ranges_shown = not _ranges_shown
+		planet_view.turret_view.show_ranges = _ranges_shown
+		base_view.turret_view.show_ranges = _ranges_shown
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("overlay_belts"):
 		_belts_shown = not _belts_shown
 		belt_overlay.visible = _belts_shown
@@ -317,6 +323,7 @@ func _on_planet_changed() -> void:
 	add_child(planet_view)
 	move_child(planet_view, old_view.get_index())
 	planet_view.setup(run.planet, camera, clock)
+	planet_view.turret_view.show_ranges = _ranges_shown
 	remove_child(old_view)
 	old_view.queue_free()
 	world = run.drone.world

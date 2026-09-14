@@ -50,6 +50,10 @@ func setup(game: Game) -> void:
 	_build_build_menu()
 	_build_craft_queue()
 	_build_inventory_window()
+	var alarm := AttackIndicator.new()
+	alarm.name = "AttackIndicator"
+	_root.add_child(alarm)
+	alarm.setup(game)
 	_build_toasts()
 	_build_confirm()
 	var tooltip := BuildingTooltip.new()

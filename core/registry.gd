@@ -228,6 +228,18 @@ static func validate() -> PackedStringArray:
 		for enemy_id in threat.enemy_ids:
 			if get_enemy(enemy_id) == null:
 				errors.append("угроза типа %s: нет врага %s" % [t.id, enemy_id])
+	for def in buildings:
+		if def is TurretDef:
+			var turret := def as TurretDef
+			if turret.ammo.is_empty():
+				errors.append("турель %s без патронов" % def.id)
+			for a in turret.ammo:
+				if a == null or a.item == null:
+					errors.append("турель %s: патроны без предмета" % def.id)
+				elif a.shots_per_item < 1 or a.shots_per_item > turret.max_ammo:
+					errors.append("турель %s: выстрелов из предмета %s должно быть от 1 до запаса" % [def.id, a.item.id])
+				elif a.speed <= 0.0:
+					errors.append("турель %s: скорость снаряда %s должна быть больше нуля" % [def.id, a.item.id])
 	for enemy in enemies:
 		if enemy.health <= 0.0 or enemy.speed <= 0.0 or enemy.threat_cost <= 0.0:
 			errors.append("враг %s: прочность, скорость и стоимость должны быть больше нуля" % enemy.id)

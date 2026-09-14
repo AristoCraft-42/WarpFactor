@@ -6,10 +6,10 @@ extends Resource
 ## Постройка ставится из инвентаря дрона: у каждой строящейся постройки есть свой ItemType
 ## (items/types/buildings/), а cost — рецепт её ручного крафта.
 
-enum Category { EXTRACTION, TRANSPORT, PRODUCTION, STORAGE }
+enum Category { EXTRACTION, TRANSPORT, PRODUCTION, STORAGE, DEFENSE }
 
 ## Глиф на процедурном плейсхолдере.
-enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL, GEAR, PRESS, FLAME, MIXER, SPLIT, BOX, CORE }
+enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL, GEAR, PRESS, FLAME, MIXER, SPLIT, BOX, CORE, WALL, TURRET, ARTILLERY }
 
 @export var id: StringName
 @export var name_key: String

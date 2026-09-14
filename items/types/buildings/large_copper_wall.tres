@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/large_copper_wall.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"large_copper_wall"
+name_key = "BUILDING_LARGE_COPPER_WALL"
+color = Color(0.549, 0.353, 0.235, 1)
+sort_order = 1411
+stack_size = 50
+building = ExtResource("2_building")

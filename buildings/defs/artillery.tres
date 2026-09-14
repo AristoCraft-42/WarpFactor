@@ -1,0 +1,76 @@
+[gd_resource type="Resource" script_class="TurretDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/defense/turret_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/defense/turret.gd" id="3_logic"]
+[ext_resource type="Script" path="res://buildings/defense/turret_ammo.gd" id="6_ammo"]
+[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/graphite.tres" id="item_graphite"]
+[ext_resource type="Resource" path="res://items/types/titanium.tres" id="item_titanium"]
+[ext_resource type="Resource" path="res://items/types/silicon.tres" id="item_silicon"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_copper")
+amount = 90
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_graphite")
+amount = 40
+
+[sub_resource type="Resource" id="cost_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_titanium")
+amount = 20
+
+[sub_resource type="Resource" id="ammo_0"]
+script = ExtResource("6_ammo")
+item = ExtResource("item_graphite")
+shots_per_item = 1
+damage = 33.0
+splash_radius = 1.4
+speed = 6.0
+reload_multiplier = 1.0
+color = Color(0.996, 0.502, 0.098, 1)
+
+[sub_resource type="Resource" id="ammo_1"]
+script = ExtResource("6_ammo")
+item = ExtResource("item_silicon")
+shots_per_item = 1
+damage = 28.0
+splash_radius = 1.8
+speed = 7.0
+reload_multiplier = 0.85
+color = Color(0.980, 0.741, 0.184, 1)
+
+[resource]
+script = ExtResource("1_def")
+id = &"artillery"
+name_key = "BUILDING_ARTILLERY"
+description_key = "BUILDING_ARTILLERY_DESC"
+category = 4
+size = 2
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 40
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
+craft_time = 3.0
+craft_amount = 1
+health = 520.0
+solid = true
+color = Color(0.369, 0.416, 0.353, 1)
+glyph = 18
+logic_script = ExtResource("3_logic")
+rotatable = false
+shoot_range = 17.0
+min_range = 3.5
+reload_seconds = 1.8
+rotate_speed = 180.0
+shoot_cone = 8.0
+inaccuracy = 4.0
+max_ammo = 16
+artillery = true
+barrel_length = 22.0
+ammo = Array[ExtResource("6_ammo")]([SubResource("ammo_0"), SubResource("ammo_1")])

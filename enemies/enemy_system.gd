@@ -10,6 +10,10 @@ extends RefCounted
 ##   3. атака, если цель в радиусе и прошла пауза.
 ## После прохода толпа раздвигается: пересекающиеся враги расталкиваются (не больше SEPARATION_CHECKS
 ## соседей на врага). Удаление — перестановкой последнего на место удалённого; у врага есть постоянный uid.
+##
+## Списки врагов по тайлам служат и для поиска целей турелями и снарядами (find_nearest, query_circle).
+## Снаряды не удаляют врагов сразу (hurt), а помечают прочностью ≤ 0; remove_dead убирает их в конце тика,
+## чтобы индексы в списках не сбивались посреди прохода.
 
 const TARGET_NONE := 0
 const TARGET_DRONE := -1
@@ -20,6 +24,8 @@ const SEPARATION_STRENGTH := 0.35
 const GROW := 256
 const EVENT_CAPACITY := 256
 const EVENT_STRIDE := 6
+const DEATH_CAPACITY := 128
+const DEATH_STRIDE := 4
 ## Вид события атаки для отрисовки.
 enum EventKind { MELEE, SHOT }
 
@@ -47,6 +53,10 @@ var killed: int = 0
 ## События атак для отрисовки (не сохраняются): x0, y0, x1, y1, тик, вид — кольцевой буфер.
 var events := PackedFloat32Array()
 var event_cursor: int = 0
+## Гибель врагов для отрисовки (не сохраняется): x, y, тик, тип — кольцевой буфер.
+var deaths := PackedFloat32Array()
+var death_cursor: int = 0
+var last_death_tick: int = -1000
 var last_update_usec: int = 0
 
 var _world: GameWorld
@@ -62,12 +72,16 @@ var _ranged := PackedByteArray()
 var _cell_head := PackedInt32Array()
 var _cell_next := PackedInt32Array()
 var _cells := PackedInt32Array()
+## Списки по тайлам соответствуют текущим индексам врагов.
+var _cells_valid: bool = false
 
 
 func _init(world: GameWorld) -> void:
 	_world = world
 	events.resize(EVENT_CAPACITY * EVENT_STRIDE)
 	events.fill(-1.0)
+	deaths.resize(DEATH_CAPACITY * DEATH_STRIDE)
+	deaths.fill(-1.0)
 	var n := Registry.enemies.size()
 	_speed.resize(n)
 	_radius.resize(n)
@@ -94,6 +108,10 @@ func get_position(i: int) -> Vector2:
 
 func get_def(i: int) -> EnemyDef:
 	return Registry.enemies[types[i]]
+
+
+func get_radius(i: int) -> float:
+	return _radius[types[i]]
 
 
 ## Индекс врага по uid (-1 — нет такого).
@@ -123,6 +141,7 @@ func spawn(def: EnemyDef, position: Vector2, tick: int) -> int:
 	next_tile[i] = -1
 	path_version[i] = -1
 	spawned += 1
+	_cells_valid = false
 	return i
 
 
@@ -133,9 +152,123 @@ func damage(i: int, amount: float) -> bool:
 	health[i] -= amount
 	if health[i] > 0.0:
 		return false
+	_push_death(i)
 	remove_at(i)
 	killed += 1
 	return true
+
+
+## Урон без удаления (снаряды): погибший остаётся до remove_dead. true — враг погиб этим уроном.
+func hurt(i: int, amount: float) -> bool:
+	if i < 0 or i >= count or health[i] <= 0.0:
+		return false
+	health[i] -= amount
+	return health[i] <= 0.0
+
+
+## Убрать погибших (прочность ≤ 0). Возвращает, сколько убрано.
+func remove_dead() -> int:
+	var removed := 0
+	for i in range(count - 1, -1, -1):
+		if health[i] <= 0.0:
+			_push_death(i)
+			remove_at(i)
+			removed += 1
+	killed += removed
+	return removed
+
+
+func is_alive(i: int) -> bool:
+	return i >= 0 and i < count and health[i] > 0.0
+
+
+## Ближайший живой враг, чьё тело попадает в кольцо [min_range, max_range] от точки; -1 — нет.
+func find_nearest(x: float, y: float, max_range: float, min_range: float = 0.0) -> int:
+	if count == 0:
+		return -1
+	var candidates := _candidates(x, y, max_range)
+	var best := -1
+	var best_d := INF
+	for i in candidates:
+		var d := _body_distance(i, x, y)
+		if d < best_d and d <= max_range and d >= min_range and health[i] > 0.0:
+			best_d = d
+			best = i
+	return best
+
+
+## Живые враги, чьё тело пересекает круг: индексы добавляются в out.
+func query_circle(x: float, y: float, radius: float, out: PackedInt32Array) -> void:
+	if count == 0:
+		return
+	for i in _candidates(x, y, radius):
+		if health[i] > 0.0 and _body_distance(i, x, y) <= radius:
+			out.append(i)
+
+
+## Кандидаты рядом с точкой: все враги, если их мало, иначе — из списков тайлов в квадрате радиуса.
+func _candidates(x: float, y: float, radius: float) -> PackedInt32Array:
+	var result := PackedInt32Array()
+	var t := float(GameConst.TILE_SIZE)
+	var span := ceili(radius / t) + 1
+	if count <= (span * 2 + 1) * (span * 2 + 1):
+		result.resize(count)
+		for i in count:
+			result[i] = i
+		return result
+	if not _cells_valid:
+		rebuild_cells()
+	var grid := _world.grid
+	var w := grid.width
+	var h := grid.height
+	var tx := int(x / t)
+	var ty := int(y / t)
+	for cy in range(maxi(ty - span, 0), mini(ty + span, h - 1) + 1):
+		for cx in range(maxi(tx - span, 0), mini(tx + span, w - 1) + 1):
+			var j := _cell_head[cy * w + cx]
+			while j >= 0:
+				if j < count:
+					result.append(j)
+				j = _cell_next[j]
+	return result
+
+
+## Расстояние от точки до края тела врага (0 — внутри).
+func _body_distance(i: int, x: float, y: float) -> float:
+	var dx := pos_x[i] - x
+	var dy := pos_y[i] - y
+	return maxf(sqrt(dx * dx + dy * dy) - _radius[types[i]], 0.0)
+
+
+## Списки врагов по тайлам (раздвигание толпы, поиск целей).
+func rebuild_cells() -> void:
+	var grid := _world.grid
+	var w := grid.width
+	var h := grid.height
+	var inv_t := 1.0 / GameConst.TILE_SIZE
+	if _cell_head.size() != w * h:
+		_cell_head.resize(w * h)
+	_cell_head.fill(-1)
+	if _cells.size() < _capacity:
+		_cells.resize(_capacity)
+	if _cell_next.size() < _capacity:
+		_cell_next.resize(_capacity)
+	for i in count:
+		var c := clampi(int(pos_y[i] * inv_t), 0, h - 1) * w + clampi(int(pos_x[i] * inv_t), 0, w - 1)
+		_cells[i] = c
+		_cell_next[i] = _cell_head[c]
+		_cell_head[c] = i
+	_cells_valid = true
+
+
+func _push_death(i: int) -> void:
+	var o := death_cursor * DEATH_STRIDE
+	deaths[o] = pos_x[i]
+	deaths[o + 1] = pos_y[i]
+	deaths[o + 2] = _world.simulation.tick if _world != null and _world.simulation != null else 0
+	deaths[o + 3] = types[i]
+	death_cursor = (death_cursor + 1) % DEATH_CAPACITY
+	last_death_tick = int(deaths[o + 2])
 
 
 func remove_at(i: int) -> void:
@@ -155,10 +288,12 @@ func remove_at(i: int) -> void:
 		next_tile[i] = next_tile[last]
 		path_version[i] = path_version[last]
 	count -= 1
+	_cells_valid = false
 
 
 func clear() -> void:
 	count = 0
+	_cells_valid = false
 
 
 # --- Тик ---
@@ -354,17 +489,7 @@ func _push_event(x0: float, y0: float, x1: float, y1: float, tick: int, type: in
 
 ## Раздвигание толпы: враг отталкивается от пересекающихся соседей по своему и соседним тайлам.
 func _separate(w: int, h: int, inv_t: float, max_x: float, max_y: float, blocked: PackedByteArray) -> void:
-	var n := w * h
-	if _cell_head.size() != n:
-		_cell_head.resize(n)
-	_cell_head.fill(-1)
-	if _cells.size() < _capacity:
-		_cells.resize(_capacity)
-	for i in count:
-		var c := clampi(int(pos_y[i] * inv_t), 0, h - 1) * w + clampi(int(pos_x[i] * inv_t), 0, w - 1)
-		_cells[i] = c
-		_cell_next[i] = _cell_head[c]
-		_cell_head[c] = i
+	rebuild_cells()
 	for i in count:
 		var c := _cells[i]
 		var cx := c % w

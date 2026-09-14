@@ -74,12 +74,20 @@ func _draw() -> void:
 
 	if _hover != null and _hover.id != 0 and _ghosts.is_empty() and _area_rect.size == Vector2i.ZERO:
 		draw_rect(_hover.get_world_rect().grow(1.0), COLOR_HOVER, false, 2.0)
+		if _hover is Turret:
+			TurretView.draw_range(self, (_hover as Turret).get_turret_def(), _hover.get_world_center())
 
 	if _selected != null and _selected.id != 0:
 		if _selected is BridgeConveyor:
 			_draw_bridge_range(_selected as BridgeConveyor)
+		if _selected is Turret:
+			TurretView.draw_range(self, (_selected as Turret).get_turret_def(), _selected.get_world_center())
 		draw_rect(_selected.get_world_rect().grow(3.0), COLOR_SELECTED, false, 3.0)
 
+	# Радиус турели в руке (у ряда — только у последней, чтобы не пестрило).
+	if not _ghosts.is_empty() and _ghosts[_ghosts.size() - 1].def is TurretDef:
+		var last := _ghosts[_ghosts.size() - 1]
+		TurretView.draw_range(self, last.def as TurretDef, Vector2(last.origin) * t + last.def.get_pixel_size() * 0.5)
 	for g in _ghosts:
 		var rect := Rect2(Vector2(g.origin) * t, g.def.get_pixel_size())
 		match g.check:

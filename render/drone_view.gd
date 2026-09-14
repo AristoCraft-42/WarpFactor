@@ -3,6 +3,7 @@ extends Node2D
 ## Отрисовка дрона игрока: корпус по интерполированной позиции, луч добычи с прогрессом,
 ## круг радиуса строительства, пока в руке постройка или план вставки, полоска прочности при уроне.
 ## Сбитый дрон не рисуется; после появления мигает, пока неуязвим.
+## Зелёный луч — ремонт постройки, вспышка у корпуса — выстрел автопушки.
 ## Плейсхолдер рисуется примитивами; спрайт из DroneDef.sprite подменяет его без правки логики.
 
 const BODY_RADIUS := 13.0
@@ -51,7 +52,14 @@ func _draw() -> void:
 		_draw_range(pos)
 	if _drone.is_mining():
 		_draw_beam(pos)
+	if _drone.is_repairing():
+		_draw_repair(pos)
 	_draw_body(pos)
+	var since := tick - _drone.last_gun_tick
+	if since < 3:
+		var muzzle := pos + Vector2.from_angle(_drone.gun_angle) * (BODY_RADIUS + 4.0)
+		draw_line(pos, muzzle, Color(_drone.def.gun_color.lightened(0.2), 0.9), 2.5)
+		draw_circle(muzzle, 3.5 - since, Color(_drone.def.gun_color.lightened(0.5), 0.9))
 
 
 func _draw_range(pos: Vector2) -> void:
@@ -63,6 +71,19 @@ func _draw_range(pos: Vector2) -> void:
 		var a0 := TAU * i / segments + _time * 0.15
 		var a1 := TAU * (i + 1) / segments + _time * 0.15
 		draw_arc(pos, radius, a0, a1, 4, RANGE_COLOR, 2.0)
+
+
+func _draw_repair(pos: Vector2) -> void:
+	var building := _drone.world.buildings.get_by_id(_drone.repair_target)
+	if building == null:
+		return
+	var rect := building.get_world_rect()
+	var target := rect.get_center() + Vector2(sin(_time * 7.0), cos(_time * 5.0)) * rect.size * 0.25
+	var flicker := 0.7 + 0.3 * sin(_time * 25.0)
+	draw_line(pos, target, Color(0.56, 0.75, 0.49, 0.75 * flicker), 3.0)
+	draw_line(pos, target, Color(0.85, 1.0, 0.8, 0.8 * flicker), 1.2)
+	draw_circle(target, 4.0 * flicker, Color(0.72, 0.9, 0.6, 0.9))
+	draw_rect(rect.grow(1.0), Color(0.56, 0.75, 0.49, 0.6), false, 2.0)
 
 
 func _draw_beam(pos: Vector2) -> void:

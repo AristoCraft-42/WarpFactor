@@ -1,6 +1,7 @@
 class_name Drone
 extends RefCounted
-## Дрон игрока — модель без нод: позиция, инвентарь, добыча руды, очередь ручного крафта.
+## Дрон игрока — модель без нод: позиция, инвентарь, добыча руды, очередь ручного крафта,
+## автопушка (бьёт ближайшего врага в радиусе) и бесплатный ремонт построек в радиусе строительства.
 ## Обновляется в тике симуляции; отрисовка интерполирует между prev_position и position.
 ## Все действия игрока в мире проверяют радиус дрона (can_reach_*).
 
@@ -28,6 +29,16 @@ var dead: bool = false
 var respawn_tick: int = 0
 ## До этого тика враги дрона не трогают (после появления).
 var invulnerable_until: int = 0
+var gun_ready_tick: int = 0
+## Для отрисовки: куда смотрит пушка и когда был выстрел (не сохраняется).
+var gun_angle: float = 0.0
+var last_gun_tick: int = -1000
+## Чинимое здание (0 — нет) и тик следующего поиска повреждённых.
+var repair_target: int = 0
+var repair_search_tick: int = 0
+
+## Раз в сколько тиков дрон ищет, что починить, если чинить нечего.
+const REPAIR_SEARCH_TICKS := 10
 
 
 func _init(p_def: DroneDef, p_world: GameWorld, spawn: Vector2) -> void:
@@ -107,6 +118,7 @@ func save_data() -> Dictionary:
 	return {"position": position, "prev_position": prev_position, "facing": facing,
 		"mine_tile": mine_tile, "mine_progress": mine_progress,
 		"health": health, "dead": dead, "respawn_tick": respawn_tick, "invulnerable_until": invulnerable_until,
+		"gun_ready": gun_ready_tick, "repair_target": repair_target, "repair_search": repair_search_tick,
 		"inventory": inventory.save_slots(), "crafting": crafting.save_data()}
 
 
@@ -120,6 +132,9 @@ func load_data(data: Dictionary) -> void:
 	dead = bool(data.get("dead", false))
 	respawn_tick = int(data.get("respawn_tick", 0))
 	invulnerable_until = int(data.get("invulnerable_until", 0))
+	gun_ready_tick = int(data.get("gun_ready", 0))
+	repair_target = int(data.get("repair_target", 0))
+	repair_search_tick = int(data.get("repair_search", 0))
 	move_input = Vector2.ZERO
 	var slots: Dictionary = data.get("inventory", {})
 	inventory.load_slots(slots.get("slot_items", PackedInt32Array()), slots.get("slot_counts", PackedInt32Array()),
@@ -146,6 +161,58 @@ func update_tick(tick: int) -> void:
 	crafting.update_tick()
 	if not world.crates.is_empty():
 		world.pickup_crates()
+	if def.gun_damage > 0.0 and world.enemies.count > 0 and tick >= gun_ready_tick:
+		_shoot(tick)
+	if def.repair_per_second > 0.0 and (repair_target != 0 or not world.damaged.is_empty()):
+		_repair(tick)
+
+
+func is_repairing() -> bool:
+	return repair_target != 0
+
+
+func _shoot(tick: int) -> void:
+	var enemies := world.enemies
+	var target := enemies.find_nearest(position.x, position.y, def.get_gun_range_px())
+	if target < 0:
+		gun_ready_tick = tick + 5
+		return
+	var dir := (enemies.get_position(target) - position).normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.RIGHT
+	var speed := def.get_gun_speed_per_tick()
+	world.projectiles.spawn_bullet(position + dir * 10.0, dir * speed, def.gun_damage,
+		ceili((def.get_gun_range_px() + GameConst.TILE_SIZE) / speed), def.gun_color)
+	gun_angle = dir.angle()
+	last_gun_tick = tick
+	gun_ready_tick = tick + def.get_gun_ticks()
+
+
+## Бесплатный ремонт: одна постройка за раз, ближайшая повреждённая в радиусе строительства.
+func _repair(tick: int) -> void:
+	var building := world.buildings.get_by_id(repair_target) if repair_target != 0 else null
+	if building != null and (not building.is_damaged() or not can_reach_tiles(building.get_rect())):
+		building = null
+	if building == null:
+		repair_target = 0
+		if tick < repair_search_tick:
+			return
+		repair_search_tick = tick + REPAIR_SEARCH_TICKS
+		var best_d := INF
+		for id in world.damaged:
+			var candidate := world.buildings.get_by_id(id)
+			if candidate == null or not candidate.is_damaged() or not can_reach_tiles(candidate.get_rect()):
+				continue
+			var d := candidate.get_world_center().distance_squared_to(position)
+			if d < best_d:
+				best_d = d
+				building = candidate
+		if building == null:
+			return
+		repair_target = building.id
+	world.repair_building(building, def.repair_per_second / GameConst.TICK_RATE)
+	if not building.is_damaged():
+		repair_target = 0
 
 
 func _mine() -> void:

@@ -51,7 +51,7 @@ func show_summary(summary: TeleportSummary) -> void:
 	lines.append(tr("SUMMARY_MOVED") % summary.buildings_moved)
 	lines.append(tr("SUMMARY_LOST") % [summary.buildings_lost, TeleportSummary.total(summary.items_lost)])
 	if summary.waves > 0 or summary.buildings_destroyed > 0:
-		lines.append(tr("SUMMARY_COMBAT") % [summary.waves, summary.buildings_destroyed])
+		lines.append(tr("SUMMARY_COMBAT") % [summary.waves, summary.enemies_killed, summary.buildings_destroyed])
 	if summary.to_safe:
 		lines.append(tr("SUMMARY_SAFE"))
 	_lines.text = "\n".join(lines)

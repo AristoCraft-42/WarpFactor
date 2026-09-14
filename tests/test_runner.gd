@@ -72,6 +72,12 @@ func _ready() -> void:
 	_test_drone_death_and_crate()
 	_test_breach_teleport()
 	_test_enemy_save_determinism()
+	_test_defense_data()
+	_test_turret_ammo()
+	_test_turret_kills()
+	_test_artillery()
+	_test_drone_gun_and_repair()
+	_test_walls_route()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -118,10 +124,10 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 6, "ожидалось 6 руд, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 26, "ожидалось 26 зданий (24 + шлюз и его пара), есть %d" % Registry.buildings.size())
+	_check(Registry.buildings.size() == 32, "ожидалось 32 здания (24 + шлюз и пара + 4 стены и 2 турели), есть %d" % Registry.buildings.size())
 	_check(Registry.base_def != null and Registry.base_def.size == 24, "параметры базы загружены (24×24)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 11 + 24, "ожидалось 11 ресурсов и 24 предмета-постройки, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 11 + 30, "ожидалось 11 ресурсов и 30 предметов-построек, есть %d" % Registry.items.size())
 	_check(Registry.get_building(&"inverted_sorter") == null and Registry.get_building(&"underflow_gate") == null,
 		"инвертированные варианты стали настройкой, а не отдельными зданиями")
 	for def in Registry.buildings:
@@ -137,7 +143,7 @@ func _test_registry() -> void:
 		if def.player_buildable:
 			_check(def.item != null and def.item.building == def, "у здания %s есть предмет-постройка" % def.id)
 			_check(def.item != null and Registry.get_hand_recipe(def.item.index) != null, "у здания %s есть рецепт крафта" % def.id)
-	for category in 4:
+	for category in 5:
 		_check(not Registry.buildings_in_category(category as BuildingDef.Category).is_empty(), "пустая категория %d" % category)
 	# Все плейсхолдеры строятся без ошибок.
 	ArtRegistry.ensure_built()
@@ -2052,13 +2058,29 @@ func _test_enemy_save_determinism() -> void:
 			planet.spawn_enemy(def, Vector2(3 + (k % 5), 4 + k % 40) * GameConst.TILE_SIZE + Vector2(k % 7, k % 3))
 			k += 1
 	run.drone.position = gate.get_world_center() + Vector2(-6, 6) * GameConst.TILE_SIZE
+	# Оборона: пулемёт и артиллерия с патронами — в сохранение попадут снаряды в полёте.
+	var gun := planet.buildings.place(Registry.get_building(&"machine_gun"), gate.origin + Vector2i(-2, 4), 0, true) as Turret
+	var art := planet.buildings.place(Registry.get_building(&"artillery"), gate.origin + Vector2i(4, 4), 0, true) as Turret
+	for i in 20:
+		gun.handle_item(null, _item(&"copper"))
+		gun.handle_item(null, _item(&"graphite"))
+	for i in 16:
+		art.handle_item(null, _item(&"graphite"))
+	planet.damage_building(planet.buildings.get_at(gate.origin + Vector2i(-4, -1)), 120.0)
 	planet.threat.call_next_wave(planet.simulation.tick)
+	for n in 4:
+		planet.spawn_enemy(Registry.get_enemy(&"soldier"), gate.get_world_center() + Vector2(-9 - n, 5) * GameConst.TILE_SIZE)
 	for i in 150:
 		run.step()
+	var guard := 0
+	while planet.projectiles.count == 0 and guard < 300:
+		run.step()
+		guard += 1
 	planet.buildings.place(container, gate.origin + Vector2i(-10, 3), 0, true)
 	run.step()
 	_check(planet.flow.is_computing(), "сохраняем посреди пересчёта поля потоков")
 	_check(planet.threat.get_pending_spawns() > 0 or planet.threat.wave > 0, "у угрозы есть состояние")
+	_check(planet.projectiles.count > 0, "в момент сохранения летят снаряды (%d)" % planet.projectiles.count)
 	var saved := SaveIO.run_to_dict(run)
 	var bytes := var_to_bytes(saved)
 	var loaded := SaveIO.run_from_dict(bytes_to_var(bytes))
@@ -2076,3 +2098,184 @@ func _test_enemy_save_determinism() -> void:
 		"в сценарии враги успели навредить")
 	run.dispose()
 	loaded.dispose()
+
+
+# --- Этап 10: оборона ---
+
+func _test_defense_data() -> void:
+	var gun := Registry.get_building(&"machine_gun") as TurretDef
+	var art := Registry.get_building(&"artillery") as TurretDef
+	_check(gun != null and art != null and gun.category == BuildingDef.Category.DEFENSE, "пулемёт и артиллерия в разделе «Оборона»")
+	_check(gun.find_ammo(_item(&"copper")) >= 0 and gun.find_ammo(_item(&"graphite")) >= 0 and gun.find_ammo(_item(&"silicon")) >= 0
+		and gun.find_ammo(_item(&"lead")) < 0, "пулемёт стреляет медью, графитом и кремнием")
+	_check(art.artillery and art.min_range > 0.0 and art.find_ammo(_item(&"copper")) < 0 and art.ammo[0].splash_radius > 0.0,
+		"артиллерия: взрыв, мёртвая зона, без медных патронов")
+	var wall := Registry.get_building(&"copper_wall")
+	var large := Registry.get_building(&"large_copper_wall")
+	_check(wall.solid and not wall.rotatable and wall.line_placement and large.size == 2, "стены твёрдые, не поворачиваются, медная ставится линией")
+	_check(large.get_path_cost() > wall.get_path_cost() and wall.get_path_cost() > Registry.get_building(&"mechanical_drill").get_path_cost(),
+		"проход сквозь стену дороже, чем сквозь бур")
+	var recipe := Registry.get_hand_recipe(large.item.index)
+	_check(recipe != null and recipe.ingredients[0].item == wall.item, "большая стена крафтится из обычных")
+	_check(Registry.drone_def.gun_damage > 0.0 and Registry.drone_def.repair_per_second > 0.0, "у дрона есть автопушка и ремонт")
+
+
+func _test_turret_ammo() -> void:
+	var world := Worlds.empty_world(16, 8, false)
+	var copper := _item(&"copper")
+	var graphite := _item(&"graphite")
+	var gun := world.buildings.place(Registry.get_building(&"machine_gun"), Vector2i(8, 3), 0, true) as Turret
+	var d := gun.get_turret_def()
+	_check(world.turrets.has(gun.id) and gun.get_status() == Building.Status.NO_AMMO, "турель без патронов, учтена в мире")
+	_check(not gun.accept_item(null, _item(&"lead")) and gun.accept_item(null, copper), "свинец — не патрон, медь — патрон")
+	# Лента подаёт медь, пока запас не заполнится.
+	var source := _source(world, Vector2i(5, 3), [copper])
+	Worlds.conveyor_line(world, Vector2i(6, 3), 2, GameConst.Dir.RIGHT)
+	Worlds.run_ticks(world, 400)
+	_check(gun.total_shots == d.max_ammo and not gun.accept_item(null, copper), "лента заполняет запас патронов (%d/%d)" % [gun.total_shots, d.max_ammo])
+	world.buildings.remove(source, true)
+	# Руками: графит ложится поверх меди и стреляет первым.
+	var gun2 := world.buildings.place(Registry.get_building(&"machine_gun"), Vector2i(12, 3), 0, true) as Turret
+	world.drone.position = Vector2(12.5, 3.5) * GameConst.TILE_SIZE
+	world.drone.inventory.add(copper, 10)
+	world.drone.inventory.add(graphite, 10)
+	_check(world.player_put(gun2, copper, 5) == 5 and world.player_put(gun2, graphite, 3) == 3, "патроны кладутся руками")
+	_check(gun2.get_current_ammo().item.index == graphite and gun2.total_shots == 16, "последний вид патронов стреляет первым")
+	var stacks := gun2.get_player_stacks()
+	_check(stacks.size() == 2 and stacks[0] == Vector2i(graphite, 3) and gun2.take_player_items(copper, 5) == 0, "окно турели показывает патроны, забрать нельзя")
+	var state := gun2.save_state()
+	var copy := world.buildings.place(Registry.get_building(&"machine_gun"), Vector2i(14, 5), 0, true) as Turret
+	copy.load_state(state)
+	_check(copy.total_shots == 16 and copy.get_current_ammo().item.index == graphite, "запас патронов переносится в состояние")
+	var before := world.drone.inventory.count(copper)
+	_check(world.demolish(gun2) and world.drone.inventory.count(copper) == before + 5 and not world.turrets.has(gun2.id),
+		"при сносе целые патроны возвращаются")
+	world.dispose()
+
+
+## Турель с патронами у шлюза; дрон уводится далеко, чтобы стреляли только турели.
+func _defense_run() -> Run:
+	var run := _enemy_run()
+	run.drone.position = Vector2(2, 2) * GameConst.TILE_SIZE
+	run.planet.gateway.health = 1.0e9
+	return run
+
+
+func _test_turret_kills() -> void:
+	var run := _defense_run()
+	var planet := run.planet
+	var gate := planet.gateway
+	var gun := planet.buildings.place(Registry.get_building(&"machine_gun"), gate.origin + Vector2i(-2, 1), 0, true) as Turret
+	for i in 20:
+		gun.handle_item(null, _item(&"copper"))
+	var start := gate.get_world_center() + Vector2(-14, 0) * GameConst.TILE_SIZE
+	for k in 3:
+		planet.spawn_enemy(Registry.get_enemy(&"crawler"), start + Vector2(0, (k - 1) * 20))
+	var killed_at := -1
+	for i in 600:
+		run.step()
+		if planet.enemies.count == 0:
+			killed_at = i
+			break
+	_check(killed_at >= 0 and planet.enemies.killed == 3, "пулемёт уничтожил трёх ползунов (за %d тиков)" % killed_at)
+	_check(planet.projectiles.fired > 0 and gun.total_shots < 40, "турель стреляла и тратила патроны (выстрелов %d)" % planet.projectiles.fired)
+	_check(planet.projectiles.hits >= 1 and planet.projectiles.hits <= planet.projectiles.fired, "попадания считаются (%d из %d)" % [planet.projectiles.hits, planet.projectiles.fired])
+	for i in 60:
+		run.step()
+	_check(planet.projectiles.count == 0 and gun.get_status() == Building.Status.IDLE, "без врагов снаряды исчезают, турель ждёт")
+	run.dispose()
+
+
+func _test_artillery() -> void:
+	var run := _defense_run()
+	var planet := run.planet
+	var gate := planet.gateway
+	var art := planet.buildings.place(Registry.get_building(&"artillery"), gate.origin + Vector2i(-3, 4), 0, true) as Turret
+	for i in 16:
+		art.handle_item(null, _item(&"graphite"))
+	# Враг вплотную — в мёртвой зоне.
+	var center := art.get_world_center()
+	planet.spawn_enemy(Registry.get_enemy(&"brute"), center + Vector2(2, 0) * GameConst.TILE_SIZE)
+	planet.enemies.next_attack[0] = 1000000
+	planet.enemies.types[0] = Registry.get_enemy(&"brute").index
+	for i in 20:
+		run.step()
+	_check(planet.projectiles.fired == 0, "артиллерия не стреляет вплотную")
+	planet.enemies.clear()
+	# Плотная группа вдалеке: взрыв задевает нескольких.
+	var group := center + Vector2(-11, 0) * GameConst.TILE_SIZE
+	for k in 5:
+		planet.spawn_enemy(Registry.get_enemy(&"soldier"), group + Vector2(k % 3 * 10 - 10, k * 6 - 12))
+	for k in planet.enemies.count:
+		planet.enemies.next_attack[k] = 1000000
+	var shells := 0
+	for i in 200:
+		run.step()
+		shells = maxi(shells, planet.projectiles.count)
+		if planet.projectiles.fired >= 3:
+			break
+	for i in 90:
+		run.step()
+	var damaged := 0
+	for k in planet.enemies.count:
+		if planet.enemies.health[k] < Registry.get_enemy(&"soldier").health:
+			damaged += 1
+	_check(planet.projectiles.fired >= 3 and planet.projectiles.hits > planet.projectiles.fired,
+		"снаряды артиллерии задевают по нескольку врагов (выстрелов %d, попаданий %d)" % [planet.projectiles.fired, planet.projectiles.hits])
+	_check(damaged + planet.enemies.killed >= 3, "ранено или убито не меньше трёх (%d + %d)" % [damaged, planet.enemies.killed])
+	run.dispose()
+
+
+func _test_drone_gun_and_repair() -> void:
+	var run := _enemy_run()
+	var planet := run.planet
+	var drone := run.drone
+	planet.gateway.health = 1.0e9
+	# Дрон у шлюза: ползун придёт к шлюзу и останется в радиусе автопушки.
+	drone.position = planet.gateway.get_world_center() + Vector2(0, 3) * GameConst.TILE_SIZE
+	planet.spawn_enemy(Registry.get_enemy(&"crawler"), planet.gateway.get_world_center() + Vector2(-12, 0) * GameConst.TILE_SIZE)
+	for i in 600:
+		run.step()
+		if planet.enemies.count == 0:
+			break
+	_check(planet.enemies.count == 0 and planet.enemies.killed == 1 and not drone.dead, "автопушка дрона уничтожила ползуна")
+	# Ремонт: повреждённый склад в радиусе чинится бесплатно, дальний — нет.
+	var near := planet.buildings.place(Registry.get_building(&"container"), GameConst.world_to_tile(drone.position) + Vector2i(2, 2), 0, true)
+	var far := planet.buildings.place(Registry.get_building(&"container"), GameConst.world_to_tile(drone.position) + Vector2i(18, 0), 0, true)
+	planet.damage_building(near, 200.0)
+	planet.damage_building(far, 100.0)
+	var totals := TeleportSummary.total(drone.inventory.totals)
+	for i in 20:
+		run.step()
+	_check(drone.is_repairing() and near.health > near.get_max_health() - 200.0, "дрон чинит постройку в радиусе")
+	for i in 200:
+		run.step()
+	_check(not near.is_damaged() and not planet.damaged.has(near.id) and not drone.is_repairing(), "постройка починена полностью")
+	_check(far.is_damaged() and TeleportSummary.total(drone.inventory.totals) == totals, "дальняя не чинится, ремонт бесплатный")
+	var saved := drone.save_data()
+	_check(saved.has("repair_target") and saved.has("gun_ready"), "состояние пушки и ремонта сохраняется")
+	run.dispose()
+
+
+func _test_walls_route() -> void:
+	# Коридор со стеной поперёк: с проходом враги обходят, без прохода — стена на пути.
+	var world := _flow_world(30, 16, 8, 14)
+	var flow := world.ensure_flow()
+	var wall := Registry.get_building(&"copper_wall")
+	for y in range(2, 12):
+		world.buildings.place(wall, Vector2i(18, y), 0, true)
+	flow.compute_now()
+	var path := _follow_path(flow, Vector2i(2, 7))
+	var through_wall := false
+	for p in path:
+		through_wall = through_wall or world.buildings.get_at(p) != null and world.buildings.get_at(p).def == wall
+	_check(not through_wall and world.gateway.get_rect().has_point(path[path.size() - 1]), "стену с проходом враги обходят")
+	for y in [0, 1, 12, 13, 14, 15]:
+		world.buildings.place(wall, Vector2i(18, y), 0, true)
+	flow.compute_now()
+	path = _follow_path(flow, Vector2i(2, 7))
+	through_wall = false
+	for p in path:
+		through_wall = through_wall or world.buildings.get_at(p) != null and world.buildings.get_at(p).def == wall
+	_check(through_wall, "сплошную стену путь проходит насквозь — её будут ломать")
+	world.dispose()

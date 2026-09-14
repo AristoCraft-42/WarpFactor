@@ -52,6 +52,8 @@ func _process(delta: float) -> void:
 	var planet := _game.run.planet
 	var enemies := planet.enemies
 	var flow := planet.flow
+	lines.append("turrets: %d   projectiles: %d (fired %d, hits %d)" % [planet.turrets.size(), planet.projectiles.count,
+		planet.projectiles.fired, planet.projectiles.hits])
 	lines.append("enemies: %d (spawned %d, killed %d)   update: %.3f ms   drawn: %d" % [
 		enemies.count, enemies.spawned, enemies.killed, enemies.last_update_usec / 1000.0,
 		_game.planet_view.enemy_renderer.drawn_count])

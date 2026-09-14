@@ -10,7 +10,7 @@ extends PanelContainer
 
 enum Mode { CRAFT, BUILDING }
 
-const CATEGORY_KEYS := ["CATEGORY_EXTRACTION", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_STORAGE"]
+const CATEGORY_KEYS := ["CATEGORY_EXTRACTION", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_STORAGE", "CATEGORY_DEFENSE"]
 const INVENTORY_COLUMNS := 10
 const RIGHT_COLUMNS := 8
 const RIGHT_MIN_SIZE := Vector2(8 * (ItemSlot.SIZE + 4), 330)
@@ -25,6 +25,8 @@ var _tools: ToolController
 var _world: GameWorld
 var _drone: Drone
 var _inventory_slots: Array[ItemSlot] = []
+## Подсказка окна здания: у турели своя (патроны только кладутся).
+var _take_hint: Label
 var _slots_label: Label
 var _right_title: Label
 var _craft_box: VBoxContainer
@@ -141,10 +143,10 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 	_building_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_building_info.custom_minimum_size = Vector2(RIGHT_MIN_SIZE.x, 0)
 	_building_box.add_child(_building_info)
-	var take_hint := UiUtil.label("BUILDING_WINDOW_HINT", &"DimLabel")
-	take_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	take_hint.custom_minimum_size = Vector2(RIGHT_MIN_SIZE.x, 0)
-	_building_box.add_child(take_hint)
+	_take_hint = UiUtil.label("BUILDING_WINDOW_HINT", &"DimLabel")
+	_take_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_take_hint.custom_minimum_size = Vector2(RIGHT_MIN_SIZE.x, 0)
+	_building_box.add_child(_take_hint)
 
 	tools.selection_changed.connect(_on_selection_changed)
 	_select_category(_category)
@@ -238,6 +240,7 @@ func _apply_mode() -> void:
 		_right_title.text = tr("CRAFT_TITLE")
 	elif _building != null:
 		_right_title.text = tr(_building.def.name_key)
+		_take_hint.text = "TURRET_WINDOW_HINT" if _building is Turret else "BUILDING_WINDOW_HINT"
 
 
 func _refresh_all() -> void:

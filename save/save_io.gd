@@ -255,6 +255,7 @@ static func world_to_dict(world: GameWorld) -> Dictionary:
 		"spawn_points": world.spawn_points.duplicate(), "crates": crates,
 		"destroyed": world.destroyed_count, "breached": world.breached,
 		"enemies": world.enemies.save_data(),
+		"projectiles": world.projectiles.save_data(),
 	}
 	if world.threat != null:
 		result["threat"] = world.threat.save_data()
@@ -310,6 +311,7 @@ static func world_from_dict(d: Dictionary, drone: Drone) -> GameWorld:
 	world.destroyed_count = int(d.get("destroyed", 0))
 	world.breached = bool(d.get("breached", false))
 	world.enemies.load_data(d.get("enemies", {}), _enemy_map)
+	world.projectiles.load_data(d.get("projectiles", {}))
 	return world
 
 

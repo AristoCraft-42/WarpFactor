@@ -57,6 +57,7 @@ func _run_game(game: Game) -> void:
 	await _run_factory(game, base)
 	await _run_logistics(game, base)
 	await _run_enemies(game, base)
+	await _run_defense(game)
 
 	await _drone_to(game, base)
 	game.ore_overlay.visible = true
@@ -180,11 +181,137 @@ func _run_enemies(game: Game, base: Vector2i) -> void:
 
 	# Убираем врагов и чиним шлюз, чтобы не мешать телепорту.
 	planet.enemies.clear()
+	planet.threat.clear_pending()
 	planet.threat.delay_next_wave(10000000)
 	gate.health = gate.get_max_health()
 	planet.damaged.erase(gate.id)
 	await _frames(5)
 
+
+## Свободный от зданий и строимый прямоугольник size рядом с center (поиск по кольцам).
+func _find_clear_rect(world: GameWorld, size: Vector2i, center: Vector2i, radius: int) -> Vector2i:
+	for r in range(0, radius):
+		for y in range(center.y - r, center.y + r + 1):
+			for x in range(center.x - r, center.x + r + 1):
+				if maxi(absi(x - center.x), absi(y - center.y)) != r:
+					continue
+				var ok := true
+				for yy in range(y, y + size.y):
+					for xx in range(x, x + size.x):
+						ok = ok and world.grid.in_bounds(xx, yy) and world.grid.is_buildable(xx, yy) and world.buildings.get_at(Vector2i(xx, yy)) == null
+				if ok:
+					return Vector2i(x, y)
+	return Vector2i(-1, -1)
+
+
+## Оборона: турель из меню, патроны через окно турели, стены линией, радиусы (T), бой, ремонт дроном.
+func _run_defense(game: Game) -> void:
+	var run := game.run
+	var planet := run.planet
+	var tools := game.tools
+	var gate := planet.gateway
+	var inv := run.drone.inventory
+	var gun_def := Registry.get_building(&"machine_gun")
+	var wall_def := Registry.get_building(&"copper_wall")
+	var copper := Registry.get_item(&"copper").index
+	inv.add(gun_def.item.index, 2)
+	inv.add(wall_def.item.index, 12)
+	inv.add(copper, 40)
+	var spot := _find_clear_rect(planet, Vector2i(3, 8), GameConst.world_to_tile(gate.get_world_center()) + Vector2i(0, -10), 12)
+	_expect(spot.x >= 0, "есть место под сцену обороны")
+	if spot.x < 0:
+		return
+	await _drone_to(game, spot + Vector2i(1, 4))
+
+	# Турель: вкладка «Оборона» → пулемёт → клик по карте.
+	var menu := _find_child_of_type(game.hud, "BuildMenu") as BuildMenu
+	var defense_tab: Button = (menu.get("_category_buttons") as Array)[BuildingDef.Category.DEFENSE]
+	await _click_control(defense_tab)
+	var gun_button: Button = (menu.get("_building_buttons") as Dictionary)[&"machine_gun"]
+	await _click_control(gun_button)
+	_expect(tools.mode == ToolController.Mode.PLACE and tools.place_def == gun_def, "вкладка «Оборона»: пулемёт в руке")
+	var gun_tile := spot + Vector2i(1, 4)
+	await _mouse_move(game, gun_tile)
+	await _mouse_button(game, gun_tile, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, gun_tile, MOUSE_BUTTON_LEFT, false)
+	var gun := planet.buildings.get_at(gun_tile) as Turret
+	_expect(gun != null, "пулемёт поставлен")
+	await _key(KEY_ESCAPE)
+	if gun == null:
+		return
+
+	# Патроны: окно турели и клик по меди в инвентаре.
+	await _mouse_move(game, gun_tile)
+	await _mouse_button(game, gun_tile, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, gun_tile, MOUSE_BUTTON_LEFT, false)
+	var window := game.hud.inventory_window
+	await _frames(5)
+	_expect(window.visible and window.mode == InventoryWindow.Mode.BUILDING, "клик по турели открывает её окно")
+	var slots: Array = window.get("_inventory_slots")
+	var copper_slot := -1
+	for i in inv.size():
+		if inv.slot_items[i] == copper:
+			copper_slot = i
+			break
+	if copper_slot >= 0:
+		await _click_control(slots[copper_slot])
+	await _frames(5)
+	_expect(gun.total_shots > 0, "медь из инвентаря легла в турель (%d выстрелов)" % gun.total_shots)
+	await _shot("d00_turret_window.png")
+	await _key(KEY_ESCAPE)
+	await _frames(3)
+
+	# Стены линией протягиванием.
+	tools.select_building(wall_def)
+	var a := spot + Vector2i(0, 0)
+	var b := spot + Vector2i(0, 7)
+	var before := planet.buildings.get_count()
+	await _mouse_move(game, a)
+	await _mouse_button(game, a, MOUSE_BUTTON_LEFT, true)
+	await _mouse_move(game, a + Vector2i(0, 1))
+	await _mouse_move(game, b)
+	await _frames(3)
+	await _mouse_button(game, b, MOUSE_BUTTON_LEFT, false)
+	_expect(planet.buildings.get_count() - before == 8, "стены ставятся линией (%d)" % (planet.buildings.get_count() - before))
+	await _key(KEY_ESCAPE)
+
+	# Радиусы турелей по T, враги идут мимо — пулемёт стреляет.
+	await _key(KEY_T)
+	_expect(game.planet_view.turret_view.show_ranges, "T показывает радиусы турелей")
+	var enemy_origin := gun.get_world_center() + Vector2(-9, 2) * GameConst.TILE_SIZE
+	for k in 4:
+		var p := enemy_origin + Vector2(0, (k - 2) * 24)
+		if planet.flow.get_dist(GameConst.world_to_tile(p)) < FlowField.INF:
+			planet.spawn_enemy(Registry.get_enemy(&"crawler"), p)
+	var spawned := planet.enemies.count
+	var killed_before := planet.enemies.killed
+	# Дрон отлетает, чтобы стреляла турель, а не автопушка.
+	await _drone_to(game, spot + Vector2i(12, -4))
+	game.camera.focus_on(gun.get_world_center() + Vector2(-3, 0) * GameConst.TILE_SIZE, 0.9)
+	await _wait_ticks(planet, 45)
+	await _shot("d01_defense.png")
+	var guard := 0
+	while planet.enemies.killed - killed_before < spawned and guard < 900:
+		await get_tree().process_frame
+		guard += 1
+	# Часть ползунов может пройти к шлюзу вне радиуса турели — достаточно половины.
+	_expect(spawned > 0 and (planet.enemies.killed - killed_before) * 2 >= spawned and gun.last_shot_tick > 0,
+		"пулемёт уничтожил врагов (%d из %d)" % [planet.enemies.killed - killed_before, spawned])
+	planet.enemies.clear()
+	planet.projectiles.clear()
+	await _key(KEY_T)
+	_expect(not game.planet_view.turret_view.show_ranges, "T скрывает радиусы")
+
+	# Ремонт: дрон рядом с повреждённой стеной чинит её бесплатно.
+	var wall := planet.buildings.get_at(a + Vector2i(0, 3))
+	planet.damage_building(wall, wall.get_max_health() * 0.8)
+	await _drone_to(game, a + Vector2i(3, 3))
+	game.camera.recenter()
+	await _wait_ticks(planet, 12)
+	_expect(run.drone.is_repairing(), "дрон чинит стену")
+	await _shot("d02_repair.png")
+	await _wait_ticks(planet, 240)
+	_expect(not wall.is_damaged(), "стена починена")
 
 ## Прорыв: шлюз разрушен — аварийный телепорт на соседнюю планету и итог.
 func _run_breach(game: Game) -> void:
@@ -195,7 +322,8 @@ func _run_breach(game: Game) -> void:
 	var crawler := Registry.get_enemy(&"crawler")
 	var flow := planet.ensure_flow()
 	planet.spawn_enemy(crawler, gate.get_world_center() + Vector2(-3, 0) * GameConst.TILE_SIZE)
-	await _drone_to(game, gate.origin + Vector2i(1, 5))
+	# Дрон подальше: автопушка и ремонт не должны спасти шлюз.
+	await _drone_to(game, gate.origin + Vector2i(1, 22))
 	game.camera.focus_on(gate.get_world_center(), 1.0)
 	gate.health = 1.0
 	var guard := 0

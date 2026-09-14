@@ -86,7 +86,7 @@ func refresh() -> void:
 		_wave_label.text = tr(key) % time if threat.wave == 0 else tr(key) % [threat.wave + 1, time]
 		color = UiTheme.RED if threat.is_warning(tick) else UiTheme.YELLOW
 	_wave_label.add_theme_color_override("font_color", color)
-	_enemies_label.text = tr("THREAT_ENEMIES") % planet.enemies.count
+	_enemies_label.text = tr("THREAT_ENEMIES_KILLED") % [planet.enemies.count, planet.enemies.killed]
 	_enemies_label.visible = planet.enemies.count > 0 or threat.wave > 0
 
 	var gate := planet.gateway

@@ -13,7 +13,7 @@ extends RefCounted
 ## Вид настройки здания (что показывает панель настройки). MODE — только переключатели (инверсия).
 enum ConfigKind { NONE, ITEM, BRIDGE, MODE }
 ## Состояние здания для подсказки.
-enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE }
+enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE, NO_AMMO }
 
 ## Уникальный id в BuildingManager (0 — «нет здания»).
 var id: int = 0
