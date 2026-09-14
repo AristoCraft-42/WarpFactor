@@ -1,7 +1,8 @@
 class_name CraftQueuePanel
 extends PanelContainer
 ## Очередь ручного крафта над нижним краем экрана: группы одинаковых крафтов с количеством
-## и прогресс текущего. Клик по группе отменяет одну единицу (сырьё возвращается в инвентарь).
+## и прогресс текущего. Отмена — как крафт: ЛКМ — одна единица, ПКМ — пять, Shift+ЛКМ — все такие
+## (сырьё возвращается в инвентарь).
 
 const MAX_GROUPS := 10
 
@@ -58,9 +59,18 @@ func _rebuild() -> void:
 		var slot := ItemSlot.new()
 		slot.set_stack(recipe.output.index, groups[i][1])
 		slot.tooltip_text = tr("CRAFT_QUEUE_CANCEL") % tr(recipe.output.name_key)
-		slot.slot_clicked.connect(func(_button: MouseButton, _shift: bool) -> void: _queue.cancel_last(recipe))
+		slot.slot_clicked.connect(_on_group_clicked.bind(recipe))
 		_row.add_child(slot)
 	_status.text = tr("CRAFT_QUEUE_BLOCKED") if _queue.blocked else ""
+
+
+func _on_group_clicked(button: MouseButton, shift: bool, recipe: HandRecipe) -> void:
+	var count := 1
+	if button == MOUSE_BUTTON_RIGHT:
+		count = 5
+	elif shift:
+		count = _queue.count_of(recipe)
+	_queue.cancel_last(recipe, count)
 
 
 func _notification(what: int) -> void:

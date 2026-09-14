@@ -10,8 +10,8 @@ extends RefCounted
 ## Передача предметов: источник спрашивает accept_item и, получив true, вызывает handle_item.
 ## Задел под энергию и жидкости: такие протоколы добавятся методами с поведением «нет» по умолчанию.
 
-## Вид настройки здания (что показывает панель настройки).
-enum ConfigKind { NONE, ITEM, BRIDGE }
+## Вид настройки здания (что показывает панель настройки). MODE — только переключатели (инверсия).
+enum ConfigKind { NONE, ITEM, BRIDGE, MODE }
 ## Состояние здания для подсказки.
 enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE }
 
@@ -198,7 +198,7 @@ func get_status() -> Status:
 	return Status.NONE
 
 
-# --- Склады (разгрузчик берёт из них предметы) ---
+# --- Источники для разгрузчика (склады, продукция заводов, буфер буров) ---
 
 func can_unload() -> bool:
 	return false
@@ -231,3 +231,12 @@ func set_config(_value: Variant) -> void:
 ## Предмет, иконку которого показать на здании (-1 — нет).
 func get_display_item() -> int:
 	return -1
+
+
+## Есть ли у здания настройка инверсии (сортировщик, переливной клапан).
+func supports_inversion() -> bool:
+	return false
+
+
+func is_inverted() -> bool:
+	return false

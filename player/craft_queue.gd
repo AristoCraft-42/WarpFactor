@@ -76,12 +76,24 @@ func cancel(index: int) -> void:
 	revision += 1
 
 
-## Отменяет последнюю единицу с этим рецептом (правый клик по группе в очереди).
-func cancel_last(recipe: HandRecipe) -> void:
+## Отменяет до count последних единиц с этим рецептом (с конца очереди). Возвращает, сколько отменено.
+func cancel_last(recipe: HandRecipe, count: int = 1) -> int:
+	var cancelled := 0
 	for i in range(units.size() - 1, -1, -1):
+		if cancelled >= count:
+			break
 		if units[i].recipe == recipe:
 			cancel(i)
-			return
+			cancelled += 1
+	return cancelled
+
+
+func count_of(recipe: HandRecipe) -> int:
+	var n := 0
+	for unit in units:
+		if unit.recipe == recipe:
+			n += 1
+	return n
 
 
 ## Группы подряд идущих единиц одного рецепта: [[рецепт, количество], ...].

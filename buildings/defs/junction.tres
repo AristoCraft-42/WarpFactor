@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://buildings/transport/logistic_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/transport/junction.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://buildings/defs/conveyor.tres" id="5_throughput"]
 [ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
 
 [sub_resource type="Resource" id="cost_0"]
@@ -29,3 +30,4 @@ glyph = 2
 logic_script = ExtResource("3_logic")
 transfer_ticks = 8
 capacity = 6
+throughput_of = ExtResource("5_throughput")

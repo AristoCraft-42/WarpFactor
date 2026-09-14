@@ -1,13 +1,13 @@
 [gd_resource type="Resource" script_class="ItemType" format=3]
 
 [ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
-[ext_resource type="Resource" path="res://buildings/defs/underflow_gate.tres" id="2_building"]
+[ext_resource type="Resource" path="res://buildings/defs/titanium_unloader.tres" id="2_building"]
 
 [resource]
 script = ExtResource("1_script")
-id = &"underflow_gate"
-name_key = "BUILDING_UNDERFLOW_GATE"
-color = Color(0.310, 0.388, 0.471, 1)
-sort_order = 1180
+id = &"titanium_unloader"
+name_key = "BUILDING_TITANIUM_UNLOADER"
+color = Color(0.290, 0.416, 0.541, 1)
+sort_order = 1201
 stack_size = 50
 building = ExtResource("2_building")

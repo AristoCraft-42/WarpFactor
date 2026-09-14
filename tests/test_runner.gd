@@ -49,6 +49,9 @@ func _ready() -> void:
 	_test_pulverizer_separator_chain()
 	_test_alloy_mixer_and_contents()
 	_test_config_wakes_blocked_belts()
+	_test_logistics_throughput()
+	_test_unloader_from_buildings()
+	_test_inversion_config()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -95,8 +98,13 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 6, "ожидалось 6 руд, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 20, "ожидалось 20 зданий, есть %d" % Registry.buildings.size())
-	_check(Registry.items.size() == 11 + 20, "ожидалось 11 ресурсов и 20 предметов-построек, есть %d" % Registry.items.size())
+	_check(Registry.buildings.size() == 24, "ожидалось 24 здания, есть %d" % Registry.buildings.size())
+	_check(Registry.items.size() == 11 + 24, "ожидалось 11 ресурсов и 24 предмета-постройки, есть %d" % Registry.items.size())
+	_check(Registry.get_building(&"inverted_sorter") == null and Registry.get_building(&"underflow_gate") == null,
+		"инвертированные варианты стали настройкой, а не отдельными зданиями")
+	for def in Registry.buildings:
+		if def is LogisticDef:
+			_check((def as LogisticDef).throughput_of != null, "у %s задана пропускная способность" % def.id)
 	_check(Registry.levels.size() >= 2, "ожидалось не меньше 2 уровней")
 	_check(Registry.validate().is_empty(), "ошибки валидации: %s" % ", ".join(Registry.validate()))
 	_check(Registry.stack_sizes.size() == Registry.items.size(), "таблица размеров стака")
@@ -689,8 +697,9 @@ func _test_sorters() -> void:
 		var lead := Registry.get_item(&"lead").index
 		_source(world, Vector2i(2, 10), [copper, lead])
 		Worlds.conveyor_line(world, Vector2i(3, 10), 3, GameConst.Dir.RIGHT)
-		var sorter := _place(world, &"inverted_sorter" if inverted else &"sorter", Vector2i(6, 10))
+		var sorter := _place(world, &"sorter", Vector2i(6, 10))
 		world.configure(sorter, copper)
+		world.configure(sorter, inverted)
 		Worlds.conveyor_line(world, Vector2i(7, 10), 2, GameConst.Dir.RIGHT)
 		var forward := _sink(world, Vector2i(9, 10))
 		Worlds.conveyor_line(world, Vector2i(6, 9), 2, GameConst.Dir.UP)
@@ -700,11 +709,11 @@ func _test_sorters() -> void:
 		Worlds.run_ticks(world, 900)
 		var matched := lead if inverted else copper
 		var other := copper if inverted else lead
-		var name := "инвертированный сортировщик" if inverted else "сортировщик"
+		var name := "сортировщик с инверсией" if inverted else "сортировщик"
 		_check(forward.received > 30 and forward.count_of(other) == 0, "%s: вперёд только выбранное (%d)" % [name, forward.received])
 		_check(up.count_of(matched) == 0 and down.count_of(matched) == 0 and up.received > 5 and down.received > 5,
 			"%s: в стороны остальное, поровну (%d / %d)" % [name, up.received, down.received])
-		_check(sorter.get_display_item() == copper, "%s: иконка фильтра" % name)
+		_check(sorter.get_display_item() == copper and sorter.is_inverted() == inverted, "%s: фильтр и инверсия сохранены" % name)
 		world.dispose()
 
 
@@ -730,7 +739,7 @@ func _test_gates() -> void:
 	world = Worlds.empty_world(24, 24)
 	_source(world, Vector2i(2, 10), [0])
 	Worlds.conveyor_line(world, Vector2i(3, 10), 3, GameConst.Dir.RIGHT)
-	_place(world, &"underflow_gate", Vector2i(6, 10))
+	world.configure(_place(world, &"overflow_gate", Vector2i(6, 10)), true)
 	Worlds.conveyor_line(world, Vector2i(7, 10), 2, GameConst.Dir.RIGHT)
 	forward = _sink(world, Vector2i(9, 10))
 	Worlds.conveyor_line(world, Vector2i(6, 9), 2, GameConst.Dir.UP)
@@ -813,7 +822,7 @@ func _test_pass_through_chains() -> void:
 	Worlds.conveyor_line(world, Vector2i(3, 10), 2, GameConst.Dir.RIGHT)
 	_place(world, &"overflow_gate", Vector2i(5, 10))
 	_place(world, &"overflow_gate", Vector2i(6, 10))
-	_place(world, &"inverted_sorter", Vector2i(7, 10))
+	world.configure(_place(world, &"sorter", Vector2i(7, 10)), true)
 	var sink := _sink(world, Vector2i(8, 10))
 	Worlds.run_ticks(world, 300)
 	_check(sink.received > 30, "цепочка шлюзов и сортировщика пропускает поток (%d)" % sink.received)
@@ -848,7 +857,7 @@ func _test_config_copy_and_contents() -> void:
 	var world := Worlds.empty_world(24, 16, true)
 	var lead := Registry.get_item(&"lead").index
 	var sorter := world.build(Registry.get_building(&"sorter"), Vector2i(4, 4), 0, lead)
-	_check(sorter != null and sorter.get_config() == lead, "настройка применяется при строительстве")
+	_check(sorter != null and sorter.get_display_item() == lead, "настройка применяется при строительстве")
 	var bridge := world.build(Registry.get_building(&"bridge_conveyor"), Vector2i(4, 8), 0, Vector2i(3, 0))
 	_check(bridge.get_config() == Vector2i(3, 0), "настройка моста копируется как смещение")
 	var router := world.build(Registry.get_building(&"router"), Vector2i(10, 10), 0)
@@ -1017,4 +1026,106 @@ func _test_config_wakes_blocked_belts() -> void:
 	world.configure(a, b.origin - a.origin)
 	Worlds.run_ticks(world, 300)
 	_check(bridge_sink.received > 20, "после связи мостов уснувшая лента проснулась (%d)" % bridge_sink.received)
+	world.dispose()
+
+
+## Пропускная способность логистики: уровень 1 — как обычная лента, уровень 2 — как титановая.
+## Вход и выход — титановые ленты, чтобы узким местом было само здание.
+func _test_logistics_throughput() -> void:
+	var copper := _item(&"copper")
+	var belt_rate: float = (Registry.get_building(&"conveyor") as ConveyorDef).get_items_per_second()
+	var titanium_rate: float = (Registry.get_building(&"titanium_conveyor") as ConveyorDef).get_items_per_second()
+	for id in [&"junction", &"router", &"sorter", &"overflow_gate", &"bridge_conveyor", &"unloader",
+			&"titanium_junction", &"titanium_router", &"titanium_sorter", &"titanium_overflow_gate",
+			&"titanium_bridge_conveyor", &"titanium_unloader"]:
+		var def := Registry.get_building(id) as LogisticDef
+		var expected := titanium_rate if String(id).begins_with("titanium_") else belt_rate
+		_check(is_equal_approx(def.get_items_per_second(), expected), "%s: заявлено %.1f предм./с" % [id, def.get_items_per_second()])
+		var world := Worlds.empty_world(32, 12)
+		var y := 5
+		if def.logic_script == preload("res://buildings/transport/unloader.gd"):
+			var storage := world.buildings.place(Registry.get_building(&"vault"), Vector2i(5, y - 1), 0, true) as StorageBuilding
+			storage.inventory.add(copper, 4000)
+		else:
+			_source(world, Vector2i(3, y), [copper])
+			Worlds.conveyor_line(world, Vector2i(4, y), 4, GameConst.Dir.RIGHT, &"titanium_conveyor")
+		var block := world.buildings.place(def, Vector2i(8, y), 0, true)
+		var out_start := 9
+		if block is BridgeConveyor:
+			var end := world.buildings.place(def, Vector2i(11, y), 0, true)
+			world.configure(block, end.origin - block.origin)
+			out_start = 12
+		elif block is Sorter:
+			world.configure(block, copper)
+		Worlds.conveyor_line(world, Vector2i(out_start, y), 4, GameConst.Dir.RIGHT, &"titanium_conveyor")
+		var sink := _sink(world, Vector2i(out_start + 4, y))
+		Worlds.run_ticks(world, 300)
+		var before: int = sink.received
+		Worlds.run_ticks(world, 600)
+		var rate: float = (sink.received - before) / 20.0
+		_check(absf(rate - expected) <= 0.35, "%s: реальная пропускная способность %.2f предм./с (ожидалось %.1f)" % [id, rate, expected])
+		world.dispose()
+
+
+## Разгрузчик достаёт готовую продукцию заводов и добычу буров, но не сырьё из входа завода.
+func _test_unloader_from_buildings() -> void:
+	var coal := _item(&"coal")
+	var graphite := _item(&"graphite")
+	var world := Worlds.empty_world(32, 24)
+	var press := world.buildings.place(Registry.get_building(&"graphite_press"), Vector2i(6, 5), 0, true) as Crafter
+	_source(world, Vector2i(5, 5), [coal])
+	var unloader := _place(world, &"unloader", Vector2i(8, 5))
+	Worlds.conveyor_line(world, Vector2i(9, 5), 3, GameConst.Dir.RIGHT)
+	var sink := _sink(world, Vector2i(12, 5))
+	Worlds.run_ticks(world, 900)
+	_check(sink.count_of(graphite) > 5 and sink.count_of(coal) == 0, "разгрузчик забирает графит из пресса, но не уголь (%d / %d)" % [sink.count_of(graphite), sink.count_of(coal)])
+	world.configure(unloader, coal)
+	var graphite_before: int = sink.count_of(graphite)
+	Worlds.run_ticks(world, 300)
+	_check(sink.count_of(coal) == 0 and sink.count_of(graphite) == graphite_before, "фильтр «уголь»: из завода сырьё не достаётся")
+	_check(press.inputs[coal] > 0, "сырьё осталось в прессе")
+
+	# Бур → разгрузчик → лента.
+	var map := LevelMap.new(24, 12, Registry.get_floor(&"stone").index)
+	for y in range(4, 6):
+		for x in range(4, 6):
+			map.set_ore(x, y, Registry.get_ore(&"copper").index + 1)
+	var mine := GameWorld.create(null, map, true)
+	mine.buildings.place(Registry.get_building(&"mechanical_drill"), Vector2i(4, 4), 0, true)
+	mine.buildings.place(Registry.get_building(&"unloader"), Vector2i(6, 4), 0, true)
+	Worlds.conveyor_line(mine, Vector2i(7, 4), 3, GameConst.Dir.RIGHT)
+	var drill_sink := mine.buildings.place(Worlds.sink_def(), Vector2i(10, 4), 0, true)
+	Worlds.run_ticks(mine, 900)
+	_check(drill_sink.received > 5, "разгрузчик забирает добычу бура (%d)" % drill_sink.received)
+
+	# Склад → разгрузчик → завод: сырьё уходит в завод и назад в склад не возвращается.
+	var chain := Worlds.empty_world(32, 24)
+	var storage := chain.buildings.place(Registry.get_building(&"container"), Vector2i(4, 4), 0, true) as StorageBuilding
+	storage.inventory.add(coal, 100)
+	chain.buildings.place(Registry.get_building(&"unloader"), Vector2i(6, 4), 0, true)
+	var fed := chain.buildings.place(Registry.get_building(&"graphite_press"), Vector2i(7, 4), 0, true) as Crafter
+	Worlds.run_ticks(chain, 900)
+	var produced := fed.outputs[graphite] + storage.inventory.count(graphite)
+	_check(produced > 0, "пресс получил уголь из склада через разгрузчик и работает")
+	_check(storage.inventory.count(coal) + fed.inputs[coal] + produced * 2 + (2 if fed.crafting else 0) == 100,
+		"уголь не гоняется по кругу между складом и заводом")
+	world.dispose()
+	mine.dispose()
+	chain.dispose()
+
+
+## Инверсия — настройка: переносится пипеткой и копированием, переключается отдельно от фильтра.
+func _test_inversion_config() -> void:
+	var world := Worlds.empty_world(24, 16, true)
+	var lead := _item(&"lead")
+	var sorter := world.build(Registry.get_building(&"sorter"), Vector2i(4, 4), 0, {"item": lead, "inverted": true})
+	_check(sorter.get_display_item() == lead and sorter.is_inverted(), "настройка сортировщика словарём при стройке")
+	world.configure(sorter, null)
+	_check(sorter.get_display_item() == -1 and sorter.is_inverted(), "снятие фильтра не сбрасывает инверсию")
+	world.configure(sorter, false)
+	_check(not sorter.is_inverted() and sorter.get_config() == null, "без фильтра и инверсии настройки нет")
+	var gate := world.build(Registry.get_building(&"overflow_gate"), Vector2i(8, 4), 0, true)
+	_check(gate.is_inverted() and gate.get_config() == true, "обратный режим клапана — настройка")
+	var copy := world.build(Registry.get_building(&"overflow_gate"), Vector2i(10, 4), 0, gate.get_config())
+	_check(copy.is_inverted(), "копия клапана сохраняет обратный режим")
 	world.dispose()

@@ -1,6 +1,8 @@
 class_name Router
 extends Building
-## Делитель: держит один предмет и после задержки отдаёт его по кругу любому соседу, кроме источника.
+## Делитель: держит один предмет и отдаёт его по кругу любому соседу, кроме источника.
+## Предмет выходит через get_ticks_per_item() − 1 тиков после входа: источник, разбуженный в тике
+## отдачи, приносит следующий ровно через get_ticks_per_item() — это и есть пропускная способность.
 
 var item: int = -1
 var _from_id: int = 0
@@ -14,7 +16,7 @@ func accept_item(_source: Building, _item: int) -> bool:
 func handle_item(source: Building, new_item: int) -> void:
 	item = new_item
 	_from_id = source.id if source != null else 0
-	_ready_tick = world.simulation.tick + (def as LogisticDef).transfer_ticks
+	_ready_tick = world.simulation.tick + maxi((def as LogisticDef).get_ticks_per_item() - 1, 1)
 	wake()
 
 

@@ -3,34 +3,35 @@
 [ext_resource type="Script" path="res://buildings/transport/logistic_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/transport/overflow_gate.gd" id="3_logic"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
-[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
+[ext_resource type="Resource" path="res://buildings/defs/titanium_conveyor.tres" id="5_throughput"]
+[ext_resource type="Resource" path="res://items/types/buildings/overflow_gate.tres" id="item_overflow_gate"]
+[ext_resource type="Resource" path="res://items/types/titanium.tres" id="item_titanium"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
-amount = 4
+item = ExtResource("item_overflow_gate")
+amount = 1
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_lead")
+item = ExtResource("item_titanium")
 amount = 2
 
 [resource]
 script = ExtResource("1_def")
-id = &"underflow_gate"
-name_key = "BUILDING_UNDERFLOW_GATE"
-description_key = "BUILDING_UNDERFLOW_GATE_DESC"
+id = &"titanium_overflow_gate"
+name_key = "BUILDING_TITANIUM_OVERFLOW_GATE"
+description_key = "BUILDING_TITANIUM_OVERFLOW_GATE_DESC"
 category = 1
 size = 1
 removable = true
 player_buildable = true
 line_placement = false
-sort_order = 80
+sort_order = 71
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
-craft_time = 0.5
+craft_time = 0.75
 craft_amount = 1
-color = Color(0.310, 0.388, 0.471, 1)
+color = Color(0.353, 0.416, 0.502, 1)
 glyph = 5
 logic_script = ExtResource("3_logic")
-inverted = true
+throughput_of = ExtResource("5_throughput")

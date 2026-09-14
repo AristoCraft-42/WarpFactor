@@ -73,6 +73,9 @@ func update_tick(tick: int) -> bool:
 			for p in recipe.produces:
 				p.produce(self, world.rng)
 			crafting = false
+			# Разгрузчики, ждущие продукцию.
+			if world.simulation.has_waiters(id):
+				notify_space()
 		else:
 			status = Status.OUTPUT_BLOCKED
 
@@ -115,6 +118,23 @@ func get_status() -> Status:
 
 
 func accepts_player_items() -> bool:
+	return true
+
+
+## Разгрузчик забирает только готовую продукцию: сырьё из входного буфера не трогается.
+func can_unload() -> bool:
+	return true
+
+
+func has_item(item: int) -> bool:
+	return outputs[item] > 0
+
+
+func unload_item(item: int) -> bool:
+	if outputs[item] <= 0:
+		return false
+	outputs[item] -= 1
+	wake()
 	return true
 
 

@@ -1,11 +1,14 @@
 class_name Junction
 extends Building
 ## Перекрёсток: пропускает предметы насквозь на противоположную сторону, не смешивая потоки.
-## У каждого направления своя очередь; предмет выходит через transfer_ticks после входа.
+## У каждого направления своя очередь; предмет выходит не раньше transfer_ticks после входа
+## и не чаще, чем раз в get_ticks_per_item() тиков по каждому направлению (пропускная способность).
 
 ## Очереди по стороне прихода (направление от перекрёстка к источнику).
 var _items: Array[PackedInt32Array] = []
 var _ticks: Array[PackedInt32Array] = []
+## Тик, с которого направление может выпустить следующий предмет.
+var _next_out := PackedInt32Array([0, 0, 0, 0])
 
 
 func _init() -> void:
@@ -36,12 +39,13 @@ func on_proximity_changed() -> void:
 
 func update_tick(tick: int) -> bool:
 	var delay := (def as LogisticDef).transfer_ticks
+	var interval := (def as LogisticDef).get_ticks_per_item()
 	var next_wake := -1
 	var passed := false
 	for side in 4:
 		if _items[side].is_empty():
 			continue
-		var ready := _ticks[side][0] + delay
+		var ready := maxi(_ticks[side][0] + delay, _next_out[side])
 		if tick < ready:
 			next_wake = ready if next_wake < 0 else mini(next_wake, ready)
 			continue
@@ -52,8 +56,9 @@ func update_tick(tick: int) -> bool:
 			_ticks[side].remove_at(0)
 			target.handle_item(self, item)
 			passed = true
+			_next_out[side] = tick + interval
 			if not _items[side].is_empty():
-				var next_ready := maxi(tick + 1, _ticks[side][0] + delay)
+				var next_ready := maxi(_next_out[side], _ticks[side][0] + delay)
 				next_wake = next_ready if next_wake < 0 else mini(next_wake, next_ready)
 		elif target != null:
 			wait_for(target)

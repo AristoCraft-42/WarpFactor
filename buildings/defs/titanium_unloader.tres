@@ -3,35 +3,35 @@
 [ext_resource type="Script" path="res://buildings/transport/logistic_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/transport/unloader.gd" id="3_logic"]
-[ext_resource type="Resource" path="res://buildings/defs/conveyor.tres" id="5_throughput"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
-[ext_resource type="Resource" path="res://items/types/graphite.tres" id="item_graphite"]
+[ext_resource type="Resource" path="res://buildings/defs/titanium_conveyor.tres" id="5_throughput"]
+[ext_resource type="Resource" path="res://items/types/buildings/unloader.tres" id="item_unloader"]
+[ext_resource type="Resource" path="res://items/types/titanium.tres" id="item_titanium"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
-amount = 25
+item = ExtResource("item_unloader")
+amount = 1
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_graphite")
-amount = 10
+item = ExtResource("item_titanium")
+amount = 5
 
 [resource]
 script = ExtResource("1_def")
-id = &"unloader"
-name_key = "BUILDING_UNLOADER"
-description_key = "BUILDING_UNLOADER_DESC"
+id = &"titanium_unloader"
+name_key = "BUILDING_TITANIUM_UNLOADER"
+description_key = "BUILDING_TITANIUM_UNLOADER_DESC"
 category = 1
 size = 1
 removable = true
 player_buildable = true
 line_placement = false
-sort_order = 100
+sort_order = 101
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
-craft_time = 1.0
+craft_time = 1.5
 craft_amount = 1
-color = Color(0.310, 0.447, 0.447, 1)
+color = Color(0.290, 0.416, 0.541, 1)
 glyph = 7
 logic_script = ExtResource("3_logic")
 throughput_of = ExtResource("5_throughput")

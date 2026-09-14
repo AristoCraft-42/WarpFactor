@@ -43,8 +43,15 @@ func _process(_delta: float) -> void:
 	_dirty.clear()
 
 
-## Детали поверх здания, зависящие от настройки: иконка фильтра, связь моста.
+## Детали поверх здания, зависящие от настройки: иконка фильтра, инверсия, связь моста.
 static func draw_building_extras(canvas: CanvasItem, building: Building) -> void:
+	if building.is_inverted():
+		# Инверсия: сиреневая рамка и уголок-отметка.
+		var rect := building.get_world_rect().grow(-2.0)
+		canvas.draw_rect(rect, Color(0.83, 0.53, 0.61, 0.95), false, 2.0)
+		var corner := rect.position
+		canvas.draw_colored_polygon(PackedVector2Array([corner, corner + Vector2(10, 0), corner + Vector2(0, 10)]),
+			Color(0.83, 0.53, 0.61, 0.95))
 	var item := building.get_display_item()
 	if item >= 0:
 		var t := float(GameConst.TILE_SIZE)

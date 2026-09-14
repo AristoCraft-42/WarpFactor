@@ -1,7 +1,8 @@
 class_name ConfigPanel
 extends PanelContainer
-## Панель настройки выбранного здания: фильтр по предмету (сортировщики, разгрузчик)
-## или связь моста (подсказка и разрыв связи). Изменения идут через GameWorld.configure.
+## Панель настройки выбранного здания: фильтр по предмету (сортировщик, разгрузчик),
+## переключатель инверсии (сортировщик, переливной клапан) или связь моста (подсказка и разрыв).
+## Изменения идут через GameWorld.configure.
 
 const ITEM_COLUMNS := 10
 const ITEM_BUTTON := 40
@@ -33,13 +34,15 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 
 
 func _on_building_changed(building: Building) -> void:
+	# Отложенно: изменение приходит из обработчика кнопки этой же панели.
 	if building == _building:
-		_rebuild()
+		_rebuild.call_deferred()
 
 
 func _rebuild() -> void:
 	_building = _tools.selected
 	for child in _content.get_children():
+		_content.remove_child(child)
 		child.queue_free()
 	if _building == null or _building.world == null or _building.get_config_kind() == Building.ConfigKind.NONE:
 		visible = false
@@ -51,6 +54,8 @@ func _rebuild() -> void:
 			_build_item_picker()
 		Building.ConfigKind.BRIDGE:
 			_build_bridge_info()
+	if _building.supports_inversion():
+		_build_inversion_toggle()
 
 
 func _build_item_picker() -> void:
@@ -64,19 +69,34 @@ func _build_item_picker() -> void:
 	grid.add_theme_constant_override("h_separation", 4)
 	grid.add_theme_constant_override("v_separation", 4)
 	_content.add_child(grid)
-	var current: Variant = _building.get_config()
-	var none := _make_button(current == null)
+	var current := _building.get_display_item()
+	var none := _make_button(current < 0)
 	none.text = "✕"
 	none.tooltip_text = "CONFIG_ANY_ITEM" if _building is Unloader else "CONFIG_NO_ITEM"
 	none.pressed.connect(func() -> void: _world.configure(_building, null))
 	grid.add_child(none)
 	for item in Registry.items:
-		var b := _make_button(current is int and int(current) == item.index)
+		var b := _make_button(current == item.index)
 		b.icon = ArtRegistry.get_item_icon(item)
 		b.expand_icon = true
 		b.tooltip_text = item.name_key
 		b.pressed.connect(_world.configure.bind(_building, item.index))
 		grid.add_child(b)
+
+
+## Переключатель инверсии: сортировщик — «выбранное в стороны», клапан — «обратный режим».
+func _build_inversion_toggle() -> void:
+	var toggle := CheckButton.new()
+	toggle.text = "CONFIG_INVERT_SORTER" if _building is Sorter else "CONFIG_INVERT_GATE"
+	toggle.focus_mode = Control.FOCUS_NONE
+	toggle.button_pressed = _building.is_inverted()
+	var building := _building
+	toggle.toggled.connect(func(pressed: bool) -> void: _world.configure(building, pressed))
+	_content.add_child(toggle)
+	var hint := UiUtil.label("CONFIG_INVERT_SORTER_HINT" if _building is Sorter else "CONFIG_INVERT_GATE_HINT", &"DimLabel")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(ITEM_COLUMNS * (ITEM_BUTTON + 4), 0)
+	_content.add_child(hint)
 
 
 func _build_bridge_info() -> void:

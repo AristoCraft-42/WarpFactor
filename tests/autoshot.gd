@@ -154,10 +154,32 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	_expect(drone.crafting.units.size() >= 4, "ПКМ по рецепту ставит 5 крафтов (в очереди %d)" % drone.crafting.units.size())
 	await _frames(3)
 	await _shot("d03_craft_queue.png")
+	# Отмена работает как крафт: ещё 5 в очередь, ПКМ по группе в очереди — минус 5.
+	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, false)
+	var queued := drone.crafting.units.size()
+	await _frames(3)
+	var queue_panel := _find_child_of_type(game.hud, "CraftQueuePanel")
+	var queue_row: HBoxContainer = queue_panel.get("_row") if queue_panel != null else null
+	if queue_row != null and queue_row.get_child_count() > 0:
+		var group_center := (queue_row.get_child(0) as Control).get_global_rect().get_center()
+		await _mouse_move_screen(group_center)
+		await _mouse_button_screen(group_center, MOUSE_BUTTON_RIGHT, true)
+		await _mouse_button_screen(group_center, MOUSE_BUTTON_RIGHT, false)
+	_expect(drone.crafting.units.size() <= queued - 4, "ПКМ по группе в очереди отменяет 5 (%d → %d)" % [queued, drone.crafting.units.size()])
 	await _key(KEY_ESCAPE)
 	_expect(not window.visible, "Esc закрывает инвентарь")
-	await _wait_ticks(world, belt_recipe.ticks * 6 + 4)
-	_expect(drone.crafting.is_empty() and inv.count(belt) == belts_before + 6, "очередь докрафтила ленты")
+	# ПКМ по кнопке постройки в меню строительства — крафт одной.
+	var menu := _find_child_of_type(game.hud, "BuildMenu") as BuildMenu
+	var belt_button: Button = (menu.get("_building_buttons") as Dictionary)[&"conveyor"]
+	var button_center := belt_button.get_global_rect().get_center()
+	var units_before := drone.crafting.units.size()
+	await _mouse_move_screen(button_center)
+	await _mouse_button_screen(button_center, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button_screen(button_center, MOUSE_BUTTON_RIGHT, false)
+	_expect(drone.crafting.units.size() >= units_before, "ПКМ по кнопке постройки ставит крафт")
+	await _wait_ticks(world, belt_recipe.ticks * 8 + 4)
+	_expect(drone.crafting.is_empty() and inv.count(belt) == belts_before + 7, "очередь докрафтила ленты (+%d)" % (inv.count(belt) - belts_before))
 
 
 ## Инструменты через настоящие события ввода.
@@ -553,14 +575,26 @@ func _run_logistics(game: Game, base: Vector2i) -> void:
 	var grid := _find_child_of_class(panel, "GridContainer")
 	if grid != null and grid.get_child_count() > lead + 1:
 		await _click_control(grid.get_child(lead + 1) as Control)
-	_expect(sorter.get_config() == lead, "клик по свинцу в панели меняет фильтр")
+	_expect(sorter.get_display_item() == lead, "клик по свинцу в панели меняет фильтр")
+	var toggle := _find_child_of_class(panel, "CheckButton") as CheckButton
+	_expect(toggle != null, "у сортировщика есть переключатель инверсии")
+	if toggle != null:
+		await _click_control(toggle)
+		await _frames(3)
+		_expect(sorter.is_inverted(), "клик по переключателю включает инверсию")
+		await _shot("i04b_sorter_inverted.png")
+		toggle = _find_child_of_class(panel, "CheckButton") as CheckButton
+		await _click_control(toggle)
+		await _frames(3)
+		_expect(not sorter.is_inverted() and sorter.get_display_item() == lead, "повторный клик выключает инверсию, фильтр остаётся")
 	await _key(KEY_ESCAPE)
 	_expect(tools.selected == null and not panel.visible, "Esc снимает выбор и закрывает панель")
 
 	# Пипетка копирует фильтр.
 	await _mouse_move(game, sorter.origin)
 	await _key(KEY_Q)
-	_expect(tools.place_def == sorter.def and tools.place_config == lead, "пипетка копирует фильтр сортировщика")
+	var copied: Variant = tools.place_config
+	_expect(tools.place_def == sorter.def and copied is Dictionary and (copied as Dictionary).get("item") == lead, "пипетка копирует фильтр сортировщика")
 	await _key(KEY_ESCAPE)
 
 	# Связь мостов кликами.

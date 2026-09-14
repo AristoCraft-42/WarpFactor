@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://buildings/transport/logistic_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/transport/sorter.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://buildings/defs/conveyor.tres" id="5_throughput"]
 [ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
 [ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
 
@@ -33,3 +34,4 @@ craft_amount = 1
 color = Color(0.373, 0.439, 0.314, 1)
 glyph = 4
 logic_script = ExtResource("3_logic")
+throughput_of = ExtResource("5_throughput")

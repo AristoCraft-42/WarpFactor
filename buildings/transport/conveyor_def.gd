@@ -7,9 +7,12 @@ extends BuildingDef
 
 
 ## Пропускная способность при плотном потоке: предмет встаёт на ленту раз в ceil(зазор / шаг) тиков.
+func get_ticks_per_item() -> int:
+	return ceili(float(ConveyorSystem.SPACE) / ConveyorSystem.step_for(self))
+
+
 func get_items_per_second() -> float:
-	var ticks_per_item := ceili(float(ConveyorSystem.SPACE) / ConveyorSystem.step_for(self))
-	return float(GameConst.TICK_RATE) / ticks_per_item
+	return float(GameConst.TICK_RATE) / get_ticks_per_item()
 
 
 func get_stat_lines() -> PackedStringArray:

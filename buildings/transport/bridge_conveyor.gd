@@ -4,11 +4,14 @@ extends Building
 ## до link_range тайлов по прямой. Мост со связью принимает предметы от соседей (кроме стороны связи)
 ## и отправляет их по цепочке; последний мост отдаёт соседям, но не назад, откуда пришла связь.
 ## Настройка — смещение до связанного моста (Vector2i), поэтому копируется пипеткой.
+## Предмет уходит дальше не раньше transfer_ticks после входа и не чаще, чем раз в
+## get_ticks_per_item() тиков (пропускная способность).
 
 var link: Vector2i = Vector2i.ZERO
 
 var _items := PackedInt32Array()
 var _ticks := PackedInt32Array()
+var _next_out: int = 0
 
 
 func get_config_kind() -> ConfigKind:
@@ -83,7 +86,7 @@ func receive(item: int) -> bool:
 func update_tick(tick: int) -> bool:
 	if _items.is_empty():
 		return false
-	var ready := _ticks[0] + (def as LogisticDef).transfer_ticks
+	var ready := maxi(_ticks[0] + (def as LogisticDef).transfer_ticks, _next_out)
 	if tick < ready:
 		sleep_until(ready)
 		return false
@@ -92,7 +95,8 @@ func update_tick(tick: int) -> bool:
 	if target != null:
 		if target.receive(item):
 			_pop()
-			return not _items.is_empty()
+			_after_output(tick)
+			return false
 		wait_for(target)
 		return false
 
@@ -108,7 +112,8 @@ func update_tick(tick: int) -> bool:
 			_pop()
 			_dump_index = (_dump_index + k + 1) % n
 			other.handle_item(self, item)
-			return not _items.is_empty()
+			_after_output(tick)
+			return false
 	for other in proximity:
 		var side := side_of(other)
 		if side >= 0 and (blocked & (1 << side)) == 0 and not (other is BridgeConveyor):
@@ -143,6 +148,13 @@ func _incoming_mask() -> int:
 				mask |= 1 << dir
 				break
 	return mask
+
+
+## После выпуска предмета: следующий — не раньше чем через интервал пропускной способности.
+func _after_output(tick: int) -> void:
+	_next_out = tick + (def as LogisticDef).get_ticks_per_item()
+	if not _items.is_empty():
+		sleep_until(_next_out)
 
 
 func _push(item: int) -> void:

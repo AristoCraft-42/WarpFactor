@@ -1,34 +1,27 @@
 class_name BuildMenu
 extends PanelContainer
-## Панель строительства: вкладки категорий, сетка кнопок зданий, описание и рецепт крафта.
+## Панель строительства: вкладки категорий и сетка кнопок зданий. Описание, характеристики и рецепт —
+## в подсказке при наведении на кнопку, отдельной панели описания нет (экономит место).
 ## Вкладки переключаются свободно, даже когда здание уже в руке. Автоматически раздел меняется
 ## только если сменилось само выбранное здание (например, пипеткой).
-## На кнопке — сколько таких построек в инвентаре дрона; без построек кнопка приглушена,
-## но здание можно выбрать и скрафтить кнопкой в описании (ЛКМ — 1, ПКМ — 5).
+## На кнопке — сколько таких построек в инвентаре дрона; без построек кнопка приглушена.
+## ЛКМ — взять в руку, ПКМ — скрафтить одну, Shift+ПКМ — пять.
 
 const CATEGORY_KEYS := ["CATEGORY_EXTRACTION", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_STORAGE"]
-const COLUMNS := 6
+const COLUMNS := 8
+const ROWS := 2
 const BUTTON_SIZE := 54
 const REFRESH_INTERVAL := 0.2
-const INFO_HEIGHT := 256
 
 var _tools: ToolController
 var _world: GameWorld
 var _category: int = BuildingDef.Category.TRANSPORT
 var _category_buttons: Array[Button] = []
 var _grid: GridContainer
-var _title: Label
-var _description: Label
-var _stats: Label
-var _cost_row: HBoxContainer
-var _craft_row: HBoxContainer
-var _owned_label: Label
-var _craft_button: Button
 var _building_buttons: Dictionary[StringName, Button] = {}
 var _count_labels: Dictionary[StringName, Label] = {}
 var _building_group := ButtonGroup.new()
 var _synced_def: BuildingDef
-var _shown_def: BuildingDef
 var _inventory_revision: int = -1
 var _timer: float = 0.0
 
@@ -66,45 +59,9 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 	_grid.columns = COLUMNS
 	_grid.add_theme_constant_override("h_separation", 4)
 	_grid.add_theme_constant_override("v_separation", 4)
-	_grid.custom_minimum_size = Vector2(COLUMNS * (BUTTON_SIZE + 4), BUTTON_SIZE * 2 + 4)
+	# Постоянная высота: панель не прыгает при смене вкладки.
+	_grid.custom_minimum_size = Vector2(COLUMNS * (BUTTON_SIZE + 4), ROWS * (BUTTON_SIZE + 4))
 	root.add_child(_grid)
-
-	root.add_child(HSeparator.new())
-	# Информация фиксированной высоты: иначе при наведении панель меняет размер
-	# и кнопки уезжают из-под курсора.
-	var info := UiUtil.vbox(6)
-	info.custom_minimum_size = Vector2(0, INFO_HEIGHT)
-	root.add_child(info)
-	_title = Label.new()
-	_title.theme_type_variation = &"HeaderLabel"
-	_title.add_theme_font_size_override("font_size", 18)
-	_title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	info.add_child(_title)
-	_description = Label.new()
-	_description.theme_type_variation = &"DimLabel"
-	_description.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_description.custom_minimum_size = Vector2(COLUMNS * (BUTTON_SIZE + 4), 0)
-	info.add_child(_description)
-	_stats = Label.new()
-	_stats.theme_type_variation = &"DimLabel"
-	_stats.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	_stats.add_theme_color_override("font_color", UiTheme.AQUA)
-	info.add_child(_stats)
-	_cost_row = UiUtil.hbox(10)
-	info.add_child(_cost_row)
-	_craft_row = UiUtil.hbox(10)
-	info.add_child(_craft_row)
-	_owned_label = Label.new()
-	_owned_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	_owned_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_owned_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_craft_row.add_child(_owned_label)
-	_craft_button = UiUtil.button("BUILD_CRAFT")
-	_craft_button.focus_mode = Control.FOCUS_NONE
-	_craft_button.tooltip_text = "BUILD_CRAFT_HINT"
-	_craft_button.gui_input.connect(_on_craft_button_input)
-	_craft_row.add_child(_craft_button)
 
 	tools.mode_changed.connect(_sync_with_tool)
 	_select_category(_category)
@@ -119,8 +76,6 @@ func _process(delta: float) -> void:
 	if inventory.revision != _inventory_revision:
 		_inventory_revision = inventory.revision
 		_update_counts()
-		if _shown_def != null:
-			_show_cost(_shown_def)
 
 
 func _select_category(category: int) -> void:
@@ -129,6 +84,7 @@ func _select_category(category: int) -> void:
 	for i in _category_buttons.size():
 		_category_buttons[i].set_pressed_no_signal(i == category)
 	for child in _grid.get_children():
+		_grid.remove_child(child)
 		child.queue_free()
 	_building_buttons.clear()
 	_count_labels.clear()
@@ -142,10 +98,9 @@ func _select_category(category: int) -> void:
 		b.expand_icon = true
 		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		b.theme_type_variation = &"SlotButton"
-		b.tooltip_text = _tooltip_for(def)
+		b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		b.pressed.connect(_on_building_pressed.bind(def, b))
-		b.mouse_entered.connect(_show_info.bind(def))
-		b.mouse_exited.connect(_show_selected_info)
+		b.gui_input.connect(_on_building_input.bind(def, b))
 		var count := Label.new()
 		count.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		count.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -163,7 +118,6 @@ func _select_category(category: int) -> void:
 		_count_labels[def.id] = count
 	_refresh_pressed()
 	_update_counts()
-	_show_selected_info()
 
 
 func _on_building_pressed(def: BuildingDef, button: Button) -> void:
@@ -171,6 +125,24 @@ func _on_building_pressed(def: BuildingDef, button: Button) -> void:
 		_tools.select_building(def)
 	else:
 		_tools.clear_tool()
+
+
+## ПКМ по кнопке — скрафтить (Shift — пять штук).
+func _on_building_input(event: InputEvent, def: BuildingDef, button: Button) -> void:
+	var mb := event as InputEventMouseButton
+	if mb == null or not mb.pressed or mb.button_index != MOUSE_BUTTON_RIGHT:
+		return
+	button.accept_event()
+	if def.item == null:
+		return
+	var recipe := Registry.get_hand_recipe(def.item.index)
+	if recipe == null:
+		return
+	var count := 5 if mb.shift_pressed else 1
+	if _world.creative:
+		_world.drone.inventory.add(def.item.index, recipe.amount * count)
+	elif _world.drone.crafting.enqueue(recipe, count) == 0:
+		Events.toast(tr("TOAST_CANNOT_CRAFT") % tr(def.name_key), Events.ToastKind.WARNING)
 
 
 func _sync_with_tool() -> void:
@@ -181,7 +153,6 @@ func _sync_with_tool() -> void:
 			_select_category(def.category)
 			return
 	_refresh_pressed()
-	_show_selected_info()
 
 
 func _refresh_pressed() -> void:
@@ -198,89 +169,21 @@ func _update_counts() -> void:
 		_count_labels[id].text = str(owned) if owned > 0 and not _world.creative else ""
 		var available := _world.creative or owned > 0
 		_building_buttons[id].modulate = Color.WHITE if available else Color(1, 1, 1, 0.45)
+		_building_buttons[id].tooltip_text = _tooltip_for(def, owned)
 
 
-func _show_info(def: BuildingDef) -> void:
-	_shown_def = def
-	_title.text = "%s  (%d×%d)" % [tr(def.name_key), def.size, def.size]
-	_description.text = tr(def.description_key)
-	_stats.text = "\n".join(def.get_stat_lines())
-	_stats.visible = not _stats.text.is_empty()
-	_show_cost(def)
-
-
-func _show_cost(def: BuildingDef) -> void:
-	for child in _cost_row.get_children():
-		child.queue_free()
-	_craft_row.visible = true
-	if _world.creative:
-		_cost_row.add_child(UiUtil.label("BUILD_CREATIVE_FREE", &"DimLabel"))
-		_craft_row.visible = false
-		return
-	var inventory := _world.drone.inventory
-	_cost_row.add_child(UiUtil.label("BUILD_CRAFT_FROM", &"DimLabel"))
-	for stack in def.cost:
-		var cell := UiUtil.hbox(3)
-		var icon := TextureRect.new()
-		icon.texture = ArtRegistry.get_item_icon(stack.item)
-		icon.custom_minimum_size = Vector2(18, 18)
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.tooltip_text = stack.item.name_key
-		icon.mouse_filter = Control.MOUSE_FILTER_PASS
-		cell.add_child(icon)
-		var amount := Label.new()
-		amount.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-		amount.text = str(stack.amount)
-		var enough := inventory.count(stack.item.index) >= stack.amount
-		var craftable_part := Registry.get_hand_recipe(stack.item.index) != null
-		amount.add_theme_color_override("font_color", UiTheme.FG if enough else (UiTheme.YELLOW if craftable_part else UiTheme.RED))
-		cell.add_child(amount)
-		_cost_row.add_child(cell)
-	var owned := inventory.count(def.item.index) if def.item != null else 0
-	_owned_label.text = tr("BUILD_OWNED") % owned
-	var recipe := Registry.get_hand_recipe(def.item.index) if def.item != null else null
-	_craft_button.disabled = recipe == null or _world.drone.crafting.max_craftable(recipe, 1) == 0
-
-
-func _show_selected_info() -> void:
-	if _tools.mode == ToolController.Mode.PLACE and _tools.place_def != null:
-		_show_info(_tools.place_def)
-	else:
-		_shown_def = null
-		_title.text = tr(CATEGORY_KEYS[_category])
-		_description.text = tr("BUILD_MENU_HINT")
-		_stats.visible = false
-		_craft_row.visible = false
-		for child in _cost_row.get_children():
-			child.queue_free()
-
-
-## Кнопка «Скрафтить»: ЛКМ — одну, ПКМ — пять.
-func _on_craft_button_input(event: InputEvent) -> void:
-	var mb := event as InputEventMouseButton
-	if mb == null or not mb.pressed or _craft_button.disabled or _shown_def == null or _shown_def.item == null:
-		return
-	if mb.button_index != MOUSE_BUTTON_LEFT and mb.button_index != MOUSE_BUTTON_RIGHT:
-		return
-	var recipe := Registry.get_hand_recipe(_shown_def.item.index)
-	if recipe == null:
-		return
-	var count := 5 if mb.button_index == MOUSE_BUTTON_RIGHT else 1
-	if _world.drone.crafting.enqueue(recipe, count) == 0:
-		Events.toast(tr("TOAST_CANNOT_CRAFT") % tr(recipe.output.name_key), Events.ToastKind.WARNING)
-	_craft_button.accept_event()
-	_show_cost(_shown_def)
-
-
-func _tooltip_for(def: BuildingDef) -> String:
+func _tooltip_for(def: BuildingDef, owned: int) -> String:
 	var lines := PackedStringArray(["%s  (%d×%d)" % [tr(def.name_key), def.size, def.size], tr(def.description_key)])
 	lines.append_array(def.get_stat_lines())
 	if not def.cost.is_empty():
+		var inventory := _world.drone.inventory
 		var parts := PackedStringArray()
 		for stack in def.cost:
-			parts.append("%d %s" % [stack.amount, tr(stack.item.name_key)])
+			parts.append("%s %d/%d" % [tr(stack.item.name_key), inventory.count(stack.item.index), stack.amount])
 		lines.append(tr("CRAFT_INGREDIENTS") % ", ".join(parts))
+	if not _world.creative:
+		lines.append(tr("CRAFT_IN_INVENTORY") % owned)
+	lines.append(tr("BUILD_BUTTON_HINT"))
 	return "\n".join(lines)
 
 

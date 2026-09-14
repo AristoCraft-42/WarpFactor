@@ -1,12 +1,16 @@
 class_name Unloader
 extends Building
-## Разгрузчик: берёт предметы из соседнего склада и отдаёт соседям, которые складами не являются. Настройка — фильтр по предмету (без фильтра — любые по очереди).
+## Разгрузчик: достаёт предметы из соседних зданий, которые умеют их отдавать (can_unload):
+## складов, готовой продукции заводов, буфера буров. Кладёт их соседям, которые принимают:
+## лентам, заводам, складам. Из склада в склад не перекладывает (иначе предметы гонялись бы
+## по кругу), назад в здание-источник — тоже.
+## Настройка — фильтр по предмету; без фильтра — любые предметы по очереди.
+## Скорость — пропускная способность ленты своего уровня.
 
 var filter: int = -1
-
+var blocked: bool = false
 var _next_tick: int = 0
 var _item_cursor: int = 0
-var blocked: bool = false
 
 
 func get_config_kind() -> ConfigKind:
@@ -38,38 +42,35 @@ func update_tick(tick: int) -> bool:
 	if tick < _next_tick:
 		sleep_until(_next_tick)
 		return false
-	var storages: Array[Building] = []
-	var targets: Array[Building] = []
+	var sources: Array[Building] = []
 	for other in proximity:
 		if other.can_unload():
-			storages.append(other)
-		else:
-			targets.append(other)
+			sources.append(other)
 	blocked = false
-	if storages.is_empty() or targets.is_empty():
+	if sources.is_empty() or proximity.size() < 2:
 		return false
-
-	var item := _choose_item(storages)
-	if item < 0:
-		for storage in storages:
-			wait_for(storage)
-		return false
-
-	var n := targets.size()
-	for k in n:
-		var target := targets[(_dump_index + k) % n]
-		if target.accept_item(self, item):
-			for storage in storages:
-				if storage.has_item(item) and storage.unload_item(item):
-					_dump_index = (_dump_index + k + 1) % n
-					target.handle_item(self, item)
-					_next_tick = tick + maxi((def as LogisticDef).transfer_ticks, 1)
-					sleep_until(_next_tick)
-					return false
+	var any_item := false
+	var count := Registry.items.size()
+	for k in count:
+		var item := filter if filter >= 0 else (_item_cursor + k) % count
+		if _has_in_sources(sources, item):
+			any_item = true
+			if _move(sources, item):
+				if filter < 0:
+					_item_cursor = (item + 1) % count
+				_next_tick = tick + (def as LogisticDef).get_ticks_per_item()
+				sleep_until(_next_tick)
+				return false
+		if filter >= 0:
 			break
+	if not any_item:
+		# Нечего доставать: ждём, пока в источниках что-то появится.
+		for source in sources:
+			wait_for(source)
+		return false
 	blocked = true
-	for target in targets:
-		wait_for(target)
+	for other in proximity:
+		wait_for(other)
 	return false
 
 
@@ -83,22 +84,32 @@ func get_info_lines() -> PackedStringArray:
 		lines.append(tr("INFO_FILTER_ANY"))
 	else:
 		lines.append(tr("INFO_FILTER") % tr(Registry.items[filter].name_key))
-	lines.append(tr("INFO_RATE") % (float(GameConst.TICK_RATE) / maxi((def as LogisticDef).transfer_ticks, 1)))
+	lines.append(tr("INFO_RATE") % (def as LogisticDef).get_items_per_second())
 	return lines
 
 
-## Предмет для выгрузки: фильтр или следующий по кругу из имеющихся в хранилищах.
-func _choose_item(storages: Array[Building]) -> int:
-	if filter >= 0:
-		for storage in storages:
-			if storage.has_item(filter):
-				return filter
-		return -1
-	var count := Registry.items.size()
-	for k in count:
-		var item := (_item_cursor + k) % count
-		for storage in storages:
-			if storage.has_item(item):
-				_item_cursor = (item + 1) % count
-				return item
-	return -1
+func _has_in_sources(sources: Array[Building], item: int) -> bool:
+	for source in sources:
+		if source.has_item(item):
+			return true
+	return false
+
+
+## Переложить один предмет item из какого-нибудь источника в какого-нибудь получателя (по кругу).
+func _move(sources: Array[Building], item: int) -> bool:
+	var n := proximity.size()
+	for k in n:
+		var target := proximity[(_dump_index + k) % n]
+		var target_is_storage := target.get_inventory() != null
+		var source: Building = null
+		for candidate in sources:
+			if candidate != target and candidate.has_item(item) and not (target_is_storage and candidate.get_inventory() != null):
+				source = candidate
+				break
+		if source == null or not target.accept_item(self, item):
+			continue
+		if source.unload_item(item):
+			_dump_index = (_dump_index + k + 1) % n
+			target.handle_item(self, item)
+			return true
+	return false

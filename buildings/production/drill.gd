@@ -40,6 +40,8 @@ func update_tick(tick: int) -> bool:
 	elif tick >= _next_tick:
 		buffer += 1
 		_next_tick = tick + ticks_per_item
+		if world.simulation.has_waiters(id):
+			notify_space()
 
 	blocked = false
 	if buffer > 0:
@@ -67,6 +69,22 @@ func collect_contents(out: PackedInt32Array) -> void:
 
 
 func has_player_window() -> bool:
+	return true
+
+
+func can_unload() -> bool:
+	return true
+
+
+func has_item(item: int) -> bool:
+	return item == _item and buffer > 0
+
+
+func unload_item(item: int) -> bool:
+	if item != _item or buffer <= 0:
+		return false
+	buffer -= 1
+	wake()
 	return true
 
 

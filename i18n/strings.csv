@@ -25,7 +25,6 @@ CATEGORY_EXTRACTION,Mining,Добыча
 CATEGORY_TRANSPORT,Transport,Транспорт
 CATEGORY_PRODUCTION,Production,Производство
 CATEGORY_STORAGE,Storage,Хранение
-BUILD_MENU_HINT,Pick a building to place it.,"Выберите здание, чтобы построить его."
 BUILDING_MECHANICAL_DRILL,Mechanical Drill,Механический бур
 BUILDING_MECHANICAL_DRILL_DESC,"Mines the ore underneath. Speed depends on ore tile count and hardness. Tier 2: sand, copper, lead, coal, stone.","Добывает руду под собой. Скорость зависит от числа тайлов руды и её твёрдости. Уровень 2: песок, медь, свинец, уголь, камень."
 BUILDING_PNEUMATIC_DRILL,Pneumatic Drill,Пневматический бур
@@ -39,17 +38,13 @@ BUILDING_JUNCTION_DESC,Lets two crossing flows pass through without mixing.,"П�
 BUILDING_ROUTER,Router,Делитель
 BUILDING_ROUTER_DESC,Distributes items to all sides in turn.,Раздаёт предметы по очереди во все стороны.
 BUILDING_SORTER,Sorter,Сортировщик
-BUILDING_SORTER_DESC,"The selected item goes straight, everything else goes to the sides.","Выбранный предмет проходит прямо, остальные уходят в стороны."
-BUILDING_INVERTED_SORTER,Inverted Sorter,Инвертированный сортировщик
-BUILDING_INVERTED_SORTER_DESC,"The selected item goes to the sides, everything else goes straight.","Выбранный предмет уходит в стороны, остальные проходят прямо."
+BUILDING_SORTER_DESC,"The selected item goes straight, everything else goes to the sides. Inversion in the settings swaps them.","Выбранный предмет проходит прямо, остальные уходят в стороны. Инверсия в настройке меняет их местами."
 BUILDING_OVERFLOW_GATE,Overflow Valve,Переливной клапан
-BUILDING_OVERFLOW_GATE_DESC,"Outputs forward; when the front is blocked, outputs to the sides.","Отдаёт вперёд, а когда впереди занято — в стороны."
-BUILDING_UNDERFLOW_GATE,Underflow Valve,Обратный клапан
-BUILDING_UNDERFLOW_GATE_DESC,"Outputs to the sides; when they are blocked, outputs forward.","Отдаёт в стороны, а когда там занято — вперёд."
+BUILDING_OVERFLOW_GATE_DESC,"Outputs forward; when the front is blocked, outputs to the sides. Reverse mode in the settings: sides first, then forward.","Отдаёт вперёд, а когда впереди занято — в стороны. Обратный режим в настройке: сначала в стороны, потом вперёд."
 BUILDING_BRIDGE_CONVEYOR,Bridge Conveyor,Мостовой конвейер
 BUILDING_BRIDGE_CONVEYOR_DESC,Carries items over other buildings to a linked bridge up to 4 tiles away. Bridges placed in a row link automatically.,"Переносит предметы над постройками к связанному мосту на расстоянии до 4 тайлов. Мосты, поставленные в ряд, связываются сами."
 BUILDING_UNLOADER,Unloader,Разгрузчик
-BUILDING_UNLOADER_DESC,Takes items out of an adjacent storage.,Достаёт предметы из соседнего склада.
+BUILDING_UNLOADER_DESC,"Takes items out of adjacent storages, finished products of factories and drill buffers, and passes them on.","Достаёт предметы из соседних складов, готовую продукцию заводов и добычу буров и передаёт дальше."
 BUILDING_PULVERIZER,Pulverizer,Дробилка
 BUILDING_PULVERIZER_DESC,Crushes stone into crushed rock.,Дробит камень в дроблёную породу.
 BUILDING_GRAPHITE_PRESS,Graphite Press,Графитовый пресс
@@ -190,7 +185,6 @@ ACTION_SPEED_1,Speed ×1,Скорость ×1
 ACTION_SPEED_2,Speed ×2,Скорость ×2
 ACTION_SPEED_3,Speed ×4,Скорость ×4
 STAT_BRIDGE_RANGE,Range: %d tiles,Дальность: %d тайла
-STAT_TRANSFER_TIME,Delay: %.2f s,Задержка: %.2f с
 INFO_FILTER,Filter: %s,Фильтр: %s
 INFO_FILTER_NONE,No filter selected,Фильтр не выбран
 INFO_FILTER_ANY,Unloads any items,Выгружает любые предметы
@@ -241,7 +235,7 @@ LEVELS_CREATIVE,Creative mode,Творческий режим
 LEVELS_CREATIVE_HINT,Buildings are not consumed and the drone's reach is unlimited.,"Постройки не расходуются, радиус дрона не ограничен."
 STAT_SLOTS,Slots: %d,Ячеек: %d
 INFO_SLOTS,Slots used: %d of %d,Занято ячеек: %d из %d
-PROBLEM_NO_ITEM,Not in the inventory — craft it (E or the button below),Нет в инвентаре — скрафтите (E или кнопка ниже)
+PROBLEM_NO_ITEM,Not in the inventory — craft it (E or RMB on the building button),Нет в инвентаре — скрафтите (E или ПКМ по кнопке постройки)
 PROBLEM_OUT_OF_RANGE,Too far from the drone,Слишком далеко от дрона
 TOAST_NO_ITEM,No «%s» in the inventory,В инвентаре нет «%s»
 TOAST_OUT_OF_RANGE,Too far from the drone,Слишком далеко от дрона
@@ -258,11 +252,26 @@ CRAFT_TIME,Time: %.2f s,Время: %.2f с
 CRAFT_IN_INVENTORY,In inventory: %d,В инвентаре: %d
 CRAFT_AVAILABLE,Can craft now: %d,Можно скрафтить: %d
 CRAFT_QUEUE,Crafting,Крафт
-CRAFT_QUEUE_CANCEL,«%s» — click to cancel one,«%s» — клик отменяет одну
+CRAFT_QUEUE_CANCEL,"«%s»: LMB — cancel 1, RMB — 5, Shift+LMB — all","«%s»: ЛКМ — отменить 1, ПКМ — 5, Shift+ЛКМ — все"
 CRAFT_QUEUE_BLOCKED,inventory is full,инвентарь полон
 BUILDING_WINDOW_HINT,"LMB — take a stack, RMB — half, Shift+LMB — all of this item.","ЛКМ — забрать стопку, ПКМ — половину, Shift+ЛКМ — все такие предметы."
-BUILD_CRAFT,Craft,Скрафтить
-BUILD_CRAFT_HINT,"LMB — 1, RMB — 5","ЛКМ — 1, ПКМ — 5"
-BUILD_CRAFT_FROM,Craft:,Крафт:
-BUILD_OWNED,In inventory: %d,В инвентаре: %d
-BUILD_CREATIVE_FREE,Creative mode: free,Творческий режим: бесплатно
+BUILDING_TITANIUM_JUNCTION,Titanium Junction,Титановый перекрёсток
+BUILDING_TITANIUM_JUNCTION_DESC,A junction with titanium conveyor throughput.,Перекрёсток с пропускной способностью титановой ленты.
+BUILDING_TITANIUM_ROUTER,Titanium Router,Титановый делитель
+BUILDING_TITANIUM_ROUTER_DESC,A router with titanium conveyor throughput.,Делитель с пропускной способностью титановой ленты.
+BUILDING_TITANIUM_SORTER,Titanium Sorter,Титановый сортировщик
+BUILDING_TITANIUM_SORTER_DESC,A sorter with titanium conveyor throughput.,Сортировщик с пропускной способностью титановой ленты.
+BUILDING_TITANIUM_OVERFLOW_GATE,Titanium Overflow Valve,Титановый переливной клапан
+BUILDING_TITANIUM_OVERFLOW_GATE_DESC,An overflow valve with titanium conveyor throughput.,Переливной клапан с пропускной способностью титановой ленты.
+BUILDING_TITANIUM_BRIDGE_CONVEYOR,Titanium Bridge Conveyor,Титановый мостовой конвейер
+BUILDING_TITANIUM_BRIDGE_CONVEYOR_DESC,A bridge conveyor with titanium conveyor throughput.,Мостовой конвейер с пропускной способностью титановой ленты.
+BUILDING_TITANIUM_UNLOADER,Titanium Unloader,Титановый разгрузчик
+BUILDING_TITANIUM_UNLOADER_DESC,An unloader with titanium conveyor throughput.,Разгрузчик с пропускной способностью титановой ленты.
+CONFIG_INVERT_SORTER,Inversion,Инверсия
+CONFIG_INVERT_SORTER_HINT,With inversion the selected item goes to the sides and everything else goes straight.,"С инверсией выбранный предмет уходит в стороны, а остальные проходят прямо."
+CONFIG_INVERT_GATE,Reverse mode,Обратный режим
+CONFIG_INVERT_GATE_HINT,"Reverse mode: outputs to the sides, and forward only when the sides are blocked.","Обратный режим: отдаёт в стороны, а вперёд — только когда по сторонам занято."
+INFO_INVERTED,Inverted,Инверсия
+INFO_GATE_NORMAL,Mode: forward first,Режим: сначала вперёд
+INFO_GATE_INVERTED,Mode: sides first (reverse),Режим: сначала в стороны (обратный)
+BUILD_BUTTON_HINT,"LMB — take in hand, RMB — craft 1, Shift+RMB — craft 5","ЛКМ — взять в руку, ПКМ — скрафтить 1, Shift+ПКМ — 5"
