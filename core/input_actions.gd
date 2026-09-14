@@ -10,6 +10,7 @@ const GROUP_CAMERA := "INPUT_GROUP_CAMERA"
 const GROUP_BUILD := "INPUT_GROUP_BUILD"
 const GROUP_TIME := "INPUT_GROUP_TIME"
 const GROUP_VIEW := "INPUT_GROUP_VIEW"
+const GROUP_GAME := "INPUT_GROUP_GAME"
 
 ## Максимум привязок на действие в меню управления.
 const SLOTS := 2
@@ -40,6 +41,8 @@ static func definitions() -> Array[Dictionary]:
 		{"name": &"copy_selection", "label": "ACTION_COPY_SELECTION", "group": GROUP_BUILD, "events": ["key:C"]},
 		{"name": &"cancel", "label": "ACTION_CANCEL", "group": GROUP_BUILD, "events": ["key:Escape"]},
 
+		{"name": &"quick_save", "label": "ACTION_QUICK_SAVE", "group": GROUP_GAME, "events": ["key:F5"]},
+		{"name": &"quick_load", "label": "ACTION_QUICK_LOAD", "group": GROUP_GAME, "events": ["key:F9"]},
 		{"name": &"pause", "label": "ACTION_PAUSE", "group": GROUP_TIME, "events": ["key:Space"]},
 		{"name": &"speed_1", "label": "ACTION_SPEED_1", "group": GROUP_TIME, "events": ["key:1"]},
 		{"name": &"speed_2", "label": "ACTION_SPEED_2", "group": GROUP_TIME, "events": ["key:2"]},

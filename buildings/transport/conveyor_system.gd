@@ -231,6 +231,36 @@ func insert_from(conveyor: Conveyor, source: Building, item: int) -> void:
 		_insert(c, item, SIDE_INSERT, 1.0 if side == (d + 1) % 4 else -1.0, 0)
 
 
+## Порядок лент, бодрствующие, флаги ожидания и свежести — для точного продолжения после загрузки.
+func save_runtime() -> Dictionary:
+	return {"order": bids.duplicate(), "awake": _awake.duplicate(), "awake_flags": awake_flags.duplicate(),
+		"has_waiters": has_waiters.duplicate(), "fresh_tick": fresh_tick.duplicate(), "dprog": dprog.duplicate()}
+
+
+func load_runtime(data: Dictionary) -> void:
+	var order: PackedInt32Array = data.get("order", PackedInt32Array())
+	if order != bids:
+		# Ленты встали в другом порядке (например, часть зданий пропала при загрузке): просто будим все.
+		_awake = PackedInt32Array()
+		awake_flags.fill(0)
+		for c in count:
+			_wake(c)
+		return
+	_awake = (data.get("awake", PackedInt32Array()) as PackedInt32Array).duplicate()
+	var flags: PackedByteArray = data.get("awake_flags", PackedByteArray())
+	var waiters: PackedByteArray = data.get("has_waiters", PackedByteArray())
+	var fresh: PackedInt32Array = data.get("fresh_tick", PackedInt32Array())
+	var moved: PackedInt32Array = data.get("dprog", PackedInt32Array())
+	if flags.size() == count:
+		awake_flags = flags.duplicate()
+	if waiters.size() == count:
+		has_waiters = waiters.duplicate()
+	if fresh.size() == count:
+		fresh_tick = fresh.duplicate()
+	if moved.size() == count * CAP:
+		dprog = moved.duplicate()
+
+
 ## Предметы ленты от переднего к заднему: {"items", "prog"}.
 func export_items(conveyor: Conveyor) -> Dictionary:
 	var c := index_of(conveyor.id)
@@ -251,13 +281,17 @@ func import_items(conveyor: Conveyor, state: Dictionary) -> void:
 		return
 	var src_items: PackedInt32Array = state.get("items", PackedInt32Array())
 	var src_prog: PackedInt32Array = state.get("prog", PackedInt32Array())
-	var n := mini(mini(src_items.size(), src_prog.size()), CAP)
-	for s in n:
-		var k := c * CAP + s
-		items[k] = src_items[s]
+	var n := 0
+	for s in mini(mini(src_items.size(), src_prog.size()), CAP):
+		var item := SaveContext.item(src_items[s])
+		if item < 0:
+			continue
+		var k := c * CAP + n
+		items[k] = item
 		prog[k] = clampi(src_prog[s], 0, UNITS)
 		dprog[k] = 0
 		lat[k] = 0.0
+		n += 1
 	counts[c] = n
 	mins[c] = prog[c * CAP + n - 1] if n > 0 else EMPTY_MIN
 	if n > 0:

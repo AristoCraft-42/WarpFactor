@@ -49,11 +49,12 @@ func update_tick(_tick: int) -> bool:
 
 
 func save_state() -> Dictionary:
-	return {"next_accept": _next_accept}
+	return {"next_accept": _next_accept, "flip": _flip}
 
 
 func load_state(state: Dictionary) -> void:
 	_next_accept = int(state.get("next_accept", 0))
+	_flip = bool(state.get("flip", false))
 
 
 func supports_inversion() -> bool:

@@ -53,6 +53,21 @@ func pop(to_base: bool) -> void:
 		_to_planet.remove_at(0)
 
 
+func save_data() -> Dictionary:
+	return {"to_base": _to_base.duplicate(), "to_planet": _to_planet.duplicate(), "capacity": capacity,
+		"sent_to_base": sent_to_base.duplicate(), "sent_to_planet": sent_to_planet.duplicate(),
+		"planet_gateway": planet_gateway.id if planet_gateway != null else 0,
+		"base_gateway": base_gateway.id if base_gateway != null else 0}
+
+
+func load_data(data: Dictionary) -> void:
+	_to_base = SaveContext.items(data.get("to_base", PackedInt32Array()))
+	_to_planet = SaveContext.items(data.get("to_planet", PackedInt32Array()))
+	capacity = int(data.get("capacity", capacity))
+	sent_to_base = SaveContext.counts(data.get("sent_to_base", PackedInt32Array()))
+	sent_to_planet = SaveContext.counts(data.get("sent_to_planet", PackedInt32Array()))
+
+
 ## Здание на другом конце связи.
 func other(gateway: GatewayBuilding) -> GatewayBuilding:
 	return base_gateway if gateway == planet_gateway else planet_gateway

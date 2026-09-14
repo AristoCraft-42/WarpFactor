@@ -115,12 +115,12 @@ func collect_contents(out: PackedInt32Array) -> void:
 
 func save_state() -> Dictionary:
 	return {"inputs": inputs.duplicate(), "outputs": outputs.duplicate(), "crafting": crafting,
-		"start_tick": start_tick, "finish_tick": finish_tick}
+		"start_tick": start_tick, "finish_tick": finish_tick, "cursor": _output_cursor, "status": status}
 
 
 func load_state(state: Dictionary) -> void:
-	var src_inputs: PackedInt32Array = state.get("inputs", PackedInt32Array())
-	var src_outputs: PackedInt32Array = state.get("outputs", PackedInt32Array())
+	var src_inputs := SaveContext.counts(state.get("inputs", PackedInt32Array()))
+	var src_outputs := SaveContext.counts(state.get("outputs", PackedInt32Array()))
 	for i in mini(src_inputs.size(), inputs.size()):
 		inputs[i] = src_inputs[i]
 	for i in mini(src_outputs.size(), outputs.size()):
@@ -128,6 +128,8 @@ func load_state(state: Dictionary) -> void:
 	crafting = bool(state.get("crafting", false))
 	start_tick = int(state.get("start_tick", 0))
 	finish_tick = int(state.get("finish_tick", 0))
+	_output_cursor = clampi(SaveContext.item(int(state.get("cursor", 0))), 0, maxi(outputs.size() - 1, 0))
+	status = int(state.get("status", Status.IDLE)) as Status
 	wake()
 
 

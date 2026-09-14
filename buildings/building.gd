@@ -162,6 +162,15 @@ func collect_contents(_out: PackedInt32Array) -> void:
 
 # --- Состояние (переезд площадки, сохранения) ---
 
+## Курсор раздачи соседям по кругу (сохраняется, чтобы порядок раздачи не сбивался после загрузки).
+func get_dump_cursor() -> int:
+	return _dump_index
+
+
+func set_dump_cursor(value: int) -> void:
+	_dump_index = maxi(value, 0)
+
+
 ## Внутреннее состояние здания — буферы, прогресс, тики (абсолютные: миры забега тикают синхронно).
 ## Настройка сюда не входит — она переносится через get_config/set_config.
 func save_state() -> Dictionary:

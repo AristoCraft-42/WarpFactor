@@ -186,6 +186,34 @@ func clear() -> void:
 	_changed()
 
 
+## Ячейки как есть (для сохранения) и подсказки неполных ячеек — от них зависит, куда ляжет следующий предмет.
+func save_slots() -> Dictionary:
+	return {"slot_items": slot_items.duplicate(), "slot_counts": slot_counts.duplicate(), "hints": _hint.duplicate()}
+
+
+## Восстановить ячейки из сохранения (индексы предметов переносятся через SaveContext).
+func load_slots(p_items: PackedInt32Array, p_counts: PackedInt32Array, p_hints: PackedInt32Array = PackedInt32Array()) -> void:
+	slot_items.fill(EMPTY)
+	slot_counts.fill(0)
+	totals.fill(0)
+	slots_used.fill(0)
+	free_slots = slot_items.size()
+	for i in mini(slot_items.size(), mini(p_items.size(), p_counts.size())):
+		var item := SaveContext.item(p_items[i])
+		if item < 0 or p_counts[i] <= 0:
+			continue
+		var amount := mini(p_counts[i], Registry.stack_sizes[item])
+		slot_items[i] = item
+		slot_counts[i] = amount
+		totals[item] += amount
+		slots_used[item] += 1
+		free_slots -= 1
+		_hint[item] = i
+	if not SaveContext.is_remapping() and p_hints.size() == _hint.size():
+		_hint = p_hints.duplicate()
+	_changed()
+
+
 ## Пересобирает ячейки: предметы по порядку реестра, сначала полные стопки.
 func sort_slots() -> void:
 	slot_items.fill(EMPTY)

@@ -136,6 +136,41 @@ func update_tick() -> void:
 	revision += 1
 
 
+# --- Сохранение ---
+
+func save_data() -> Dictionary:
+	var list: Array = []
+	for unit in units:
+		list.append({"recipe": unit.recipe.output.index, "total": unit.ticks_total, "done": unit.ticks_done,
+			"consumed": unit.consumed.duplicate(), "surplus": unit.surplus.duplicate()})
+	return {"units": list, "blocked": blocked}
+
+
+func load_data(data: Dictionary) -> void:
+	units.clear()
+	for entry in (data.get("units", []) as Array):
+		var d: Dictionary = entry
+		var recipe := Registry.get_hand_recipe(SaveContext.item(int(d.get("recipe", -1))))
+		var consumed := SaveContext.count_dict(d.get("consumed", {}))
+		if recipe == null:
+			# Рецепта больше нет — сырьё возвращается в инвентарь.
+			for item in consumed:
+				_inventory.add(item, consumed[item])
+			continue
+		var unit := Unit.new()
+		unit.recipe = recipe
+		unit.ticks_total = int(d.get("total", recipe.ticks))
+		unit.ticks_done = int(d.get("done", 0))
+		for item in consumed:
+			unit.consumed[item] = consumed[item]
+		var surplus := SaveContext.count_dict(d.get("surplus", {}))
+		for item in surplus:
+			unit.surplus[item] = surplus[item]
+		units.append(unit)
+	blocked = bool(data.get("blocked", false))
+	revision += 1
+
+
 ## План одного крафта против доступных предметов available (предмет → остаток; отсутствующий
 ## ключ — берётся количество из инвентаря). При успехе available уменьшается.
 func _plan(recipe: HandRecipe, available: Dictionary[int, int]) -> Unit:

@@ -40,7 +40,13 @@ var belt_overlay: BeltLoadOverlay:
 	get:
 		return active_view.belt_overlay
 
+## Имена файлов служебных сохранений.
+const AUTOSAVE_FILE := "autosave"
+const TELEPORT_AUTOSAVE_FILE := "autosave_teleport"
+const QUICKSAVE_FILE := "quicksave"
+
 var _debug_enabled: bool = false
+var _last_autosave_tick: int = 0
 var _ores_shown: bool = false
 var _belts_shown: bool = false
 
@@ -50,6 +56,20 @@ func _ready() -> void:
 	ArtRegistry.ensure_built()
 
 	var args := OS.get_cmdline_user_args()
+	for arg in args:
+		if arg.begins_with("--load="):
+			Session.load_path = arg.substr("--load=".length())
+	if not Session.load_path.is_empty():
+		var path := Session.load_path
+		Session.load_path = ""
+		run = SaveIO.load_run(path)
+		if run == null:
+			Events.toast(tr("TOAST_LOAD_FAILED"), Events.ToastKind.WARNING)
+			Session.exit_to_menu.call_deferred()
+			return
+		_start()
+		Events.toast(tr("TOAST_LOADED") % String(SaveIO.read_header(path).get("name", "")), Events.ToastKind.SUCCESS)
+		return
 	var run_seed := Session.run_seed
 	for arg in args:
 		if arg.begins_with("--seed="):
@@ -87,6 +107,8 @@ func _start() -> void:
 	_build_scene()
 	run.drone_changed_world.connect(_on_drone_changed_world)
 	run.planet_changed.connect(_on_planet_changed)
+	run.teleport_starting.connect(func() -> void: save_named(TELEPORT_AUTOSAVE_FILE, tr("SAVE_NAME_BEFORE_TELEPORT"), false))
+	_last_autosave_tick = run.base.simulation.tick
 
 	camera.focus_on(run.drone.position, 1.0)
 	_on_view_changed()
@@ -118,6 +140,16 @@ func open_pause_menu() -> void:
 	tools.clear_tool()
 	pause_menu.open()
 	_update_input_enabled()
+
+
+## Сохранить забег в служебный слот: file_id — имя файла, display_name — имя в списке.
+func save_named(file_id: String, display_name: String, announce: bool) -> void:
+	var error := SaveIO.save_run_as(run, file_id, display_name)
+	_last_autosave_tick = run.base.simulation.tick
+	if error != OK:
+		Events.toast(tr("TOAST_SAVE_FAILED"), Events.ToastKind.WARNING)
+	elif announce:
+		Events.toast(tr("TOAST_SAVED") % display_name, Events.ToastKind.SUCCESS)
 
 
 ## Мир базы открыт на экране.
@@ -179,6 +211,7 @@ func _build_scene() -> void:
 	pause_menu = PauseMenu.new()
 	pause_menu.name = "PauseMenu"
 	add_child(pause_menu)
+	pause_menu.run = run
 	pause_menu.closed.connect(_update_input_enabled)
 
 	Settings.changed.connect(_on_setting_changed)
@@ -189,6 +222,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("use_gateway"):
 		run.use_gateway()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("quick_save"):
+		save_named(QUICKSAVE_FILE, tr("SAVE_NAME_QUICK"), true)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("quick_load"):
+		var path := SaveIO.slot_path(QUICKSAVE_FILE)
+		if FileAccess.file_exists(path):
+			Session.load_game(path)
+		else:
+			Events.toast(tr("TOAST_NO_QUICKSAVE"), Events.ToastKind.WARNING)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("overlay_ores"):
 		_ores_shown = not _ores_shown
@@ -225,6 +268,10 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(_delta: float) -> void:
 	if tools == null:
 		return
+	# Автосохранение по времени игры (тики базы), интервал — из настроек.
+	var interval := Settings.get_int(&"game/autosave") * 60 * GameConst.TICK_RATE
+	if interval > 0 and run.base.simulation.tick - _last_autosave_tick >= interval:
+		save_named(AUTOSAVE_FILE, tr("SAVE_NAME_AUTO"), false)
 	# Модальный диалог подтверждения тоже блокирует ввод в мир.
 	var enabled := not pause_menu.is_open() and not hud.is_modal_open()
 	if enabled != tools.input_enabled:
@@ -278,6 +325,7 @@ func _on_planet_changed() -> void:
 	hud.on_planet_changed()
 	_on_view_changed()
 	terrain.flush()
+	save_named(AUTOSAVE_FILE, tr("SAVE_NAME_AUTO"), false)
 
 
 func _view_of(target: GameWorld) -> WorldView:

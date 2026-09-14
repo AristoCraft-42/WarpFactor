@@ -126,8 +126,15 @@ func save_state() -> Dictionary:
 
 
 func load_state(state: Dictionary) -> void:
-	_items = (state.get("items", PackedInt32Array()) as PackedInt32Array).duplicate()
-	_ticks = (state.get("ticks", PackedInt32Array()) as PackedInt32Array).duplicate()
+	var src_items: PackedInt32Array = state.get("items", PackedInt32Array())
+	var src_ticks: PackedInt32Array = state.get("ticks", PackedInt32Array())
+	_items = PackedInt32Array()
+	_ticks = PackedInt32Array()
+	for i in mini(src_items.size(), src_ticks.size()):
+		var item := SaveContext.item(src_items[i])
+		if item >= 0:
+			_items.append(item)
+			_ticks.append(src_ticks[i])
 	_next_out = int(state.get("next_out", 0))
 	wake()
 

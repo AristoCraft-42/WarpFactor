@@ -33,6 +33,9 @@ func _run_menu(menu: MainMenu) -> void:
 	menu.call("_show_settings")
 	await _frames(10)
 	await _shot("m03_settings.png")
+	menu.call("_show_saves")
+	await _frames(10)
+	await _shot("m04_saves.png")
 	get_tree().quit()
 
 
@@ -71,6 +74,7 @@ func _run_game(game: Game) -> void:
 	game.grid_overlay.set_chunk_lines_visible(false)
 
 	await _run_teleport(game)
+	await _run_saves(game)
 
 	game.open_pause_menu()
 	await _frames(10)
@@ -161,6 +165,41 @@ func _run_gateway(game: Game) -> void:
 	await _shot("w03_planet_gateway.png")
 	_expect(planet_out.inventory.count(lead) > 0, "свинец из базы вышел на планету (%d)" % planet_out.inventory.count(lead))
 	_expect(run.base.simulation.tick == run.planet.simulation.tick, "база тикает, пока дрон на планете")
+
+
+## Сохранения: F5 — быстрое сохранение, меню паузы — сохранение в слот (загрузка проверяется тестами).
+func _run_saves(game: Game) -> void:
+	var quick := SaveIO.slot_path(Game.QUICKSAVE_FILE)
+	SaveIO.delete_save(quick)
+	await _key(KEY_F5)
+	await _frames(5)
+	_expect(FileAccess.file_exists(quick), "F5 делает быстрое сохранение")
+	var header := SaveIO.read_header(quick)
+	_expect(String(header.get("title", "")) == game.run.get_world_title(game.run.planet), "в заголовке — текущая планета")
+
+	game.open_pause_menu()
+	await _frames(5)
+	var saves_screen: SavesScreen = game.pause_menu.get("_saves")
+	game.pause_menu.call("_open_saves", SavesScreen.Mode.SAVE)
+	await _frames(10)
+	_expect(saves_screen.visible and saves_screen.mode == SavesScreen.Mode.SAVE, "меню паузы открывает экран сохранения")
+	var name_edit: LineEdit = saves_screen.get("_name_edit")
+	name_edit.text = "autoshot slot"
+	var save_button: Button = saves_screen.get("_save_button")
+	var path := SaveIO.slot_path("autoshot slot")
+	SaveIO.delete_save(path)
+	await _click_control(save_button)
+	await _frames(5)
+	_expect(FileAccess.file_exists(path), "кнопка «Сохранить» пишет слот")
+	await _shot("s01_save_screen.png")
+	var loaded := SaveIO.load_run(path)
+	_expect(loaded != null and loaded.star_map.get_current().id == game.run.star_map.get_current().id, "слот загружается в тот же забег")
+	if loaded != null:
+		loaded.dispose()
+	SaveIO.delete_save(path)
+	await _key(KEY_ESCAPE)
+	await _key(KEY_ESCAPE)
+	_expect(not game.pause_menu.is_open(), "меню паузы закрыто")
 
 
 ## Телепорт: клик по шлюзу, звёздная карта, зарядка, итог; площадка переезжает, остальное теряется.

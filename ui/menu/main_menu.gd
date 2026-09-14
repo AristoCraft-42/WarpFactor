@@ -1,6 +1,7 @@
 class_name MainMenu
 extends Control
-## Главное меню: слева — кнопки, справа — открытая страница (новый забег или настройки).
+## Главное меню: слева — кнопки, справа — открытая страница (новый забег, загрузка или настройки).
+## «Продолжить» загружает последнее сохранение.
 ## На фоне медленно проплывает карта одного из уровней.
 
 const VERSION_TEXT := "v%s"
@@ -8,6 +9,7 @@ const VERSION_TEXT := "v%s"
 var _background: TextureRect
 var _pages: CenterContainer
 var _new_run: NewRunScreen
+var _saves: SavesScreen
 var _settings: SettingsMenu
 var _buttons: Array[Button] = []
 
@@ -42,10 +44,12 @@ func _ready() -> void:
 	gap.custom_minimum_size = Vector2(0, 28)
 	left.add_child(gap)
 
+	var has_saves := not SaveIO.list_saves().is_empty()
+	var continue_button := _add_menu_button(left, "MENU_CONTINUE", _continue_latest, &"BigButton")
+	continue_button.disabled = not has_saves
 	_add_menu_button(left, "MENU_NEW_RUN", _show_new_run, &"BigButton")
-	var load_button := _add_menu_button(left, "MENU_LOAD", Callable(), &"BigButton")
-	load_button.disabled = true
-	load_button.tooltip_text = "TOOLTIP_SAVES_LATER"
+	var load_button := _add_menu_button(left, "MENU_LOAD", _show_saves, &"BigButton")
+	load_button.disabled = not has_saves
 	_add_menu_button(left, "MENU_SETTINGS", _show_settings, &"BigButton")
 	_add_menu_button(left, "MENU_QUIT", func() -> void: Session.quit_game(), &"BigButton")
 
@@ -65,6 +69,10 @@ func _ready() -> void:
 	_new_run.visible = false
 	_new_run.back_requested.connect(_close_pages)
 	_pages.add_child(_new_run)
+	_saves = SavesScreen.new()
+	_saves.visible = false
+	_saves.back_requested.connect(_close_pages)
+	_pages.add_child(_saves)
 
 	_settings = SettingsMenu.new()
 	_settings.visible = false
@@ -82,7 +90,7 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("cancel") and (_new_run.visible or _settings.visible):
+	if event.is_action_pressed("cancel") and (_new_run.visible or _settings.visible or _saves.visible):
 		if _settings.visible and _settings.is_capturing():
 			return
 		get_viewport().set_input_as_handled()
@@ -101,17 +109,32 @@ func _add_menu_button(parent: Control, key: String, callback: Callable, variatio
 
 func _show_new_run() -> void:
 	_settings.visible = false
+	_saves.visible = false
 	_new_run.visible = true
+
+
+func _show_saves() -> void:
+	_settings.visible = false
+	_new_run.visible = false
+	_saves.open(SavesScreen.Mode.LOAD)
+
+
+func _continue_latest() -> void:
+	var path := SaveIO.latest_save_path()
+	if not path.is_empty():
+		Session.load_game(path)
 
 
 func _show_settings() -> void:
 	_new_run.visible = false
+	_saves.visible = false
 	_settings.visible = true
 	_settings.refresh()
 
 
 func _close_pages() -> void:
 	_new_run.visible = false
+	_saves.visible = false
 	_settings.visible = false
 
 

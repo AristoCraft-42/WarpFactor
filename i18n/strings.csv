@@ -70,7 +70,6 @@ MENU_PLAY,Play,Играть
 MENU_LOAD,Load,Загрузить
 MENU_SETTINGS,Settings,Настройки
 MENU_QUIT,Quit,Выход
-TOOLTIP_SAVES_LATER,Saving is not available yet.,Сохранения пока недоступны.
 LEVELS_TITLE,Choose a level,Выбор уровня
 LEVELS_START,Start,Начать
 LEVELS_EMPTY,No levels found,Уровни не найдены
@@ -115,7 +114,7 @@ SET_AUTOSAVE_OFF,Off,Выключено
 SET_AUTOSAVE_2,Every 2 minutes,Каждые 2 минуты
 SET_AUTOSAVE_5,Every 5 minutes,Каждые 5 минут
 SET_AUTOSAVE_10,Every 10 minutes,Каждые 10 минут
-SET_AUTOSAVE_HINT,Will become available together with saving.,Заработает вместе с сохранениями.
+SET_AUTOSAVE_HINT,Autosave also happens right before a teleport and after arrival.,Автосохранение также делается перед телепортом и после прибытия.
 SET_VOLUME_MASTER,Master volume,Общая громкость
 SET_VOLUME_MUSIC,Music,Музыка
 SET_VOLUME_SFX,Effects,Эффекты
@@ -318,3 +317,23 @@ SUMMARY_SAFE,This planet is safe — the enemy will not attack.,Эта план�
 SUMMARY_SENT,Sent to the base:,Отправлено в базу:
 SUMMARY_NOTHING,nothing,ничего
 SUMMARY_OK,Continue,Продолжить
+MENU_CONTINUE,Continue,Продолжить
+SAVES_TITLE_LOAD,Load game,Загрузка
+SAVES_TITLE_SAVE,Save game,Сохранение
+SAVES_EMPTY,No saves yet,Сохранений пока нет
+SAVES_NAME,Name:,Название:
+SAVES_DELETE,Delete,Удалить
+SAVES_OVERWRITE,Overwrite «%s»?,Перезаписать «%s»?
+SAVES_DELETE_CONFIRM,Delete «%s»?,Удалить «%s»?
+CONFIRM_OK,OK,ОК
+TOAST_SAVED,Saved: %s,Сохранено: %s
+TOAST_SAVE_FAILED,Failed to save the game,Не удалось сохранить игру
+TOAST_LOADED,Loaded: %s,Загружено: %s
+TOAST_LOAD_FAILED,Failed to load the save,Не удалось загрузить сохранение
+TOAST_NO_QUICKSAVE,No quick save yet (F5),Быстрого сохранения ещё нет (F5)
+SAVE_NAME_AUTO,Autosave,Автосохранение
+SAVE_NAME_BEFORE_TELEPORT,Before teleport,Перед телепортом
+SAVE_NAME_QUICK,Quick save,Быстрое сохранение
+INPUT_GROUP_GAME,Game,Игра
+ACTION_QUICK_SAVE,Quick save,Быстрое сохранение
+ACTION_QUICK_LOAD,Quick load,Быстрая загрузка

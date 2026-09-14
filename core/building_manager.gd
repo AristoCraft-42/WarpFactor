@@ -92,8 +92,8 @@ func check_place(def: BuildingDef, origin: Vector2i, rotation: int) -> Check:
 
 
 ## Ставит здание. При force=false проверяет размещение (REPLACE сносит старое здание).
-## Возвращает новое здание или null.
-func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = false) -> Building:
+## forced_id — занять конкретный id (загрузка сохранения). Возвращает новое здание или null.
+func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = false, forced_id: int = 0) -> Building:
 	var check := check_place(def, origin, rotation)
 	if check == Check.SAME:
 		return null
@@ -110,7 +110,7 @@ func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = fals
 	building.origin = origin
 	building.rotation = posmod(rotation, 4) if def.rotatable else 0
 	building.world = _world
-	building.id = _allocate_id()
+	building.id = _reserve_id(forced_id) if forced_id > 0 else _allocate_id()
 	_by_id[building.id] = building
 
 	var rect := building.get_rect()
@@ -221,6 +221,34 @@ func dispose() -> void:
 			b.proximity = []
 	_by_id.clear()
 	_world = null
+
+
+## Сколько id выделено (включая свободные) и список свободных — для сохранения.
+func get_id_capacity() -> int:
+	return _by_id.size()
+
+
+func get_free_ids() -> PackedInt32Array:
+	return _free_ids.duplicate()
+
+
+## Восстановить выдачу id как в сохранении (после расстановки зданий с их id).
+func restore_ids(capacity: int, free_ids: PackedInt32Array) -> void:
+	while _by_id.size() < capacity:
+		_by_id.append(null)
+	_free_ids = PackedInt32Array()
+	for id in free_ids:
+		if id > 0 and id < _by_id.size() and _by_id[id] == null:
+			_free_ids.append(id)
+
+
+func _reserve_id(id: int) -> int:
+	while _by_id.size() <= id:
+		_by_id.append(null)
+	var pos := _free_ids.find(id)
+	if pos >= 0:
+		_free_ids.remove_at(pos)
+	return id
 
 
 func _allocate_id() -> int:

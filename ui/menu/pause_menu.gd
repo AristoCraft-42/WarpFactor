@@ -1,6 +1,6 @@
 class_name PauseMenu
 extends CanvasLayer
-## Меню паузы в игре: продолжить, настройки, сохранение (этап 6), выход в меню или из игры.
+## Меню паузы в игре: продолжить, настройки, сохранение и загрузка, выход в меню или из игры.
 
 signal closed
 
@@ -8,6 +8,10 @@ var _dimmer: ColorRect
 var _main_panel: PanelContainer
 var _settings_holder: CenterContainer
 var _settings: SettingsMenu
+var _saves_holder: CenterContainer
+var _saves: SavesScreen
+## Текущий забег (для сохранения).
+var run: Run
 
 
 func _ready() -> void:
@@ -36,14 +40,8 @@ func _ready() -> void:
 	column.add_child(HSeparator.new())
 	column.add_child(UiUtil.button("PAUSE_RESUME", close, &"AccentButton"))
 	column.add_child(UiUtil.button("MENU_SETTINGS", _open_settings))
-	var save_button := UiUtil.button("PAUSE_SAVE")
-	save_button.disabled = true
-	save_button.tooltip_text = "TOOLTIP_SAVES_LATER"
-	column.add_child(save_button)
-	var load_button := UiUtil.button("MENU_LOAD")
-	load_button.disabled = true
-	load_button.tooltip_text = "TOOLTIP_SAVES_LATER"
-	column.add_child(load_button)
+	column.add_child(UiUtil.button("PAUSE_SAVE", _open_saves.bind(SavesScreen.Mode.SAVE)))
+	column.add_child(UiUtil.button("MENU_LOAD", _open_saves.bind(SavesScreen.Mode.LOAD)))
 	column.add_child(HSeparator.new())
 	column.add_child(UiUtil.button("PAUSE_EXIT_TO_MENU", func() -> void: Session.exit_to_menu()))
 	column.add_child(UiUtil.button("MENU_QUIT", func() -> void: Session.quit_game()))
@@ -56,11 +54,20 @@ func _ready() -> void:
 	_settings.closed.connect(_close_settings)
 	_settings_holder.add_child(_settings)
 
+	_saves_holder = CenterContainer.new()
+	UiUtil.full_rect(_saves_holder)
+	_saves_holder.visible = false
+	root.add_child(_saves_holder)
+	_saves = SavesScreen.new()
+	_saves.back_requested.connect(_close_saves)
+	_saves_holder.add_child(_saves)
+
 
 func open() -> void:
 	visible = true
 	_main_panel.visible = true
 	_settings_holder.visible = false
+	_saves_holder.visible = false
 
 
 func close() -> void:
@@ -82,6 +89,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _settings_holder.visible:
 			if not _settings.is_capturing():
 				_close_settings()
+		elif _saves_holder.visible:
+			_close_saves()
 		else:
 			close()
 
@@ -90,6 +99,17 @@ func _open_settings() -> void:
 	_main_panel.visible = false
 	_settings_holder.visible = true
 	_settings.refresh()
+
+
+func _open_saves(mode: SavesScreen.Mode) -> void:
+	_main_panel.visible = false
+	_saves_holder.visible = true
+	_saves.open(mode, run)
+
+
+func _close_saves() -> void:
+	_saves_holder.visible = false
+	_main_panel.visible = true
 
 
 func _close_settings() -> void:

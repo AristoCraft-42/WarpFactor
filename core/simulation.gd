@@ -150,6 +150,43 @@ func on_building_reconfigured(building: Building) -> void:
 		wake(other)
 
 
+# --- Сохранение ---
+
+## Внутреннее состояние симуляции: тик, порядок бодрствующих, планировщик, ожидающие, ленты.
+## Всё это влияет на порядок обновления, поэтому сохраняется как есть — игра продолжается ровно так же.
+func save_runtime() -> Dictionary:
+	var awake := PackedInt32Array()
+	for b in _awake:
+		awake.append(b.id)
+	var waiter_keys := PackedInt32Array()
+	var waiter_lists: Array = []
+	for key in _waiters:
+		waiter_keys.append(key)
+		waiter_lists.append(_waiters[key].duplicate())
+	return {"tick": tick, "awake": awake, "scheduler": _scheduler.save_data(),
+		"waiter_keys": waiter_keys, "waiter_lists": waiter_lists, "conveyors": conveyors.save_runtime()}
+
+
+## Восстановить после того, как все здания поставлены и их состояния загружены.
+func load_runtime(data: Dictionary) -> void:
+	tick = int(data.get("tick", tick))
+	for b in _manager.get_all():
+		b.awake = false
+	_awake = []
+	for id in (data.get("awake", PackedInt32Array()) as PackedInt32Array):
+		var b := _manager.get_by_id(id)
+		if b != null and not b.awake and not (b is Conveyor):
+			b.awake = true
+			_awake.append(b)
+	_scheduler.load_data(data.get("scheduler", {}))
+	_waiters.clear()
+	var keys: PackedInt32Array = data.get("waiter_keys", PackedInt32Array())
+	var lists: Array = data.get("waiter_lists", [])
+	for i in mini(keys.size(), lists.size()):
+		_waiters[keys[i]] = (lists[i] as PackedInt32Array).duplicate()
+	conveyors.load_runtime(data.get("conveyors", {}))
+
+
 func get_awake_building_count() -> int:
 	return _awake.size()
 

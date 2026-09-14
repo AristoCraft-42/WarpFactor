@@ -82,8 +82,15 @@ func load_state(state: Dictionary) -> void:
 	var queues: Array = state.get("items", [])
 	var ticks: Array = state.get("ticks", [])
 	for side in mini(4, mini(queues.size(), ticks.size())):
-		_items[side] = (queues[side] as PackedInt32Array).duplicate()
-		_ticks[side] = (ticks[side] as PackedInt32Array).duplicate()
+		var src_items: PackedInt32Array = queues[side]
+		var src_ticks: PackedInt32Array = ticks[side]
+		_items[side] = PackedInt32Array()
+		_ticks[side] = PackedInt32Array()
+		for i in mini(src_items.size(), src_ticks.size()):
+			var item := SaveContext.item(src_items[i])
+			if item >= 0:
+				_items[side].append(item)
+				_ticks[side].append(src_ticks[i])
 	var next_out: PackedInt32Array = state.get("next_out", PackedInt32Array())
 	if next_out.size() == 4:
 		_next_out = next_out.duplicate()

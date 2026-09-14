@@ -87,6 +87,27 @@ func move_to(id: int) -> void:
 	ensure_depth(nodes[id].depth + _run_def.visible_depth)
 
 
+func save_data() -> Dictionary:
+	var visited := PackedInt32Array()
+	for node in nodes:
+		if node.visited:
+			visited.append(node.id)
+	return {"current": current_id, "visited": visited, "steps": _steps.size()}
+
+
+## Восстановить: карта детерминирована от сида, поэтому хватает числа шагов, пройденных узлов и текущего.
+func load_data(data: Dictionary) -> void:
+	ensure_depth(int(data.get("steps", _steps.size())) - 1)
+	for node in nodes:
+		node.visited = false
+	for id in (data.get("visited", PackedInt32Array()) as PackedInt32Array):
+		if id >= 0 and id < nodes.size():
+			nodes[id].visited = true
+	current_id = clampi(int(data.get("current", 0)), 0, nodes.size() - 1)
+	nodes[current_id].visited = true
+	ensure_depth(nodes[current_id].depth + _run_def.visible_depth)
+
+
 ## Достроить шаги до depth включительно.
 func ensure_depth(depth: int) -> void:
 	while _steps.size() <= depth:

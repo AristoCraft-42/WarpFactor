@@ -82,7 +82,7 @@ func save_state() -> Dictionary:
 
 func load_state(state: Dictionary) -> void:
 	_next_tick = int(state.get("next_tick", 0))
-	_item_cursor = int(state.get("cursor", 0))
+	_item_cursor = maxi(SaveContext.item(int(state.get("cursor", 0))), 0)
 	wake()
 
 

@@ -261,7 +261,6 @@ func _build_entries() -> void:
 	_add(SettingEntry.make_bool(&"game/confirm_mass_delete", TAB_GAME, true, "SET_CONFIRM_MASS_DELETE", "SET_CONFIRM_MASS_DELETE_HINT"))
 	var autosave := SettingEntry.make_choice(&"game/autosave", TAB_GAME, 5, "SET_AUTOSAVE",
 		[[0, "SET_AUTOSAVE_OFF"], [2, "SET_AUTOSAVE_2"], [5, "SET_AUTOSAVE_5"], [10, "SET_AUTOSAVE_10"]], "SET_AUTOSAVE_HINT")
-	autosave.enabled = false
 	_add(autosave)
 
 	# Звук

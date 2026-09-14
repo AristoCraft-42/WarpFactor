@@ -53,13 +53,13 @@ func update_tick(tick: int) -> bool:
 
 
 func save_state() -> Dictionary:
-	return {"item": item, "ready_tick": _ready_tick}
+	return {"item": item, "ready_tick": _ready_tick, "from": _from_id}
 
 
 func load_state(state: Dictionary) -> void:
-	item = int(state.get("item", -1))
+	item = SaveContext.item(int(state.get("item", -1)))
 	_ready_tick = int(state.get("ready_tick", 0))
-	_from_id = 0
+	_from_id = int(state.get("from", 0))
 	wake()
 
 

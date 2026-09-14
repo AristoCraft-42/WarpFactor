@@ -17,6 +17,8 @@ signal drone_changed_world
 signal planet_changed
 ## Зарядка телепорта началась, отменена или закончилась.
 signal teleport_state_changed
+## Телепорт сейчас произойдёт (мир ещё прежний) — время для автосохранения.
+signal teleport_starting
 
 var planet: GameWorld
 var base: GameWorld
@@ -35,8 +37,8 @@ var charge_ticks_total: int = 0
 var planet_arrival_tick: int = 0
 var last_summary: TeleportSummary
 
-## Ключ названия уровня, если первая планета — готовая карта (разработка и тесты).
-var _level_title_key: String = ""
+## Уровень, если первая планета — готовая карта (разработка и тесты); иначе пусто.
+var level_id: StringName = &""
 
 
 ## Новый забег: первая планета генерируется по сиду, дрон получает стартовый инвентарь забега.
@@ -62,7 +64,7 @@ static func create(level: LevelDef, map: LevelMap, p_creative: bool) -> Run:
 	run.run_def = Registry.run_def
 	run.star_map = StarMap.new(run.run_seed, run.run_def, Registry.planet_types)
 	if level != null:
-		run._level_title_key = level.title_key
+		run.level_id = level.id
 	run._setup(level, map)
 	return run
 
@@ -108,8 +110,9 @@ func get_world_title(world: GameWorld) -> String:
 	if world == base:
 		return TranslationServer.translate(Registry.base_def.title_key)
 	var node := star_map.get_current()
-	if not _level_title_key.is_empty() and node.id == 0:
-		return TranslationServer.translate(_level_title_key)
+	var level := Registry.get_level(level_id) if level_id != &"" else null
+	if level != null and node.id == 0:
+		return TranslationServer.translate(level.title_key)
 	return "%s %s" % [TranslationServer.translate(node.type.name_key), node.code]
 
 
@@ -180,6 +183,7 @@ func cancel_teleport() -> void:
 
 ## Перелёт: новая планета, переезд площадки со всеми постройками и их содержимым.
 func _teleport(node_id: int) -> void:
+	teleport_starting.emit()
 	var node := star_map.get_node(node_id)
 	var old := planet
 	var old_gate := link.planet_gateway

@@ -60,6 +60,9 @@ func _ready() -> void:
 	_test_planet_generator()
 	_test_building_state_roundtrip()
 	_test_teleport()
+	_test_save_roundtrip_and_determinism()
+	_test_save_remap()
+	_test_save_files()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -1448,3 +1451,193 @@ func _test_teleport() -> void:
 		run.step()
 	_check(true, "после телепорта симуляция идёт")
 	run.dispose()
+
+
+## Забег с фабрикой из всех видов зданий на планете и в базе (для проверки сохранений).
+func _build_save_run() -> Run:
+	var map := LevelMap.new(64, 48, Registry.get_floor(&"stone").index)
+	for y in range(10, 14):
+		for x in range(10, 14):
+			map.set_ore(x, y, Registry.get_ore(&"copper").index + 1)
+	var run := Run.create(null, map, false)
+	var p := run.planet
+	var bm := p.buildings
+	var copper := _item(&"copper")
+	var drill := Registry.get_building(&"mechanical_drill")
+	for o in [Vector2i(10, 10), Vector2i(12, 10), Vector2i(10, 12), Vector2i(12, 12)]:
+		bm.place(drill, o, 0, true)
+	Worlds.conveyor_line(p, Vector2i(14, 11), 4, GameConst.Dir.RIGHT)
+	bm.place(Registry.get_building(&"router"), Vector2i(18, 11), 0, true)
+	Worlds.conveyor_line(p, Vector2i(19, 11), 3, GameConst.Dir.RIGHT)
+	var sorter := bm.place(Registry.get_building(&"sorter"), Vector2i(22, 11), 0, true)
+	p.configure(sorter, copper)
+	Worlds.conveyor_line(p, Vector2i(23, 11), 2, GameConst.Dir.RIGHT)
+	bm.place(Registry.get_building(&"container"), Vector2i(25, 11), 0, true)
+	Worlds.conveyor_line(p, Vector2i(18, 10), 2, GameConst.Dir.UP)
+	bm.place(Registry.get_building(&"container"), Vector2i(18, 7), 0, true)
+	# Уголь → пресс → мост → перекрёсток → склад; поперёк перекрёстка — свинец.
+	(bm.place(Registry.get_building(&"container"), Vector2i(4, 20), 0, true) as StorageBuilding).inventory.add(_item(&"coal"), 200)
+	bm.place(Registry.get_building(&"unloader"), Vector2i(6, 20), 0, true)
+	bm.place(Registry.get_building(&"graphite_press"), Vector2i(7, 20), 0, true)
+	bm.place(Registry.get_building(&"unloader"), Vector2i(9, 20), 0, true)
+	Worlds.conveyor_line(p, Vector2i(10, 20), 2, GameConst.Dir.RIGHT)
+	var bridge_a := bm.place(Registry.get_building(&"bridge_conveyor"), Vector2i(12, 20), 0, true)
+	var bridge_b := bm.place(Registry.get_building(&"bridge_conveyor"), Vector2i(15, 20), 0, true)
+	p.configure(bridge_a, bridge_b.origin - bridge_a.origin)
+	Worlds.conveyor_line(p, Vector2i(16, 20), 1, GameConst.Dir.RIGHT)
+	bm.place(Registry.get_building(&"junction"), Vector2i(17, 20), 0, true)
+	Worlds.conveyor_line(p, Vector2i(18, 20), 1, GameConst.Dir.RIGHT)
+	bm.place(Registry.get_building(&"container"), Vector2i(19, 20), 0, true)
+	(bm.place(Registry.get_building(&"container"), Vector2i(17, 15), 0, true) as StorageBuilding).inventory.add(_item(&"lead"), 200)
+	bm.place(Registry.get_building(&"unloader"), Vector2i(17, 17), 0, true)
+	Worlds.conveyor_line(p, Vector2i(17, 18), 2, GameConst.Dir.DOWN)
+	Worlds.conveyor_line(p, Vector2i(17, 21), 1, GameConst.Dir.DOWN)
+	bm.place(Registry.get_building(&"container"), Vector2i(17, 22), 0, true)
+	# Сепаратор — случайный выход через RNG мира.
+	(bm.place(Registry.get_building(&"container"), Vector2i(4, 30), 0, true) as StorageBuilding).inventory.add(_item(&"crushed_rock"), 300)
+	bm.place(Registry.get_building(&"unloader"), Vector2i(6, 30), 0, true)
+	bm.place(Registry.get_building(&"separator"), Vector2i(7, 30), 0, true)
+	bm.place(Registry.get_building(&"unloader"), Vector2i(9, 30), 0, true)
+	Worlds.conveyor_line(p, Vector2i(10, 30), 3, GameConst.Dir.RIGHT)
+	bm.place(Registry.get_building(&"container"), Vector2i(13, 30), 0, true)
+	var gate := run.get_gateway(p)
+	world_to_gateway(run, gate, copper)
+	# Дрон: инвентарь и очередь крафта.
+	run.drone.inventory.add(copper, 50)
+	run.drone.crafting.enqueue(Registry.get_hand_recipe(Registry.get_building(&"conveyor").item.index), 5)
+	return run
+
+
+func world_to_gateway(run: Run, gate: GatewayBuilding, copper: int) -> void:
+	var p := run.planet
+	var port := gate.get_input_tile()
+	(p.buildings.place(Registry.get_building(&"container"), port + Vector2i(-4, 0), 0, true) as StorageBuilding).inventory.add(copper, 300)
+	p.buildings.place(Registry.get_building(&"unloader"), port + Vector2i(-2, 0), 0, true)
+	Worlds.conveyor_line(p, port + Vector2i(-1, 0), 2, GameConst.Dir.RIGHT)
+	var pair := run.get_gateway(run.base)
+	var out := pair.get_output_tile()
+	Worlds.conveyor_line(run.base, out, 2, GameConst.Dir.LEFT)
+	run.base.buildings.place(Registry.get_building(&"container"), out + Vector2i(-3, 0), 0, true)
+
+
+## Путь к первому отличию двух значений (для сообщения теста).
+func _first_diff(a: Variant, b: Variant, path: String = "") -> String:
+	if typeof(a) != typeof(b):
+		return path + " (тип)"
+	if a is Dictionary:
+		for key in (a as Dictionary):
+			if not (b as Dictionary).has(key):
+				return "%s/%s (нет ключа)" % [path, key]
+			var d := _first_diff(a[key], b[key], "%s/%s" % [path, key])
+			if not d.is_empty():
+				return d
+		return ""
+	if a is Array:
+		if (a as Array).size() != (b as Array).size():
+			return path + " (размер)"
+		for i in (a as Array).size():
+			var d := _first_diff(a[i], b[i], "%s[%d]" % [path, i])
+			if not d.is_empty():
+				return d
+		return ""
+	return "" if a == b else path
+
+
+func _test_save_roundtrip_and_determinism() -> void:
+	var run := _build_save_run()
+	for i in 450:
+		run.step()
+	var saved := SaveIO.run_to_dict(run)
+	var bytes := var_to_bytes(saved)
+	var loaded := SaveIO.run_from_dict(bytes_to_var(bytes))
+	var reloaded := SaveIO.run_to_dict(loaded)
+	var diff := _first_diff(saved, reloaded)
+	_check(diff.is_empty() and var_to_bytes(reloaded) == bytes, "сохранение → загрузка → то же состояние (отличие: %s)" % diff)
+	_check(loaded.drone.world == loaded.planet and loaded.link.planet_gateway != null and loaded.link.planet_gateway.link == loaded.link, "дрон, шлюз и связь восстановлены")
+	for i in 600:
+		run.step()
+		loaded.step()
+	var a := SaveIO.run_to_dict(run)
+	var b := SaveIO.run_to_dict(loaded)
+	diff = _first_diff(a, b)
+	_check(diff.is_empty() and var_to_bytes(a) == var_to_bytes(b), "после загрузки игра идёт так же, как без неё (отличие: %s)" % diff)
+	var delivered := 0
+	for building in run.base.buildings.get_all():
+		if building is StorageBuilding:
+			delivered += (building as StorageBuilding).inventory.count(_item(&"copper"))
+	_check(delivered > 0, "в сценарии медь дошла через шлюз (%d)" % delivered)
+	run.dispose()
+	loaded.dispose()
+
+
+## Индексы предметов в сохранении переносятся по таблице id, если порядок предметов изменился.
+func _test_save_remap() -> void:
+	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
+	var run := Run.create(null, map, false)
+	var copper := _item(&"copper")
+	var lead := _item(&"lead")
+	var storage := run.planet.buildings.place(Registry.get_building(&"container"), Vector2i(4, 4), 0, true) as StorageBuilding
+	storage.inventory.add(copper, 50)
+	storage.inventory.add(lead, 20)
+	var belt := run.planet.buildings.place(Registry.get_building(&"conveyor"), Vector2i(10, 4), 0, true)
+	run.planet.simulation.conveyors.import_items(belt, {"items": PackedInt32Array([copper, lead]), "prog": PackedInt32Array([800, 200])})
+	run.drone.inventory.clear()
+	run.drone.inventory.add(copper, 7)
+	var data := SaveIO.run_to_dict(run)
+	# Изображаем сохранение из версии, где медь и свинец стояли в другом порядке.
+	var table: PackedStringArray = data["tables"]["items"]
+	table[copper] = "lead"
+	table[lead] = "copper"
+	data["tables"]["items"] = table
+	for entry in (data["planet"]["buildings"] as Array):
+		var state: Dictionary = entry["state"]
+		for key in ["slot_items", "items"]:
+			if state.has(key):
+				var arr: PackedInt32Array = state[key]
+				for i in arr.size():
+					if arr[i] == copper:
+						arr[i] = lead
+					elif arr[i] == lead:
+						arr[i] = copper
+				state[key] = arr
+	var drone_slots: Dictionary = data["drone"]["inventory"]
+	var drone_items: PackedInt32Array = drone_slots["slot_items"]
+	for i in drone_items.size():
+		if drone_items[i] == copper:
+			drone_items[i] = lead
+	drone_slots["slot_items"] = drone_items
+	var loaded := SaveIO.run_from_dict(data)
+	var moved := loaded.planet.buildings.get_at(Vector2i(4, 4)) as StorageBuilding
+	_check(moved != null and moved.inventory.count(copper) == 50 and moved.inventory.count(lead) == 20, "склад: медь и свинец на своих местах после переноса индексов")
+	var contents := PackedInt32Array()
+	contents.resize(Registry.items.size())
+	contents.fill(0)
+	loaded.planet.buildings.get_at(Vector2i(10, 4)).collect_contents(contents)
+	_check(contents[copper] == 1 and contents[lead] == 1, "лента: предметы перенесены по id")
+	_check(loaded.drone.inventory.count(copper) == 7, "инвентарь дрона перенесён по id")
+	_check(not SaveContext.is_remapping(), "контекст переноса закрыт после загрузки")
+	run.dispose()
+	loaded.dispose()
+
+
+func _test_save_files() -> void:
+	var run := _build_save_run()
+	for i in 60:
+		run.step()
+	var name := "__test_save__"
+	_check(SaveIO.save_run(run, name) == OK, "сохранение в файл")
+	var path := SaveIO.slot_path(name)
+	var header := SaveIO.read_header(path)
+	_check(header.get("name") == name and float(header.get("playtime", 0.0)) > 0.0 and header.get("path") == path, "заголовок читается без распаковки")
+	var found := false
+	for h in SaveIO.list_saves():
+		found = found or h.get("path") == path
+	_check(found, "сохранение в списке")
+	var loaded := SaveIO.load_run(path)
+	_check(loaded != null and var_to_bytes(SaveIO.run_to_dict(loaded)) == var_to_bytes(SaveIO.run_to_dict(run)), "загрузка из файла даёт то же состояние")
+	_check(SaveIO.load_run("res://icon.svg") == null, "чужой файл не загружается")
+	SaveIO.delete_save(path)
+	_check(not FileAccess.file_exists(path), "сохранение удаляется")
+	run.dispose()
+	if loaded != null:
+		loaded.dispose()

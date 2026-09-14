@@ -87,6 +87,25 @@ func get_mine_fraction() -> float:
 	return clampf(float(mine_progress) / def.mine_ticks(ore), 0.0, 1.0)
 
 
+func save_data() -> Dictionary:
+	return {"position": position, "prev_position": prev_position, "facing": facing,
+		"mine_tile": mine_tile, "mine_progress": mine_progress,
+		"inventory": inventory.save_slots(), "crafting": crafting.save_data()}
+
+
+func load_data(data: Dictionary) -> void:
+	position = data.get("position", position)
+	prev_position = data.get("prev_position", position)
+	facing = float(data.get("facing", 0.0))
+	mine_tile = data.get("mine_tile", NO_TILE)
+	mine_progress = int(data.get("mine_progress", 0))
+	move_input = Vector2.ZERO
+	var slots: Dictionary = data.get("inventory", {})
+	inventory.load_slots(slots.get("slot_items", PackedInt32Array()), slots.get("slot_counts", PackedInt32Array()),
+		slots.get("hints", PackedInt32Array()))
+	crafting.load_data(data.get("crafting", {}))
+
+
 func get_draw_position(alpha: float) -> Vector2:
 	return prev_position.lerp(position, alpha)
 

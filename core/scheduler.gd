@@ -44,6 +44,25 @@ func pop_due(tick: int, out: PackedInt32Array) -> void:
 	_ticks[slot] = keep_ticks
 
 
+## Корзины как есть — порядок записей влияет на порядок пробуждения, поэтому сохраняется целиком.
+func save_data() -> Dictionary:
+	var ids: Array = []
+	var ticks: Array = []
+	for i in SIZE:
+		ids.append(_ids[i].duplicate())
+		ticks.append(_ticks[i].duplicate())
+	return {"ids": ids, "ticks": ticks}
+
+
+func load_data(data: Dictionary) -> void:
+	clear()
+	var ids: Array = data.get("ids", [])
+	var ticks: Array = data.get("ticks", [])
+	for i in mini(SIZE, mini(ids.size(), ticks.size())):
+		_ids[i] = (ids[i] as PackedInt32Array).duplicate()
+		_ticks[i] = (ticks[i] as PackedInt32Array).duplicate()
+
+
 func clear() -> void:
 	for i in SIZE:
 		_ids[i] = PackedInt32Array()
