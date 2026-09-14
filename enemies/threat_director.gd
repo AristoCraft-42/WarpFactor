@@ -8,8 +8,6 @@ extends RefCounted
 ## Если живых врагов больше предела, появление откладывается. Всё случайное — от своего RNG (сохраняется).
 
 var def: ThreatDef
-## Глубина планеты на звёздной карте (надбавка к бюджету).
-var depth: int = 0
 var start_tick: int = 0
 ## Сколько волн уже началось.
 var wave: int = 0
@@ -30,10 +28,9 @@ var _queue_points := PackedInt32Array()
 var _queue_cursor: int = 0
 
 
-func _init(world: GameWorld, p_def: ThreatDef, p_depth: int, p_start_tick: int, seed_value: int) -> void:
+func _init(world: GameWorld, p_def: ThreatDef, p_start_tick: int, seed_value: int) -> void:
 	_world = world
 	def = p_def
-	depth = p_depth
 	start_tick = p_start_tick
 	rng.seed = seed_value
 	next_wave_tick = start_tick + def.get_first_wave_ticks()
@@ -107,7 +104,7 @@ func get_pending_spawns() -> int:
 func _start_wave(tick: int) -> void:
 	wave += 1
 	var minutes := float(tick - start_tick) / (60.0 * GameConst.TICK_RATE)
-	var budget := def.get_budget(wave, minutes, depth)
+	var budget := def.get_budget(wave, minutes)
 	last_budget = budget
 	var duration := def.get_spawn_ticks(wave)
 	spawn_end_tick = tick + duration
@@ -154,7 +151,7 @@ func _compose(budget: float) -> PackedInt32Array:
 # --- Сохранение ---
 
 func save_data() -> Dictionary:
-	return {"depth": depth, "start": start_tick, "wave": wave, "next": next_wave_tick, "spawn_end": spawn_end_tick,
+	return {"start": start_tick, "wave": wave, "next": next_wave_tick, "spawn_end": spawn_end_tick,
 		"budget": last_budget, "rng_seed": rng.seed, "rng_state": rng.state,
 		"queue_ticks": _queue_ticks.slice(_queue_cursor), "queue_types": _queue_types.slice(_queue_cursor),
 		"queue_points": _queue_points.slice(_queue_cursor)}
@@ -162,7 +159,6 @@ func save_data() -> Dictionary:
 
 ## type_map — сохранённый индекс врага → текущий.
 func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
-	depth = int(data.get("depth", depth))
 	start_tick = int(data.get("start", start_tick))
 	wave = int(data.get("wave", 0))
 	next_wave_tick = int(data.get("next", next_wave_tick))

@@ -15,7 +15,6 @@ warning_seconds = 15.0
 budget_base = 6.0
 budget_per_wave = 4.0
 budget_per_minute = 1.5
-budget_per_depth = 0.2
 enemy_ids = Array[StringName]([&"crawler", &"soldier", &"brute"])
 enemy_from_wave = PackedInt32Array(1, 3, 6)
 enemy_weights = PackedFloat32Array(3, 2, 1)

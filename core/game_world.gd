@@ -111,7 +111,7 @@ func place_gateway(def: GatewayDef, origin: Vector2i, rotation: int = 0) -> Gate
 
 ## Угроза опасной планеты: поле потоков к шлюзу, точки появления, расписание волн.
 ## compute — сразу посчитать поле (при загрузке оно восстанавливается из сохранения).
-func setup_threat(def: ThreatDef, depth: int, start_tick: int, seed_value: int, compute: bool = true) -> void:
+func setup_threat(def: ThreatDef, start_tick: int, seed_value: int, compute: bool = true) -> void:
 	if def == null:
 		return
 	ensure_flow(compute)
@@ -120,7 +120,7 @@ func setup_threat(def: ThreatDef, depth: int, start_tick: int, seed_value: int, 
 		rng.seed = hash([seed_value, "spawns"])
 		var center := gateway.origin + Vector2i.ONE * (gateway.def.size / 2)
 		spawn_points = SpawnPoints.find(grid.width, grid.height, grid.floors, center, def.spawn_point_count, rng)
-	threat = ThreatDirector.new(self, def, depth, start_tick, hash([seed_value, "threat"]))
+	threat = ThreatDirector.new(self, def, start_tick, hash([seed_value, "threat"]))
 
 
 ## Поле потоков создаётся при первой необходимости (угроза или появление врага).

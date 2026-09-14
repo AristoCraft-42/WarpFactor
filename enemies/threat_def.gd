@@ -5,7 +5,9 @@ extends Resource
 ## После тихого начала идут волны. Каждая волна выпускает врагов равномерно за время появления,
 ## затем наступает затишье до следующей. Затишья сокращаются от волны к волне, время появления растёт;
 ## когда затишье становится короче continuous_below_seconds, волны идут встык — одна бесконечная волна.
-## Бюджет волны (очки угрозы) растёт с номером волны, с временем на планете и с глубиной звёздной карты.
+## Бюджет волны (очки угрозы) растёт с номером волны и с временем на планете. От глубины звёздной карты
+## не зависит: потерявший всё игрок должен суметь развиться заново. Позже сила волн будет зависеть
+## от числа построек игрока (см. ROADMAP, решения).
 
 ## Тихое начало до первой волны, секунд.
 @export var first_wave_seconds: float = 180.0
@@ -27,8 +29,6 @@ extends Resource
 @export var budget_base: float = 6.0
 @export var budget_per_wave: float = 4.0
 @export var budget_per_minute: float = 1.5
-## Надбавка к бюджету за каждый шаг звёздной карты (0.2 — на 20 % больше).
-@export var budget_per_depth: float = 0.2
 
 @export_group("Враги")
 ## Какие враги приходят, с какой волны и с каким весом при выборе.
@@ -63,7 +63,6 @@ func get_spawn_ticks(wave: int) -> int:
 	return maxi(1, roundi(seconds * GameConst.TICK_RATE))
 
 
-## Бюджет волны: номер с 1, минуты на планете к её началу, глубина планеты на звёздной карте.
-func get_budget(wave: int, minutes: float, depth: int) -> float:
-	var raw := budget_base + budget_per_wave * maxi(wave - 1, 0) + budget_per_minute * maxf(minutes, 0.0)
-	return raw * (1.0 + budget_per_depth * maxi(depth, 0))
+## Бюджет волны: номер с 1, минуты на планете к её началу.
+func get_budget(wave: int, minutes: float) -> float:
+	return budget_base + budget_per_wave * maxi(wave - 1, 0) + budget_per_minute * maxf(minutes, 0.0)

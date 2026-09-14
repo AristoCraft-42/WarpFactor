@@ -1677,8 +1677,8 @@ func _test_enemy_data() -> void:
 	var threat := normal.threat
 	_check(threat.get_gap_ticks(1) > threat.get_gap_ticks(3) and threat.get_gap_ticks(40) == 0, "затишья сокращаются и исчезают")
 	_check(threat.get_spawn_ticks(1) < threat.get_spawn_ticks(5), "время появления растёт с волной")
-	_check(threat.get_budget(2, 5.0, 0) > threat.get_budget(1, 0.0, 0) and threat.get_budget(1, 0.0, 3) > threat.get_budget(1, 0.0, 0),
-		"бюджет растёт с волной, временем и глубиной")
+	_check(threat.get_budget(2, 0.0) > threat.get_budget(1, 0.0) and threat.get_budget(1, 5.0) > threat.get_budget(1, 0.0),
+		"бюджет растёт с волной и временем")
 
 
 func _test_building_damage() -> void:
@@ -1844,7 +1844,7 @@ func _test_threat_schedule() -> void:
 	def.spawn_point_count = 2
 	var run := _enemy_run()
 	var planet := run.planet
-	planet.threat = ThreatDirector.new(planet, def, 0, planet.simulation.tick, 99)
+	planet.threat = ThreatDirector.new(planet, def, planet.simulation.tick, 99)
 	# Шлюз не должен пасть за время теста (иначе аварийный телепорт сменит планету).
 	planet.gateway.health = 1.0e9
 	var threat := planet.threat
@@ -1875,7 +1875,7 @@ func _test_threat_schedule() -> void:
 	run = _enemy_run()
 	planet = run.planet
 	def.max_alive = 2
-	planet.threat = ThreatDirector.new(planet, def, 0, planet.simulation.tick, 99)
+	planet.threat = ThreatDirector.new(planet, def, planet.simulation.tick, 99)
 	for i in 120:
 		run.step()
 	_check(planet.enemies.count == 2 and planet.threat.get_pending_spawns() > 0, "сверх предела враги ждут в очереди")
@@ -1885,8 +1885,8 @@ func _test_threat_schedule() -> void:
 	var a := _enemy_run()
 	var b := _enemy_run()
 	def.max_alive = 1500
-	a.planet.threat = ThreatDirector.new(a.planet, def, 2, 0, 7)
-	b.planet.threat = ThreatDirector.new(b.planet, def, 2, 0, 7)
+	a.planet.threat = ThreatDirector.new(a.planet, def, 0, 7)
+	b.planet.threat = ThreatDirector.new(b.planet, def, 0, 7)
 	for i in 400:
 		a.step()
 		b.step()

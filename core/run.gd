@@ -132,7 +132,7 @@ func is_planet_safe() -> bool:
 func _setup_threat(world: GameWorld, node: StarMap.StarNode, start_tick: int, compute: bool = true) -> void:
 	if creative or node.type.safe or node.type.threat == null:
 		return
-	world.setup_threat(node.type.threat, node.depth, start_tick, node.planet_seed, compute)
+	world.setup_threat(node.type.threat, start_tick, node.planet_seed, compute)
 
 
 # --- Дрон и шлюз ---
