@@ -26,6 +26,7 @@ static func definitions() -> Array[Dictionary]:
 		{"name": &"move_left", "label": "ACTION_MOVE_LEFT", "group": GROUP_DRONE, "events": ["key:A", "key:Left"]},
 		{"name": &"move_right", "label": "ACTION_MOVE_RIGHT", "group": GROUP_DRONE, "events": ["key:D", "key:Right"]},
 		{"name": &"inventory", "label": "ACTION_INVENTORY", "group": GROUP_DRONE, "events": ["key:E", "key:Tab"]},
+		{"name": &"use_gateway", "label": "ACTION_USE_GATEWAY", "group": GROUP_DRONE, "events": ["key:F"]},
 		{"name": &"cam_pan", "label": "ACTION_CAM_PAN", "group": GROUP_CAMERA, "events": ["mouse:3"]},
 		{"name": &"zoom_in", "label": "ACTION_ZOOM_IN", "group": GROUP_CAMERA, "events": ["mouse:4", "key:Equal"]},
 		{"name": &"zoom_out", "label": "ACTION_ZOOM_OUT", "group": GROUP_CAMERA, "events": ["mouse:5", "key:Minus"]},

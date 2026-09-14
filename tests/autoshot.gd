@@ -3,8 +3,8 @@ extends Node
 ## Добавляется главным меню или игровой сценой только при флаге командной строки:
 ##   godot --path D:/Mind res://core/game.tscn -- --autoshot --autoshot-dir=C:/путь/к/папке
 ## Мышь не двигает; изменённые настройки в конце восстанавливает.
-## Сцены разворачиваются вокруг места появления дрона; перед действиями дрон переносится
-## к нужному месту, чтобы всё было в его радиусе.
+## Сцены разворачиваются южнее площадки центрального шлюза (место посадки); перед действиями дрон
+## переносится к нужному месту, чтобы всё было в его радиусе.
 
 var _dir: String = "user://autoshot"
 var _results := PackedStringArray()
@@ -40,11 +40,13 @@ func _run_menu(menu: MainMenu) -> void:
 
 func _run_game(game: Game) -> void:
 	var original_language: Variant = Settings.get_value(&"game/language")
-	var base := game.world.drone.get_tile()
+	# Площадка шлюза занимает ±7 тайлов от места посадки — сцены строим южнее неё.
+	var base := game.world.drone.get_tile() + Vector2i(0, 11)
 	await _frames(30)
 	await _measure_frames("старт")
 	await _shot("g01_start.png")
 
+	await _run_gateway(game)
 	await _run_drone(game, base)
 	await _run_interaction(game, base)
 	await _run_production_chain(game, base)
@@ -92,6 +94,71 @@ func _run_game(game: Game) -> void:
 		print("autotest ", line)
 	print("autotest: провалов %d из %d" % [failed, _results.size()])
 	get_tree().quit()
+
+
+## База и планета: переход через шлюз по F, стройка в базе, предметы через шлюз в обе стороны.
+func _run_gateway(game: Game) -> void:
+	var run := game.run
+	var gate := run.get_gateway(run.planet)
+	var pair := run.get_gateway(run.base)
+	var copper := Registry.get_item(&"copper").index
+	var lead := Registry.get_item(&"lead").index
+	var conveyor := Registry.get_building(&"conveyor")
+
+	# Планета: склад с медью → разгрузчик → лента в западный порт шлюза.
+	var in_port := gate.get_input_tile()
+	var planet_storage := run.planet.buildings.place(Registry.get_building(&"container"), in_port + Vector2i(-4, 0), 0, true) as StorageBuilding
+	planet_storage.inventory.add(copper, 300)
+	run.planet.buildings.place(Registry.get_building(&"unloader"), in_port + Vector2i(-2, 0), 0, true)
+	Worlds_line(run.planet, in_port + Vector2i(-1, 0), 2, GameConst.Dir.RIGHT)
+	var planet_out := run.planet.buildings.place(Registry.get_building(&"container"), gate.get_output_tile() + Vector2i(2, 0), 0, true) as StorageBuilding
+	Worlds_line(run.planet, gate.get_output_tile(), 2, GameConst.Dir.RIGHT)
+
+	await _drone_to(game, gate.origin + Vector2i.ONE)
+	game.camera.focus_on(run.drone.position, 1.0)
+	await _frames(5)
+	var hud_gateway: Label = game.hud.get("_gateway_label")
+	_expect(run.can_use_gateway() and hud_gateway.visible, "над шлюзом видна подсказка перехода")
+	await _shot("w01_gateway_prompt.png")
+	await _key(KEY_F)
+	await _frames(5)
+	_expect(game.world == run.base and run.drone.world == run.base and game.is_in_base(), "F над шлюзом — дрон и вид в базе")
+	_expect(game.camera.position.distance_to(run.drone.position) < 2.0, "камера перенеслась к дрону в базе")
+
+	# Стройка в базе настоящим вводом.
+	var base_tile := pair.origin + Vector2i(1, -3)
+	game.tools.select_building(conveyor)
+	await _mouse_move(game, base_tile)
+	await _mouse_button(game, base_tile, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, base_tile, MOUSE_BUTTON_LEFT, false)
+	await _key(KEY_ESCAPE)
+	_expect(run.base.buildings.get_at(base_tile) != null and run.planet.buildings.get_at(base_tile) == null, "клик строит в базе, а не на планете")
+
+	# База: из западного порта пары — в склад; склад со свинцом → разгрузчик → восточный порт пары.
+	var out_port := pair.get_output_tile()
+	Worlds_line(run.base, out_port, 2, GameConst.Dir.LEFT)
+	var base_in := run.base.buildings.place(Registry.get_building(&"container"), out_port + Vector2i(-3, 0), 0, true) as StorageBuilding
+	var back_in := pair.get_input_tile()
+	Worlds_line(run.base, back_in, 1, GameConst.Dir.LEFT)
+	run.base.buildings.place(Registry.get_building(&"unloader"), back_in + Vector2i(1, 0), 0, true)
+	var base_out := run.base.buildings.place(Registry.get_building(&"container"), back_in + Vector2i(2, 0), 0, true) as StorageBuilding
+	base_out.inventory.add(lead, 300)
+	game.clock.set_speed_index(2)
+	await _wait_ticks(run.base, 15 * GameConst.TICK_RATE)
+	game.clock.set_speed_index(0)
+	await _frames(10)
+	await _shot("w02_base.png")
+	_expect(base_in.inventory.count(copper) > 0, "медь с планеты пришла в базу через шлюз (%d)" % base_in.inventory.count(copper))
+
+	# Обратно на планету: свинец из базы вышел из восточного порта шлюза.
+	await _drone_to(game, pair.origin + Vector2i.ONE)
+	await _key(KEY_F)
+	await _frames(5)
+	_expect(game.world == run.planet and not game.is_in_base(), "F над парой — обратно на планету")
+	await _frames(10)
+	await _shot("w03_planet_gateway.png")
+	_expect(planet_out.inventory.count(lead) > 0, "свинец из базы вышел на планету (%d)" % planet_out.inventory.count(lead))
+	_expect(run.base.simulation.tick == run.planet.simulation.tick, "база тикает, пока дрон на планете")
 
 
 ## Дрон: полёт, камера, добыча руды, окно инвентаря и ручной крафт.
@@ -550,6 +617,8 @@ func _run_logistics(game: Game, base: Vector2i) -> void:
 	game.clock.set_speed_index(2)
 	await _wait_ticks(world, 15 * GameConst.TICK_RATE)
 	game.clock.set_speed_index(0)
+	var inverted_gate := bm.place(Registry.get_building(&"overflow_gate"), right + Vector2i(1, 6), 0, true)
+	world.configure(inverted_gate, true)
 	await _frames(10)
 	await _shot("g09_logistics.png")
 	_expect(sorter.get_display_item() == copper, "сортировщик показывает фильтр")

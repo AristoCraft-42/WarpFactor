@@ -14,6 +14,7 @@ const ORES_DIR := "res://world/ores/"
 const BUILDINGS_DIR := "res://buildings/defs/"
 const LEVELS_DIR := "res://levels/"
 const DRONE_PATH := "res://player/drone.tres"
+const BASE_PATH := "res://world/base.tres"
 
 static var items: Array[ItemType] = []
 static var floors: Array[FloorDef] = []
@@ -22,6 +23,7 @@ static var buildings: Array[BuildingDef] = []
 static var levels: Array[LevelDef] = []
 static var hand_recipes: Array[HandRecipe] = []
 static var drone_def: DroneDef
+static var base_def: BaseDef
 
 ## Размер стака по индексу предмета (горячий путь инвентаря).
 static var stack_sizes: PackedInt32Array = PackedInt32Array()
@@ -63,6 +65,10 @@ static func ensure_loaded() -> void:
 		drone_def = load(DRONE_PATH) as DroneDef
 	if drone_def == null:
 		drone_def = DroneDef.new()
+	if ResourceLoader.exists(BASE_PATH):
+		base_def = load(BASE_PATH) as BaseDef
+	if base_def == null:
+		base_def = BaseDef.new()
 
 	items.sort_custom(func(a: ItemType, b: ItemType) -> bool: return _less(a.sort_order, a.id, b.sort_order, b.id))
 	floors.sort_custom(func(a: FloorDef, b: FloorDef) -> bool: return _less(a.sort_order, a.id, b.sort_order, b.id))
@@ -173,6 +179,11 @@ static func validate() -> PackedStringArray:
 				errors.append("здание %s: нет предмета-постройки в %s" % [def.id, BUILDING_ITEMS_DIR])
 			if def.cost.is_empty():
 				errors.append("здание %s: нет рецепта крафта (cost)" % def.id)
+	if get_floor(base_def.floor_id) == null:
+		errors.append("база: нет пола %s" % base_def.floor_id)
+	for id in [&"central_gateway", &"base_gateway"]:
+		if not (get_building(id) is GatewayDef):
+			errors.append("нет шлюза %s" % id)
 	for level in levels:
 		if not FileAccess.file_exists(level.map_path):
 			errors.append("уровень %s: нет файла карты %s" % [level.id, level.map_path])

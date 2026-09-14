@@ -5,6 +5,7 @@ extends RefCounted
 ## Все действия игрока проходят через этот класс: здесь проверяются радиус дрона и наличие
 ## постройки в инвентаре, снос возвращает постройку и содержимое, игрок перекладывает предметы.
 ## Творческий режим: постройки не расходуются и не возвращаются, радиус не ограничен.
+## В забеге миров два (планета и база) с общим дроном: действовать можно только в мире, где дрон.
 
 ## Почему не удалось последнее действие игрока (для уведомлений).
 enum ActionError { NONE, OUT_OF_RANGE, INVENTORY_FULL, NOT_ALLOWED }
@@ -17,14 +18,18 @@ var drone: Drone
 ## Генератор случайных чисел мира (сепаратор): детерминирован от id уровня.
 var rng := RandomNumberGenerator.new()
 var creative: bool = false
+## Мир мобильной базы (иначе — планета).
+var is_base: bool = false
+## Площадка центрального шлюза на планете (size 0 — нет): переезжает вместе с базой.
+var pad_rect: Rect2i = Rect2i()
 var last_error: ActionError = ActionError.NONE
 ## Сколько предметов из содержимого не поместилось в инвентарь при последнем сносе (они теряются).
 var last_lost_items: int = 0
 
 
 ## Создаёт мир из карты уровня: копирует слои, ставит предустановленные здания, создаёт дрона
-## со стартовым инвентарём.
-static func create(level_def: LevelDef, map: LevelMap, p_creative: bool) -> GameWorld:
+## со стартовым инвентарём. shared_drone — дрон уже созданного мира забега (тогда свой не создаётся).
+static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_drone: Drone = null) -> GameWorld:
 	var world := GameWorld.new()
 	world.level = level_def
 	world.creative = p_creative
@@ -35,6 +40,9 @@ static func create(level_def: LevelDef, map: LevelMap, p_creative: bool) -> Game
 	for p in map.placements:
 		if world.buildings.place(p.def, p.origin, p.rotation, true) == null:
 			push_warning("GameWorld: не удалось поставить %s в %s" % [p.def.id, p.origin])
+	if shared_drone != null:
+		world.drone = shared_drone
+		return world
 	var spawn_tile := Vector2i(map.width / 2, map.height / 2)
 	if level_def != null and world.grid.in_bounds_v(level_def.spawn):
 		spawn_tile = level_def.spawn
@@ -47,9 +55,33 @@ static func create(level_def: LevelDef, map: LevelMap, p_creative: bool) -> Game
 	return world
 
 
+## Мир базы: пустое пространство размера base_def.size с общим дроном забега.
+static func create_base(base_def: BaseDef, p_creative: bool, shared_drone: Drone) -> GameWorld:
+	var floor_def := Registry.get_floor(base_def.floor_id)
+	var map := LevelMap.new(base_def.size, base_def.size, floor_def.index if floor_def != null else 0)
+	var world := GameWorld.create(null, map, p_creative, shared_drone)
+	world.is_base = true
+	world.rng.seed = hash(String(base_def.id))
+	return world
+
+
+## Ставит шлюз (или его пару), убирая всё, что стоит на его месте.
+func place_gateway(def: GatewayDef, origin: Vector2i) -> GatewayBuilding:
+	if def == null:
+		return null
+	for old in buildings.collect_in_rect(Rect2i(origin, Vector2i(def.size, def.size))):
+		buildings.remove(old, true)
+	return buildings.place(def, origin, 0, true) as GatewayBuilding
+
+
+## Дрон сейчас в этом мире (действовать можно только здесь).
+func has_drone() -> bool:
+	return drone != null and drone.world == self
+
+
 ## Может ли игрок взаимодействовать со зданием (настройка, окно, поворот): в радиусе дрона.
 func can_interact(building: Building) -> bool:
-	if building == null or building.world != self:
+	if building == null or building.world != self or not has_drone():
 		return false
 	return creative or drone.can_reach_tiles(building.get_rect())
 
@@ -61,6 +93,8 @@ func check_build(def: BuildingDef, origin: Vector2i, rotation: int, budget: Inve
 	var check := buildings.check_place(def, origin, rotation)
 	if check != BuildingManager.Check.OK and check != BuildingManager.Check.REPLACE:
 		return check
+	if not has_drone():
+		return BuildingManager.Check.OUT_OF_RANGE
 	if creative:
 		return check
 	if not drone.can_reach_tiles(Rect2i(origin, Vector2i(def.size, def.size))):
@@ -125,6 +159,9 @@ func demolish(building: Building) -> bool:
 		last_error = ActionError.NOT_ALLOWED
 		return false
 	var item := building.def.item
+	if not has_drone():
+		last_error = ActionError.OUT_OF_RANGE
+		return false
 	if not creative:
 		if not drone.can_reach_tiles(building.get_rect()):
 			last_error = ActionError.OUT_OF_RANGE
@@ -190,6 +227,7 @@ func dispose() -> void:
 	if simulation != null:
 		simulation.dispose()
 	simulation = null
-	if drone != null:
+	if drone != null and drone.world == self:
 		drone.world = null
+	drone = null
 	grid = null

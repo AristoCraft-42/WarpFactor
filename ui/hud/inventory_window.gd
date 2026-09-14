@@ -155,6 +155,14 @@ func is_open() -> bool:
 	return visible
 
 
+## Смена активного мира: окно здания закрывается (здание осталось в другом мире).
+func set_world(world: GameWorld) -> void:
+	if mode == Mode.BUILDING:
+		visible = false
+		_building = null
+	_world = world
+
+
 func open_craft() -> void:
 	if mode == Mode.BUILDING and _tools.selected != null:
 		_tools.select(null)

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="BaseDef" format=3]
+
+[ext_resource type="Script" path="res://world/base_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"base"
+title_key = "LOCATION_BASE"
+size = 24
+floor_id = &"metal_plates"

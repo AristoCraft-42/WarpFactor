@@ -52,6 +52,7 @@ func _ready() -> void:
 	_test_logistics_throughput()
 	_test_unloader_from_buildings()
 	_test_inversion_config()
+	_test_run_gateway()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -98,7 +99,8 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 6, "ожидалось 6 руд, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 24, "ожидалось 24 здания, есть %d" % Registry.buildings.size())
+	_check(Registry.buildings.size() == 26, "ожидалось 26 зданий (24 + шлюз и его пара), есть %d" % Registry.buildings.size())
+	_check(Registry.base_def != null and Registry.base_def.size == 24, "параметры базы загружены (24×24)")
 	_check(Registry.items.size() == 11 + 24, "ожидалось 11 ресурсов и 24 предмета-постройки, есть %d" % Registry.items.size())
 	_check(Registry.get_building(&"inverted_sorter") == null and Registry.get_building(&"underflow_gate") == null,
 		"инвертированные варианты стали настройкой, а не отдельными зданиями")
@@ -194,6 +196,10 @@ func _test_levels_load() -> void:
 			_check(world.drone.inventory.count(stack.item.index) == stack.amount,
 				"уровень %s: стартовый инвентарь содержит %s" % [level.id, stack.item.id])
 		world.dispose()
+		var run := Run.create(level, map, false)
+		_check(run.get_gateway(run.planet) != null and run.can_use_gateway(), "уровень %s: шлюз на месте посадки, дрон над ним" % level.id)
+		_check(Rect2i(0, 0, map.width, map.height).encloses(run.planet.pad_rect), "уровень %s: площадка внутри карты" % level.id)
+		run.dispose()
 
 
 # --- Размещение и снос ---
@@ -1129,3 +1135,77 @@ func _test_inversion_config() -> void:
 	var copy := world.build(Registry.get_building(&"overflow_gate"), Vector2i(10, 4), 0, gate.get_config())
 	_check(copy.is_inverted(), "копия клапана сохраняет обратный режим")
 	world.dispose()
+
+
+## Забег: два мира тикают вместе, шлюз переносит предметы в обе стороны, дрон проходит через шлюз.
+func _test_run_gateway() -> void:
+	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
+	var run := Run.create(null, map, false)
+	var copper := _item(&"copper")
+	var lead := _item(&"lead")
+	var gate := run.get_gateway(run.planet)
+	var pair := run.get_gateway(run.base)
+	_check(run.base.is_base and not run.planet.is_base and run.base.grid.width == Registry.base_def.size, "база отдельным миром нужного размера")
+	_check(gate != null and pair != null and gate.link == run.link and pair.link == run.link, "шлюз и пара связаны")
+	if gate == null or pair == null:
+		run.dispose()
+		return
+	_check(run.drone.world == run.planet and run.can_use_gateway(), "дрон появляется над шлюзом на планете")
+	var center := gate.origin + Vector2i.ONE
+	_check(run.planet.pad_rect == Rect2i(center - Vector2i(7, 7), Vector2i(15, 15)), "площадка 15×15 вокруг шлюза")
+
+	# Планета → база: в западный порт шлюза, из западного порта пары.
+	var in_port := gate.get_input_tile()
+	_source(run.planet, in_port + Vector2i(-2, 0), [copper])
+	Worlds.conveyor_line(run.planet, in_port + Vector2i(-1, 0), 2, GameConst.Dir.RIGHT)
+	var out_port := pair.get_output_tile()
+	Worlds.conveyor_line(run.base, out_port, 2, GameConst.Dir.LEFT)
+	var base_sink := _sink(run.base, out_port + Vector2i(-2, 0))
+	for i in 900:
+		run.step()
+	_check(run.planet.simulation.tick == 900 and run.base.simulation.tick == 900, "оба мира тикают вместе")
+	var port_rate: float = (Registry.get_building(&"conveyor") as ConveyorDef).get_items_per_second()
+	_check(base_sink.count_of(copper) > port_rate * 30 * 0.7, "медь с планеты пришла в базу (%d)" % base_sink.count_of(copper))
+
+	# Не через порт — не принимается.
+	var north := run.planet.buildings.place(Registry.get_building(&"conveyor"), gate.origin + Vector2i(1, -1), GameConst.Dir.DOWN, true)
+	_check(not gate.accept_item(north, copper), "шлюз не принимает предметы не через порт")
+
+	# База → планета: в восточный порт пары, из восточного порта шлюза.
+	var back_in := pair.get_input_tile()
+	_source(run.base, back_in + Vector2i(2, 0), [lead])
+	Worlds.conveyor_line(run.base, back_in + Vector2i(1, 0), 2, GameConst.Dir.LEFT)
+	var back_out := gate.get_output_tile()
+	Worlds.conveyor_line(run.planet, back_out, 2, GameConst.Dir.RIGHT)
+	var planet_sink := _sink(run.planet, back_out + Vector2i(2, 0))
+	for i in 600:
+		run.step()
+	_check(planet_sink.count_of(lead) > 50, "свинец из базы вышел на планету (%d)" % planet_sink.count_of(lead))
+
+	# Нет выхода в базе — очередь «в базу» заполняется, поток встаёт; появился выход — идёт дальше.
+	run.base.buildings.remove(base_sink, true)
+	for i in 600:
+		run.step()
+	_check(run.link.size_of(true) == run.link.capacity, "без выхода очередь шлюза заполнена (%d)" % run.link.size_of(true))
+	base_sink = _sink(run.base, out_port + Vector2i(-2, 0))
+	for i in 300:
+		run.step()
+	_check(base_sink.received > 20, "после появления выхода поток через шлюз возобновился (%d)" % base_sink.received)
+
+	# Дрон проходит через шлюз; действовать можно только в мире, где он.
+	var conveyor := Registry.get_building(&"conveyor")
+	run.drone.inventory.add(conveyor.item.index, 5)
+	_check(run.use_gateway() and run.drone.world == run.base, "F над шлюзом переносит дрона в базу")
+	_check(pair.get_world_rect().has_point(run.drone.position), "дрон над парой шлюза")
+	_check(run.planet.check_build(conveyor, gate.origin + Vector2i(0, -4), 0) == BuildingManager.Check.OUT_OF_RANGE, "на планете без дрона строить нельзя")
+	_check(run.base.check_build(conveyor, pair.origin + Vector2i(0, -3), 0) == BuildingManager.Check.OK, "в базе строить можно")
+	var y0 := run.drone.position.y
+	run.drone.move_input = Vector2.DOWN
+	for i in 15:
+		run.step()
+	run.drone.move_input = Vector2.ZERO
+	_check(absf(run.drone.position.y - y0 - run.drone.def.speed * GameConst.TILE_SIZE * 0.5) < 1.0, "дрон обновляется один раз за тик в своём мире")
+	_check(not run.can_use_gateway(), "вдали от пары пройти нельзя")
+	run.drone.position = pair.get_world_center()
+	_check(run.use_gateway() and run.drone.world == run.planet, "дрон возвращается на планету")
+	run.dispose()

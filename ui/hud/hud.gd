@@ -1,8 +1,8 @@
 class_name Hud
 extends CanvasLayer
-## Игровой интерфейс: заголовок уровня, пауза и скорость, кнопка меню, панель строительства,
-## окно инвентаря и крафта, очередь крафта, инфо-строка, подсказки режима, легенды оверлеев,
-## отладка, уведомления, подтверждение массового сноса.
+## Игровой интерфейс: название текущего мира (планета или база), пауза и скорость, кнопка меню,
+## панель строительства, окно инвентаря и крафта, очередь крафта, инфо-строка, подсказки режима
+## и перехода через шлюз, легенды оверлеев, отладка, уведомления, подтверждение массового сноса.
 
 const INFO_REFRESH := 0.25
 const HINT_WIDTH := 720
@@ -19,6 +19,10 @@ var _belt_legend: PanelContainer
 var _debug: DebugOverlay
 var _confirm: ConfirmationDialog
 var inventory_window: InventoryWindow
+var _title_label: Label
+var _gateway_label: Label
+var _config_panel: ConfigPanel
+var _build_menu: BuildMenu
 var _pending_delete: Array[Building] = []
 var _fps_timer: float = 0.0
 var _info_timer: float = 0.0
@@ -116,9 +120,12 @@ func _build_top_left() -> void:
 	title_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var title_row := UiUtil.hbox(10)
 	title_panel.add_child(title_row)
-	var title := UiUtil.label(_game.world.level.title_key, &"HeaderLabel")
-	title.add_theme_font_size_override("font_size", 20)
-	title_row.add_child(title)
+	_title_label = Label.new()
+	_title_label.theme_type_variation = &"HeaderLabel"
+	_title_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_title_label.add_theme_font_size_override("font_size", 20)
+	title_row.add_child(_title_label)
+	_update_title()
 	if _game.world.creative:
 		var badge := UiUtil.label("HUD_CREATIVE", &"BadgeLabel")
 		badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -230,6 +237,14 @@ func _build_top_center() -> void:
 	_problem_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hint_column.add_child(_problem_label)
 
+	_gateway_label = Label.new()
+	_gateway_label.theme_type_variation = &"BadgeLabel"
+	_gateway_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_gateway_label.add_theme_font_size_override("font_size", 18)
+	_gateway_label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_gateway_label.visible = false
+	column.add_child(_gateway_label)
+
 	_paused_badge = UiUtil.label("HUD_PAUSED", &"BadgeLabel")
 	_paused_badge.add_theme_font_size_override("font_size", 18)
 	_paused_badge.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -247,13 +262,13 @@ func _build_build_menu() -> void:
 	column.offset_bottom = -16
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_root.add_child(column)
-	var config := ConfigPanel.new()
-	config.size_flags_horizontal = Control.SIZE_SHRINK_END
-	column.add_child(config)
-	config.setup(_game.tools, _game.world)
-	var menu := BuildMenu.new()
-	column.add_child(menu)
-	menu.setup(_game.tools, _game.world)
+	_config_panel = ConfigPanel.new()
+	_config_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+	column.add_child(_config_panel)
+	_config_panel.setup(_game.tools, _game.world)
+	_build_menu = BuildMenu.new()
+	column.add_child(_build_menu)
+	_build_menu.setup(_game.tools, _game.world)
 
 
 func _build_craft_queue() -> void:
@@ -293,12 +308,39 @@ func _build_confirm() -> void:
 
 # --- Обновление ---
 
+## Дрон перешёл в другой мир: панели переключаются на него.
+func on_world_changed() -> void:
+	var world := _game.world
+	_config_panel.set_world(world)
+	_build_menu.set_world(world)
+	inventory_window.set_world(world)
+	_update_title()
+	_update_info()
+	_update_hint()
+	_update_gateway_label()
+
+
+func _update_title() -> void:
+	var world := _game.world
+	if world.is_base:
+		_title_label.text = tr(Registry.base_def.title_key)
+	elif world.level != null:
+		_title_label.text = tr(world.level.title_key)
+	else:
+		_title_label.text = ""
+
 func _process(delta: float) -> void:
 	if _fps_label.visible:
 		_fps_timer -= delta
 		if _fps_timer <= 0.0:
 			_fps_timer = 0.25
 			_fps_label.text = "FPS %d" % Engine.get_frames_per_second()
+	# Подсказка перехода: дрон над центральным шлюзом.
+	var can_pass := _game.run != null and _game.run.can_use_gateway()
+	if can_pass != _gateway_label.visible:
+		_gateway_label.visible = can_pass
+		if can_pass:
+			_update_gateway_label()
 	# Состояние здания под курсором меняется со временем (буфер бура, предметы на ленте).
 	_info_timer -= delta
 	if _info_timer <= 0.0:
@@ -321,6 +363,8 @@ func _update_info() -> void:
 	if not floor_def.buildable:
 		floor_text += "  " + tr("HUD_INFO_UNBUILDABLE")
 	lines.append(floor_text)
+	if _game.world.pad_rect.has_point(t):
+		lines.append(tr("HUD_INFO_PAD"))
 	var ore := grid.get_ore_def(t.x, t.y)
 	if ore != null:
 		lines.append(tr("HUD_INFO_ORE") % [tr(ore.get_name_key()), ore.hardness])
@@ -359,6 +403,11 @@ func _update_hint() -> void:
 					InputActions.primary_label(&"delete_selection"), InputActions.primary_label(&"rotate"),
 					InputActions.primary_label(&"pipette")]
 	_update_problem()
+
+
+func _update_gateway_label() -> void:
+	var key := "HINT_GATEWAY_TO_PLANET" if _game.world.is_base else "HINT_GATEWAY_TO_BASE"
+	_gateway_label.text = tr(key) % InputActions.primary_label(&"use_gateway")
 
 
 func _update_problem() -> void:
@@ -403,5 +452,7 @@ func _on_setting_changed(key: StringName) -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED and _info_label != null:
+		_update_title()
 		_update_info()
 		_update_hint()
+		_update_gateway_label()

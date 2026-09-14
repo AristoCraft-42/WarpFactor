@@ -21,12 +21,13 @@ var paused: bool = false
 var blocked: bool = false
 var ticks_last_frame: int = 0
 
-var _simulation: Simulation
+## Один логический шаг (тик забега: обе симуляции).
+var _step: Callable
 var _accumulator: float = 0.0
 
 
-func setup(simulation: Simulation) -> void:
-	_simulation = simulation
+func setup(step: Callable) -> void:
+	_step = step
 	process_priority = -100
 
 
@@ -51,11 +52,11 @@ func is_running() -> bool:
 
 func _process(delta: float) -> void:
 	ticks_last_frame = 0
-	if _simulation == null or not is_running():
+	if not _step.is_valid() or not is_running():
 		return
 	_accumulator += minf(delta, MAX_FRAME_DELTA) * get_speed()
 	while _accumulator >= GameConst.TICK_DT and ticks_last_frame < MAX_TICKS_PER_FRAME:
-		_simulation.step()
+		_step.call()
 		_accumulator -= GameConst.TICK_DT
 		ticks_last_frame += 1
 	if ticks_last_frame >= MAX_TICKS_PER_FRAME:

@@ -37,6 +37,14 @@ func setup(map_size_px: Vector2) -> void:
 	_apply_zoom_property()
 
 
+## Смена мира: новые границы карты, взгляд возвращается к дрону.
+func set_map_size(map_size_px: Vector2) -> void:
+	_map_size_px = map_size_px
+	look_offset = Vector2.ZERO
+	_anchor_point = _follow_point()
+	_apply_position()
+
+
 ## Показать точку мира (смещением взгляда от дрона) и, при необходимости, задать масштаб.
 func focus_on(world_pos: Vector2, zoom_value: float = -1.0) -> void:
 	if zoom_value > 0.0:

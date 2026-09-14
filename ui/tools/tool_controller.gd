@@ -92,14 +92,40 @@ var _last_bridge: BridgeConveyor
 
 
 func setup(world: GameWorld, camera: CameraController, preview: PlacementPreview) -> void:
-	_world = world
 	_camera = camera
 	_preview = preview
+	set_world(world)
+
+
+## Смена активного мира (дрон прошёл через шлюз): инструмент, выделение и выбор сбрасываются.
+func set_world(world: GameWorld) -> void:
+	if world == _world:
+		return
+	if _world != null:
+		_cancel_drag()
+		clear_tool()
+		select(null)
+		clear_area()
+		if _world.buildings != null:
+			_world.buildings.building_added.disconnect(_on_world_changed)
+			_world.buildings.building_removed.disconnect(_on_world_changed)
+			_world.buildings.building_rotated.disconnect(_on_world_changed)
+			_world.buildings.building_changed.disconnect(_on_world_changed)
+			_world.buildings.building_removed.disconnect(_on_building_removed)
+	_world = world
 	_world.buildings.building_added.connect(_on_world_changed)
 	_world.buildings.building_removed.connect(_on_world_changed)
 	_world.buildings.building_rotated.connect(_on_world_changed)
 	_world.buildings.building_changed.connect(_on_world_changed)
 	_world.buildings.building_removed.connect(_on_building_removed)
+	hover_building = null
+	_last_bridge = null
+	if _preview != null:
+		_preview.clear()
+		_preview.set_hover(null)
+		_preview.set_selection(null)
+	_dirty = true
+	hover_changed.emit()
 
 
 # --- Режимы ---

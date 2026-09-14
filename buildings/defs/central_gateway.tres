@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="GatewayDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/gateway/gateway_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://buildings/gateway/gateway.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://buildings/defs/conveyor.tres" id="5_throughput"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"central_gateway"
+name_key = "BUILDING_CENTRAL_GATEWAY"
+description_key = "BUILDING_CENTRAL_GATEWAY_DESC"
+category = 3
+size = 3
+removable = false
+player_buildable = false
+line_placement = false
+sort_order = 0
+color = Color(0.690, 0.376, 0.110, 1)
+glyph = 15
+logic_script = ExtResource("3_logic")
+rotatable = false
+in_base = false
+inbound_side = 2
+outbound_side = 0
+buffer_capacity = 10
+throughput_of = ExtResource("5_throughput")

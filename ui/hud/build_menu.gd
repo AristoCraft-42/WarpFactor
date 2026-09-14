@@ -67,6 +67,11 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 	_select_category(_category)
 
 
+func set_world(world: GameWorld) -> void:
+	_world = world
+	_update_counts()
+
+
 func _process(delta: float) -> void:
 	_timer -= delta
 	if _timer > 0.0:

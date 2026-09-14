@@ -30,7 +30,17 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 	_content = UiUtil.vbox(6)
 	column.add_child(_content)
 	tools.selection_changed.connect(_rebuild)
-	world.buildings.building_changed.connect(_on_building_changed)
+	set_world(world)
+
+
+func set_world(world: GameWorld) -> void:
+	if world == _world and world.buildings.building_changed.is_connected(_on_building_changed):
+		return
+	if _world != null and _world.buildings != null and _world.buildings.building_changed.is_connected(_on_building_changed):
+		_world.buildings.building_changed.disconnect(_on_building_changed)
+	_world = world
+	_world.buildings.building_changed.connect(_on_building_changed)
+	_rebuild()
 
 
 func _on_building_changed(building: Building) -> void:

@@ -68,7 +68,8 @@ func step() -> void:
 			wake(b)
 	last_awake_buildings = current.size()
 
-	if _world.drone != null:
+	# Дрон один на забег и обновляется в симуляции того мира, где находится.
+	if _world.drone != null and _world.drone.world == _world:
 		_world.drone.update_tick(tick)
 
 	last_tick_usec = Time.get_ticks_usec() - start

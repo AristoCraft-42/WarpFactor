@@ -1,17 +1,17 @@
 class_name Game
 extends Node2D
-## Корень игровой сцены: загружает уровень, создаёт модель мира и все представления,
+## Корень игровой сцены: загружает уровень, создаёт забег (планета + база) и все представления,
 ## связывает камеру (следует за дроном), инструменты, управление дроном и интерфейс.
+## У каждого мира свой WorldView; активен вид мира, где находится дрон. Переход — через шлюз (F).
 ## Собственной игровой логики не содержит.
 
+var run: Run
+## Активный мир — тот, где сейчас дрон.
 var world: GameWorld
 var clock: SimClock
-var terrain: TerrainView
-var grid_overlay: GridOverlay
-var building_layer: BuildingLayer
-var item_renderer: ItemRenderer
-var ore_overlay: OreOverlay
-var belt_overlay: BeltLoadOverlay
+var planet_view: WorldView
+var base_view: WorldView
+var active_view: WorldView
 var preview: PlacementPreview
 var drone_view: DroneView
 var camera: CameraController
@@ -20,7 +20,29 @@ var drone_controller: DroneController
 var hud: Hud
 var pause_menu: PauseMenu
 
+## Представления активного мира (для интерфейса, отладки и тестов).
+var terrain: TerrainView:
+	get:
+		return active_view.terrain
+var grid_overlay: GridOverlay:
+	get:
+		return active_view.grid_overlay
+var building_layer: BuildingLayer:
+	get:
+		return active_view.building_layer
+var item_renderer: ItemRenderer:
+	get:
+		return active_view.item_renderer
+var ore_overlay: OreOverlay:
+	get:
+		return active_view.ore_overlay
+var belt_overlay: BeltLoadOverlay:
+	get:
+		return active_view.belt_overlay
+
 var _debug_enabled: bool = false
+var _ores_shown: bool = false
+var _belts_shown: bool = false
 
 
 func _ready() -> void:
@@ -46,10 +68,12 @@ func _ready() -> void:
 		Session.exit_to_menu.call_deferred()
 		return
 
-	world = GameWorld.create(level, map, Session.creative)
+	run = Run.create(level, map, Session.creative)
+	world = run.drone.world
 	_build_scene()
+	run.drone_changed_world.connect(_on_drone_changed_world)
 
-	camera.focus_on(world.drone.position, 1.0)
+	camera.focus_on(run.drone.position, 1.0)
 	_on_view_changed()
 	terrain.flush()
 
@@ -67,8 +91,9 @@ func _ready() -> void:
 
 
 func _exit_tree() -> void:
-	if world != null:
-		world.dispose()
+	if run != null:
+		run.dispose()
+		run = null
 		world = null
 
 
@@ -80,44 +105,36 @@ func open_pause_menu() -> void:
 	_update_input_enabled()
 
 
+## Мир базы открыт на экране.
+func is_in_base() -> bool:
+	return world == run.base
+
+
 func _build_scene() -> void:
 	clock = SimClock.new()
 	clock.name = "SimClock"
 	add_child(clock)
-	clock.setup(world.simulation)
+	clock.setup(run.step)
 
-	terrain = TerrainView.new()
-	terrain.name = "Terrain"
-	add_child(terrain)
-	terrain.setup(world.grid)
+	camera = CameraController.new()
+	camera.name = "Camera"
+	add_child(camera)
+	camera.make_current()
+	camera.setup(world.grid.get_pixel_size())
+	camera.follow_source = func() -> Vector2: return run.drone.get_draw_position(clock.alpha)
+	camera.view_changed.connect(_on_view_changed)
 
-	grid_overlay = GridOverlay.new()
-	grid_overlay.name = "Grid"
-	add_child(grid_overlay)
-	grid_overlay.setup(world.grid)
-
-	var border := MapBorder.new()
-	border.name = "MapBorder"
-	add_child(border)
-	border.setup(world.grid)
-
-	building_layer = BuildingLayer.new()
-	building_layer.name = "Buildings"
-	add_child(building_layer)
-	building_layer.setup(world)
-
-	item_renderer = ItemRenderer.new()
-	item_renderer.name = "Items"
-	add_child(item_renderer)
-
-	ore_overlay = OreOverlay.new()
-	ore_overlay.name = "OreOverlay"
-	add_child(ore_overlay)
-	ore_overlay.setup(world.grid)
-
-	belt_overlay = BeltLoadOverlay.new()
-	belt_overlay.name = "BeltLoadOverlay"
-	add_child(belt_overlay)
+	planet_view = WorldView.new()
+	planet_view.name = "PlanetView"
+	add_child(planet_view)
+	planet_view.setup(run.planet, camera, clock)
+	base_view = WorldView.new()
+	base_view.name = "BaseView"
+	add_child(base_view)
+	base_view.setup(run.base, camera, clock)
+	active_view = _view_of(world)
+	planet_view.set_active(active_view == planet_view)
+	base_view.set_active(active_view == base_view)
 
 	preview = PlacementPreview.new()
 	preview.name = "Preview"
@@ -127,27 +144,17 @@ func _build_scene() -> void:
 	drone_view.name = "Drone"
 	add_child(drone_view)
 
-	camera = CameraController.new()
-	camera.name = "Camera"
-	add_child(camera)
-	camera.make_current()
-	camera.setup(world.grid.get_pixel_size())
-	camera.follow_source = func() -> Vector2: return world.drone.get_draw_position(clock.alpha)
-	camera.view_changed.connect(_on_view_changed)
-	item_renderer.setup(world, camera, clock)
-	belt_overlay.setup(world, camera)
-
 	tools = ToolController.new()
 	tools.name = "Tools"
 	add_child(tools)
 	tools.setup(world, camera, preview)
 	tools.pause_menu_requested.connect(open_pause_menu)
-	drone_view.setup(world.drone, clock, tools)
+	drone_view.setup(run.drone, clock, tools)
 
 	drone_controller = DroneController.new()
 	drone_controller.name = "DroneController"
 	add_child(drone_controller)
-	drone_controller.setup(world.drone)
+	drone_controller.setup(run.drone)
 
 	hud = Hud.new()
 	hud.name = "Hud"
@@ -165,13 +172,18 @@ func _build_scene() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if tools == null or not tools.input_enabled:
 		return
-	if event.is_action_pressed("overlay_ores"):
-		ore_overlay.visible = not ore_overlay.visible
-		hud.set_ore_legend_visible(ore_overlay.visible)
+	if event.is_action_pressed("use_gateway"):
+		run.use_gateway()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("overlay_ores"):
+		_ores_shown = not _ores_shown
+		ore_overlay.visible = _ores_shown
+		hud.set_ore_legend_visible(_ores_shown)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("overlay_belts"):
-		belt_overlay.visible = not belt_overlay.visible
-		hud.set_belt_legend_visible(belt_overlay.visible)
+		_belts_shown = not _belts_shown
+		belt_overlay.visible = _belts_shown
+		hud.set_belt_legend_visible(_belts_shown)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_grid"):
 		Settings.set_value(&"game/show_grid", not Settings.get_bool(&"game/show_grid"))
@@ -211,6 +223,26 @@ func _update_input_enabled() -> void:
 	drone_controller.input_enabled = enabled
 	# Пока открыто меню паузы, время мира стоит (выбор скорости игрока не меняется).
 	clock.blocked = pause_menu.is_open()
+
+
+## Дрон прошёл через шлюз: активным становится вид мира, где он оказался.
+func _on_drone_changed_world() -> void:
+	world = run.drone.world
+	active_view.set_active(false)
+	active_view = _view_of(world)
+	active_view.set_active(true)
+	ore_overlay.visible = _ores_shown
+	belt_overlay.visible = _belts_shown
+	grid_overlay.set_chunk_lines_visible(_debug_enabled)
+	tools.set_world(world)
+	camera.set_map_size(world.grid.get_pixel_size())
+	hud.on_world_changed()
+	_on_view_changed()
+	terrain.flush()
+
+
+func _view_of(target: GameWorld) -> WorldView:
+	return base_view if target == run.base else planet_view
 
 
 func _on_view_changed() -> void:
