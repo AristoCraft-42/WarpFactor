@@ -26,6 +26,7 @@ signal teleport_starting
 
 var planet: GameWorld
 var base: GameWorld
+var research: ResearchState
 var drone: Drone
 var link: GatewayLink
 var star_map: StarMap
@@ -77,6 +78,7 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	planet = GameWorld.create(level, map, creative)
 	drone = planet.drone
 	base = GameWorld.create_base(Registry.base_def, creative, drone)
+	setup_research(ResearchState.new())
 	link = GatewayLink.new()
 	var spawn := drone.get_tile()
 	var planet_gate := planet.place_gateway(Registry.get_building(&"central_gateway") as GatewayDef, spawn - Vector2i.ONE)
@@ -94,10 +96,30 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	_setup_threat(planet, star_map.get_current(), 0)
 
 
-## Один логический тик обоих миров и зарядки телепорта.
+## Исследования забега: общие для обоих миров, фильтр ручного крафта дрона.
+func setup_research(state: ResearchState) -> void:
+	research = state
+	research.creative = creative
+	planet.research = research
+	base.research = research
+	drone.crafting.recipe_filter = research.is_hand_recipe_unlocked
+	research.changed.connect(_on_research_changed)
+
+
+func _on_research_changed() -> void:
+	for world in [planet, base]:
+		if world == null or world.buildings == null:
+			continue
+		for b in world.buildings.get_all():
+			if b is ScienceWorkshop:
+				b.wake()
+
+
+## Один логический тик обоих миров, исследований и зарядки телепорта.
 func step() -> void:
 	planet.simulation.step()
 	base.simulation.step()
+	research.step()
 	if planet.breached:
 		emergency_teleport()
 		return
@@ -256,6 +278,7 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 	star_map.move_to(node_id)
 	var map := PlanetGenerator.generate(node, PAD_SIZE)
 	var fresh := GameWorld.create(null, map, creative, drone)
+	fresh.research = research
 	fresh.simulation.tick = base.simulation.tick
 	var center := Vector2i(map.width / 2, map.height / 2)
 	var new_gate := fresh.place_gateway(Registry.get_building(&"central_gateway") as GatewayDef, center - Vector2i.ONE, gate_rotation)

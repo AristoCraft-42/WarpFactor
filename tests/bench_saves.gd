@@ -10,7 +10,7 @@ func _ready() -> void:
 	var bm := run.planet.buildings
 	var conveyor := Registry.get_building(&"conveyor")
 	var container := Registry.get_building(&"container") as StorageDef
-	var copper := Registry.get_item(&"copper").index
+	var copper := Registry.get_item(&"hematite").index
 	var placed := 0
 	for row in 60:
 		var y := 4 + row * 3

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"copper_cable"
+name_key = "ITEM_COPPER_CABLE"
+color = Color(0.878, 0.569, 0.298, 1)
+icon_shape = 6
+sort_order = 210
+stack_size = 200
+fuel_value = 0.0
+science_tier = 0

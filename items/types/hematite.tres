@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"hematite"
+name_key = "ITEM_HEMATITE"
+color = Color(0.478, 0.247, 0.227, 1)
+icon_shape = 2
+sort_order = 10
+stack_size = 50
+fuel_value = 0.0
+science_tier = 0

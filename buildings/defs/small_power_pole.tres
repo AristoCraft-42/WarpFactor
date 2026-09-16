@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="PowerPoleDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/power/power_pole_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/power/power_pole.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 2
+
+[resource]
+script = ExtResource("1_def")
+id = &"small_power_pole"
+name_key = "BUILDING_SMALL_POWER_POLE"
+description_key = "BUILDING_SMALL_POWER_POLE_DESC"
+category = 2
+size = 1
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 10
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
+craft_time = 0.5
+craft_amount = 2
+health = 60.0
+solid = false
+color = Color(0.478, 0.416, 0.333, 1)
+glyph = 23
+logic_script = ExtResource("3_logic")
+wire_range = 7.5
+supply_size = 5
+max_links = 5
+rotatable = false

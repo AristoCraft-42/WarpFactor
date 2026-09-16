@@ -43,8 +43,15 @@ func _process(_delta: float) -> void:
 	_dirty.clear()
 
 
-## Детали поверх здания, зависящие от настройки: иконка фильтра, инверсия, связь моста, порты шлюза.
+## Детали поверх здания, зависящие от настройки: иконка фильтра, инверсия, связь моста, порты шлюза,
+## приоритетные стороны маршрутизатора.
 static func draw_building_extras(canvas: CanvasItem, building: Building) -> void:
+	if building is Router:
+		var router := building as Router
+		if router.priority_in != Router.NO_SIDE:
+			_draw_side_mark(canvas, building, router.world_side(router.priority_in), true)
+		if router.priority_out != Router.NO_SIDE:
+			_draw_side_mark(canvas, building, router.world_side(router.priority_out), false)
 	if building is GatewayBuilding:
 		var gate := building as GatewayBuilding
 		_draw_port_arrow(canvas, gate, gate.get_input_side(), true)
@@ -72,6 +79,19 @@ static func draw_building_extras(canvas: CanvasItem, building: Building) -> void
 			canvas.draw_line(from, to, Color(0.1, 0.1, 0.1, 0.6), 6.0)
 			canvas.draw_line(from, to, Color(0.98, 0.74, 0.18, 0.85), 3.0)
 			canvas.draw_circle(to, 4.0, Color(0.98, 0.74, 0.18, 0.95))
+
+
+## Небольшая стрелка у стороны 1×1 здания: вход — внутрь (зелёная), выход — наружу (оранжевая).
+static func _draw_side_mark(canvas: CanvasItem, building: Building, side: int, incoming: bool) -> void:
+	var dir := Vector2(GameConst.dir_vector(side))
+	var edge := building.get_world_center() + dir * (GameConst.TILE_SIZE * 0.5 - 6.0)
+	var point := -dir if incoming else dir
+	var side_vec := Vector2(-point.y, point.x)
+	var col := Color(0.72, 0.73, 0.15) if incoming else Color(0.99, 0.5, 0.1)
+	var tip := edge + point * 5.0
+	var back := edge - point * 4.0
+	canvas.draw_colored_polygon(PackedVector2Array([tip + point * 1.5, back - point * 1.5 + side_vec * 7.0, back - point * 1.5 - side_vec * 7.0]), Color(0, 0, 0, 0.65))
+	canvas.draw_colored_polygon(PackedVector2Array([tip, back + side_vec * 5.0, back - side_vec * 5.0]), col)
 
 
 ## Стрелка порта шлюза на середине стороны: вход — внутрь (зелёная), выход — наружу (оранжевая).

@@ -1,71 +1,34 @@
 keys,en,ru
-ITEM_COPPER,Copper,Медь
-ITEM_LEAD,Lead,Свинец
 ITEM_COAL,Coal,Уголь
-ITEM_SAND,Sand,Песок
-ITEM_TITANIUM,Titanium,Титан
 ITEM_STONE,Stone,Камень
-ITEM_CRUSHED_ROCK,Crushed rock,Дроблёная порода
-ITEM_GRAPHITE,Graphite,Графит
-ITEM_SILICON,Silicon,Кремний
-ITEM_METAGLASS,Metaglass,Металлостекло
-ITEM_ALLOY,Alloy,Сплав
 FLOOR_STONE,Stone,Камень
 FLOOR_DARK_STONE,Dark stone,Тёмный камень
 FLOOR_GRAVEL,Gravel,Гравий
 FLOOR_METAL_PLATES,Metal plates,Металлические плиты
 FLOOR_ROCK,Rock wall,Скала
-ORE_COPPER,Copper ore,Медная руда
-ORE_LEAD,Lead ore,Свинцовая руда
-ORE_COAL,Coal deposit,Залежь угля
-ORE_SAND,Sand deposit,Залежь песка
-ORE_TITANIUM,Titanium ore,Титановая руда
-ORE_STONE,Stone deposit,Залежь камня
-CATEGORY_EXTRACTION,Mining,Добыча
-CATEGORY_TRANSPORT,Transport,Транспорт
+ORE_COAL,Coal rock,Угольная порода
+ORE_STONE,Stone rock,Каменная порода
+CATEGORY_TRANSPORT,Logistics,Логистика
 CATEGORY_PRODUCTION,Production,Производство
-CATEGORY_STORAGE,Storage,Хранение
-BUILDING_MECHANICAL_DRILL,Mechanical Drill,Механический бур
-BUILDING_MECHANICAL_DRILL_DESC,"Mines the ore underneath. Speed depends on ore tile count and hardness. Tier 2: sand, copper, lead, coal, stone.","Добывает руду под собой. Скорость зависит от числа тайлов руды и её твёрдости. Уровень 2: песок, медь, свинец, уголь, камень."
-BUILDING_PNEUMATIC_DRILL,Pneumatic Drill,Пневматический бур
-BUILDING_PNEUMATIC_DRILL_DESC,Faster than the mechanical drill and can mine titanium.,Быстрее механического и умеет добывать титан.
 BUILDING_CONVEYOR,Conveyor,Конвейер
 BUILDING_CONVEYOR_DESC,Moves items forward. Drag with the mouse to build a line.,"Перевозит предметы. Протяните мышью, чтобы построить линию."
-BUILDING_TITANIUM_CONVEYOR,Titanium Conveyor,Титановый конвейер
-BUILDING_TITANIUM_CONVEYOR_DESC,A faster belt with higher throughput.,Быстрая лента с большей пропускной способностью.
 BUILDING_JUNCTION,Junction,Перекрёсток
 BUILDING_JUNCTION_DESC,Lets two crossing flows pass through without mixing.,"Пропускает два пересекающихся потока насквозь, не смешивая их."
 BUILDING_ROUTER,Router,Маршрутизатор
-BUILDING_ROUTER_DESC,"Accepts items from all sides and hands them out to all sides in turn — back to the source too, if it accepts.","Принимает предметы со всех сторон и раздаёт по очереди во все стороны — в том числе обратно, если там принимают."
+BUILDING_ROUTER_DESC,Accepts items from every side and hands them out to every side in turn. Settings: a priority input and a priority output.,Принимает предметы со всех сторон и раздаёт во все стороны по очереди. Настройка: приоритетный вход и приоритетный выход.
 BUILDING_SORTER,Sorter,Сортировщик
 BUILDING_SORTER_DESC,"The selected item goes straight, everything else goes to the sides. Inversion in the settings swaps them.","Выбранный предмет проходит прямо, остальные уходят в стороны. Инверсия в настройке меняет их местами."
-BUILDING_OVERFLOW_GATE,Overflow Valve,Переливной клапан
-BUILDING_OVERFLOW_GATE_DESC,"Outputs forward; when the front is blocked, outputs to the sides. Reverse mode in the settings: sides first, then forward.","Отдаёт вперёд, а когда впереди занято — в стороны. Обратный режим в настройке: сначала в стороны, потом вперёд."
 BUILDING_BRIDGE_CONVEYOR,Bridge Conveyor,Мостовой конвейер
 BUILDING_BRIDGE_CONVEYOR_DESC,Carries items over other buildings to a linked bridge up to 4 tiles away. Bridges placed in a row link automatically.,"Переносит предметы над постройками к связанному мосту на расстоянии до 4 тайлов. Мосты, поставленные в ряд, связываются сами."
 BUILDING_UNLOADER,Unloader,Разгрузчик
 BUILDING_UNLOADER_DESC,"Balances items between neighbours: takes from storages, factories (inputs and products) and drills, and gives to non-storage buildings and belts.","Балансирует предметы между соседями: берёт из складов, заводов (и сырьё, и продукцию) и буров, отдаёт лентам и зданиям, кроме складов."
-BUILDING_PULVERIZER,Pulverizer,Дробилка
-BUILDING_PULVERIZER_DESC,Crushes stone into crushed rock.,Дробит камень в дроблёную породу.
-BUILDING_GRAPHITE_PRESS,Graphite Press,Графитовый пресс
-BUILDING_GRAPHITE_PRESS_DESC,Presses coal into graphite.,Прессует уголь в графит.
-BUILDING_SILICON_SMELTER,Silicon Smelter,Кремниевый плавильный завод
-BUILDING_SILICON_SMELTER_DESC,Smelts sand and coal into silicon.,Плавит песок с углём в кремний.
-BUILDING_KILN,Kiln,Печь
-BUILDING_KILN_DESC,Fuses sand and lead into metaglass.,Спекает песок и свинец в металлостекло.
-BUILDING_SEPARATOR,Separator,Сепаратор
-BUILDING_SEPARATOR_DESC,Separates crushed rock into random ores.,Разделяет дроблёную породу на случайные руды.
-BUILDING_ALLOY_MIXER,Alloy Mixer,Смеситель сплава
-BUILDING_ALLOY_MIXER_DESC,"Mixes copper, lead and titanium into alloy.","Смешивает медь, свинец и титан в сплав."
 BUILDING_CONTAINER,Container,Контейнер
-BUILDING_CONTAINER_DESC,"A small storage with 16 slots. Belts load it from any side, unloaders take items out.","Небольшой склад на 16 ячеек. Ленты загружают его с любой стороны, разгрузчики достают предметы."
-BUILDING_VAULT,Vault,Хранилище
-BUILDING_VAULT_DESC,A large storage with 48 slots.,Большой склад на 48 ячеек.
+BUILDING_CONTAINER_DESC,Stores items. Unloaders pull items out.,Хранит предметы. Разгрузчики забирают из него предметы.
 LEVEL_FIRST_STEPS_TITLE,First Steps,Первые шаги
-LEVEL_FIRST_STEPS_DESC,"A small valley: copper, lead and sand next to the landing site, coal and stone a bit further, titanium behind a rocky ridge.","Небольшая долина: медь, свинец и песок рядом с местом посадки, уголь и камень чуть дальше, титан — за скалистым гребнем."
+LEVEL_FIRST_STEPS_DESC,"A small valley: hematite, stone and coal next to the landing site, malachite and water a bit further.","Небольшая долина: гематит, камень и уголь рядом с местом посадки, малахит и вода чуть дальше."
 LEVEL_RIFT_TITLE,The Rift,Разлом
 LEVEL_RIFT_DESC,"A long canyon with scattered deposits. Resources lie far apart, so expect long conveyor lines.",Длинный каньон с россыпью месторождений. Ресурсы лежат далеко друг от друга — придётся тянуть длинные линии.
-MENU_SUBTITLE,Build a mobile factory. Travel between worlds.,Мобильная фабрика. Путешествие между мирами.
+MENU_SUBTITLE,Build a mobile factory. Warp between worlds.,Мобильная фабрика. Прыжки между мирами.
 MENU_PLAY,Play,Играть
 MENU_LOAD,Load,Загрузить
 MENU_SETTINGS,Settings,Настройки
@@ -155,6 +118,7 @@ HUD_INFO_FLOOR,Floor: %s,Пол: %s
 HUD_INFO_UNBUILDABLE,(not buildable),(строить нельзя)
 HUD_INFO_ORE,"Ore: %s, hardness %d","Руда: %s, твёрдость %d"
 HUD_INFO_NO_ORE,No ore,Руды нет
+HUD_INFO_FLUID,Liquid: %s (for a pump),Жидкость: %s (под насос)
 HUD_INFO_BUILDING,Building: %s,Здание: %s
 HINT_PLACE,%s  ·  %s — place (hold to drag a line)  ·  %s — rotate  ·  RMB or %s — cancel,%s  ·  %s — поставить (с зажатием — линией)  ·  %s — поворот  ·  ПКМ или %s — отмена
 HINT_IDLE,"%s — fly  ·  %s on ore — mine, on a building — open  ·  %s — inventory and crafting  ·  hold %s — select area  ·  %s — demolish hovered  ·  %s — rotate  ·  %s — pipette","%s — полёт  ·  %s по руде — добыча, по зданию — окно  ·  %s — инвентарь и крафт  ·  %s с зажатием — выделение  ·  %s — снести под курсором  ·  %s — повернуть  ·  %s — пипетка"
@@ -210,9 +174,6 @@ ACTION_COPY_SELECTION,Copy selection,Копировать выделенное
 HINT_AREA,Selected buildings: %d  ·  %s — demolish  ·  %s — copy  ·  %s or %s — clear selection,Выделено построек: %d  ·  %s — снести  ·  %s — копировать  ·  %s или %s — снять выделение
 HINT_PASTE,Paste (%d buildings)  ·  %s — place  ·  %s — rotate  ·  %s or %s — cancel,Вставка (%d построек)  ·  %s — поставить  ·  %s — повернуть  ·  %s или %s — отмена
 TOAST_COPIED,Copied buildings: %d,Скопировано построек: %d
-STAT_RECIPE_IN,Input: %s,Вход: %s
-STAT_RECIPE_OUT,Output: %s,Выход: %s
-STAT_RECIPE_TIME,Cycle: %.1f s,Цикл: %.1f с
 INFO_INPUTS,Input: %s,Вход: %s
 INFO_OUTPUTS,Output: %s,Выход: %s
 TOOLTIP_CRAFT_TIME,%.1f s,%.1f с
@@ -254,25 +215,9 @@ CRAFT_QUEUE,Crafting,Крафт
 CRAFT_QUEUE_CANCEL,"«%s»: LMB — cancel 1, RMB — 5, Shift+LMB — all","«%s»: ЛКМ — отменить 1, ПКМ — 5, Shift+ЛКМ — все"
 CRAFT_QUEUE_BLOCKED,inventory is full,инвентарь полон
 BUILDING_WINDOW_HINT,"LMB — take a stack, RMB — half, Shift+LMB — all of this item.","ЛКМ — забрать стопку, ПКМ — половину, Shift+ЛКМ — все такие предметы."
-BUILDING_TITANIUM_JUNCTION,Titanium Junction,Титановый перекрёсток
-BUILDING_TITANIUM_JUNCTION_DESC,A junction with titanium conveyor throughput.,Перекрёсток с пропускной способностью титановой ленты.
-BUILDING_TITANIUM_ROUTER,Titanium Router,Титановый маршрутизатор
-BUILDING_TITANIUM_ROUTER_DESC,A router with titanium conveyor throughput.,Маршрутизатор с пропускной способностью титановой ленты.
-BUILDING_TITANIUM_SORTER,Titanium Sorter,Титановый сортировщик
-BUILDING_TITANIUM_SORTER_DESC,A sorter with titanium conveyor throughput.,Сортировщик с пропускной способностью титановой ленты.
-BUILDING_TITANIUM_OVERFLOW_GATE,Titanium Overflow Valve,Титановый переливной клапан
-BUILDING_TITANIUM_OVERFLOW_GATE_DESC,An overflow valve with titanium conveyor throughput.,Переливной клапан с пропускной способностью титановой ленты.
-BUILDING_TITANIUM_BRIDGE_CONVEYOR,Titanium Bridge Conveyor,Титановый мостовой конвейер
-BUILDING_TITANIUM_BRIDGE_CONVEYOR_DESC,A bridge conveyor with titanium conveyor throughput.,Мостовой конвейер с пропускной способностью титановой ленты.
-BUILDING_TITANIUM_UNLOADER,Titanium Unloader,Титановый разгрузчик
-BUILDING_TITANIUM_UNLOADER_DESC,An unloader with titanium conveyor throughput.,Разгрузчик с пропускной способностью титановой ленты.
 CONFIG_INVERT_SORTER,Inversion,Инверсия
 CONFIG_INVERT_SORTER_HINT,With inversion the selected item goes to the sides and everything else goes straight.,"С инверсией выбранный предмет уходит в стороны, а остальные проходят прямо."
-CONFIG_INVERT_GATE,Reverse mode,Обратный режим
-CONFIG_INVERT_GATE_HINT,"Reverse mode: outputs to the sides, and forward only when the sides are blocked.","Обратный режим: отдаёт в стороны, а вперёд — только когда по сторонам занято."
 INFO_INVERTED,Inverted,Инверсия
-INFO_GATE_NORMAL,Mode: forward first,Режим: сначала вперёд
-INFO_GATE_INVERTED,Mode: sides first (reverse),Режим: сначала в стороны (обратный)
 BUILD_BUTTON_HINT,"LMB — take in hand, RMB — craft 1, Shift+RMB — craft 5","ЛКМ — взять в руку, ПКМ — скрафтить 1, Shift+ПКМ — 5"
 BUILDING_CENTRAL_GATEWAY,Central Gateway,Центральный шлюз
 BUILDING_CENTRAL_GATEWAY_DESC,"Connects the planet with the mobile base: one port sends items to the base, the other receives them from the base. R rotates the ports. Fly over it and press F to enter the base; click it to open the star map and teleport.","Связывает планету с мобильной базой: один порт отправляет предметы в базу, другой принимает их из базы. R поворачивает порты. Зависните над ним и нажмите F, чтобы войти в базу; клик — звёздная карта и телепорт."
@@ -360,20 +305,9 @@ SUMMARY_EMERGENCY_TITLE,Emergency jump: %s,Аварийный переход: %s
 SUMMARY_EMERGENCY,Enemies destroyed the gateway — the base escaped by emergency teleport.,Враги разрушили шлюз — база ушла аварийным телепортом.
 SUMMARY_COMBAT,"Waves: %d, enemies destroyed: %d, buildings lost to enemies: %d","Волн: %d, уничтожено врагов: %d, разрушено врагами построек: %d"
 CATEGORY_DEFENSE,Defense,Оборона
-BUILDING_COPPER_WALL,Copper Wall,Медная стена
-BUILDING_COPPER_WALL_DESC,Cheap wall. Enemies go around walls when they can and break through when there is no other way.,"Дешёвая стена. Враги обходят стены, если есть путь, и ломают, если обхода нет."
-BUILDING_LARGE_COPPER_WALL,Large Copper Wall,Большая медная стена
-BUILDING_LARGE_COPPER_WALL_DESC,Four copper walls in one 2×2 block.,Четыре медные стены одним блоком 2×2.
-BUILDING_TITANIUM_WALL,Titanium Wall,Титановая стена
-BUILDING_TITANIUM_WALL_DESC,Sturdier than copper.,Прочнее медной.
-BUILDING_LARGE_TITANIUM_WALL,Large Titanium Wall,Большая титановая стена
-BUILDING_LARGE_TITANIUM_WALL_DESC,Four titanium walls in one 2×2 block.,Четыре титановые стены одним блоком 2×2.
-BUILDING_MACHINE_GUN,Machine Gun,Пулемёт
-BUILDING_MACHINE_GUN_DESC,"Rapid-fire turret. Ammo: copper, graphite (more damage) or silicon (faster fire). Feed it by belt or by hand.","Скорострельная турель. Патроны: медь, графит (больше урон) или кремний (чаще стреляет). Подавайте лентой или руками."
-BUILDING_ARTILLERY,Artillery,Артиллерия
-BUILDING_ARTILLERY_DESC,Long-range turret: shells burst and damage every enemy in the area. Cannot hit enemies close by. Ammo: graphite or silicon.,Дальнобойная турель: снаряд взрывается и бьёт всех врагов в области. Вплотную не стреляет. Патроны: графит или кремний.
+BUILDING_MACHINE_GUN,Machine Gun Turret,Пулемётная турель
+BUILDING_MACHINE_GUN_DESC,Rapid-fire turret on machine-gun cartridges. The filler of a cartridge sets its effect. Works without power.,Скорострельная турель на пулемётных патронах. Наполнитель патрона задаёт эффект. Работает без электричества.
 STAT_TURRET_RANGE,Range: %.1f tiles,Дальность: %.1f тайла
-STAT_TURRET_RANGE_MIN,Range: %.1f–%.1f tiles,Дальность: %.1f–%.1f тайла
 STAT_TURRET_RELOAD,Reload: %.2f s,Перезарядка: %.2f с
 STAT_TURRET_AMMO,Ammo (damage): %s,Патроны (урон): %s
 STAT_TURRET_SPLASH,blast %.1f,взрыв %.1f
@@ -383,3 +317,111 @@ THREAT_ENEMIES_KILLED,Enemies: %d · destroyed: %d,Врагов: %d · унич�
 TOAST_BUILDINGS_ATTACKED,Enemies are attacking your buildings!,Враги атакуют постройки!
 ACTION_OVERLAY_RANGES,Turret ranges,Радиусы турелей
 TURRET_WINDOW_HINT,"Click ammo in your inventory to load the turret: LMB — a stack, RMB — half, Shift+LMB — all. Ammo cannot be taken back.","Кликните по патронам в инвентаре, чтобы зарядить турель: ЛКМ — стопку, ПКМ — половину, Shift+ЛКМ — все. Забрать патроны нельзя."
+ITEM_HEMATITE,Hematite,Гематит
+ITEM_MALACHITE,Malachite,Малахит
+ITEM_IRON_INGOT,Iron ingot,Железный слиток
+ITEM_BRICK,Brick,Кирпич
+ITEM_COPPER_INGOT,Copper ingot,Медный слиток
+ITEM_GEAR,Gear,Шестерня
+ITEM_COPPER_CABLE,Copper cable,Медный кабель
+ITEM_SCIENCE_KIT,Science kit,Научный набор
+ITEM_RESISTOR,Resistor,Резистор
+ITEM_CASING_MG,Machine-gun casing,Пулемётная гильза
+ITEM_CARTRIDGE_STONE,Cartridge: stone,Патрон: каменный
+ITEM_CARTRIDGE_IRON,Cartridge: armor-piercing,Патрон: бронебойный
+ITEM_CARTRIDGE_COAL,Cartridge: incendiary,Патрон: зажигательный
+ITEM_CARTRIDGE_COPPER,Cartridge: light,Патрон: лёгкий
+ITEM_CARTRIDGE_BRICK,Cartridge: fragmentation,Патрон: осколочный
+FLUID_WATER,Water,Вода
+FLUID_STEAM,Steam,Пар
+ORE_HEMATITE,Hematite,Гематит
+ORE_MALACHITE,Malachite,Малахит
+ORE_WATER,Water,Вода
+CATEGORY_POWER,Power,Энергия
+CRAFT_COMPONENTS,Components,Компоненты
+BUILDING_FURNACE,Furnace,Печь
+BUILDING_FURNACE_DESC,"Smelts hematite into iron, stone into bricks and malachite into copper. Burns coal. Picks the recipe by the incoming ore.","Переплавляет гематит в железо, камень в кирпичи, малахит в медь. Жжёт уголь. Рецепт выбирает по пришедшему сырью."
+BUILDING_DRILL,Drill,Бур
+BUILDING_DRILL_DESC,Mines the deposit underneath. Needs power: slows down when there is not enough.,Добывает месторождение под собой. Нужно электричество: при нехватке работает медленнее.
+BUILDING_ASSEMBLER,Assembler,Сборщик
+BUILDING_ASSEMBLER_DESC,Makes components and cartridges by the chosen recipe. Needs power.,Делает компоненты и патроны по выбранному рецепту. Нужно электричество.
+BUILDING_SCIENCE_WORKSHOP,Science Workshop,Научный цех
+BUILDING_SCIENCE_WORKSHOP_DESC,Spends science kits on the selected research much faster than handing them in manually. Needs power.,Тратит научные наборы на выбранное исследование гораздо быстрее ручной сдачи. Нужно электричество.
+BUILDING_SMALL_POWER_POLE,Small Power Pole,Малая опора ЛЭП
+BUILDING_SMALL_POWER_POLE_DESC,Connects to nearby poles with wires and powers buildings in its area.,Соединяется проводами с ближайшими опорами и питает постройки в своей зоне.
+BUILDING_THERMAL_GENERATOR,Thermal Generator,Термогенератор
+BUILDING_THERMAL_GENERATOR_DESC,Burns fuel into electricity. Simple but wasteful: half of the energy is lost.,"Сжигает топливо и даёт электричество. Прост, но расточителен: половина энергии теряется."
+BUILDING_PIPE,Pipe,Труба
+BUILDING_PIPE_DESC,Carries water and steam. Connects to neighbouring pipes and machine ports.,Проводит воду и пар. Соединяется с соседними трубами и портами машин.
+BUILDING_PUMP,Pump,Насос
+BUILDING_PUMP_DESC,Placed on water. Pumps water into connected pipes. Works without power.,Ставится на воду. Качает воду в подключённые трубы. Работает без электричества.
+BUILDING_BOILER,Boiler,Бойлер
+BUILDING_BOILER_DESC,"Burns fuel and turns water into steam: water on the left side, steam on the right.","Жжёт топливо и превращает воду в пар: вода — слева, пар — справа."
+BUILDING_STEAM_GENERATOR,Steam Generator,Паровой генератор
+BUILDING_STEAM_GENERATOR_DESC,"Turns steam into electricity. Steam enters from the left or right side and passes through, so generators can stand in a row.",Превращает пар в электричество. Пар входит слева или справа и проходит насквозь — генераторы можно ставить в ряд.
+BUILDING_STONE_WALL,Stone Wall,Каменная стена
+BUILDING_STONE_WALL_DESC,Enemies go around walls when they can and break through when there is no other way.,"Враги обходят стены, если есть путь, и ломают, если обхода нет."
+STAT_RECIPE,%s → %s (%.1f s),%s → %s (%.1f с)
+STAT_POWER_USE,Power: %d kW,Потребление: %d кВт
+STAT_FUEL_USE,Fuel: %d kW while working,Топливо: %d кВт при работе
+STAT_POWER_OUTPUT,Output: up to %d kW,Выработка: до %d кВт
+STAT_STEAM_USE,Steam: %.0f per second at full load,Пар: %.0f в секунду на полной мощности
+STAT_FUEL_EFFICIENCY,Fuel efficiency: %d%%,КПД топлива: %d%%
+STAT_POLE_WIRE,Wire reach: %.1f tiles,Дальность провода: %.1f тайла
+STAT_POLE_SUPPLY,Supply area: %d×%d,Зона питания: %d×%d
+STAT_PUMP_RATE,Pumps %.0f per second per water tile,Качает %.0f в секунду с тайла воды
+STAT_BOILER,"Burns %d kW, makes %.0f steam per second","Жжёт %d кВт, даёт %.0f пара в секунду"
+STAT_PIPE_CAPACITY,Capacity: %d,Вместимость: %d
+STAT_WORKSHOP,%.1f s per kit at full power,%.1f с на набор при полном питании
+STAT_TURRET_BURN,burning %.0f/s for %.0f s,горение %.0f/с %.0f с
+STAT_TURRET_FAST,+%d%% fire rate,+%d%% скорострельности
+INFO_POWER_SATISFACTION,Power: %d%% (%d kW),Питание: %d%% (%d кВт)
+INFO_NO_POLE,Not connected to a power pole,Не подключено к опоре ЛЭП
+INFO_POWER_NETWORK,"Network: demand %d kW, supply %d kW","Сеть: спрос %d кВт, выработка %d кВт"
+INFO_POLE_LINKS,Wires: %d of %d,Провода: %d из %d
+INFO_POWER_OUTPUT,Output: %d / %d kW,Выработка: %d / %d кВт
+INFO_FUEL,Fuel: %d,Топливо: %d
+INFO_PIPE_EMPTY,Empty (capacity %d),Пусто (вместимость %d)
+INFO_PIPE_FLUID,%s: %d / %d,%s: %d / %d
+INFO_PUMP_RATE,%s: %.0f of %.0f per second,%s: %.0f из %.0f в секунду
+INFO_BOILER,Steam: %.0f of %.0f per second,Пар: %.0f из %.0f в секунду
+INFO_BOILER_TANKS,"Water %d, steam %d","Вода %d, пар %d"
+INFO_NO_RECIPE,No recipe selected,Рецепт не выбран
+INFO_WORKSHOP_KITS,Kits: %d / %d,Наборы: %d / %d
+INFO_WORKSHOP_RESEARCH,Research: %s,Исследование: %s
+INFO_ROUTER_PRIORITY_IN,Priority input is set,Задан приоритетный вход
+INFO_ROUTER_PRIORITY_OUT,Priority output is set,Задан приоритетный выход
+STATUS_NO_POWER,No power,Нет питания
+STATUS_NO_FUEL,No fuel,Нет топлива
+STATUS_NO_RECIPE,Choose a recipe,Выберите рецепт
+STATUS_NO_RESEARCH,No research selected,Исследование не выбрано
+CONFIG_ROUTER_HINT,"Priority output gets items first, other sides only when it is busy. Priority input: while items are coming along its belt, other inputs wait.","Приоритетный выход получает предметы первым, остальные стороны — только когда он занят. Приоритетный вход: пока по его ленте едут предметы, другие входы ждут."
+CONFIG_ROUTER_IN,Priority input:,Приоритетный вход:
+CONFIG_ROUTER_OUT,Priority output:,Приоритетный выход:
+CONFIG_ROUTER_NONE,No priority,Без приоритета
+CONFIG_RECIPE_HINT,Choose what the assembler makes. Changing the recipe returns the ingredients of the current cycle to the input buffer.,"Выберите, что делает сборщик. При смене рецепта сырьё текущего цикла возвращается во входной буфер."
+CRAFT_LOCKED,Requires research: %s,Нужно исследование: %s
+TOAST_LOCKED,Requires research: %s,Нужно исследование: %s
+HUD_RESEARCH,Research,Исследования
+ACTION_RESEARCH,Research,Исследования
+RESEARCH_TITLE,Research,Исследования
+RESEARCH_HINT,"Click a research to select it. Hand in science kits from the inventory (slow) or feed them to a Science Workshop (fast, needs power).","Кликните по исследованию, чтобы выбрать его. Сдавайте научные наборы из инвентаря (медленно) или подавайте их в научный цех (быстро, нужно электричество)."
+RESEARCH_DEPOSIT,Hand in kits (%d),Сдать наборы (%d)
+RESEARCH_QUEUE,"Handed in: %d kits, %.0f s each","Сдано вручную: %d наборов, по %.0f с на набор"
+RESEARCH_DONE,Researched,Исследовано
+RESEARCH_ACTIVE,Selected,Выбрано
+RESEARCH_COST,%d / %d × %s,%d / %d × %s
+RESEARCH_REQUIRES,Requires: %s,Нужно: %s
+RESEARCH_UNLOCKS,Unlocks: %s,Открывает: %s
+TOAST_RESEARCH_DONE,Research complete: %s,Исследование завершено: %s
+TOAST_RESEARCH_DEPOSITED,Kits handed in: %d,Сдано наборов: %d
+RESEARCH_MINING,Mining,Добыча
+RESEARCH_MINING_DESC,"Electric drills for any deposit, including malachite.","Электрические буры для любых месторождений, включая малахит."
+RESEARCH_SCIENCE_AUTOMATION,Science Automation,Автоматизация науки
+RESEARCH_SCIENCE_AUTOMATION_DESC,The Science Workshop spends kits without you.,Научный цех тратит наборы без вашего участия.
+RESEARCH_LOGISTICS,Logistics,Логистика
+RESEARCH_LOGISTICS_DESC,"Sorters, unloaders and bridge conveyors.","Сортировщики, разгрузчики и мостовые конвейеры."
+RESEARCH_INDUSTRY,Industry,Промышленность
+RESEARCH_INDUSTRY_DESC,The Assembler makes components automatically.,Сборщик делает компоненты автоматически.
+RESEARCH_DEFENSE,Defense,Оборона
+RESEARCH_DEFENSE_DESC,"Machine-gun turrets, casings and cartridges.","Пулемётные турели, гильзы и патроны."

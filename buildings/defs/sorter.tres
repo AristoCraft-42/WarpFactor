@@ -4,30 +4,30 @@
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/transport/sorter.gd" id="3_logic"]
 [ext_resource type="Resource" path="res://buildings/defs/conveyor.tres" id="5_throughput"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
-[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
+[ext_resource type="Resource" path="res://items/types/buildings/router.tres" id="item_router"]
+[ext_resource type="Resource" path="res://items/types/resistor.tres" id="item_resistor"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
-amount = 2
+item = ExtResource("item_router")
+amount = 1
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_lead")
-amount = 2
+item = ExtResource("item_resistor")
+amount = 1
 
 [resource]
 script = ExtResource("1_def")
 id = &"sorter"
 name_key = "BUILDING_SORTER"
 description_key = "BUILDING_SORTER_DESC"
-category = 1
+category = 0
 size = 1
 removable = true
 player_buildable = true
 line_placement = false
-sort_order = 50
+sort_order = 40
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
 craft_time = 0.5
 craft_amount = 1

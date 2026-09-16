@@ -8,6 +8,6 @@ script = ExtResource("1_script")
 id = &"junction"
 name_key = "BUILDING_JUNCTION"
 color = Color(0.420, 0.373, 0.325, 1)
-sort_order = 1130
+sort_order = 1020
 stack_size = 50
 building = ExtResource("2_building")

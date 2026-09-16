@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="Flowworks"
+config/name="WarpFactor"
 config/description="Автоматизированное производство без боевой составляющей."
 config/version="0.1.0"
 run/main_scene="res://ui/menu/main_menu.tscn"

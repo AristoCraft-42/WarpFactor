@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="BuildingDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Resource" path="res://items/types/brick.tres" id="item_brick"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_brick")
+amount = 6
+
+[resource]
+script = ExtResource("1_def")
+id = &"stone_wall"
+name_key = "BUILDING_STONE_WALL"
+description_key = "BUILDING_STONE_WALL_DESC"
+category = 3
+size = 1
+removable = true
+player_buildable = true
+line_placement = true
+sort_order = 10
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
+craft_time = 0.5
+craft_amount = 1
+health = 360.0
+solid = true
+color = Color(0.545, 0.541, 0.518, 1)
+glyph = 16
+rotatable = false

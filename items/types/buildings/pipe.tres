@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/pipe.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"pipe"
+name_key = "BUILDING_PIPE"
+color = Color(0.365, 0.416, 0.455, 1)
+sort_order = 1230
+stack_size = 100
+building = ExtResource("2_building")

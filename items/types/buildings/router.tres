@@ -8,6 +8,6 @@ script = ExtResource("1_script")
 id = &"router"
 name_key = "BUILDING_ROUTER"
 color = Color(0.478, 0.420, 0.310, 1)
-sort_order = 1140
+sort_order = 1030
 stack_size = 50
 building = ExtResource("2_building")

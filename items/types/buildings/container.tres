@@ -8,6 +8,6 @@ script = ExtResource("1_script")
 id = &"container"
 name_key = "BUILDING_CONTAINER"
 color = Color(0.416, 0.416, 0.353, 1)
-sort_order = 1310
+sort_order = 1070
 stack_size = 20
 building = ExtResource("2_building")

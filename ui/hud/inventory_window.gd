@@ -7,10 +7,12 @@ extends PanelContainer
 ## Ячейки инвентаря при открытом здании: ЛКМ — положить стопку, ПКМ — половину, Shift+ЛКМ — всё.
 ## Без здания ЛКМ по постройке в инвентаре берёт её в руку.
 ## Рецепты: ЛКМ — скрафтить 1, ПКМ — 5, Shift+ЛКМ — сколько хватает сырья.
+## Первая вкладка — компоненты (шестерни, кабель, наборы, патроны), остальные — постройки по разделам.
+## Закрытые исследованием рецепты затемнены.
 
 enum Mode { CRAFT, BUILDING }
 
-const CATEGORY_KEYS := ["CATEGORY_EXTRACTION", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_STORAGE", "CATEGORY_DEFENSE"]
+const CATEGORY_KEYS := ["CRAFT_COMPONENTS", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_POWER", "CATEGORY_DEFENSE"]
 const INVENTORY_COLUMNS := 10
 const RIGHT_COLUMNS := 8
 const RIGHT_MIN_SIZE := Vector2(8 * (ItemSlot.SIZE + 4), 330)
@@ -33,7 +35,8 @@ var _craft_box: VBoxContainer
 var _category_buttons: Array[Button] = []
 var _recipe_grid: GridContainer
 var _recipe_slots: Dictionary[int, ItemSlot] = {}
-var _category: int = BuildingDef.Category.TRANSPORT
+## Вкладка крафта: 0 — компоненты, дальше — раздел построек + 1.
+var _category: int = 0
 var _building_box: VBoxContainer
 var _building_grid: GridContainer
 var _building_slots: Array[ItemSlot] = []
@@ -292,7 +295,10 @@ func _select_category(category: int) -> void:
 	_recipe_slots.clear()
 	for recipe in Registry.hand_recipes:
 		var def := recipe.output.building
-		if def == null or def.category != category:
+		if category == 0:
+			if def != null:
+				continue
+		elif def == null or def.category != category - 1:
 			continue
 		var slot := ItemSlot.new()
 		slot.slot_clicked.connect(_on_recipe_clicked.bind(recipe))
@@ -306,9 +312,13 @@ func _refresh_recipes() -> void:
 	for item in _recipe_slots:
 		var recipe := Registry.get_hand_recipe(item)
 		var slot := _recipe_slots[item]
-		var craftable := CRAFT_LIMIT if _world.creative else queue.max_craftable(recipe, CRAFT_LIMIT)
+		var unlocked := queue.is_available(recipe)
+		var craftable := (CRAFT_LIMIT if _world.creative else queue.max_craftable(recipe, CRAFT_LIMIT)) if unlocked else 0
 		slot.set_stack(item, craftable, true)
-		slot.modulate = Color.WHITE if craftable > 0 else Color(1, 1, 1, 0.45)
+		if not unlocked:
+			slot.modulate = Color(0.55, 0.45, 0.45, 0.6)
+		else:
+			slot.modulate = Color.WHITE if craftable > 0 else Color(1, 1, 1, 0.45)
 		slot.tooltip_text = _recipe_tooltip(recipe, craftable)
 
 
@@ -318,6 +328,9 @@ func _on_recipe_clicked(button: MouseButton, shift: bool, recipe: HandRecipe) ->
 		count = 5
 	elif shift:
 		count = CRAFT_LIMIT
+	if not _drone.crafting.is_available(recipe):
+		Events.toast(tr("TOAST_LOCKED") % _research_name(recipe), Events.ToastKind.WARNING)
+		return
 	if _world.creative:
 		_drone.inventory.add(recipe.output.index, recipe.amount * count)
 		return
@@ -333,6 +346,8 @@ func _recipe_tooltip(recipe: HandRecipe, craftable: int) -> String:
 	if recipe.amount > 1:
 		header += " ×%d" % recipe.amount
 	lines.append(header)
+	if not _drone.crafting.is_available(recipe):
+		lines.append(tr("CRAFT_LOCKED") % _research_name(recipe))
 	var parts := PackedStringArray()
 	for stack in recipe.ingredients:
 		parts.append("%s %d/%d" % [tr(stack.item.name_key), _drone.inventory.count(stack.item.index), stack.amount])
@@ -341,6 +356,11 @@ func _recipe_tooltip(recipe: HandRecipe, craftable: int) -> String:
 	lines.append(tr("CRAFT_IN_INVENTORY") % _drone.inventory.count(recipe.output.index))
 	lines.append(tr("CRAFT_AVAILABLE") % craftable)
 	return "\n".join(lines)
+
+
+func _research_name(recipe: HandRecipe) -> String:
+	var research := Registry.get_building_research(recipe.building) if recipe.building != null else Registry.get_recipe_research(recipe.recipe)
+	return tr(research.name_key) if research != null else "—"
 
 
 # --- Здание ---

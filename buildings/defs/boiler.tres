@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="FluidBuildingDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/fluid/fluid_building_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/fluid/boiler.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://fluids/defs/water.tres" id="fluid_water"]
+[ext_resource type="Resource" path="res://fluids/defs/steam.tres" id="fluid_steam"]
+[ext_resource type="Resource" path="res://items/types/brick.tres" id="item_brick"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/buildings/pipe.tres" id="item_pipe"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_brick")
+amount = 12
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 6
+
+[sub_resource type="Resource" id="cost_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_pipe")
+amount = 4
+
+[resource]
+script = ExtResource("1_def")
+id = &"boiler"
+name_key = "BUILDING_BOILER"
+description_key = "BUILDING_BOILER_DESC"
+category = 2
+size = 2
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 50
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
+craft_time = 2.0
+craft_amount = 1
+health = 240.0
+solid = true
+color = Color(0.478, 0.290, 0.227, 1)
+glyph = 21
+logic_script = ExtResource("3_logic")
+role = 2
+fuel_power = 1000.0
+steam_per_second = 60.0
+fuel_capacity = 10
+water_fluid = ExtResource("fluid_water")
+steam_fluid = ExtResource("fluid_steam")

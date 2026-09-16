@@ -84,6 +84,15 @@ func _draw() -> void:
 			TurretView.draw_range(self, (_selected as Turret).get_turret_def(), _selected.get_world_center())
 		draw_rect(_selected.get_world_rect().grow(3.0), COLOR_SELECTED, false, 3.0)
 
+	# Опора в руке: зона питания и дальность проводов.
+	if not _ghosts.is_empty() and _ghosts[_ghosts.size() - 1].def is PowerPoleDef:
+		var pole := _ghosts[_ghosts.size() - 1]
+		var pd := pole.def as PowerPoleDef
+		var center := Vector2(pole.origin) * t + pd.get_pixel_size() * 0.5
+		var half := Vector2.ONE * pd.supply_size * t * 0.5
+		draw_rect(Rect2(center - half, half * 2.0), Color(0.98, 0.74, 0.18, 0.12), true)
+		draw_rect(Rect2(center - half, half * 2.0), Color(0.98, 0.74, 0.18, 0.8), false, 2.0)
+		draw_arc(center, pd.wire_range * t, 0.0, TAU, 64, Color(0.85, 0.65, 0.3, 0.6), 2.0)
 	# Радиус турели в руке (у ряда — только у последней, чтобы не пестрило).
 	if not _ghosts.is_empty() and _ghosts[_ghosts.size() - 1].def is TurretDef:
 		var last := _ghosts[_ghosts.size() - 1]

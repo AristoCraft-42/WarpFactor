@@ -17,6 +17,7 @@ var spawn_markers: SpawnMarkers
 var enemy_renderer: EnemyRenderer
 var combat_overlay: CombatOverlay
 var turret_view: TurretView
+var network_view: NetworkView
 
 
 func setup(p_world: GameWorld, camera: CameraController, clock: SimClock) -> void:
@@ -61,6 +62,11 @@ func setup(p_world: GameWorld, camera: CameraController, clock: SimClock) -> voi
 	enemy_renderer.name = "Enemies"
 	add_child(enemy_renderer)
 	enemy_renderer.setup(world, camera, clock)
+
+	network_view = NetworkView.new()
+	network_view.name = "Networks"
+	add_child(network_view)
+	network_view.setup(world, camera)
 
 	turret_view = TurretView.new()
 	turret_view.name = "Turrets"

@@ -127,6 +127,18 @@ func _update_dynamic() -> void:
 		Building.Status.NO_AMMO:
 			text = tr("STATUS_NO_AMMO")
 			color = UiTheme.RED
+		Building.Status.NO_POWER:
+			text = tr("STATUS_NO_POWER")
+			color = UiTheme.RED
+		Building.Status.NO_FUEL:
+			text = tr("STATUS_NO_FUEL")
+			color = UiTheme.ORANGE
+		Building.Status.NO_RECIPE:
+			text = tr("STATUS_NO_RECIPE")
+			color = UiTheme.ORANGE
+		Building.Status.NO_RESEARCH:
+			text = tr("STATUS_NO_RESEARCH")
+			color = UiTheme.ORANGE
 	_status.visible = not text.is_empty()
 	_status.text = text
 	_status.add_theme_color_override("font_color", color)

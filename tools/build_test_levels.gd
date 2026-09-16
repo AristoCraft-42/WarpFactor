@@ -35,7 +35,7 @@ func _first_steps() -> LevelMap:
 	_blob_floor(map, "gravel", Vector2(30, 50), 6.0, 0.4, 0.9)
 	_blob_floor(map, "gravel", Vector2(66, 12), 5.0, 0.4, 2.2)
 
-	# Скалистые края и гребень, отделяющий титан.
+	# Скалистые края и гребень, отделяющий малахит.
 	_wall_line(map, Vector2(0, 0), Vector2(95, 0), 2.6, 0.7, 0.3)
 	_wall_line(map, Vector2(0, 63), Vector2(95, 63), 2.6, 0.7, 1.3)
 	_wall_line(map, Vector2(0, 0), Vector2(0, 63), 2.6, 0.7, 2.3)
@@ -46,13 +46,15 @@ func _first_steps() -> LevelMap:
 
 	_rect_floor(map, Rect2i(43, 28, 11, 9), "metal_plates")
 
-	_blob_ore(map, "copper", Vector2(36, 24), 4.2, 0.35, 0.2)
-	_blob_ore(map, "copper", Vector2(58, 41), 3.2, 0.35, 1.2)
-	_blob_ore(map, "lead", Vector2(61, 22), 4.0, 0.35, 2.2)
-	_blob_ore(map, "sand", Vector2(37, 43), 4.2, 0.35, 3.2)
+	_blob_ore(map, "hematite", Vector2(36, 24), 4.2, 0.35, 0.2)
+	_blob_ore(map, "hematite", Vector2(58, 41), 3.2, 0.35, 1.2)
+	_blob_ore(map, "stone", Vector2(61, 22), 4.0, 0.35, 2.2)
+	_blob_ore(map, "coal", Vector2(37, 43), 4.2, 0.35, 3.2)
 	_blob_ore(map, "coal", Vector2(69, 36), 3.6, 0.35, 4.2)
 	_blob_ore(map, "stone", Vector2(22, 34), 5.0, 0.3, 5.2)
-	_blob_ore(map, "titanium", Vector2(86, 12), 3.6, 0.3, 0.6)
+	_blob_ore(map, "malachite", Vector2(86, 12), 3.6, 0.3, 0.6)
+	_blob_ore(map, "malachite", Vector2(24, 52), 3.4, 0.3, 1.6)
+	_blob_ore(map, "water", Vector2(80, 48), 3.8, 0.4, 2.6)
 
 	# Дрон появляется на металлических плитах (LevelDef.spawn).
 	return map
@@ -81,18 +83,18 @@ func _rift() -> LevelMap:
 	_wall_polyline(map, [Vector2(0, 150), Vector2(70, 140), Vector2(118, 154)], 5.0, 0.4, 3.1)
 	_wall_polyline(map, [Vector2(136, 156), Vector2(200, 142), Vector2(260, 154), Vector2(319, 144)], 5.0, 0.4, 4.1)
 
-	# Карман с титаном в северной скале.
+	# Карман с малахитом в северной скале.
 	_blob_floor(map, "stone", Vector2(150, 28), 9.0, 0.3, 0.7)
 
 	_rect_floor(map, Rect2i(36, 91, 11, 11), "metal_plates")
 
 	var ores := [
-		["copper", Vector2(58, 88), 5.0], ["copper", Vector2(140, 110), 6.0], ["copper", Vector2(250, 70), 5.0],
-		["lead", Vector2(60, 112), 4.5], ["lead", Vector2(180, 95), 5.0],
-		["sand", Vector2(90, 125), 6.0], ["sand", Vector2(220, 120), 5.0],
-		["coal", Vector2(110, 72), 4.5], ["coal", Vector2(272, 110), 5.0],
-		["stone", Vector2(160, 130), 6.0], ["stone", Vector2(26, 128), 5.0],
-		["titanium", Vector2(300, 95), 4.0], ["titanium", Vector2(150, 28), 4.0],
+		["hematite", Vector2(58, 88), 5.0], ["hematite", Vector2(140, 110), 6.0], ["hematite", Vector2(250, 70), 5.0],
+		["stone", Vector2(60, 112), 4.5], ["stone", Vector2(180, 95), 5.0],
+		["coal", Vector2(90, 125), 6.0], ["coal", Vector2(220, 120), 5.0],
+		["coal", Vector2(110, 72), 4.5], ["water", Vector2(272, 110), 5.0],
+		["stone", Vector2(160, 130), 6.0], ["water", Vector2(26, 128), 5.0],
+		["malachite", Vector2(300, 95), 4.0], ["malachite", Vector2(150, 28), 4.0],
 	]
 	for i in ores.size():
 		_blob_ore(map, ores[i][0], ores[i][1], ores[i][2], 0.35, float(i) * 0.9)

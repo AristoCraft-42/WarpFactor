@@ -78,6 +78,12 @@ func index_of(building_id: int) -> int:
 	return _index_of[building_id] if building_id < _index_of.size() else -1
 
 
+## На ленте building_id есть предметы, едущие в здание target_id (лента смотрит в него).
+func has_items_heading_to(building_id: int, target_id: int) -> bool:
+	var c := index_of(building_id)
+	return c >= 0 and counts[c] > 0 and next_bid[c] == target_id and next_conv[c] == 0
+
+
 func get_awake_count() -> int:
 	return _awake.size()
 

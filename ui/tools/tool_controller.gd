@@ -542,6 +542,11 @@ func _rotate_plan() -> void:
 		if entry.config is Vector2i:
 			var v: Vector2i = entry.config
 			entry.config = Vector2i(-v.y, v.x)
+		elif entry.config is Array:
+			var rotated: Array = []
+			for v in entry.config:
+				rotated.append(Vector2i(-v.y, v.x) if v is Vector2i else v)
+			entry.config = rotated
 	plan_size = Vector2i(plan_size.y, plan_size.x)
 	_dirty = true
 

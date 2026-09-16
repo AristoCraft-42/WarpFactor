@@ -58,6 +58,7 @@ func _draw() -> void:
 	_draw_events(view)
 	_draw_projectiles(view)
 	_draw_blasts(view)
+	_draw_burning(view)
 	if _camera.user_zoom >= 0.3:
 		_draw_building_bars(view)
 		_draw_enemy_bars(view)
@@ -148,6 +149,24 @@ func _draw_projectiles(view: Rect2) -> void:
 			draw_circle(Vector2(x, y), 3.5, Color(0, 0, 0, 0.35))
 			draw_circle(Vector2(x, y - height), 5.0, Color(0.11, 0.13, 0.13))
 			draw_circle(Vector2(x, y - height), 3.5, col.lightened(0.2))
+
+
+## Горящие враги: язычки пламени над телом.
+func _draw_burning(view: Rect2) -> void:
+	var sys := _world.enemies
+	var tick := _world.simulation.tick
+	var alpha := _clock.alpha
+	for i in sys.count:
+		if not sys.is_burning(i, tick):
+			continue
+		var p := Vector2(lerpf(sys.prev_x[i], sys.pos_x[i], alpha), lerpf(sys.prev_y[i], sys.pos_y[i], alpha))
+		if not view.has_point(p):
+			continue
+		var r := sys.get_radius(i)
+		for k in 3:
+			var phase := _time * 9.0 + k * 2.1 + i
+			var offset := Vector2(sin(phase) * r * 0.6, -r * 0.4 - absf(cos(phase * 0.7)) * r * 0.8)
+			draw_circle(p + offset, 2.5 + sin(phase * 1.3), Color(1.0, 0.55 + 0.25 * sin(phase), 0.1, 0.85))
 
 
 func _draw_blasts(view: Rect2) -> void:

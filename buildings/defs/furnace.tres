@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="CrafterDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/production/crafter_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/production/crafter.gd" id="3_logic"]
+[ext_resource type="Script" path="res://items/recipe.gd" id="7_recipe_script"]
+[ext_resource type="Resource" path="res://items/recipes/smelt_iron.tres" id="recipe_smelt_iron"]
+[ext_resource type="Resource" path="res://items/recipes/smelt_brick.tres" id="recipe_smelt_brick"]
+[ext_resource type="Resource" path="res://items/recipes/smelt_copper.tres" id="recipe_smelt_copper"]
+[ext_resource type="Resource" path="res://items/types/stone.tres" id="item_stone"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_stone")
+amount = 10
+
+[resource]
+script = ExtResource("1_def")
+id = &"furnace"
+name_key = "BUILDING_FURNACE"
+description_key = "BUILDING_FURNACE_DESC"
+category = 1
+size = 2
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 10
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
+craft_time = 1.0
+craft_amount = 1
+health = 200.0
+solid = true
+color = Color(0.478, 0.353, 0.282, 1)
+glyph = 11
+logic_script = ExtResource("3_logic")
+recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_smelt_iron"), ExtResource("recipe_smelt_brick"), ExtResource("recipe_smelt_copper")])
+recipe_mode = 1
+item_capacity = 10
+fuel_use = 90.0
+fuel_capacity = 10

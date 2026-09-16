@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"brick"
+name_key = "ITEM_BRICK"
+color = Color(0.643, 0.333, 0.227, 1)
+icon_shape = 7
+sort_order = 110
+stack_size = 100
+fuel_value = 0.0
+science_tier = 0

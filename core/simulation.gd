@@ -4,6 +4,7 @@ extends RefCounted
 ## Никакого обхода всех зданий или тайлов: обновляются только бодрствующие здания и ленты.
 ##
 ## Порядок тика:
+##   0. электросети (спрос и предложение) и сети труб (пересборка при изменениях);
 ##   1. планировщик будит здания, чьё время пришло;
 ##   2. ConveyorSystem двигает бодрствующие ленты;
 ##   3. бодрствующие здания выполняют update_tick;
@@ -53,6 +54,8 @@ func dispose() -> void:
 func step() -> void:
 	var start := Time.get_ticks_usec()
 	tick += 1
+	_world.fluids.update()
+	_world.power.update()
 
 	_due.clear()
 	_scheduler.pop_due(tick, _due)
@@ -78,6 +81,7 @@ func step() -> void:
 		_world.enemies.update(tick)
 	if _world.projectiles.count > 0:
 		_world.projectiles.update(tick)
+	if _world.enemies.count > 0:
 		_world.enemies.remove_dead()
 
 	# Дрон один на забег и обновляется в симуляции того мира, где находится.
@@ -109,7 +113,7 @@ func schedule(building: Building, at_tick: int) -> void:
 
 
 func add_waiter(target_id: int, waiter_id: int) -> void:
-	# Мгновенные здания (сортировщик, клапаны) не имеют буфера: ждём и их соседей (у них освободится
+	# Мгновенные здания (сортировщик) не имеют буфера: ждём и их соседей (у них освободится
 	# место), и само здание (оно будит ожидающих, когда кончается пауза пропускной способности).
 	var target := _manager.get_by_id(target_id)
 	if target is PassThroughBuilding:

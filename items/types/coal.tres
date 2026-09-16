@@ -6,6 +6,9 @@
 script = ExtResource("1_script")
 id = &"coal"
 name_key = "ITEM_COAL"
-color = Color(0.231, 0.231, 0.267, 1)
-icon_shape = 2
+color = Color(0.180, 0.169, 0.165, 1)
+icon_shape = 1
 sort_order = 30
+stack_size = 50
+fuel_value = 4000.0
+science_tier = 0

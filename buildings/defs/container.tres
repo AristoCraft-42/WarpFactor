@@ -3,31 +3,25 @@
 [ext_resource type="Script" path="res://buildings/storage/storage_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/storage/storage_building.gd" id="3_logic"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
-[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
-amount = 60
-
-[sub_resource type="Resource" id="cost_1"]
-script = ExtResource("2_stack")
-item = ExtResource("item_lead")
-amount = 30
+item = ExtResource("item_iron_ingot")
+amount = 20
 
 [resource]
 script = ExtResource("1_def")
 id = &"container"
 name_key = "BUILDING_CONTAINER"
 description_key = "BUILDING_CONTAINER_DESC"
-category = 3
+category = 0
 size = 2
 removable = true
 player_buildable = true
 line_placement = false
-sort_order = 10
-cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
+sort_order = 70
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
 craft_time = 2.0
 craft_amount = 1
 health = 300.0

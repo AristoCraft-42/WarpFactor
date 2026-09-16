@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="FluidBuildingDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/fluid/fluid_building_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/fluid/pump.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
+[ext_resource type="Resource" path="res://items/types/buildings/pipe.tres" id="item_pipe"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 5
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_gear")
+amount = 3
+
+[sub_resource type="Resource" id="cost_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_pipe")
+amount = 2
+
+[resource]
+script = ExtResource("1_def")
+id = &"pump"
+name_key = "BUILDING_PUMP"
+description_key = "BUILDING_PUMP_DESC"
+category = 2
+size = 1
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 40
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
+craft_time = 1.0
+craft_amount = 1
+health = 100.0
+solid = true
+color = Color(0.247, 0.435, 0.561, 1)
+glyph = 20
+logic_script = ExtResource("3_logic")
+role = 1
+pump_per_tile = 120.0
+rotatable = false

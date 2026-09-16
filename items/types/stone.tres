@@ -6,6 +6,9 @@
 script = ExtResource("1_script")
 id = &"stone"
 name_key = "ITEM_STONE"
-color = Color(0.690, 0.667, 0.612, 1)
-icon_shape = 1
-sort_order = 60
+color = Color(0.545, 0.541, 0.518, 1)
+icon_shape = 4
+sort_order = 20
+stack_size = 50
+fuel_value = 0.0
+science_tier = 0

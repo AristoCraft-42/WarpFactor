@@ -8,6 +8,6 @@ script = ExtResource("1_script")
 id = &"unloader"
 name_key = "BUILDING_UNLOADER"
 color = Color(0.310, 0.447, 0.447, 1)
-sort_order = 1200
+sort_order = 1060
 stack_size = 50
 building = ExtResource("2_building")

@@ -17,18 +17,21 @@ func _ready() -> void:
 	print("Бенчмарк лент: %d линий × %d = %d лент, тик = 1/%d с" % [_lines, _length, _lines * _length, GameConst.TICK_RATE])
 	_scenario("все ленты в движении (источник → линия → приёмник)", true, false)
 	_scenario("все ленты забиты (нет приёмника)", false, false)
-	_scenario("титановые ленты в движении", true, true)
+	_scenario("быстрые ленты (×2) в движении", true, true)
 	_scenario_drills()
 	get_tree().quit()
 
 
-func _scenario(title: String, with_sinks: bool, titanium: bool) -> void:
+## fast — лента вдвое быстрее обычной (как будущие титановые, в ранней игре их нет).
+func _scenario(title: String, with_sinks: bool, fast: bool) -> void:
 	var world := Worlds.empty_world(_length + 8, _lines * 2 + 4)
-	var def_id := &"titanium_conveyor" if titanium else &"conveyor"
+	var belt := Registry.get_building(&"conveyor").duplicate() as ConveyorDef
+	if fast:
+		belt.tiles_per_second *= 2.0
 	for i in _lines:
 		var y := 2 + i * 2
 		world.buildings.place(Worlds.source_def(), Vector2i(1, y), 0, true)
-		Worlds.conveyor_line(world, Vector2i(2, y), _length, GameConst.Dir.RIGHT, def_id)
+		Worlds.conveyor_line(world, Vector2i(2, y), _length, GameConst.Dir.RIGHT, &"", belt)
 		if with_sinks:
 			world.buildings.place(Worlds.sink_def(), Vector2i(2 + _length, y), 0, true)
 	# Прогрев: линии заполняются до установившегося режима.
@@ -45,11 +48,11 @@ func _scenario(title: String, with_sinks: bool, titanium: bool) -> void:
 	world.dispose()
 
 
-## Смешанная фабрика: буры на руде отдают в линии, линии уходят в ядро.
+## Смешанная фабрика: буры на гематите (питание — опоры вдоль левого края) отдают в линии, линии уходят в приёмники.
 func _scenario_drills() -> void:
 	var drills := _lines
 	var map := LevelMap.new(_length + 16, drills * 3 + 8, Registry.get_floor(&"stone").index)
-	var copper := Registry.get_ore(&"copper").index + 1
+	var copper := Registry.get_ore(&"hematite").index + 1
 	for i in drills:
 		var y := 2 + i * 3
 		for dy in 2:
@@ -58,9 +61,14 @@ func _scenario_drills() -> void:
 	var world := GameWorld.create(null, map, true)
 	for i in drills:
 		var y := 2 + i * 3
-		world.buildings.place(Registry.get_building(&"mechanical_drill"), Vector2i(1, y), 0, true)
+		world.buildings.place(Registry.get_building(&"drill"), Vector2i(1, y), 0, true)
 		Worlds.conveyor_line(world, Vector2i(3, y), _length, GameConst.Dir.RIGHT)
 		world.buildings.place(Worlds.sink_def(), Vector2i(3 + _length, y), 0, true)
+	world.buildings.place(Worlds.generator_def(), Vector2i(0, 3), 0, true)
+	for i in drills:
+		var pole := world.buildings.place(Registry.get_building(&"small_power_pole"), Vector2i(0, 4 + i * 3), 0, true) as PowerPole
+		if pole != null:
+			world.power.auto_link(pole)
 	Worlds.run_ticks(world, 600)
 	var ticks := 600
 	var start := Time.get_ticks_usec()

@@ -4,25 +4,31 @@
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/transport/junction.gd" id="3_logic"]
 [ext_resource type="Resource" path="res://buildings/defs/conveyor.tres" id="5_throughput"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/buildings/conveyor.tres" id="item_conveyor"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
-amount = 3
+item = ExtResource("item_conveyor")
+amount = 2
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 2
 
 [resource]
 script = ExtResource("1_def")
 id = &"junction"
 name_key = "BUILDING_JUNCTION"
 description_key = "BUILDING_JUNCTION_DESC"
-category = 1
+category = 0
 size = 1
 removable = true
 player_buildable = true
 line_placement = false
-sort_order = 30
-cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
+sort_order = 20
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
 craft_time = 0.5
 craft_amount = 1
 health = 60.0

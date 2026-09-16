@@ -3,11 +3,17 @@
 [ext_resource type="Script" path="res://buildings/transport/conveyor_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/transport/conveyor.gd" id="3_logic"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
+item = ExtResource("item_iron_ingot")
+amount = 1
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_gear")
 amount = 1
 
 [resource]
@@ -15,15 +21,15 @@ script = ExtResource("1_def")
 id = &"conveyor"
 name_key = "BUILDING_CONVEYOR"
 description_key = "BUILDING_CONVEYOR_DESC"
-category = 1
+category = 0
 size = 1
 removable = true
 player_buildable = true
 line_placement = true
 sort_order = 10
-cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
-craft_time = 0.25
-craft_amount = 1
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
+craft_time = 0.5
+craft_amount = 2
 health = 45.0
 solid = false
 color = Color(0.310, 0.290, 0.271, 1)

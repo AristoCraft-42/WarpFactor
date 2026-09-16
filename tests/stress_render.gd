@@ -22,7 +22,7 @@ func _run(game: Game) -> void:
 	var grid := game.world.grid
 	var defs: Array[BuildingDef] = [
 		Registry.get_building(&"conveyor"), Registry.get_building(&"conveyor"), Registry.get_building(&"conveyor"),
-		Registry.get_building(&"router"), Registry.get_building(&"mechanical_drill"), Registry.get_building(&"silicon_smelter"),
+		Registry.get_building(&"router"), Registry.get_building(&"drill"), Registry.get_building(&"furnace"),
 	]
 	var t0 := Time.get_ticks_usec()
 	var placed := 0

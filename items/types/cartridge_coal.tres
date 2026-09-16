@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"cartridge_coal"
+name_key = "ITEM_CARTRIDGE_COAL"
+color = Color(0.890, 0.388, 0.184, 1)
+icon_shape = 3
+sort_order = 412
+stack_size = 200
+fuel_value = 0.0
+science_tier = 0

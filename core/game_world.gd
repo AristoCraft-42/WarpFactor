@@ -43,6 +43,10 @@ var last_lost_items: int = 0
 var gateway: GatewayBuilding
 var enemies: EnemySystem
 var projectiles: ProjectileSystem
+var power: PowerGraph
+var fluids: FluidGraph
+## Исследования забега (общие для всех миров; null — мир вне забега).
+var research: ResearchState
 ## Турели мира по id (для отрисовки стволов и радиусов).
 var turrets: Dictionary[int, Turret] = {}
 ## Последняя атака врагов на постройку: тик и точка (для тревоги в интерфейсе).
@@ -77,6 +81,8 @@ static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_
 	world.simulation = Simulation.new(world, world.buildings)
 	world.enemies = EnemySystem.new(world)
 	world.projectiles = ProjectileSystem.new(world)
+	world.power = PowerGraph.new(world)
+	world.fluids = FluidGraph.new(world)
 	world.spawn_points = map.spawn_points.duplicate()
 	world.buildings.building_removed.connect(world._on_building_removed)
 	for p in map.placements:
@@ -302,6 +308,8 @@ func build(def: BuildingDef, origin: Vector2i, rotation: int, config: Variant = 
 	var building := buildings.place(def, origin, rotation)
 	if building == null and not creative:
 		drone.inventory.add(def.item.index, 1)
+	if building is PowerPole:
+		power.auto_link(building)
 	if building != null and config != null:
 		configure(building, config)
 	return building
@@ -414,6 +422,13 @@ func dispose() -> void:
 	if projectiles != null:
 		projectiles.dispose()
 	projectiles = null
+	if power != null:
+		power.dispose()
+	power = null
+	if fluids != null:
+		fluids.dispose()
+	fluids = null
+	research = null
 	turrets.clear()
 	crates.clear()
 	gateway = null

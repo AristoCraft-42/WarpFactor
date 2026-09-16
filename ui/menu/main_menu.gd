@@ -33,7 +33,7 @@ func _ready() -> void:
 	layout.add_child(left)
 	left.add_child(UiUtil.spacer(false))
 	var title := Label.new()
-	title.text = "FLOWWORKS"
+	title.text = "WARPFACTOR"
 	title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	title.theme_type_variation = &"TitleLabel"
 	left.add_child(title)

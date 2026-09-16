@@ -13,7 +13,7 @@ extends RefCounted
 ## индексами вместе с таблицами id: при изменении контента индексы переносятся (SaveContext).
 
 const MAGIC := "FWSV"
-const VERSION := 2
+const VERSION := 3
 const DIR := "user://saves/"
 ## Автопрогон пишет в отдельную папку, чтобы не трогать сохранения игрока.
 const AUTOSHOT_DIR := "user://saves_autoshot/"
@@ -23,8 +23,9 @@ const EXT := ".fwsave"
 static var _floor_map := PackedInt32Array()
 static var _dir: String = ""
 static var _ore_map := PackedInt32Array()
-## Перенос индексов врагов (пусто — без переноса).
+## Перенос индексов врагов и жидкостей (пусто — без переноса).
 static var _enemy_map := PackedInt32Array()
+static var _fluid_map := PackedInt32Array()
 
 
 # --- Файлы ---
@@ -161,15 +162,19 @@ static func run_to_dict(run: Run) -> Dictionary:
 	var enemy_ids := PackedStringArray()
 	for e in Registry.enemies:
 		enemy_ids.append(String(e.id))
+	var fluid_ids := PackedStringArray()
+	for f in Registry.fluids:
+		fluid_ids.append(String(f.id))
 	return {
 		"version": VERSION,
-		"tables": {"items": item_ids, "floors": floor_ids, "ores": ore_ids, "enemies": enemy_ids},
+		"tables": {"items": item_ids, "floors": floor_ids, "ores": ore_ids, "enemies": enemy_ids, "fluids": fluid_ids},
 		"run": {
 			"seed": run.run_seed, "creative": run.creative, "level": String(run.level_id),
 			"star_map": run.star_map.save_data(),
 			"charge_target": run.charge_target, "charge_left": run.charge_ticks_left, "charge_total": run.charge_ticks_total,
 			"arrival_tick": run.planet_arrival_tick, "drone_in_base": run.drone.world == run.base,
 		},
+		"research": run.research.save_data(),
 		"link": run.link.save_data(),
 		"drone": run.drone.save_data(),
 		"planet": world_to_dict(run.planet),
@@ -183,6 +188,7 @@ static func run_from_dict(data: Dictionary) -> Run:
 	_floor_map = _layer_map(tables.get("floors", PackedStringArray()), true)
 	_ore_map = _layer_map(tables.get("ores", PackedStringArray()), false)
 	_enemy_map = _enemy_table(tables.get("enemies", PackedStringArray()))
+	_fluid_map = _fluid_table(tables.get("fluids", PackedStringArray()))
 	var run_data: Dictionary = data.get("run", {})
 	var run := Run.new()
 	run.run_seed = int(run_data.get("seed", 0))
@@ -196,6 +202,9 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.base = world_from_dict(data.get("base", {}), run.drone)
 	run.drone.world = run.base if bool(run_data.get("drone_in_base", false)) else run.planet
 	run.drone.load_data(data.get("drone", {}))
+	var research := ResearchState.new()
+	research.load_data(data.get("research", {}))
+	run.setup_research(research)
 
 	var link_data: Dictionary = data.get("link", {})
 	run.link = GatewayLink.new()
@@ -256,6 +265,7 @@ static func world_to_dict(world: GameWorld) -> Dictionary:
 		"destroyed": world.destroyed_count, "breached": world.breached,
 		"enemies": world.enemies.save_data(),
 		"projectiles": world.projectiles.save_data(),
+		"fluids": world.fluids.save_data(),
 	}
 	if world.threat != null:
 		result["threat"] = world.threat.save_data()
@@ -312,6 +322,7 @@ static func world_from_dict(d: Dictionary, drone: Drone) -> GameWorld:
 	world.breached = bool(d.get("breached", false))
 	world.enemies.load_data(d.get("enemies", {}), _enemy_map)
 	world.projectiles.load_data(d.get("projectiles", {}))
+	world.fluids.load_data(d.get("fluids", {}), _fluid_map)
 	return world
 
 
@@ -362,6 +373,17 @@ static func _enemy_table(saved_ids: PackedStringArray) -> PackedInt32Array:
 	for i in saved_ids.size():
 		var e := Registry.get_enemy(StringName(saved_ids[i]))
 		result.append(e.index if e != null else -1)
+		if result[i] != i:
+			identity = false
+	return PackedInt32Array() if identity else result
+
+
+static func _fluid_table(saved_ids: PackedStringArray) -> PackedInt32Array:
+	var result := PackedInt32Array()
+	var identity := saved_ids.size() == Registry.fluids.size()
+	for i in saved_ids.size():
+		var f := Registry.get_fluid(StringName(saved_ids[i]))
+		result.append(f.index if f != null else -1)
 		if result[i] != i:
 			identity = false
 	return PackedInt32Array() if identity else result

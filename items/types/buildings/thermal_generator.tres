@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/thermal_generator.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"thermal_generator"
+name_key = "BUILDING_THERMAL_GENERATOR"
+color = Color(0.541, 0.310, 0.227, 1)
+sort_order = 1220
+stack_size = 10
+building = ExtResource("2_building")

@@ -8,6 +8,6 @@ script = ExtResource("1_script")
 id = &"bridge_conveyor"
 name_key = "BUILDING_BRIDGE_CONVEYOR"
 color = Color(0.416, 0.353, 0.290, 1)
-sort_order = 1190
+sort_order = 1050
 stack_size = 50
 building = ExtResource("2_building")

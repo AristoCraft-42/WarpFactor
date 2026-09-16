@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="OreDef" format=3]
+
+[ext_resource type="Script" path="res://world/ore_def.gd" id="1_script"]
+[ext_resource type="Resource" path="res://items/types/hematite.tres" id="2_target"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"hematite"
+name_key = "ORE_HEMATITE"
+item = ExtResource("2_target")
+hardness = 1
+sort_order = 10

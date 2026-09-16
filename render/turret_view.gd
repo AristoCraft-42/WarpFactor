@@ -14,6 +14,7 @@ var show_ranges: bool = false:
 
 var _world: GameWorld
 var _camera: CameraController
+var _had_content: bool = false
 
 
 func setup(world: GameWorld, camera: CameraController) -> void:
@@ -23,8 +24,13 @@ func setup(world: GameWorld, camera: CameraController) -> void:
 
 
 func _process(_delta: float) -> void:
-	if _world != null and (not _world.turrets.is_empty() or show_ranges):
+	if _world == null:
+		return
+	# Перерисовка и в кадре, когда турелей не стало: иначе на экране остаётся последний рисунок стволов.
+	var has_content := not _world.turrets.is_empty() or show_ranges
+	if has_content or _had_content:
 		queue_redraw()
+	_had_content = has_content
 
 
 func _draw() -> void:

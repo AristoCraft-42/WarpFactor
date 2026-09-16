@@ -17,5 +17,6 @@ func _draw() -> void:
 	# Детали рисуются вторым проходом, чтобы не разрывать батч основных спрайтов.
 	for id in manager.get_chunk_ids(chunk_index):
 		var b := manager.get_by_id(id)
-		if b != null and (b.get_display_item() >= 0 or b.is_inverted() or b is BridgeConveyor or b is GatewayBuilding):
+		if b != null and (b.get_display_item() >= 0 or b.is_inverted() or b is BridgeConveyor or b is GatewayBuilding \
+				or (b is Router and (b as Router).has_priorities())):
 			BuildingLayer.draw_building_extras(self, b)

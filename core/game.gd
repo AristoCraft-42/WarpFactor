@@ -224,6 +224,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("use_gateway"):
 		run.use_gateway()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("research"):
+		hud.research_window.toggle()
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("quick_save"):
 		save_named(QUICKSAVE_FILE, tr("SAVE_NAME_QUICK"), true)
 		get_viewport().set_input_as_handled()
@@ -284,6 +287,11 @@ func _process(_delta: float) -> void:
 	var interval := Settings.get_int(&"game/autosave") * 60 * GameConst.TICK_RATE
 	if interval > 0 and run.base.simulation.tick - _last_autosave_tick >= interval:
 		save_named(AUTOSAVE_FILE, tr("SAVE_NAME_AUTO"), false)
+	# Зоны питания видны, пока в руке постройка, связанная с электричеством, или курсор над опорой.
+	var held: BuildingDef = tools.place_def if tools.mode == ToolController.Mode.PLACE else null
+	var show_areas := (held != null and (held.power_use > 0.0 or held is PowerPoleDef or held is GeneratorDef)) \
+		or tools.hover_building is PowerPole
+	active_view.network_view.show_power_areas = show_areas
 	# Модальный диалог подтверждения тоже блокирует ввод в мир.
 	var enabled := not pause_menu.is_open() and not hud.is_modal_open()
 	if enabled != tools.input_enabled:

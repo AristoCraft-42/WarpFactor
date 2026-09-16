@@ -59,6 +59,10 @@ func get_stat_lines() -> PackedStringArray:
 		var text := "%s %d" % [tr(a.item.name_key), roundi(a.damage)]
 		if a.splash_radius > 0.0:
 			text += " (%s)" % (tr("STAT_TURRET_SPLASH") % a.splash_radius)
+		if a.burn_dps > 0.0:
+			text += " (%s)" % (tr("STAT_TURRET_BURN") % [a.burn_dps, a.burn_seconds])
+		if a.reload_multiplier < 1.0:
+			text += " (%s)" % (tr("STAT_TURRET_FAST") % roundi((1.0 / a.reload_multiplier - 1.0) * 100.0))
 		parts.append(text)
 	lines.append(tr("STAT_TURRET_AMMO") % ", ".join(parts))
 	return lines

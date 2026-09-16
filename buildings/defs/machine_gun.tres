@@ -4,63 +4,102 @@
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/defense/turret.gd" id="3_logic"]
 [ext_resource type="Script" path="res://buildings/defense/turret_ammo.gd" id="6_ammo"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
-[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
-[ext_resource type="Resource" path="res://items/types/graphite.tres" id="item_graphite"]
-[ext_resource type="Resource" path="res://items/types/silicon.tres" id="item_silicon"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
+[ext_resource type="Resource" path="res://items/types/resistor.tres" id="item_resistor"]
+[ext_resource type="Resource" path="res://items/types/cartridge_stone.tres" id="item_cartridge_stone"]
+[ext_resource type="Resource" path="res://items/types/cartridge_iron.tres" id="item_cartridge_iron"]
+[ext_resource type="Resource" path="res://items/types/cartridge_coal.tres" id="item_cartridge_coal"]
+[ext_resource type="Resource" path="res://items/types/cartridge_copper.tres" id="item_cartridge_copper"]
+[ext_resource type="Resource" path="res://items/types/cartridge_brick.tres" id="item_cartridge_brick"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
-amount = 35
+item = ExtResource("item_iron_ingot")
+amount = 10
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_lead")
-amount = 15
+item = ExtResource("item_gear")
+amount = 5
+
+[sub_resource type="Resource" id="cost_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_resistor")
+amount = 3
 
 [sub_resource type="Resource" id="ammo_0"]
 script = ExtResource("6_ammo")
-item = ExtResource("item_copper")
-shots_per_item = 2
-damage = 9.0
+item = ExtResource("item_cartridge_stone")
+shots_per_item = 4
+damage = 7.0
 splash_radius = 0.0
 speed = 14.0
 reload_multiplier = 1.0
-color = Color(0.910, 0.639, 0.416, 1)
+burn_dps = 0.0
+burn_seconds = 0.0
+color = Color(0.710, 0.702, 0.659, 1)
 
 [sub_resource type="Resource" id="ammo_1"]
 script = ExtResource("6_ammo")
-item = ExtResource("item_graphite")
-shots_per_item = 2
-damage = 18.0
+item = ExtResource("item_cartridge_iron")
+shots_per_item = 4
+damage = 14.0
 splash_radius = 0.0
 speed = 14.0
 reload_multiplier = 1.0
-color = Color(0.722, 0.769, 0.847, 1)
+burn_dps = 0.0
+burn_seconds = 0.0
+color = Color(0.784, 0.816, 0.847, 1)
 
 [sub_resource type="Resource" id="ammo_2"]
 script = ExtResource("6_ammo")
-item = ExtResource("item_silicon")
-shots_per_item = 2
-damage = 12.0
+item = ExtResource("item_cartridge_coal")
+shots_per_item = 4
+damage = 6.0
+splash_radius = 0.0
+speed = 14.0
+reload_multiplier = 1.0
+burn_dps = 3.0
+burn_seconds = 3.0
+color = Color(0.996, 0.502, 0.098, 1)
+
+[sub_resource type="Resource" id="ammo_3"]
+script = ExtResource("6_ammo")
+item = ExtResource("item_cartridge_copper")
+shots_per_item = 4
+damage = 9.0
 splash_radius = 0.0
 speed = 16.0
-reload_multiplier = 0.75
-color = Color(0.835, 0.851, 0.416, 1)
+reload_multiplier = 0.77
+burn_dps = 0.0
+burn_seconds = 0.0
+color = Color(0.906, 0.631, 0.353, 1)
+
+[sub_resource type="Resource" id="ammo_4"]
+script = ExtResource("6_ammo")
+item = ExtResource("item_cartridge_brick")
+shots_per_item = 4
+damage = 8.0
+splash_radius = 0.8
+speed = 14.0
+reload_multiplier = 1.0
+burn_dps = 0.0
+burn_seconds = 0.0
+color = Color(0.816, 0.416, 0.290, 1)
 
 [resource]
 script = ExtResource("1_def")
 id = &"machine_gun"
 name_key = "BUILDING_MACHINE_GUN"
 description_key = "BUILDING_MACHINE_GUN_DESC"
-category = 4
+category = 3
 size = 1
 removable = true
 player_buildable = true
 line_placement = false
-sort_order = 30
-cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
+sort_order = 20
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
 craft_time = 1.5
 craft_amount = 1
 health = 220.0
@@ -77,4 +116,4 @@ inaccuracy = 3.0
 max_ammo = 40
 artillery = false
 barrel_length = 13.0
-ammo = Array[ExtResource("6_ammo")]([SubResource("ammo_0"), SubResource("ammo_1"), SubResource("ammo_2")])
+ammo = Array[ExtResource("6_ammo")]([SubResource("ammo_0"), SubResource("ammo_1"), SubResource("ammo_2"), SubResource("ammo_3"), SubResource("ammo_4")])

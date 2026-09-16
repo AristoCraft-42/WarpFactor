@@ -1,14 +1,26 @@
 class_name Recipe
 extends Resource
 ## Рецепт производства: входы (Consume), выходы (Produce) и время цикла.
+## hand_craftable — рецепт доступен и дрону (ручной крафт с тем же временем); переплавка — только в печи.
 ## Завод работает только через абстрактные методы Consume/Produce, поэтому новые виды входов
 ## (энергия, жидкости) добавляются подклассами без изменения кода заводов.
 
 @export var id: StringName
+@export var sort_order: int = 0
+@export var hand_craftable: bool = false
 @export var consumes: Array[Consume] = []
 @export var produces: Array[Produce] = []
 ## Длительность цикла, секунд.
 @export var craft_time: float = 1.0
+
+
+## Первый предмет первого выхода (для иконки и названия рецепта); null — нет предметных выходов.
+func get_main_output() -> ItemStack:
+	for p in produces:
+		var stacks := p.display_stacks()
+		if not stacks.is_empty():
+			return stacks[0]
+	return null
 
 
 func get_craft_ticks() -> int:

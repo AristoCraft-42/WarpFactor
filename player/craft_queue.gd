@@ -27,6 +27,8 @@ var revision: int = 0
 
 var _inventory: Inventory
 var _speed: float = 1.0
+## Фильтр доступных рецептов (исследования): func(HandRecipe) -> bool. Пусто — доступны все.
+var recipe_filter: Callable
 
 
 func _init(inventory: Inventory, speed: float = 1.0) -> void:
@@ -38,8 +40,14 @@ func is_empty() -> bool:
 	return units.is_empty()
 
 
+func is_available(recipe: HandRecipe) -> bool:
+	return not recipe_filter.is_valid() or recipe_filter.call(recipe)
+
+
 ## Ставит в очередь до count крафтов. Возвращает, сколько удалось поставить.
 func enqueue(recipe: HandRecipe, count: int) -> int:
+	if not is_available(recipe):
+		return 0
 	var queued := 0
 	for i in count:
 		var unit := _plan(recipe, {})
@@ -56,6 +64,8 @@ func enqueue(recipe: HandRecipe, count: int) -> int:
 
 ## Сколько крафтов можно поставить из текущего инвентаря (не больше limit).
 func max_craftable(recipe: HandRecipe, limit: int = 99) -> int:
+	if not is_available(recipe):
+		return 0
 	var available: Dictionary[int, int] = {}
 	var n := 0
 	while n < limit and _plan(recipe, available) != null:
@@ -208,7 +218,7 @@ func _require(recipe: HandRecipe, crafts: int, available: Dictionary, unit: Unit
 		if short <= 0:
 			continue
 		var sub := Registry.get_hand_recipe(item)
-		if sub == null or depth >= MAX_DEPTH:
+		if sub == null or depth >= MAX_DEPTH or not is_available(sub):
 			return false
 		var sub_crafts := ceili(float(short) / sub.amount)
 		if not _require(sub, sub_crafts, available, unit, depth + 1):

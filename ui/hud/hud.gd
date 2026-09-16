@@ -25,6 +25,7 @@ var _gateway_label: Label
 var _charge_label: Label
 var _respawn_label: Label
 var threat_panel: ThreatPanel
+var research_window: ResearchWindow
 var _drone_was_dead: bool = false
 var teleport_window: TeleportWindow
 var summary_window: SummaryWindow
@@ -68,6 +69,8 @@ func setup(game: Game) -> void:
 	game.clock.state_changed.connect(_update_paused_badge)
 	_connect_world_signals()
 	_drone_was_dead = game.run.drone.dead
+	game.run.research.completed.connect(func(research: ResearchDef) -> void:
+		Events.toast(tr("TOAST_RESEARCH_DONE") % tr(research.name_key), Events.ToastKind.SUCCESS))
 	Settings.changed.connect(_on_setting_changed)
 	Settings.bindings_changed.connect(_update_hint)
 	_update_info()
@@ -164,12 +167,19 @@ func _build_top_left() -> void:
 	legend.add_child(UiUtil.label("HUD_ORE_LEGEND", &"DimLabel"))
 	for ore in Registry.ores:
 		var row := UiUtil.hbox(8)
-		var swatch := TextureRect.new()
-		swatch.texture = ArtRegistry.get_item_icon(ore.item)
-		swatch.custom_minimum_size = Vector2(20, 20)
-		swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		swatch.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		row.add_child(swatch)
+		if ore.item != null:
+			var swatch := TextureRect.new()
+			swatch.texture = ArtRegistry.get_item_icon(ore.item)
+			swatch.custom_minimum_size = Vector2(20, 20)
+			swatch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			swatch.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			row.add_child(swatch)
+		else:
+			# Месторождение жидкости (вода): у него нет предмета — квадрат цвета жидкости.
+			var fluid_swatch := ColorRect.new()
+			fluid_swatch.color = ore.fluid.color
+			fluid_swatch.custom_minimum_size = Vector2(20, 20)
+			row.add_child(fluid_swatch)
 		var name_label := UiUtil.label(ore.get_name_key())
 		name_label.add_theme_color_override("font_color", ArtRegistry.ore_overlay_color(ore.index))
 		row.add_child(name_label)
@@ -198,6 +208,10 @@ func _build_top_right() -> void:
 	var speed := SpeedPanel.new()
 	row.add_child(speed)
 	speed.setup(_game.clock)
+	var research_button := UiUtil.button("HUD_RESEARCH", func() -> void: research_window.toggle())
+	research_button.focus_mode = Control.FOCUS_NONE
+	research_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(research_button)
 	var menu_button := UiUtil.button("HUD_MENU", func() -> void: _game.open_pause_menu())
 	menu_button.focus_mode = Control.FOCUS_NONE
 	menu_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -329,6 +343,9 @@ func _build_inventory_window() -> void:
 	summary_window = SummaryWindow.new()
 	_root.add_child(summary_window)
 	summary_window.setup()
+	research_window = ResearchWindow.new()
+	_root.add_child(research_window)
+	research_window.setup(_game)
 
 
 func _build_toasts() -> void:
@@ -441,7 +458,10 @@ func _update_info() -> void:
 		lines.append(tr("HUD_INFO_PAD"))
 	var ore := grid.get_ore_def(t.x, t.y)
 	if ore != null:
-		lines.append(tr("HUD_INFO_ORE") % [tr(ore.get_name_key()), ore.hardness])
+		if ore.fluid != null:
+			lines.append(tr("HUD_INFO_FLUID") % tr(ore.get_name_key()))
+		else:
+			lines.append(tr("HUD_INFO_ORE") % [tr(ore.get_name_key()), ore.hardness])
 	else:
 		lines.append(tr("HUD_INFO_NO_ORE"))
 	var b := tools.hover_building

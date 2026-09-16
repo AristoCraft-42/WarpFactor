@@ -6,8 +6,9 @@ extends PanelContainer
 ## только если сменилось само выбранное здание (например, пипеткой).
 ## На кнопке — сколько таких построек в инвентаре дрона; без построек кнопка приглушена.
 ## ЛКМ — взять в руку, ПКМ — скрафтить одну, Shift+ПКМ — пять.
+## Постройки, ещё не открытые исследованием, затемнены; в подсказке — нужное исследование.
 
-const CATEGORY_KEYS := ["CATEGORY_EXTRACTION", "CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_STORAGE", "CATEGORY_DEFENSE"]
+const CATEGORY_KEYS := ["CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_POWER", "CATEGORY_DEFENSE"]
 const COLUMNS := 8
 const ROWS := 2
 const BUTTON_SIZE := 54
@@ -23,6 +24,8 @@ var _count_labels: Dictionary[StringName, Label] = {}
 var _building_group := ButtonGroup.new()
 var _synced_def: BuildingDef
 var _inventory_revision: int = -1
+## Число завершённых исследований при последнем обновлении (открытые постройки перестают быть тусклыми).
+var _research_done: int = -1
 var _timer: float = 0.0
 
 
@@ -78,8 +81,10 @@ func _process(delta: float) -> void:
 		return
 	_timer = REFRESH_INTERVAL
 	var inventory := _world.drone.inventory
-	if inventory.revision != _inventory_revision:
+	var research_done := _world.research.done.size() if _world.research != null else 0
+	if inventory.revision != _inventory_revision or research_done != _research_done:
 		_inventory_revision = inventory.revision
+		_research_done = research_done
 		_update_counts()
 
 
@@ -143,6 +148,9 @@ func _on_building_input(event: InputEvent, def: BuildingDef, button: Button) -> 
 	var recipe := Registry.get_hand_recipe(def.item.index)
 	if recipe == null:
 		return
+	if not _is_unlocked(def):
+		Events.toast(tr("TOAST_LOCKED") % tr(Registry.get_building_research(def).name_key), Events.ToastKind.WARNING)
+		return
 	var count := 5 if mb.shift_pressed else 1
 	if _world.creative:
 		_world.drone.inventory.add(def.item.index, recipe.amount * count)
@@ -173,12 +181,17 @@ func _update_counts() -> void:
 		var owned := inventory.count(def.item.index) if def.item != null else 0
 		_count_labels[id].text = str(owned) if owned > 0 and not _world.creative else ""
 		var available := _world.creative or owned > 0
-		_building_buttons[id].modulate = Color.WHITE if available else Color(1, 1, 1, 0.45)
+		if not _is_unlocked(def):
+			_building_buttons[id].modulate = Color(0.55, 0.45, 0.45, 0.6)
+		else:
+			_building_buttons[id].modulate = Color.WHITE if available else Color(1, 1, 1, 0.45)
 		_building_buttons[id].tooltip_text = _tooltip_for(def, owned)
 
 
 func _tooltip_for(def: BuildingDef, owned: int) -> String:
 	var lines := PackedStringArray(["%s  (%d×%d)" % [tr(def.name_key), def.size, def.size], tr(def.description_key)])
+	if not _is_unlocked(def):
+		lines.append(tr("CRAFT_LOCKED") % tr(Registry.get_building_research(def).name_key))
 	lines.append_array(def.get_stat_lines())
 	lines.append(tr("STAT_HEALTH") % roundi(def.get_max_health()))
 	if not def.solid:
@@ -193,6 +206,10 @@ func _tooltip_for(def: BuildingDef, owned: int) -> String:
 		lines.append(tr("CRAFT_IN_INVENTORY") % owned)
 	lines.append(tr("BUILD_BUTTON_HINT"))
 	return "\n".join(lines)
+
+
+func _is_unlocked(def: BuildingDef) -> bool:
+	return _world.research == null or _world.research.is_building_unlocked(def)
 
 
 func _notification(what: int) -> void:

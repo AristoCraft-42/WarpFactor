@@ -45,6 +45,9 @@ var target := PackedInt32Array()
 var blocker := PackedInt32Array()
 var next_tile := PackedInt32Array()
 var path_version := PackedInt32Array()
+## Горение: урон в секунду и тик окончания.
+var burn_dps := PackedFloat32Array()
+var burn_until := PackedInt32Array()
 
 var next_uid: int = 1
 var spawned: int = 0
@@ -140,6 +143,8 @@ func spawn(def: EnemyDef, position: Vector2, tick: int) -> int:
 	blocker[i] = 0
 	next_tile[i] = -1
 	path_version[i] = -1
+	burn_dps[i] = 0.0
+	burn_until[i] = 0
 	spawned += 1
 	_cells_valid = false
 	return i
@@ -156,6 +161,18 @@ func damage(i: int, amount: float) -> bool:
 	remove_at(i)
 	killed += 1
 	return true
+
+
+## Поджечь: горение не складывается — остаётся более сильное, длительность продлевается.
+func ignite(i: int, dps: float, until_tick: int) -> void:
+	if i < 0 or i >= count or health[i] <= 0.0:
+		return
+	burn_dps[i] = maxf(burn_dps[i], dps)
+	burn_until[i] = maxi(burn_until[i], until_tick)
+
+
+func is_burning(i: int, tick: int) -> bool:
+	return tick < burn_until[i]
 
 
 ## Урон без удаления (снаряды): погибший остаётся до remove_dead. true — враг погиб этим уроном.
@@ -287,6 +304,8 @@ func remove_at(i: int) -> void:
 		blocker[i] = blocker[last]
 		next_tile[i] = next_tile[last]
 		path_version[i] = path_version[last]
+		burn_dps[i] = burn_dps[last]
+		burn_until[i] = burn_until[last]
 	count -= 1
 	_cells_valid = false
 
@@ -328,6 +347,12 @@ func update(tick: int) -> void:
 		var y := pos_y[i]
 		prev_x[i] = x
 		prev_y[i] = y
+		if burn_until[i] > 0:
+			if tick < burn_until[i]:
+				health[i] -= burn_dps[i] * GameConst.TICK_DT
+			else:
+				burn_until[i] = 0
+				burn_dps[i] = 0.0
 		var radius := _radius[type]
 		var tx := clampi(int(x * inv_t), 0, w - 1)
 		var ty := clampi(int(y * inv_t), 0, h - 1)
@@ -550,6 +575,8 @@ func _ensure_capacity(wanted: int) -> void:
 	blocker.resize(_capacity)
 	next_tile.resize(_capacity)
 	path_version.resize(_capacity)
+	burn_dps.resize(_capacity)
+	burn_until.resize(_capacity)
 	_cell_next.resize(_capacity)
 
 
@@ -565,6 +592,7 @@ func save_data() -> Dictionary:
 		"next_attack": next_attack.slice(0, count), "target": target.slice(0, count),
 		"blocker": blocker.slice(0, count), "next_tile": next_tile.slice(0, count),
 		"path_version": path_version.slice(0, count),
+		"burn_dps": burn_dps.slice(0, count), "burn_until": burn_until.slice(0, count),
 	}
 
 
@@ -588,6 +616,8 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 	var s_blocker: PackedInt32Array = data.get("blocker", PackedInt32Array())
 	var s_next: PackedInt32Array = data.get("next_tile", PackedInt32Array())
 	var s_version: PackedInt32Array = data.get("path_version", PackedInt32Array())
+	var s_burn_dps: PackedFloat32Array = data.get("burn_dps", PackedFloat32Array())
+	var s_burn_until: PackedInt32Array = data.get("burn_until", PackedInt32Array())
 	for k in [s_uid.size(), s_types.size(), s_px.size(), s_py.size(), s_prx.size(), s_pry.size(), s_facing.size(),
 			s_health.size(), s_attack.size(), s_target.size(), s_blocker.size(), s_next.size(), s_version.size()]:
 		saved = mini(saved, k)
@@ -613,3 +643,5 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 		blocker[i] = s_blocker[j]
 		next_tile[i] = s_next[j]
 		path_version[i] = s_version[j]
+		burn_dps[i] = s_burn_dps[j] if j < s_burn_dps.size() else 0.0
+		burn_until[i] = s_burn_until[j] if j < s_burn_until.size() else 0

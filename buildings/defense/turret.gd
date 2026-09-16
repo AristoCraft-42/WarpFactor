@@ -161,7 +161,8 @@ func _shoot(tick: int, d: TurretDef, ammo_type: TurretAmmo, center: Vector2, aim
 			ammo_type.get_splash_px(), ammo_type.color)
 	else:
 		var ticks := ceili((d.get_range_px() + GameConst.TILE_SIZE) / speed)
-		world.projectiles.spawn_bullet(muzzle, dir * speed, ammo_type.damage, ticks, ammo_type.color)
+		var bullet := world.projectiles.spawn_bullet(muzzle, dir * speed, ammo_type.damage, ticks, ammo_type.color)
+		world.projectiles.set_effects(bullet, ammo_type.get_splash_px(), ammo_type.burn_dps, ammo_type.get_burn_ticks())
 	var last := ammo_types.size() - 1
 	ammo_shots[last] -= 1
 	total_shots -= 1

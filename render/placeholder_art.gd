@@ -212,6 +212,8 @@ static func make_floor(def: FloorDef, variant: int) -> Image:
 # --- Руда ---
 
 static func make_ore(def: OreDef, variant: int) -> Image:
+	if def.fluid != null:
+		return _make_fluid_ore(def, variant)
 	var img := _blank(T, T)
 	var col := def.get_color()
 	var outline := col.darkened(0.55)
@@ -237,6 +239,20 @@ static func make_ore(def: OreDef, variant: int) -> Image:
 		_poly(img, pts, col)
 		_put(img, int(c.x - r * 0.4), int(c.y - r * 0.4), highlight)
 		_put(img, int(c.x - r * 0.4) + 1, int(c.y - r * 0.4), highlight)
+	return img
+
+
+## Месторождение жидкости: полупрозрачная гладь с бликами — пятна читаются как водоёмы.
+static func _make_fluid_ore(def: OreDef, variant: int) -> Image:
+	var img := _blank(T, T)
+	var col := def.get_color()
+	img.fill(Color(col.darkened(0.25), 0.78))
+	for i in 3:
+		var h := hash3(i, variant, 57)
+		var y := 5 + h % 22
+		var x := 3 + (h >> 8) % 14
+		var length := 6 + (h >> 16) % 9
+		_rect(img, Rect2i(x, y, length, 1), Color(col.lightened(0.45), 0.7))
 	return img
 
 
@@ -327,6 +343,21 @@ static func make_building(def: BuildingDef) -> Image:
 	if def.glyph == BuildingDef.Glyph.WALL:
 		_draw_wall(img, def)
 		return img
+	if def.glyph == BuildingDef.Glyph.PIPE:
+		# Труба: только узел по центру, стыки к соседям дорисовываются поверх (BuildingLayer).
+		_rect(img, Rect2i(9, 9, 14, 14), INK)
+		_rect(img, Rect2i(11, 11, 10, 10), body)
+		_rect(img, Rect2i(11, 11, 10, 2), body.lightened(0.3))
+		return img
+	if def.glyph == BuildingDef.Glyph.POLE:
+		# Опора ЛЭП сверху: столб и траверса с изоляторами.
+		_circle(img, Vector2(16, 16), 6.0, INK)
+		_circle(img, Vector2(16, 16), 4.5, body)
+		_rect(img, Rect2i(4, 14, 24, 4), INK)
+		_rect(img, Rect2i(5, 15, 22, 2), body.lightened(0.2))
+		for x in [6, 26]:
+			_circle(img, Vector2(x, 16), 2.2, Color("83a598"))
+		return img
 
 	# Корпус с фаской
 	_rect(img, Rect2i(1, 1, s - 2, s - 2), body.darkened(0.55))
@@ -416,6 +447,36 @@ static func make_building(def: BuildingDef) -> Image:
 			_rect(img, Rect2i(Vector2i(c + Vector2(-8, -8) * k), Vector2i(Vector2(16, 16) * k)), body.lightened(0.15))
 			_line(img, c + Vector2(-8, -8) * k, c + Vector2(8, 8) * k, 2.0 * k, dark)
 			_line(img, c + Vector2(8, -8) * k, c + Vector2(-8, 8) * k, 2.0 * k, dark)
+		BuildingDef.Glyph.PUMP:
+			_circle(img, c, 10.0 * k, dark)
+			_circle(img, c, 7.5 * k, Color("458588"))
+			_line(img, c + Vector2(-5, 0) * k, c + Vector2(5, 0) * k, 2.0 * k, LIGHT)
+			_line(img, c + Vector2(0, -5) * k, c + Vector2(0, 5) * k, 2.0 * k, LIGHT)
+		BuildingDef.Glyph.BOILER:
+			_rect(img, Rect2i(Vector2i(c + Vector2(-11, -8) * k), Vector2i(Vector2(22, 16) * k)), dark)
+			_rect(img, Rect2i(Vector2i(c + Vector2(-9, -6) * k), Vector2i(Vector2(18, 12) * k)), body.lightened(0.15))
+			var flame := PackedVector2Array([c + Vector2(0, -4) * k, c + Vector2(4, 2) * k, c + Vector2(0, 5) * k, c + Vector2(-4, 2) * k])
+			_poly(img, flame, FIRE)
+			_rect(img, Rect2i(Vector2i(c + Vector2(-13, -2) * k), Vector2i(Vector2(3, 4) * k)), Color("458588"))
+			_rect(img, Rect2i(Vector2i(c + Vector2(10, -2) * k), Vector2i(Vector2(3, 4) * k)), LIGHT)
+		BuildingDef.Glyph.TURBINE:
+			_circle(img, c, 11.0 * k, dark)
+			for i in 6:
+				var a := i * TAU / 6.0
+				_line(img, c, c + Vector2(cos(a), sin(a)) * 9.0 * k, 2.5 * k, glyph_col)
+			_circle(img, c, 3.0 * k, ACCENT)
+			_rect(img, Rect2i(Vector2i(c + Vector2(-13, -2) * k), Vector2i(Vector2(3, 4) * k)), LIGHT)
+			_rect(img, Rect2i(Vector2i(c + Vector2(10, -2) * k), Vector2i(Vector2(3, 4) * k)), LIGHT)
+		BuildingDef.Glyph.FLASK:
+			var flask := PackedVector2Array([c + Vector2(-2, -10) * k, c + Vector2(2, -10) * k, c + Vector2(2, -3) * k,
+				c + Vector2(9, 8) * k, c + Vector2(-9, 8) * k, c + Vector2(-2, -3) * k])
+			_poly(img, flask, glyph_col)
+			_poly(img, PackedVector2Array([c + Vector2(-5, 2) * k, c + Vector2(5, 2) * k, c + Vector2(8, 7) * k, c + Vector2(-8, 7) * k]), Color("d3869b"))
+		BuildingDef.Glyph.GENERATOR:
+			_rect(img, Rect2i(Vector2i(c + Vector2(-10, -10) * k), Vector2i(Vector2(20, 20) * k)), dark)
+			var bolt := PackedVector2Array([c + Vector2(2, -9) * k, c + Vector2(-5, 1) * k, c + Vector2(0, 1) * k,
+				c + Vector2(-2, 9) * k, c + Vector2(5, -1) * k, c + Vector2(0, -1) * k])
+			_poly(img, bolt, ACCENT)
 		BuildingDef.Glyph.TURRET:
 			# Основание турели: круглая площадка с болтами, ствол рисуется поверх (TurretView).
 			_circle(img, c, 12.5 * k, dark)

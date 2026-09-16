@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="ResearchDef" format=3]
+
+[ext_resource type="Script" path="res://research/research_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://items/types/science_kit.tres" id="2_kit"]
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="3_building_script"]
+[ext_resource type="Script" path="res://items/recipe.gd" id="4_recipe_script"]
+[ext_resource type="Resource" path="res://buildings/defs/machine_gun.tres" id="b_machine_gun"]
+[ext_resource type="Resource" path="res://items/recipes/casing_mg.tres" id="r_casing_mg"]
+[ext_resource type="Resource" path="res://items/recipes/cartridge_stone.tres" id="r_cartridge_stone"]
+[ext_resource type="Resource" path="res://items/recipes/cartridge_iron.tres" id="r_cartridge_iron"]
+[ext_resource type="Resource" path="res://items/recipes/cartridge_coal.tres" id="r_cartridge_coal"]
+[ext_resource type="Resource" path="res://items/recipes/cartridge_copper.tres" id="r_cartridge_copper"]
+[ext_resource type="Resource" path="res://items/recipes/cartridge_brick.tres" id="r_cartridge_brick"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"defense"
+name_key = "RESEARCH_DEFENSE"
+description_key = "RESEARCH_DEFENSE_DESC"
+sort_order = 50
+cost_item = ExtResource("2_kit")
+cost_amount = 25
+prerequisites = Array[StringName]([&"mining"])
+unlock_buildings = Array[ExtResource("3_building_script")]([ExtResource("b_machine_gun")])
+unlock_recipes = Array[ExtResource("4_recipe_script")]([ExtResource("r_casing_mg"), ExtResource("r_cartridge_stone"), ExtResource("r_cartridge_iron"), ExtResource("r_cartridge_coal"), ExtResource("r_cartridge_copper"), ExtResource("r_cartridge_brick")])

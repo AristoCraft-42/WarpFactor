@@ -4,6 +4,7 @@ extends Node
 ## потоков и пересчёт порциями.
 ## Запуск: godot --headless --path D:/Mind res://tests/bench_enemies.tscn
 
+const Worlds := preload("res://tests/support/test_worlds.gd")
 const ENEMIES := 1000
 const TICKS := 300
 
@@ -27,7 +28,7 @@ func _ready() -> void:
 	var bm := planet.buildings
 	var conveyor := Registry.get_building(&"conveyor")
 	var container := Registry.get_building(&"container")
-	var copper := Registry.get_item(&"copper").index
+	var copper := Registry.get_item(&"hematite").index
 	var placed := 0
 	# Ленты рядами с разрывами и склады-кварталы — твёрдые препятствия для поля потоков.
 	var pad := Rect2i(Vector2i(128, 96) - Vector2i(12, 12), Vector2i(24, 24))
@@ -43,9 +44,9 @@ func _ready() -> void:
 			if storage != null:
 				storage.inventory.add(copper, 50)
 				placed += 1
-	# Кольцо турелей вокруг площадки: 60 пулемётов и 20 артиллерий с большим запасом патронов.
+	# Кольцо турелей вокруг площадки: 60 пулемётов и 20 артиллерий (описание из кода) с большим запасом патронов.
 	var gun := Registry.get_building(&"machine_gun")
-	var art := Registry.get_building(&"artillery")
+	var art := Worlds.artillery_def()
 	var turrets: Array[Turret] = []
 	for k in 80:
 		var angle := TAU * k / 80.0
@@ -80,7 +81,7 @@ func _ready() -> void:
 		spawned += 1
 	for i in 30:
 		run.step()
-	var graphite := Registry.get_item(&"graphite").index
+	var graphite := Registry.get_item(&"cartridge_iron").index
 
 	var total := 0
 	var enemy_total := 0

@@ -2,7 +2,8 @@ class_name ProjectileSystem
 extends RefCounted
 ## Снаряды мира — плоские массивы. Турели и дрон их выпускают, враги получают урон.
 ##
-## Пуля летит прямо и попадает в первого врага на отрезке пути за тик (без «пролёта» сквозь тонких).
+## Пуля летит прямо и попадает в первого врага на отрезке пути за тик (без «пролёта» сквозь тонких);
+## у пули может быть взрыв при попадании (осколочный патрон) и поджог (зажигательный).
 ## Снаряд артиллерии летит в точку и взрывается там, задевая всех в радиусе; по пути никого не бьёт.
 ## Урон наносится через EnemySystem.hurt — погибшие убираются в конце тика (Simulation.step).
 
@@ -29,6 +30,9 @@ var life := PackedInt32Array()
 ## Полное время полёта (для дуги снаряда на рисунке).
 var flight := PackedInt32Array()
 var color := PackedInt32Array()
+## Горение, накладываемое попаданием: урон в секунду и длительность в тиках.
+var burn_dps := PackedFloat32Array()
+var burn_ticks := PackedInt32Array()
 
 var fired: int = 0
 var hits: int = 0
@@ -54,9 +58,17 @@ func dispose() -> void:
 	_world = null
 
 
-func spawn_bullet(from: Vector2, velocity: Vector2, p_damage: float, p_life: int, p_color: Color) -> void:
+func spawn_bullet(from: Vector2, velocity: Vector2, p_damage: float, p_life: int, p_color: Color) -> int:
 	var i := _add(Kind.BULLET, from, velocity, p_damage, 0.0, p_life, p_color)
 	flight[i] = p_life
+	return i
+
+
+## Взрыв при попадании (радиус, пикселей) и горение для снаряда i.
+func set_effects(i: int, splash_px: float, p_burn_dps: float, p_burn_ticks: int) -> void:
+	splash[i] = splash_px
+	burn_dps[i] = p_burn_dps
+	burn_ticks[i] = p_burn_ticks
 
 
 ## Снаряд прилетит в точку to за ticks тиков и взорвётся с радиусом splash_px.
@@ -87,9 +99,13 @@ func update(tick: int) -> void:
 		if kind[i] == Kind.BULLET:
 			var hit := _first_hit(enemies, x, y, nx, ny) if enemies.count > 0 else -1
 			if hit >= 0:
-				enemies.hurt(hit, damage[i])
-				hits += 1
-				_push_blast(enemies.pos_x[hit], enemies.pos_y[hit], 0.0, tick, color[i])
+				var hx := enemies.pos_x[hit]
+				var hy := enemies.pos_y[hit]
+				if splash[i] > 0.0:
+					_explode_at(enemies, i, hx, hy, tick)
+				else:
+					_apply_hit(enemies, i, hit, tick)
+					_push_blast(hx, hy, 0.0, tick, color[i])
 				_remove(i)
 				continue
 			pos_x[i] = nx
@@ -132,14 +148,24 @@ func _first_hit(enemies: EnemySystem, x0: float, y0: float, x1: float, y1: float
 
 
 func _explode(enemies: EnemySystem, i: int, tick: int) -> void:
-	_push_blast(pos_x[i], pos_y[i], splash[i], tick, color[i])
+	_explode_at(enemies, i, pos_x[i], pos_y[i], tick)
+
+
+func _explode_at(enemies: EnemySystem, i: int, x: float, y: float, tick: int) -> void:
+	_push_blast(x, y, splash[i], tick, color[i])
 	if enemies.count == 0:
 		return
 	_candidates.clear()
-	enemies.query_circle(pos_x[i], pos_y[i], splash[i], _candidates)
+	enemies.query_circle(x, y, splash[i], _candidates)
 	for j in _candidates:
-		enemies.hurt(j, damage[i])
-		hits += 1
+		_apply_hit(enemies, i, j, tick)
+
+
+func _apply_hit(enemies: EnemySystem, i: int, target: int, tick: int) -> void:
+	enemies.hurt(target, damage[i])
+	if burn_ticks[i] > 0 and burn_dps[i] > 0.0:
+		enemies.ignite(target, burn_dps[i], tick + burn_ticks[i])
+	hits += 1
 
 
 func _add(p_kind: Kind, from: Vector2, velocity: Vector2, p_damage: float, splash_px: float, p_life: int, p_color: Color) -> int:
@@ -157,6 +183,8 @@ func _add(p_kind: Kind, from: Vector2, velocity: Vector2, p_damage: float, splas
 		life.resize(_capacity)
 		flight.resize(_capacity)
 		color.resize(_capacity)
+		burn_dps.resize(_capacity)
+		burn_ticks.resize(_capacity)
 	var i := count
 	count += 1
 	kind[i] = p_kind
@@ -170,6 +198,8 @@ func _add(p_kind: Kind, from: Vector2, velocity: Vector2, p_damage: float, splas
 	splash[i] = splash_px
 	life[i] = p_life
 	color[i] = p_color.to_rgba32()
+	burn_dps[i] = 0.0
+	burn_ticks[i] = 0
 	fired += 1
 	return i
 
@@ -189,6 +219,8 @@ func _remove(i: int) -> void:
 		life[i] = life[last]
 		flight[i] = flight[last]
 		color[i] = color[last]
+		burn_dps[i] = burn_dps[last]
+		burn_ticks[i] = burn_ticks[last]
 	count -= 1
 
 
@@ -215,7 +247,8 @@ func save_data() -> Dictionary:
 		"prev_x": prev_x.slice(0, count), "prev_y": prev_y.slice(0, count),
 		"vel_x": vel_x.slice(0, count), "vel_y": vel_y.slice(0, count),
 		"damage": damage.slice(0, count), "splash": splash.slice(0, count),
-		"life": life.slice(0, count), "flight": flight.slice(0, count), "color": color.slice(0, count)}
+		"life": life.slice(0, count), "flight": flight.slice(0, count), "color": color.slice(0, count),
+		"burn_dps": burn_dps.slice(0, count), "burn_ticks": burn_ticks.slice(0, count)}
 
 
 func load_data(data: Dictionary) -> void:
@@ -235,6 +268,8 @@ func load_data(data: Dictionary) -> void:
 	var s_life: PackedInt32Array = data.get("life", PackedInt32Array())
 	var s_flight: PackedInt32Array = data.get("flight", PackedInt32Array())
 	var s_color: PackedInt32Array = data.get("color", PackedInt32Array())
+	var s_burn_dps: PackedFloat32Array = data.get("burn_dps", PackedFloat32Array())
+	var s_burn_ticks: PackedInt32Array = data.get("burn_ticks", PackedInt32Array())
 	for k in [s_kind.size(), s_px.size(), s_py.size(), s_prx.size(), s_pry.size(), s_vx.size(), s_vy.size(),
 			s_damage.size(), s_splash.size(), s_life.size(), s_flight.size(), s_color.size()]:
 		n = mini(n, k)
@@ -245,4 +280,7 @@ func load_data(data: Dictionary) -> void:
 		prev_y[i] = s_pry[j]
 		flight[i] = s_flight[j]
 		color[i] = s_color[j]
+		if j < s_burn_dps.size() and j < s_burn_ticks.size():
+			burn_dps[i] = s_burn_dps[j]
+			burn_ticks[i] = s_burn_ticks[j]
 	fired = saved_fired

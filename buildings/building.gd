@@ -10,10 +10,11 @@ extends RefCounted
 ## Передача предметов: источник спрашивает accept_item и, получив true, вызывает handle_item.
 ## Задел под энергию и жидкости: такие протоколы добавятся методами с поведением «нет» по умолчанию.
 
-## Вид настройки здания (что показывает панель настройки). MODE — только переключатели (инверсия).
-enum ConfigKind { NONE, ITEM, BRIDGE, MODE }
+## Вид настройки здания (что показывает панель настройки). MODE — только переключатели (инверсия),
+## ROUTER — приоритетные стороны маршрутизатора, RECIPE — рецепт сборщика.
+enum ConfigKind { NONE, ITEM, BRIDGE, MODE, ROUTER, RECIPE }
 ## Состояние здания для подсказки.
-enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE, NO_AMMO }
+enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE, NO_AMMO, NO_POWER, NO_FUEL, NO_RECIPE, NO_RESEARCH }
 
 ## Уникальный id в BuildingManager (0 — «нет здания»).
 var id: int = 0
@@ -30,6 +31,10 @@ var proximity: Array[Building] = []
 var awake: bool = false
 ## Прочность; при нуле здание разрушается (GameWorld.damage_building).
 var health: float = 0.0
+## Запрос электричества на этот тик, кВт (выставляет само здание-потребитель).
+var power_request: float = 0.0
+## Электросеть, к которой подключено здание (null — вне зон опор). Назначает PowerGraph.
+var power_net: PowerGraph.PowerNetwork
 
 var _dump_index: int = 0
 
@@ -219,6 +224,39 @@ func take_player_items(_item: int, _amount: int) -> int:
 	return 0
 
 
+# --- Энергия и жидкости ---
+
+## Удовлетворённость питания 0..1 (0 — не подключено).
+func get_power_satisfaction() -> float:
+	return power_net.satisfaction if power_net != null else 0.0
+
+
+func is_power_generator() -> bool:
+	return false
+
+
+## Сколько энергии генератор может дать за dt секунд, кДж.
+func get_power_capacity_kj(_dt: float) -> float:
+	return 0.0
+
+
+## Сеть забирает kj энергии у генератора.
+func draw_power_kj(_kj: float) -> void:
+	pass
+
+
+## Порты жидкостей (стороны в мире).
+func get_fluid_ports() -> Array[FluidGraph.Port]:
+	return []
+
+
+## Строка питания для подсказки потребителя.
+func power_info_line() -> String:
+	if power_net == null:
+		return tr("INFO_NO_POLE")
+	return tr("INFO_POWER_SATISFACTION") % [roundi(get_power_satisfaction() * 100.0), roundi(def.power_use)]
+
+
 # --- Интерфейс ---
 
 ## Строки состояния для инфо-панели.
@@ -270,7 +308,7 @@ func get_display_item() -> int:
 	return -1
 
 
-## Есть ли у здания настройка инверсии (сортировщик, переливной клапан).
+## Есть ли у здания настройка инверсии (сортировщик).
 func supports_inversion() -> bool:
 	return false
 

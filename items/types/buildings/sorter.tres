@@ -8,6 +8,6 @@ script = ExtResource("1_script")
 id = &"sorter"
 name_key = "BUILDING_SORTER"
 color = Color(0.373, 0.439, 0.314, 1)
-sort_order = 1150
+sort_order = 1040
 stack_size = 50
 building = ExtResource("2_building")

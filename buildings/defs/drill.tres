@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="DrillDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/production/drill_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/production/drill.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 8
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_gear")
+amount = 4
+
+[resource]
+script = ExtResource("1_def")
+id = &"drill"
+name_key = "BUILDING_DRILL"
+description_key = "BUILDING_DRILL_DESC"
+category = 1
+size = 2
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 20
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
+craft_time = 2.0
+craft_amount = 1
+health = 180.0
+solid = true
+color = Color(0.541, 0.427, 0.306, 1)
+glyph = 8
+logic_script = ExtResource("3_logic")
+tier = 2
+base_seconds = 6.0
+hardness_seconds = 1.5
+item_capacity = 10
+power_use = 90.0

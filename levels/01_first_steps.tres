@@ -2,36 +2,24 @@
 
 [ext_resource type="Script" path="res://world/level_def.gd" id="1_level"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
-[ext_resource type="Resource" path="res://items/types/copper.tres" id="item_copper"]
-[ext_resource type="Resource" path="res://items/types/lead.tres" id="item_lead"]
 [ext_resource type="Resource" path="res://items/types/buildings/conveyor.tres" id="item_conveyor"]
-[ext_resource type="Resource" path="res://items/types/buildings/mechanical_drill.tres" id="item_mechanical_drill"]
-[ext_resource type="Resource" path="res://items/types/buildings/container.tres" id="item_container"]
+[ext_resource type="Resource" path="res://items/types/buildings/furnace.tres" id="item_furnace"]
+[ext_resource type="Resource" path="res://items/types/coal.tres" id="item_coal"]
 
 [sub_resource type="Resource" id="start_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper")
-amount = 120
+item = ExtResource("item_conveyor")
+amount = 20
 
 [sub_resource type="Resource" id="start_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_lead")
-amount = 60
+item = ExtResource("item_furnace")
+amount = 2
 
 [sub_resource type="Resource" id="start_2"]
 script = ExtResource("2_stack")
-item = ExtResource("item_conveyor")
-amount = 60
-
-[sub_resource type="Resource" id="start_3"]
-script = ExtResource("2_stack")
-item = ExtResource("item_mechanical_drill")
-amount = 6
-
-[sub_resource type="Resource" id="start_4"]
-script = ExtResource("2_stack")
-item = ExtResource("item_container")
-amount = 2
+item = ExtResource("item_coal")
+amount = 20
 
 [resource]
 script = ExtResource("1_level")
@@ -41,4 +29,4 @@ description_key = "LEVEL_FIRST_STEPS_DESC"
 order = 1
 map_path = "res://levels/maps/01_first_steps.fwmap"
 spawn = Vector2i(48, 32)
-starting_items = Array[ExtResource("2_stack")]([SubResource("start_0"), SubResource("start_1"), SubResource("start_2"), SubResource("start_3"), SubResource("start_4")])
+starting_items = Array[ExtResource("2_stack")]([SubResource("start_0"), SubResource("start_1"), SubResource("start_2")])

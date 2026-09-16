@@ -23,7 +23,7 @@ func find_ore(grid: WorldGrid, origin: Vector2i) -> Vector2i:
 			if not grid.in_bounds(x, y):
 				continue
 			var value := grid.get_ore(x, y)
-			if value == 0 or Registry.ores[value - 1].hardness > tier:
+			if value == 0 or Registry.ores[value - 1].item == null or Registry.ores[value - 1].hardness > tier:
 				continue
 			counts[value] = int(counts.get(value, 0)) + 1
 	var best := Vector2i.ZERO
@@ -41,9 +41,12 @@ func check_placement(grid: WorldGrid, origin: Vector2i) -> int:
 func get_stat_lines() -> PackedStringArray:
 	var names := PackedStringArray()
 	for ore in Registry.ores:
-		if ore.hardness <= tier:
+		if ore.item != null and ore.hardness <= tier:
 			names.append(tr(ore.item.name_key))
-	return PackedStringArray([
+	var lines := PackedStringArray([
 		tr("STAT_DRILL_TIER") % [tier, ", ".join(names)],
 		tr("STAT_DRILL_SPEED") % (float(size * size) / (base_seconds + hardness_seconds)),
 	])
+	if power_use > 0.0:
+		lines.append(tr("STAT_POWER_USE") % roundi(power_use))
+	return lines

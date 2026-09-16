@@ -1,7 +1,8 @@
 class_name ConfigPanel
 extends PanelContainer
 ## Панель настройки выбранного здания: фильтр по предмету (сортировщик, разгрузчик),
-## переключатель инверсии (сортировщик, переливной клапан) или связь моста (подсказка и разрыв).
+## переключатель инверсии (сортировщик), связь моста (подсказка и разрыв)
+## или приоритетные стороны маршрутизатора (вход и выход).
 ## Изменения идут через GameWorld.configure.
 
 const ITEM_COLUMNS := 10
@@ -64,6 +65,10 @@ func _rebuild() -> void:
 			_build_item_picker()
 		Building.ConfigKind.BRIDGE:
 			_build_bridge_info()
+		Building.ConfigKind.ROUTER:
+			_build_router_sides()
+		Building.ConfigKind.RECIPE:
+			_build_recipe_picker()
 	if _building.supports_inversion():
 		_build_inversion_toggle()
 
@@ -94,19 +99,86 @@ func _build_item_picker() -> void:
 		grid.add_child(b)
 
 
-## Переключатель инверсии: сортировщик — «выбранное в стороны», клапан — «обратный режим».
+## Переключатель инверсии сортировщика: «выбранное в стороны».
 func _build_inversion_toggle() -> void:
 	var toggle := CheckButton.new()
-	toggle.text = "CONFIG_INVERT_SORTER" if _building is Sorter else "CONFIG_INVERT_GATE"
+	toggle.text = "CONFIG_INVERT_SORTER"
 	toggle.focus_mode = Control.FOCUS_NONE
 	toggle.button_pressed = _building.is_inverted()
 	var building := _building
 	toggle.toggled.connect(func(pressed: bool) -> void: _world.configure(building, pressed))
 	_content.add_child(toggle)
-	var hint := UiUtil.label("CONFIG_INVERT_SORTER_HINT" if _building is Sorter else "CONFIG_INVERT_GATE_HINT", &"DimLabel")
+	var hint := UiUtil.label("CONFIG_INVERT_SORTER_HINT", &"DimLabel")
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.custom_minimum_size = Vector2(ITEM_COLUMNS * (ITEM_BUTTON + 4), 0)
 	_content.add_child(hint)
+
+
+## Приоритетные стороны маршрутизатора: для входа и выхода — «нет» или одна из четырёх сторон.
+## Стрелки показывают стороны в мире; хранится сторона относительно поворота здания.
+func _build_router_sides() -> void:
+	var router := _building as Router
+	var hint := UiUtil.label("CONFIG_ROUTER_HINT", &"DimLabel")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(ITEM_COLUMNS * (ITEM_BUTTON + 4), 0)
+	_content.add_child(hint)
+	for is_input in [true, false]:
+		var row := UiUtil.hbox(6)
+		_content.add_child(row)
+		var caption := UiUtil.label("CONFIG_ROUTER_IN" if is_input else "CONFIG_ROUTER_OUT")
+		caption.custom_minimum_size = Vector2(170, 0)
+		row.add_child(caption)
+		var current: int = router.priority_in if is_input else router.priority_out
+		for relative in [Router.NO_SIDE, 0, 1, 2, 3]:
+			var b := _make_button(current == relative)
+			b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+			b.text = "✕" if relative == Router.NO_SIDE else ["→", "↓", "←", "↑"][router.world_side(relative)]
+			b.tooltip_text = tr("CONFIG_ROUTER_NONE") if relative == Router.NO_SIDE else ""
+			var in_side: int = relative if is_input else router.priority_in
+			var out_side: int = router.priority_out if is_input else relative
+			b.pressed.connect(func() -> void:
+				var value: Variant = null
+				if in_side != Router.NO_SIDE or out_side != Router.NO_SIDE:
+					value = {"in": in_side, "out": out_side}
+				_world.configure(router, value))
+			row.add_child(b)
+
+
+## Выбор рецепта сборщика: иконки результатов; закрытые исследованием недоступны.
+func _build_recipe_picker() -> void:
+	var crafter := _building as Crafter
+	var hint := UiUtil.label("CONFIG_RECIPE_HINT", &"DimLabel")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(ITEM_COLUMNS * (ITEM_BUTTON + 4), 0)
+	_content.add_child(hint)
+	var grid := GridContainer.new()
+	grid.columns = ITEM_COLUMNS
+	grid.add_theme_constant_override("h_separation", 4)
+	grid.add_theme_constant_override("v_separation", 4)
+	_content.add_child(grid)
+	var current := crafter.get_recipe()
+	for recipe in crafter.get_crafter_def().recipes:
+		var main := recipe.get_main_output()
+		if main == null:
+			continue
+		var b := _make_button(recipe == current)
+		b.icon = ArtRegistry.get_item_icon(main.item)
+		b.expand_icon = true
+		var unlocked := _world.research == null or _world.research.is_recipe_unlocked(recipe)
+		var tip := PackedStringArray(["%s ×%d" % [tr(main.item.name_key), main.amount]])
+		var parts := PackedStringArray()
+		for c in recipe.consumes:
+			for s in c.display_stacks():
+				parts.append("%s ×%d" % [tr(s.item.name_key), s.amount])
+		tip.append(tr("CRAFT_INGREDIENTS") % ", ".join(parts))
+		tip.append(tr("CRAFT_TIME") % recipe.craft_time)
+		if not unlocked:
+			tip.append(tr("CRAFT_LOCKED") % tr(Registry.get_recipe_research(recipe).name_key))
+			b.disabled = true
+		b.tooltip_text = "\n".join(tip)
+		b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		b.pressed.connect(_world.configure.bind(crafter, recipe.id))
+		grid.add_child(b)
 
 
 func _build_bridge_info() -> void:

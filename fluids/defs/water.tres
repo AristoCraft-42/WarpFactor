@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="FluidDef" format=3]
+
+[ext_resource type="Script" path="res://fluids/fluid_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"water"
+name_key = "FLUID_WATER"
+color = Color(0.235, 0.471, 0.847, 1)
+sort_order = 10

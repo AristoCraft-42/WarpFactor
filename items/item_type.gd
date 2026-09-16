@@ -16,6 +16,10 @@ enum IconShape { CIRCLE, SQUARE, DIAMOND, TRIANGLE, HEXAGON, CROSS, RING, BAR, S
 @export var stack_size: int = 100
 ## Постройка, которую ставит этот предмет. Пусто — обычный ресурс.
 @export var building: BuildingDef
+## Энергия при сжигании, кДж (0 — не топливо). Печи, термогенераторы и бойлеры жгут такие предметы.
+@export var fuel_value: float = 0.0
+## Уровень научного набора (0 — не набор). Вручную сдаются только наборы первого уровня.
+@export var science_tier: int = 0
 ## Готовая иконка (например, из Aseprite). Если не задана — генерируется плейсхолдер
 ## (для построек — уменьшенный спрайт здания).
 @export var icon: Texture2D
@@ -26,3 +30,7 @@ var index: int = -1
 
 func is_building() -> bool:
 	return building != null
+
+
+func is_fuel() -> bool:
+	return fuel_value > 0.0

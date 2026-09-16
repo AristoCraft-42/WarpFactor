@@ -181,7 +181,9 @@ func _make_node(depth: int, slot: int, slots: int, type: PlanetTypeDef) -> StarN
 	for i in type.ore_ids.size():
 		var ore := Registry.get_ore(type.ore_ids[i])
 		var chance := type.ore_chances[i] if i < type.ore_chances.size() else 1.0
-		if ore != null and rng.randf() < chance:
+		# На стартовой планете есть все руды её типа: ранней игре нужны и малахит, и вода.
+		var roll := rng.randf()
+		if ore != null and (depth == 0 or roll < chance):
 			node.ores.append(ore.index)
 	const LETTERS := "ABCDEFGHKLMNPRSTVXZ"
 	node.code = "%s%s-%03d" % [LETTERS[rng.randi_range(0, LETTERS.length() - 1)], LETTERS[rng.randi_range(0, LETTERS.length() - 1)], rng.randi_range(1, 999)]

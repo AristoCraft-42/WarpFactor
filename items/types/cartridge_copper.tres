@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"cartridge_copper"
+name_key = "ITEM_CARTRIDGE_COPPER"
+color = Color(0.906, 0.631, 0.353, 1)
+icon_shape = 3
+sort_order = 413
+stack_size = 200
+fuel_value = 0.0
+science_tier = 0

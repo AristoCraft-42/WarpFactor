@@ -1,7 +1,8 @@
 class_name TurretAmmo
 extends Resource
 ## Вид патронов турели: какой предмет, сколько выстрелов даёт, урон и снаряд.
-## Патроны — обычные предметы: приходят лентой или кладутся руками в окне турели.
+## Патрон — предмет, собранный из гильзы калибра турели и наполнителя; наполнитель задаёт эффект:
+## урон, взрыв, скорострельность, горение. Приходят лентой или кладутся руками в окне турели.
 
 @export var item: ItemType
 ## Выстрелов из одного предмета.
@@ -14,11 +15,18 @@ extends Resource
 @export var speed: float = 14.0
 ## Множитель паузы между выстрелами (меньше 1 — стреляет чаще).
 @export var reload_multiplier: float = 1.0
+## Горение: урон в секунду и длительность (0 — без горения).
+@export var burn_dps: float = 0.0
+@export var burn_seconds: float = 0.0
 @export var color: Color = Color(0.98, 0.74, 0.18)
 
 
 func get_speed_per_tick() -> float:
 	return speed * GameConst.TILE_SIZE / GameConst.TICK_RATE
+
+
+func get_burn_ticks() -> int:
+	return roundi(burn_seconds * GameConst.TICK_RATE)
 
 
 func get_splash_px() -> float:

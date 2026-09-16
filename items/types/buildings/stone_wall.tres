@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/stone_wall.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"stone_wall"
+name_key = "BUILDING_STONE_WALL"
+color = Color(0.545, 0.541, 0.518, 1)
+sort_order = 1310
+stack_size = 100
+building = ExtResource("2_building")
