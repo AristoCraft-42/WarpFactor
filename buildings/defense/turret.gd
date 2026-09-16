@@ -222,3 +222,19 @@ func get_info_lines() -> PackedStringArray:
 	var ammo_name := tr(ammo_type.item.name_key) if ammo_type != null else "—"
 	lines.append(tr("INFO_TURRET_AMMO") % [total_shots, d.max_ammo, ammo_name])
 	return lines
+
+
+# --- Окно ---
+
+## Патроны (забрать нельзя) и запас выстрелов.
+func get_window_sections() -> Array[WindowSection]:
+	var d := get_turret_def()
+	var stacks := get_player_stacks()
+	var hints := PackedInt32Array()
+	for st in stacks:
+		hints.append(st.x)
+	if stacks.is_empty():
+		stacks.append(Vector2i(-1, 0))
+		hints.append(d.ammo[0].item.index if not d.ammo.is_empty() else -1)
+	var stock := WindowSection.bar(tr("WINDOW_AMMO_STOCK"), float(total_shots) / maxi(d.max_ammo, 1), "%d / %d" % [total_shots, d.max_ammo])
+	return [WindowSection.slots(tr("WINDOW_AMMO"), stacks, hints, false), stock]

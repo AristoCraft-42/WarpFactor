@@ -201,7 +201,13 @@ func load_state(_state: Dictionary) -> void:
 
 ## Есть ли у здания окно или настройка (клик пустой рукой выбирает его).
 func has_player_window() -> bool:
-	return get_config_kind() != ConfigKind.NONE or get_inventory() != null or accepts_player_items()
+	return get_config_kind() != ConfigKind.NONE or get_inventory() != null or accepts_player_items() \
+		or not get_window_sections().is_empty()
+
+
+## Разделы окна здания (ячейки и полоски). Пусто — у здания нет окна с содержимым.
+func get_window_sections() -> Array[WindowSection]:
+	return []
 
 
 ## Инвентарь склада (null — здание не склад).

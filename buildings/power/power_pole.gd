@@ -96,3 +96,15 @@ func get_info_lines() -> PackedStringArray:
 	if net != null:
 		lines.append(tr("INFO_POWER_NETWORK") % [roundi(net.demand_kw), roundi(net.capacity_kw)])
 	return lines
+
+
+# --- Окно ---
+
+## Нагрузка сети: спрос от выработки.
+func get_window_sections() -> Array[WindowSection]:
+	var net := power_net
+	if net == null:
+		return [WindowSection.bar(tr("WINDOW_NETWORK_LOAD"), 0.0, tr("WINDOW_NOT_CONNECTED"), WindowSection.COLOR_LOW)]
+	var col := WindowSection.COLOR_POWER if net.demand_kw <= net.capacity_kw else WindowSection.COLOR_LOW
+	return [WindowSection.bar(tr("WINDOW_NETWORK_LOAD"), net.demand_kw / maxf(net.capacity_kw, 0.001),
+		tr("WINDOW_KW_OF") % [roundi(net.demand_kw), roundi(net.capacity_kw)], col)]

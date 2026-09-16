@@ -517,6 +517,8 @@ func _update_problem() -> void:
 				key = "PROBLEM_NO_ORE"
 			BuildingManager.Check.BAD_TERRAIN:
 				key = "PROBLEM_BAD_TERRAIN"
+			BuildingManager.Check.ON_FLUID:
+				key = "PROBLEM_ON_FLUID"
 			BuildingManager.Check.OCCUPIED:
 				key = "PROBLEM_OCCUPIED"
 			BuildingManager.Check.OUT_OF_BOUNDS:

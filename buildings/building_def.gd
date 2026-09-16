@@ -10,7 +10,7 @@ enum Category { TRANSPORT, PRODUCTION, POWER, DEFENSE }
 
 ## Глиф на процедурном плейсхолдере.
 enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL, GEAR, PRESS, FLAME, MIXER, SPLIT, BOX, CORE, WALL, TURRET, ARTILLERY,
-	PIPE, PUMP, BOILER, TURBINE, POLE, FLASK, GENERATOR }
+	PIPE, PUMP, BOILER, TURBINE, POLE, FLASK, GENERATOR, UNDERGROUND_PIPE }
 
 @export var id: StringName
 @export var name_key: String
@@ -44,6 +44,8 @@ enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL,
 ## Твёрдая постройка: враги не проходят сквозь неё, а ломают. Ленты и логистика проходимы —
 ## враги идут поверх, но могут бить их по дороге.
 @export var solid: bool = true
+## Можно ставить на месторождение жидкости (вода): трубы и насосы. Остальное на воду не ставится.
+@export var allowed_on_fluid: bool = false
 
 @export_group("Внешний вид")
 @export var color: Color = Color(0.5, 0.5, 0.5)
@@ -99,6 +101,12 @@ func check_placement(_grid: WorldGrid, _origin: Vector2i) -> int:
 ## Шаг при протягивании ряда (для моста — его дальность).
 func get_line_step() -> int:
 	return size
+
+
+## Поворот, с которым постройка встанет в origin, если игрок держит поворот rotation
+## (подземная труба сама разворачивается навстречу своей паре).
+func placement_rotation(_world: GameWorld, _origin: Vector2i, rotation: int) -> int:
+	return rotation
 
 
 ## Строки характеристик для подсказок меню строительства.

@@ -480,7 +480,8 @@ func _build_ghosts() -> void:
 	var built: Array[Building] = []
 	for g in _ghosts:
 		if g.check == BuildingManager.Check.OK or g.check == BuildingManager.Check.REPLACE:
-			var config: Variant = g.config if mode == Mode.PASTE else place_config
+			# Свою настройку несут вставляемый план и постройки, подставленные при протягивании (мосты).
+			var config: Variant = g.config if (mode == Mode.PASTE or g.def != place_def) else place_config
 			var b := _world.build(g.def, g.origin, g.rotation, config)
 			if b != null:
 				built.append(b)
@@ -491,7 +492,7 @@ func _build_ghosts() -> void:
 		elif g.check == BuildingManager.Check.OUT_OF_RANGE:
 			out_of_range = true
 		last_rotation = g.rotation
-	if mode == Mode.PLACE:
+	if mode == Mode.PLACE and place_def is LogisticDef and (place_def as LogisticDef).link_range > 0:
 		_link_new_bridges(built)
 		if place_def != null and place_def.line_placement and _ghosts.size() > 1:
 			rotation = last_rotation
@@ -594,17 +595,23 @@ func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 		if not _axis_locked and delta != Vector2i.ZERO:
 			_x_first = absi(delta.x) >= absi(delta.y)
 			_axis_locked = true
-		for step in LinePlanner.l_path(_drag_start, tile, _x_first, rotation):
-			var origin := Vector2i(step.x, step.y)
-			var rot := step.z if def.rotatable else 0
-			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, _world.check_build(def, origin, rot, budget)))
+		var path := LinePlanner.l_path(_drag_start, tile, _x_first, rotation)
+		if def is ConveyorDef and path.size() > 1:
+			ghosts = LinePlanner.plan_belt(_world, def, path, budget)
+		else:
+			for step in path:
+				var origin := Vector2i(step.x, step.y)
+				var rot := step.z if def.rotatable else 0
+				ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, _world.check_build(def, origin, rot, budget)))
 	elif _drag == Drag.PLACE:
 		var end_origin := GameConst.origin_for_size(mouse_world, def.size)
 		for origin in LinePlanner.straight_line(_drag_start, end_origin, def.get_line_step()):
-			ghosts.append(PlacementPreview.Ghost.new(def, origin, rotation, _world.check_build(def, origin, rotation, budget)))
+			var rot := def.placement_rotation(_world, origin, rotation)
+			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, _world.check_build(def, origin, rot, budget)))
 	else:
 		var origin := GameConst.origin_for_size(mouse_world, def.size)
-		ghosts.append(PlacementPreview.Ghost.new(def, origin, rotation, _world.check_build(def, origin, rotation, budget)))
+		var rot := def.placement_rotation(_world, origin, rotation)
+		ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, _world.check_build(def, origin, rot, budget)))
 	_set_ghosts(ghosts)
 
 

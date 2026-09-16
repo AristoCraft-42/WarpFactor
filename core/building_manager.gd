@@ -21,6 +21,7 @@ enum Check {
 	NO_ORE, ## буру нечего добывать
 	NO_ITEM, ## постройки нет в инвентаре дрона (выставляет GameWorld)
 	OUT_OF_RANGE, ## вне радиуса дрона (выставляет GameWorld)
+	ON_FLUID, ## на воде можно ставить только трубы и насосы
 }
 
 var grid: WorldGrid
@@ -68,6 +69,10 @@ func check_place(def: BuildingDef, origin: Vector2i, rotation: int) -> Check:
 		for x in range(rect.position.x, rect.end.x):
 			if not grid.is_buildable(x, y):
 				return Check.BAD_TERRAIN
+			if not def.allowed_on_fluid:
+				var ore := grid.get_ore_def(x, y)
+				if ore != null and ore.fluid != null:
+					return Check.ON_FLUID
 			var id := grid.building_ids[grid.index_of(x, y)]
 			if id != 0:
 				if existing_id == 0:

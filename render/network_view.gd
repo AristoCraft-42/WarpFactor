@@ -10,6 +10,8 @@ const AREA_COLOR := Color(0.98, 0.74, 0.18)
 
 ## Показать зоны питания всех опор.
 var show_power_areas: bool = false
+## Показать подземные участки труб (в руке постройка для жидкостей).
+var show_underground: bool = false
 
 var _world: GameWorld
 var _camera: CameraController
@@ -32,6 +34,8 @@ func _draw() -> void:
 		return
 	var view := _camera.get_world_view_rect().grow(GameConst.TILE_SIZE * 8)
 	_draw_pipes(view)
+	if show_underground:
+		_draw_underground(view)
 	if show_power_areas:
 		_draw_areas(view)
 	_draw_wires(view)
@@ -64,6 +68,28 @@ func _draw_pipes(view: Rect2) -> void:
 			draw_rect(Rect2(center - Vector2(4, 4), Vector2(8, 8)), Color(col, 0.35 + 0.65 * fill), true)
 
 
+## Подземные пары — пунктир между входом и выходом, непарные подземные трубы — красная метка.
+func _draw_underground(view: Rect2) -> void:
+	var fluids := _world.fluids
+	for id in fluids.pipes:
+		var pipe := fluids.pipes[id] as UndergroundPipe
+		if pipe == null:
+			continue
+		var partner := pipe.get_linked_partner()
+		var a := pipe.get_world_center()
+		if partner == null:
+			if view.has_point(a):
+				draw_circle(a, 5.0, Color(0.98, 0.29, 0.2, 0.9))
+			continue
+		if partner.id < pipe.id:
+			continue
+		var b := partner.get_world_center()
+		if not view.has_point(a) and not view.has_point(b):
+			continue
+		draw_dashed_line(a, b, Color(0.11, 0.13, 0.13, 0.7), 6.0, 10.0)
+		draw_dashed_line(a, b, Color(0.51, 0.65, 0.6, 0.95), 3.0, 10.0)
+
+
 func _draw_wires(view: Rect2) -> void:
 	for id in _world.power.poles:
 		var pole := _world.power.poles[id]
@@ -74,9 +100,8 @@ func _draw_wires(view: Rect2) -> void:
 			var b := other.get_world_center() + Vector2(0, -6)
 			if not view.has_point(a) and not view.has_point(b):
 				continue
-			var mid := (a + b) * 0.5 + Vector2(0, minf(a.distance_to(b) * 0.06, 10.0))
-			draw_polyline(PackedVector2Array([a, mid, b]), WIRE_COLOR, 3.0)
-			draw_polyline(PackedVector2Array([a, mid, b]), WIRE_LIGHT, 1.0)
+			draw_line(a, b, WIRE_COLOR, 3.0)
+			draw_line(a, b, WIRE_LIGHT, 1.0)
 
 
 func _draw_areas(view: Rect2) -> void:

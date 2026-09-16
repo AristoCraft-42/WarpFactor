@@ -9,5 +9,10 @@ extends BuildingDef
 @export var max_links: int = 5
 
 
+## Протягивание ставит опоры на наибольшем расстоянии, при котором провод ещё достаёт.
+func get_line_step() -> int:
+	return maxi(size, floori(wire_range))
+
+
 func get_stat_lines() -> PackedStringArray:
 	return PackedStringArray([tr("STAT_POLE_WIRE") % wire_range, tr("STAT_POLE_SUPPLY") % [supply_size, supply_size]])

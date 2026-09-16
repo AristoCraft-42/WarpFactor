@@ -14,6 +14,6 @@ description_key = "RESEARCH_INDUSTRY_DESC"
 sort_order = 40
 cost_item = ExtResource("2_kit")
 cost_amount = 30
-prerequisites = Array[StringName]([&"mining"])
+prerequisites = Array[StringName]([&"logistics"])
 unlock_buildings = Array[ExtResource("3_building_script")]([ExtResource("b_assembler")])
 unlock_recipes = Array[ExtResource("4_recipe_script")]([])

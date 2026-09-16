@@ -172,14 +172,23 @@ func _apply_zoom_property() -> void:
 	zoom = Vector2.ONE * (user_zoom / ui_scale)
 
 
-## Позиция = точка слежения + смещение, в пределах карты (смещение подрезается вместе с ней).
+## Позиция = точка слежения + смещение. Видимая область не выходит за границы карты (смещение подрезается
+## вместе с ней); если карта меньше экрана по оси — камера по этой оси стоит в центре карты.
 func _apply_position() -> void:
 	var follow := _follow_point()
 	var wanted := follow + look_offset
 	if _map_size_px != Vector2.ZERO:
-		wanted = wanted.clamp(Vector2.ZERO, _map_size_px)
+		var half := get_viewport().get_visible_rect().size / zoom * 0.5
+		wanted = Vector2(clamp_axis(wanted.x, half.x, _map_size_px.x), clamp_axis(wanted.y, half.y, _map_size_px.y))
 	position = wanted
 	look_offset = wanted - follow
+
+
+## Центр взгляда по оси: половина видимой области half, длина карты extent.
+static func clamp_axis(value: float, half: float, extent: float) -> float:
+	if half * 2.0 >= extent:
+		return extent * 0.5
+	return clampf(value, half, extent - half)
 
 
 func _notification(what: int) -> void:

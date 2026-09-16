@@ -11,7 +11,7 @@ ORE_STONE,Stone rock,Каменная порода
 CATEGORY_TRANSPORT,Logistics,Логистика
 CATEGORY_PRODUCTION,Production,Производство
 BUILDING_CONVEYOR,Conveyor,Конвейер
-BUILDING_CONVEYOR_DESC,Moves items forward. Drag with the mouse to build a line.,"Перевозит предметы. Протяните мышью, чтобы построить линию."
+BUILDING_CONVEYOR_DESC,"Moves items forward. Drag with the mouse to build a line: obstacles are crossed by bridge conveyors, other belts by junctions (if you have them).","Перевозит предметы. Протяните мышью, чтобы построить линию: препятствия перекрываются мостовыми конвейерами, чужие ленты — перекрёстками (если они есть в инвентаре)."
 BUILDING_JUNCTION,Junction,Перекрёсток
 BUILDING_JUNCTION_DESC,Lets two crossing flows pass through without mixing.,"Пропускает два пересекающихся потока насквозь, не смешивая их."
 BUILDING_ROUTER,Router,Маршрутизатор
@@ -342,17 +342,17 @@ CRAFT_COMPONENTS,Components,Компоненты
 BUILDING_FURNACE,Furnace,Печь
 BUILDING_FURNACE_DESC,"Smelts hematite into iron, stone into bricks and malachite into copper. Burns coal. Picks the recipe by the incoming ore.","Переплавляет гематит в железо, камень в кирпичи, малахит в медь. Жжёт уголь. Рецепт выбирает по пришедшему сырью."
 BUILDING_DRILL,Drill,Бур
-BUILDING_DRILL_DESC,Mines the deposit underneath. Needs power: slows down when there is not enough.,Добывает месторождение под собой. Нужно электричество: при нехватке работает медленнее.
+BUILDING_DRILL_DESC,"Mines the deposit underneath and outputs only from the front side (arrow, R rotates). Needs power: slows down when there is not enough.","Добывает месторождение под собой и отдаёт добытое только с лицевой стороны (стрелка, R поворачивает). Нужно электричество: при нехватке работает медленнее."
 BUILDING_ASSEMBLER,Assembler,Сборщик
 BUILDING_ASSEMBLER_DESC,Makes components and cartridges by the chosen recipe. Needs power.,Делает компоненты и патроны по выбранному рецепту. Нужно электричество.
 BUILDING_SCIENCE_WORKSHOP,Science Workshop,Научный цех
 BUILDING_SCIENCE_WORKSHOP_DESC,Spends science kits on the selected research much faster than handing them in manually. Needs power.,Тратит научные наборы на выбранное исследование гораздо быстрее ручной сдачи. Нужно электричество.
 BUILDING_SMALL_POWER_POLE,Small Power Pole,Малая опора ЛЭП
-BUILDING_SMALL_POWER_POLE_DESC,Connects to nearby poles with wires and powers buildings in its area.,Соединяется проводами с ближайшими опорами и питает постройки в своей зоне.
+BUILDING_SMALL_POWER_POLE_DESC,Connects to nearby poles with wires and powers buildings in its area. Dragging places poles as far apart as the wire reaches.,"Соединяется проводами с ближайшими опорами и питает постройки в своей зоне. Протягивание ставит опоры так далеко друг от друга, как достаёт провод."
 BUILDING_THERMAL_GENERATOR,Thermal Generator,Термогенератор
 BUILDING_THERMAL_GENERATOR_DESC,Burns fuel into electricity. Simple but wasteful: half of the energy is lost.,"Сжигает топливо и даёт электричество. Прост, но расточителен: половина энергии теряется."
 BUILDING_PIPE,Pipe,Труба
-BUILDING_PIPE_DESC,Carries water and steam. Connects to neighbouring pipes and machine ports.,Проводит воду и пар. Соединяется с соседними трубами и портами машин.
+BUILDING_PIPE_DESC,Carries water and steam. Connects to neighbouring pipes and machine ports. Pipes and pumps are the only buildings allowed on water.,Проводит воду и пар. Соединяется с соседними трубами и портами машин. На воде можно ставить только трубы и насосы.
 BUILDING_PUMP,Pump,Насос
 BUILDING_PUMP_DESC,Placed on water. Pumps water into connected pipes. Works without power.,Ставится на воду. Качает воду в подключённые трубы. Работает без электричества.
 BUILDING_BOILER,Boiler,Бойлер
@@ -425,3 +425,31 @@ RESEARCH_INDUSTRY,Industry,Промышленность
 RESEARCH_INDUSTRY_DESC,The Assembler makes components automatically.,Сборщик делает компоненты автоматически.
 RESEARCH_DEFENSE,Defense,Оборона
 RESEARCH_DEFENSE_DESC,"Machine-gun turrets, casings and cartridges.","Пулемётные турели, гильзы и патроны."
+PROBLEM_ON_FLUID,Only pipes and pumps can be built on water,На воде можно ставить только трубы и насосы
+BUILDING_UNDERGROUND_PIPE,Underground pipe,Подземная труба
+BUILDING_UNDERGROUND_PIPE_DESC,"Carries fluid under buildings and terrain up to 10 tiles. Place the entrance, then the exit with the same rotation — it turns to face the entrance by itself.","Проводит жидкость под постройками и землёй на расстояние до 10 тайлов. Поставьте вход, затем выход тем же поворотом — он сам развернётся ко входу."
+STAT_UNDERGROUND_RANGE,Underground: up to %d tiles,Под землёй: до %d тайлов
+INFO_UNDERGROUND_LINKED,Connected underground: %d tiles,Соединена под землёй: %d тайлов
+INFO_UNDERGROUND_UNLINKED,No pair within %d tiles,Нет пары в пределах %d тайлов
+WINDOW_INPUTS,Ingredients,Сырьё
+WINDOW_OUTPUTS,Product,Продукт
+WINDOW_FUEL,Fuel,Топливо
+WINDOW_PROGRESS,Progress,Прогресс
+WINDOW_POWER,Power,Питание
+WINDOW_POWER_VALUE,%d%% · %d kW,%d%% · %d кВт
+WINDOW_NO_POLE,No power pole,Нет опоры ЛЭП
+WINDOW_NOT_CONNECTED,Not connected,Не подключено
+WINDOW_BURN,Burning,Горение
+WINDOW_OUTPUT,Output,Выработка
+WINDOW_KW_OF,%d / %d kW,%d / %d кВт
+WINDOW_MINED,Mined,Добыто
+WINDOW_KITS,Science kits,Научные наборы
+WINDOW_WATER,Water,Вода
+WINDOW_STEAM,Steam,Пар
+WINDOW_STEAM_RATE,Steam output,Выход пара
+WINDOW_PER_SECOND_OF,%.0f / %.0f per s,%.0f / %.0f в секунду
+WINDOW_PUMP_RATE,Pumping,Подача
+WINDOW_NETWORK_FLUID,In the pipes,В трубах
+WINDOW_NETWORK_LOAD,Network load,Нагрузка сети
+WINDOW_AMMO,Ammo,Патроны
+WINDOW_AMMO_STOCK,Shots,Запас выстрелов

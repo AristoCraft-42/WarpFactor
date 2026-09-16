@@ -80,6 +80,13 @@ func _ready() -> void:
 	_test_fluids()
 	_test_research()
 	_test_ammo_effects()
+	_test_research_tree()
+	_test_water_placement()
+	_test_belt_drag_obstacles()
+	_test_drill_front_output()
+	_test_underground_pipes()
+	_test_pole_drag_and_camera()
+	_test_building_windows()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -126,13 +133,13 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 5, "ожидалось 5 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 21, "ожидалось 21 здание (19 строится + шлюз и пара), есть %d" % Registry.buildings.size())
+	_check(Registry.buildings.size() == 22, "ожидалось 22 здания (20 строится + шлюз и пара), есть %d" % Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
 	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 5,
 		"13 рецептов и 5 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 24, "параметры базы загружены (24×24)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 17 + 19, "ожидалось 17 предметов и 19 предметов-построек, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 17 + 20, "ожидалось 17 предметов и 20 предметов-построек, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
 	for def in Registry.buildings:
@@ -1416,6 +1423,11 @@ func _test_planet_generator() -> void:
 			if map_a.get_ore(x, y) != 0:
 				near_ore += 1
 	_check(near_ore > 40, "у обычной планеты руда недалеко от посадки (%d тайлов)" % near_ore)
+	_check(node.size.x >= 336 and node.size.x <= 480 and node.size.y >= 252 and node.size.y <= 360,
+		"обычная планета втрое больше прежней по стороне (%d×%d)" % [node.size.x, node.size.y])
+	var started := Time.get_ticks_msec()
+	PlanetGenerator.generate(node, Run.PAD_SIZE)
+	print("Генерация планеты %d×%d: %d мс" % [node.size.x, node.size.y, Time.get_ticks_msec() - started])
 	var world := GameWorld.create(null, map_a, false)
 	var drill := Registry.get_building(&"drill")
 	_check(world.buildings.check_place(Registry.get_building(&"container"), center + Vector2i(3, 3), 0) == BuildingManager.Check.OK, "на площадке можно строить")
@@ -2559,3 +2571,245 @@ func _test_ammo_effects() -> void:
 	var stone := d.ammo[d.find_ammo(_item(&"cartridge_stone"))]
 	_check(d.get_reload_ticks(copper) < d.get_reload_ticks(stone), "лёгкий патрон стреляет чаще (%d < %d тиков)" % [d.get_reload_ticks(copper), d.get_reload_ticks(stone)])
 	run.dispose()
+
+
+# --- Правки после этапа Д ---
+
+## Дерево исследований: ветки, столбцы по глубине, доступность по цепочке.
+func _test_research_tree() -> void:
+	var cells := ResearchTreeView.layout(Registry.researches)
+	_check(cells[&"mining"] == Vector2i(0, 0) and cells[&"logistics"] == Vector2i(1, 0) and cells[&"defense"] == Vector2i(1, 1)
+		and cells[&"industry"] == Vector2i(2, 0) and cells[&"science_automation"] == Vector2i(3, 0),
+		"дерево: Добыча → Логистика → Промышленность → Автоматизация науки, Добыча → Оборона")
+	var state := ResearchState.new()
+	state.done[&"mining"] = true
+	_check(state.is_available(Registry.get_research(&"logistics")) and state.is_available(Registry.get_research(&"defense"))
+		and not state.is_available(Registry.get_research(&"industry")), "после Добычи доступны Логистика и Оборона, Промышленность — нет")
+	state.done[&"logistics"] = true
+	_check(state.is_available(Registry.get_research(&"industry")) and not state.is_available(Registry.get_research(&"science_automation")),
+		"Промышленность — после Логистики, Автоматизация науки — после Промышленности")
+
+
+## На воде можно ставить только трубы и насосы.
+func _test_water_placement() -> void:
+	var map := LevelMap.new(16, 12, Registry.get_floor(&"stone").index)
+	var water := Registry.get_ore(&"water").index + 1
+	for x in range(4, 8):
+		map.set_ore(x, 5, water)
+	var world := GameWorld.create(null, map, true)
+	var bm := world.buildings
+	_check(bm.check_place(Registry.get_building(&"conveyor"), Vector2i(5, 5), 0) == BuildingManager.Check.ON_FLUID, "лента на воду не ставится")
+	_check(bm.check_place(Registry.get_building(&"container"), Vector2i(4, 4), 0) == BuildingManager.Check.ON_FLUID, "склад, задевший воду, не ставится")
+	_check(bm.check_place(Registry.get_building(&"stone_wall"), Vector2i(6, 5), 0) == BuildingManager.Check.ON_FLUID, "стена на воду не ставится")
+	_check(bm.check_place(Registry.get_building(&"pipe"), Vector2i(5, 5), 0) == BuildingManager.Check.OK, "труба на воду ставится")
+	_check(bm.check_place(Registry.get_building(&"underground_pipe"), Vector2i(6, 5), 0) == BuildingManager.Check.OK, "подземная труба на воду ставится")
+	_check(bm.check_place(Registry.get_building(&"pump"), Vector2i(4, 5), 0) == BuildingManager.Check.OK, "насос на воду ставится")
+	_check(bm.check_place(Registry.get_building(&"conveyor"), Vector2i(5, 6), 0) == BuildingManager.Check.OK, "рядом с водой строить можно")
+	world.dispose()
+
+
+## Протягивание ленты: мост через препятствие, перекрёсток через чужую ленту; без них ничего не ломается.
+func _test_belt_drag_obstacles() -> void:
+	var map := LevelMap.new(32, 16, Registry.get_floor(&"stone").index)
+	var world := GameWorld.create(null, map, false)
+	var bm := world.buildings
+	var inv := world.drone.inventory
+	world.drone.position = Vector2(12, 8) * GameConst.TILE_SIZE
+	var belt := Registry.get_building(&"conveyor")
+	var bridge := Registry.get_building(&"bridge_conveyor")
+	var junction := Registry.get_building(&"junction")
+	# Препятствия на линии y = 8: две стены (x = 8, 9) и поперечная лента (x = 14, вниз).
+	bm.place(Registry.get_building(&"stone_wall"), Vector2i(8, 8), 0, true)
+	bm.place(Registry.get_building(&"stone_wall"), Vector2i(9, 8), 0, true)
+	var crossing := bm.place(belt, Vector2i(14, 8), GameConst.Dir.DOWN, true)
+	var path := LinePlanner.l_path(Vector2i(4, 8), Vector2i(18, 8), true, 0)
+	inv.add(belt.item.index, 30)
+
+	# Без мостов и перекрёстков: стены красные, поперечная лента не трогается.
+	var plain := LinePlanner.plan_belt(world, belt, path, inv.make_budget())
+	var wall_blocked := false
+	var touches_crossing := false
+	for g in plain:
+		if g.origin == Vector2i(8, 8) and g.def == belt and not BuildingManager.is_valid_check(g.check):
+			wall_blocked = true
+		if g.origin == Vector2i(14, 8):
+			touches_crossing = true
+	_check(wall_blocked and not touches_crossing, "без мостов препятствие остаётся препятствием, без перекрёстка чужая лента не трогается")
+
+	inv.add(bridge.item.index, 2)
+	inv.add(junction.item.index, 1)
+	var ghosts := LinePlanner.plan_belt(world, belt, path, inv.make_budget())
+	var by_tile := {}
+	for g in ghosts:
+		by_tile[g.origin] = g
+	var entry: PlacementPreview.Ghost = by_tile.get(Vector2i(7, 8))
+	var exit: PlacementPreview.Ghost = by_tile.get(Vector2i(10, 8))
+	_check(entry != null and entry.def == bridge and entry.config == Vector2i(3, 0) and exit != null and exit.def == bridge,
+		"мост перед стенами и сразу за ними, вход связан с выходом")
+	_check(not by_tile.has(Vector2i(8, 8)) and not by_tile.has(Vector2i(9, 8)), "под мостом ленты не планируются")
+	var cross: PlacementPreview.Ghost = by_tile.get(Vector2i(14, 8))
+	_check(cross != null and cross.def == junction and cross.check == BuildingManager.Check.REPLACE, "поперечная лента заменяется перекрёстком")
+	var all_valid := true
+	for g in ghosts:
+		all_valid = all_valid and BuildingManager.is_valid_check(g.check)
+	_check(all_valid, "вся трасса строится")
+
+	# Строим как инструмент и гоним предметы с обоих направлений.
+	for g in ghosts:
+		world.build(g.def, g.origin, g.rotation, g.config if g.def != belt else null)
+	var source := bm.place(Worlds.source_def(), Vector2i(3, 8), 0, true)
+	source.set("items", PackedInt32Array([_item(&"hematite")]))
+	var sink := bm.place(Worlds.sink_def(), Vector2i(19, 8), 0, true)
+	var down_source := bm.place(Worlds.source_def(), Vector2i(14, 6), 0, true)
+	down_source.set("items", PackedInt32Array([_item(&"brick")]))
+	bm.place(belt, Vector2i(14, 7), GameConst.Dir.DOWN, true)
+	bm.place(belt, Vector2i(14, 9), GameConst.Dir.DOWN, true)
+	var down_sink := bm.place(Worlds.sink_def(), Vector2i(14, 10), 0, true)
+	Worlds.run_ticks(world, 20 * GameConst.TICK_RATE)
+	_check(sink.count_of(_item(&"hematite")) > 30 and sink.count_of(_item(&"brick")) == 0, "гематит прошёл по мосту и через перекрёсток (%d)" % sink.count_of(_item(&"hematite")))
+	_check(down_sink.count_of(_item(&"brick")) > 30 and down_sink.count_of(_item(&"hematite")) == 0, "поперечный поток не смешался (%d)" % down_sink.count_of(_item(&"brick")))
+	_check(crossing.world == null and bm.get_at(Vector2i(8, 8)).def.id == &"stone_wall", "стены на месте, поперечная лента стала перекрёстком")
+
+	# Препятствие длиннее дальности моста — мост не ставится.
+	var long_world := Worlds.empty_world(32, 8, true)
+	for x in range(6, 11):
+		long_world.buildings.place(Registry.get_building(&"stone_wall"), Vector2i(x, 3), 0, true)
+	var long_plan := LinePlanner.plan_belt(long_world, belt, LinePlanner.l_path(Vector2i(2, 3), Vector2i(14, 3), true, 0), null)
+	var has_bridge := false
+	for g in long_plan:
+		has_bridge = has_bridge or g.def == bridge
+	_check(not has_bridge, "пять стен подряд мост не перекрывает (дальность 4)")
+	long_world.dispose()
+	world.dispose()
+
+
+## Бур отдаёт только с лицевой стороны; разгрузчик забирает с любой.
+func _test_drill_front_output() -> void:
+	var map := LevelMap.new(24, 16, Registry.get_floor(&"stone").index)
+	var ore := Registry.get_ore(&"hematite").index + 1
+	for y in range(6, 8):
+		for x in range(6, 8):
+			map.set_ore(x, y, ore)
+	var world := GameWorld.create(null, map, true)
+	var bm := world.buildings
+	var drill := bm.place(Registry.get_building(&"drill"), Vector2i(6, 6), GameConst.Dir.RIGHT, true) as Drill
+	Worlds.power_area(world, Vector2i(3, 2), 5, Vector2i(4, 3))
+	var right := bm.place(Worlds.sink_def(), Vector2i(8, 6), 0, true)
+	var down := bm.place(Worlds.sink_def(), Vector2i(6, 8), 0, true)
+	Worlds.run_ticks(world, 20 * GameConst.TICK_RATE)
+	_check(right.received > 5 and down.received == 0, "бур отдаёт только вперёд (%d / %d)" % [right.received, down.received])
+	_check(world.rotate_building(drill, 1) and drill.rotation == GameConst.Dir.DOWN, "бур поворачивается")
+	var before: int = right.received
+	Worlds.run_ticks(world, 20 * GameConst.TICK_RATE)
+	_check(down.received > 5 and right.received == before, "после поворота — только вниз (%d)" % down.received)
+	bm.remove(down, true)
+	var unloader := bm.place(Registry.get_building(&"unloader"), Vector2i(5, 6), 0, true)
+	bm.place(Registry.get_building(&"conveyor"), Vector2i(4, 6), GameConst.Dir.LEFT, true)
+	var side_sink := bm.place(Worlds.sink_def(), Vector2i(3, 6), 0, true)
+	Worlds.run_ticks(world, 20 * GameConst.TICK_RATE)
+	_check(unloader != null and side_sink.received > 5, "разгрузчик сбоку забирает добычу бура (%d)" % side_sink.received)
+	world.dispose()
+
+
+## Подземные трубы: пара через препятствие, разворот выхода, закрытые стороны, дальность.
+func _test_underground_pipes() -> void:
+	var map := LevelMap.new(40, 16, Registry.get_floor(&"stone").index)
+	map.set_ore(2, 6, Registry.get_ore(&"water").index + 1)
+	var world := GameWorld.create(null, map, true)
+	var bm := world.buildings
+	var under := Registry.get_building(&"underground_pipe") as FluidBuildingDef
+	var pipe := Registry.get_building(&"pipe")
+	bm.place(Registry.get_building(&"pump"), Vector2i(2, 6), 0, true)
+	bm.place(pipe, Vector2i(3, 6), 0, true)
+	var entrance := bm.place(under, Vector2i(4, 6), GameConst.Dir.RIGHT, true) as UndergroundPipe
+	for x in range(5, 11):
+		bm.place(Registry.get_building(&"stone_wall"), Vector2i(x, 6), 0, true)
+	_check(under.placement_rotation(world, Vector2i(11, 6), GameConst.Dir.RIGHT) == GameConst.Dir.LEFT, "выход сам разворачивается ко входу")
+	var exit := bm.place(under, Vector2i(11, 6), under.placement_rotation(world, Vector2i(11, 6), GameConst.Dir.RIGHT), true) as UndergroundPipe
+	bm.place(pipe, Vector2i(12, 6), 0, true)
+	var side_pipe := bm.place(pipe, Vector2i(11, 5), 0, true)
+	_check(entrance.get_linked_partner() == exit and exit.get_linked_partner() == entrance, "вход и выход — пара")
+	Worlds.run_ticks(world, 60)
+	var far_pipe := bm.get_at(Vector2i(12, 6))
+	var net := world.fluids.get_pipe_network(far_pipe)
+	_check(net != null and net == world.fluids.get_pipe_network(bm.get_at(Vector2i(3, 6))) and net.amount > 0.0,
+		"вода прошла под стенами (%.0f)" % (net.amount if net != null else -1.0))
+	_check(world.fluids.get_pipe_network(side_pipe) != net and not world.fluids.pipe_connects(exit, GameConst.Dir.UP),
+		"сбоку подземная труба закрыта")
+	_check(under.placement_rotation(world, Vector2i(20, 6), GameConst.Dir.RIGHT) == GameConst.Dir.RIGHT, "за занятой парой новая труба не разворачивается")
+	# Дальше дальности пара не образуется.
+	var lone := bm.place(under, Vector2i(24, 9), GameConst.Dir.RIGHT, true) as UndergroundPipe
+	var too_far := bm.place(under, Vector2i(24 + under.underground_range + 1, 9), GameConst.Dir.LEFT, true) as UndergroundPipe
+	_check(lone.get_linked_partner() == null and too_far.get_linked_partner() == null, "дальше %d тайлов пары нет" % under.underground_range)
+	bm.remove(exit, true)
+	Worlds.run_ticks(world, 2)
+	_check(entrance.get_linked_partner() == null and world.fluids.get_pipe_network(far_pipe) != world.fluids.get_pipe_network(bm.get_at(Vector2i(3, 6))),
+		"снос выхода разрывает подземный участок")
+	world.dispose()
+
+
+## Опоры протягиваются с шагом дальности провода; камера не выходит за карту.
+func _test_pole_drag_and_camera() -> void:
+	var pole_def := Registry.get_building(&"small_power_pole") as PowerPoleDef
+	_check(pole_def.get_line_step() == 7, "шаг протягивания опор — 7 тайлов (провод 7.5)")
+	var row := LinePlanner.straight_line(Vector2i(2, 5), Vector2i(20, 6), pole_def.get_line_step())
+	_check(row == [Vector2i(2, 5), Vector2i(9, 5), Vector2i(16, 5)], "ряд опор через 7 тайлов")
+	var world := Worlds.empty_world(32, 12, false)
+	world.drone.position = Vector2(9, 5) * GameConst.TILE_SIZE
+	world.drone.inventory.add(pole_def.item.index, 3)
+	var poles: Array[PowerPole] = []
+	for origin in row:
+		poles.append(world.build(pole_def, origin, 0) as PowerPole)
+	_check(poles[0] != null and poles[2] != null and poles[0].is_linked(poles[1]) and poles[1].is_linked(poles[2]), "протянутые опоры соединены цепочкой")
+	world.dispose()
+	_check(is_equal_approx(CameraController.clamp_axis(10.0, 400.0, 3000.0), 400.0)
+		and is_equal_approx(CameraController.clamp_axis(2900.0, 400.0, 3000.0), 2600.0)
+		and is_equal_approx(CameraController.clamp_axis(1500.0, 400.0, 3000.0), 1500.0),
+		"камера упирается в края карты")
+	_check(is_equal_approx(CameraController.clamp_axis(50.0, 800.0, 768.0), 384.0), "карта меньше экрана — камера в центре карты")
+
+
+## Окна зданий: отдельные ячейки сырья, топлива и продукта, полоски прогресса, питания и жидкостей.
+func _test_building_windows() -> void:
+	var world := Worlds.empty_world(32, 20, true)
+	var bm := world.buildings
+	var furnace := bm.place(Registry.get_building(&"furnace"), Vector2i(4, 4), 0, true) as Crafter
+	for i in 4:
+		furnace.handle_item(null, _item(&"hematite"))
+	furnace.handle_item(null, _item(&"coal"))
+	Worlds.run_ticks(world, 30)
+	var sections := furnace.get_window_sections()
+	var kinds := PackedStringArray()
+	for sec in sections:
+		kinds.append("S" if sec.kind == WindowSection.Kind.SLOTS else "B")
+	_check("".join(kinds) == "SSSBB", "печь: сырьё, топливо, продукт, прогресс, горение (%s)" % "".join(kinds))
+	_check(sections[0].stacks[0] == Vector2i(_item(&"hematite"), 3) and sections[1].hints[0] == _item(&"coal")
+		and sections[2].hints[0] == _item(&"iron_ingot") and sections[3].fraction > 0.0 and sections[4].fraction > 0.0,
+		"в ячейках гематит, подсказки угля и слитка, прогресс идёт, уголь горит")
+	_check(furnace.has_player_window(), "у печи есть окно")
+
+	var assembler := bm.place(Registry.get_building(&"assembler"), Vector2i(8, 4), 0, true) as Crafter
+	world.configure(assembler, &"science_kit")
+	var asm := assembler.get_window_sections()
+	_check(asm.size() == 4 and asm[0].stacks.size() == 2 and asm[0].hints[1] == _item(&"gear")
+		and asm[3].kind == WindowSection.Kind.BAR and asm[3].fraction == 0.0,
+		"сборщик: два входа рецепта, продукт, прогресс, питание (нет опоры)")
+
+	var boiler := bm.place(Registry.get_building(&"boiler"), Vector2i(12, 4), 0, true) as Boiler
+	var boiler_kinds := PackedStringArray()
+	for sec in boiler.get_window_sections():
+		boiler_kinds.append("S" if sec.kind == WindowSection.Kind.SLOTS else "B")
+	_check("".join(boiler_kinds) == "SBBBB", "бойлер: топливо, горение, вода, пар, выход пара")
+
+	var gun := bm.place(Registry.get_building(&"machine_gun"), Vector2i(16, 4), 0, true) as Turret
+	for i in 3:
+		gun.handle_item(null, _item(&"cartridge_iron"))
+	var gun_sections := gun.get_window_sections()
+	_check(not gun_sections[0].can_take and gun_sections[1].fraction > 0.0, "турель: патроны не забираются, запас выстрелов виден")
+
+	var pole := bm.place(Registry.get_building(&"small_power_pole"), Vector2i(20, 4), 0, true)
+	var pipe := bm.place(Registry.get_building(&"pipe"), Vector2i(20, 8), 0, true)
+	_check(pole.has_player_window() and pipe.has_player_window() and pole.get_window_sections().size() == 1 and pipe.get_window_sections().size() == 1,
+		"у опоры и трубы окно с полоской сети")
+	_check(not bm.place(Registry.get_building(&"router"), Vector2i(24, 4), 0, true).get_window_sections().size() > 0, "у маршрутизатора разделов окна нет")
+	world.dispose()

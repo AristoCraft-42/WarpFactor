@@ -72,3 +72,18 @@ func get_info_lines() -> PackedStringArray:
 	if fluid == null:
 		return PackedStringArray([tr("INFO_DRILL_NO_ORE")])
 	return PackedStringArray([tr("INFO_PUMP_RATE") % [tr(fluid.name_key), last_rate, (def as FluidBuildingDef).pump_per_tile * tiles]])
+
+
+# --- Окно ---
+
+func get_window_sections() -> Array[WindowSection]:
+	var d := def as FluidBuildingDef
+	var full := d.pump_per_tile * tiles
+	var net: FluidGraph.FluidNetwork = null
+	for side in 4:
+		net = world.fluids.get_port_network(self, side)
+		if net != null:
+			break
+	var rate := WindowSection.bar(tr("WINDOW_PUMP_RATE"), last_rate / maxf(full, 0.001), tr("WINDOW_PER_SECOND_OF") % [last_rate, full],
+		fluid.color if fluid != null else WindowSection.COLOR_PROGRESS)
+	return [rate, WindowSection.fluid(tr("WINDOW_NETWORK_FLUID"), net)]

@@ -155,3 +155,17 @@ func get_info_lines() -> PackedStringArray:
 		tr("INFO_BOILER_TANKS") % [roundi(water), roundi(steam)],
 		tr("INFO_FUEL") % total_fuel(),
 	])
+
+
+# --- Окно ---
+
+func get_window_sections() -> Array[WindowSection]:
+	var d := get_boiler_def()
+	var water_col := d.water_fluid.color if d.water_fluid != null else Color(0.24, 0.47, 0.85)
+	var steam_col := d.steam_fluid.color if d.steam_fluid != null else Color(0.85, 0.87, 0.89)
+	var sections: Array[WindowSection] = [WindowSection.fuel_slot(fuel_counts), WindowSection.burn(fuel_energy)]
+	sections.append(WindowSection.bar(tr("WINDOW_WATER"), water / TANK, "%d / %d" % [roundi(water), roundi(TANK)], water_col))
+	sections.append(WindowSection.bar(tr("WINDOW_STEAM"), steam / TANK, "%d / %d" % [roundi(steam), roundi(TANK)], steam_col))
+	sections.append(WindowSection.bar(tr("WINDOW_STEAM_RATE"), last_steam_rate / maxf(d.steam_per_second, 0.001),
+		tr("WINDOW_PER_SECOND_OF") % [last_steam_rate, d.steam_per_second], WindowSection.COLOR_PROGRESS))
+	return sections

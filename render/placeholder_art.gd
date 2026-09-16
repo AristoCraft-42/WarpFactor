@@ -349,6 +349,16 @@ static func make_building(def: BuildingDef) -> Image:
 		_rect(img, Rect2i(11, 11, 10, 10), body)
 		_rect(img, Rect2i(11, 11, 10, 2), body.lightened(0.3))
 		return img
+	if def.glyph == BuildingDef.Glyph.UNDERGROUND_PIPE:
+		# Подземная труба «вправо»: слева открытый стык, справа — люк, уходящий под землю.
+		_rect(img, Rect2i(0, 10, 18, 12), INK)
+		_rect(img, Rect2i(0, 12, 17, 8), body)
+		_rect(img, Rect2i(0, 12, 17, 2), body.lightened(0.3))
+		_circle(img, Vector2(20, 16), 10.0, INK)
+		_circle(img, Vector2(20, 16), 8.0, body.darkened(0.2))
+		_circle(img, Vector2(22, 16), 5.5, Color(0.08, 0.08, 0.09))
+		_rect(img, Rect2i(27, 13, 4, 6), body.lightened(0.15))
+		return img
 	if def.glyph == BuildingDef.Glyph.POLE:
 		# Опора ЛЭП сверху: столб и траверса с изоляторами.
 		_circle(img, Vector2(16, 16), 6.0, INK)

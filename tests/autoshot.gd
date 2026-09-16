@@ -54,6 +54,7 @@ func _run_game(game: Game) -> void:
 	await _run_gateway(game)
 	await _run_drone(game, base)
 	await _run_interaction(game, base)
+	await _run_build_helpers(game, base)
 	await _run_production_chain(game, base)
 	await _run_factory(game, base)
 	await _run_power(game, base)
@@ -431,7 +432,9 @@ func _run_gateway(game: Game) -> void:
 	await _key(KEY_F)
 	await _frames(5)
 	_expect(game.world == run.base and run.drone.world == run.base and game.is_in_base(), "F над шлюзом — дрон и вид в базе")
-	_expect(game.camera.position.distance_to(run.drone.position) < 2.0, "камера перенеслась к дрону в базе")
+	# База меньше экрана — камера стоит в её центре и не показывает пустоту за краем.
+	var base_center := Vector2(run.base.grid.width, run.base.grid.height) * GameConst.TILE_SIZE * 0.5
+	_expect(game.camera.position.distance_to(base_center) < 2.0, "камера в базе — по центру карты базы, не за её краем")
 
 	# Стройка в базе настоящим вводом.
 	var base_tile := pair.origin + Vector2i(1, -3)
@@ -868,8 +871,8 @@ func _run_production_chain(game: Game, base: Vector2i) -> void:
 	var spot := _find_drill_spot(world, drill, base, 20)
 	var drills: Array[Building] = []
 	for dx in [0, 2, 4]:
-		for dy in [0, -2]:
-			var placed := bm.place(drill, spot + Vector2i(dx, dy), 0)
+		for row in [[0, GameConst.Dir.DOWN], [3, GameConst.Dir.UP]]:
+			var placed := bm.place(drill, spot + Vector2i(dx, row[0]), row[1])
 			if placed != null:
 				drills.append(placed)
 	var target := container.origin + Vector2i(0, -1)
@@ -1023,6 +1026,15 @@ func _run_factory(game: Game, base: Vector2i) -> void:
 	await _mouse_move(game, furnace.origin)
 	await _frames(40)
 	await _shot("g12_tooltip_furnace.png")
+	await _mouse_button(game, furnace.origin, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, furnace.origin, MOUSE_BUTTON_LEFT, false)
+	await _frames(15)
+	var furnace_window := game.hud.inventory_window
+	var furnace_views: Array = furnace_window.get("_section_views")
+	_expect(furnace_window.visible and furnace_views.size() == 5 and (furnace_views[0] as Dictionary).has("slots")
+		and (furnace_views[3] as Dictionary).has("bar"), "окно печи: сырьё, топливо, продукт, прогресс, горение")
+	await _shot("g13_furnace_window.png")
+	await _key(KEY_ESCAPE)
 	await _mouse_move(game, spot + Vector2i(20, 20))
 	await _frames(3)
 	await _drone_to(game, base)
@@ -1041,8 +1053,9 @@ func _run_power(game: Game, base: Vector2i) -> void:
 		return
 	_expect(bm.check_place(pump_def, layout + Vector2i(-1, 0), 0) == BuildingManager.Check.NO_ORE, "насос без воды не ставится")
 	var pump := bm.place(pump_def, layout, 0, true)
-	for x in range(1, 6):
+	for x in [1, 5]:
 		bm.place(Registry.get_building(&"pipe"), layout + Vector2i(-x, 0), 0, true)
+	bm.place(Registry.get_building(&"stone_wall"), layout + Vector2i(-3, 0), 0, true)
 	var boiler := bm.place(Registry.get_building(&"boiler"), layout + Vector2i(-7, 0), 2, true) as Boiler
 	var generator := bm.place(Registry.get_building(&"steam_generator"), layout + Vector2i(-9, 0), 0, true) as Generator
 	var coal := Registry.get_item(&"coal").index
@@ -1057,10 +1070,38 @@ func _run_power(game: Game, base: Vector2i) -> void:
 	_wire(world, generator, assembler)
 	await _drone_to(game, layout + Vector2i(-5, 3))
 	game.camera.focus_on(Vector2((layout + Vector2i(-5, 2)) * GameConst.TILE_SIZE), 1.4)
+
+	# Подземная труба под стеной: вход и выход ставятся одним поворотом, выход разворачивается сам.
+	var under_def := Registry.get_building(&"underground_pipe")
+	world.drone.inventory.add(under_def.item.index, 2)
+	tools.select_building(under_def)
+	tools.rotation = GameConst.Dir.LEFT
+	for x in [2, 4]:
+		var tile := layout + Vector2i(-x, 0)
+		await _mouse_move(game, tile)
+		await _mouse_button(game, tile, MOUSE_BUTTON_LEFT, true)
+		await _mouse_button(game, tile, MOUSE_BUTTON_LEFT, false)
+	var entrance := bm.get_at(layout + Vector2i(-2, 0)) as UndergroundPipe
+	var exit := bm.get_at(layout + Vector2i(-4, 0)) as UndergroundPipe
+	_expect(entrance != null and exit != null and entrance.rotation == GameConst.Dir.LEFT and exit.rotation == GameConst.Dir.RIGHT,
+		"подземные трубы поставлены кликами, выход развернулся ко входу")
+	_expect(entrance != null and entrance.get_linked_partner() == exit, "вход и выход соединены под стеной")
+	await _frames(3)
+	_expect(game.planet_view.network_view.show_underground, "с трубой в руке виден подземный участок")
+	await _shot("p00_underground_pipe.png")
+	# На воду лента не ставится.
+	tools.select_building(Registry.get_building(&"conveyor"))
+	var water_tile := _find_free_water(world, layout, 12)
+	if water_tile.x >= 0:
+		await _mouse_move(game, water_tile)
+		await _frames(3)
+		_expect(tools.plan_problem == BuildingManager.Check.ON_FLUID, "лента на воду не ставится — подсказка о воде")
+		await _shot("p00b_water_problem.png")
+	await _key(KEY_ESCAPE)
 	game.clock.set_speed_index(2)
 	await _wait_ticks(world, 10 * GameConst.TICK_RATE)
 	game.clock.set_speed_index(0)
-	var water_net := world.fluids.get_pipe_network(bm.get_at(layout + Vector2i(-3, 0)))
+	var water_net := world.fluids.get_pipe_network(bm.get_at(layout + Vector2i(-5, 0)))
 	_expect(pump != null and water_net != null and water_net.fluid == Registry.get_fluid(&"water").index and water_net.amount > 0.0,
 		"насос качает воду в трубы")
 	_expect(boiler.last_steam_rate > 0.0 and generator.last_output_kw > 0.0, "бойлер делает пар, паровой генератор выдаёт ток (%.0f кВт)" % generator.last_output_kw)
@@ -1080,6 +1121,14 @@ func _run_power(game: Game, base: Vector2i) -> void:
 	await _mouse_move(game, boiler.origin)
 	await _frames(40)
 	await _shot("p03_tooltip_boiler.png")
+	await _mouse_button(game, boiler.origin, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, boiler.origin, MOUSE_BUTTON_LEFT, false)
+	await _frames(15)
+	var window := game.hud.inventory_window
+	var views: Array = window.get("_section_views")
+	_expect(window.visible and views.size() == 5, "окно бойлера: топливо и четыре полоски (%d)" % views.size())
+	await _shot("p04_boiler_window.png")
+	await _key(KEY_ESCAPE)
 	await _mouse_move(game, layout + Vector2i(20, 20))
 	await _drone_to(game, base)
 
@@ -1369,7 +1418,88 @@ func _rect_clear(world: GameWorld, rect: Rect2i) -> bool:
 		for x in range(rect.position.x, rect.end.x):
 			if not world.grid.in_bounds(x, y) or not world.grid.is_buildable(x, y) or world.buildings.get_at(Vector2i(x, y)) != null:
 				return false
+			var ore := world.grid.get_ore_def(x, y)
+			if ore != null and ore.fluid != null:
+				return false
 	return true
+
+
+## Свободный тайл воды рядом с center.
+func _find_free_water(world: GameWorld, center: Vector2i, radius: int) -> Vector2i:
+	for r in radius:
+		for y in range(center.y - r, center.y + r + 1):
+			for x in range(center.x - r, center.x + r + 1):
+				if not world.grid.in_bounds(x, y) or world.buildings.get_at(Vector2i(x, y)) != null:
+					continue
+				var ore := world.grid.get_ore_def(x, y)
+				if ore != null and ore.fluid != null:
+					return Vector2i(x, y)
+	return Vector2i(-1, -1)
+
+
+## Протягивание: лента через стены (мост) и поперёк другой ленты (перекрёсток), опоры через 7 тайлов.
+func _run_build_helpers(game: Game, base: Vector2i) -> void:
+	var world := game.world
+	var bm := world.buildings
+	var tools := game.tools
+	var inv := world.drone.inventory
+	var spot := _find_clear_rect(world, Vector2i(17, 7), base + Vector2i(-8, -14), 24)
+	_expect(spot.x >= 0, "есть место под протягивание через препятствия")
+	if spot.x < 0:
+		return
+	var conveyor := Registry.get_building(&"conveyor")
+	var y := spot.y + 2
+	bm.place(Registry.get_building(&"stone_wall"), Vector2i(spot.x + 5, y), 0, true)
+	bm.place(Registry.get_building(&"stone_wall"), Vector2i(spot.x + 6, y), 0, true)
+	for dy in [-1, 0, 1]:
+		bm.place(conveyor, Vector2i(spot.x + 10, y + dy), GameConst.Dir.DOWN, true)
+	inv.add(conveyor.item.index, 20)
+	inv.add(Registry.get_building(&"bridge_conveyor").item.index, 2)
+	inv.add(Registry.get_building(&"junction").item.index, 1)
+	await _drone_to(game, Vector2i(spot.x + 8, y + 2))
+	game.camera.focus_on(Vector2(Vector2i(spot.x + 8, y + 1) * GameConst.TILE_SIZE), 1.2)
+	await _frames(3)
+	tools.select_building(conveyor)
+	var a := Vector2i(spot.x + 1, y)
+	var b := Vector2i(spot.x + 14, y)
+	await _mouse_move(game, a)
+	await _mouse_button(game, a, MOUSE_BUTTON_LEFT, true)
+	await _mouse_move(game, a + Vector2i(1, 0))
+	await _mouse_move(game, b)
+	await _frames(3)
+	await _shot("i07_belt_obstacles_preview.png")
+	await _mouse_button(game, b, MOUSE_BUTTON_LEFT, false)
+	await _key(KEY_ESCAPE)
+	var entry := bm.get_at(Vector2i(spot.x + 4, y)) as BridgeConveyor
+	var exit := bm.get_at(Vector2i(spot.x + 7, y)) as BridgeConveyor
+	_expect(entry != null and exit != null and entry.get_link_target() == exit, "лента перепрыгнула стены мостом")
+	_expect(bm.get_at(Vector2i(spot.x + 5, y)).def.id == &"stone_wall" and bm.get_at(Vector2i(spot.x + 10, y)) is Junction,
+		"стены целы, поперечная лента стала перекрёстком")
+	await _frames(5)
+	await _shot("i07b_belt_obstacles.png")
+
+	# Опоры протягиванием: через 7 тайлов, провода прямые.
+	var pole_def := Registry.get_building(&"small_power_pole")
+	inv.add(pole_def.item.index, 3)
+	tools.select_building(pole_def)
+	var p0 := Vector2i(spot.x + 1, spot.y + 5)
+	var p1 := Vector2i(spot.x + 15, spot.y + 5)
+	await _mouse_move(game, p0)
+	await _mouse_button(game, p0, MOUSE_BUTTON_LEFT, true)
+	await _mouse_move(game, p0 + Vector2i(1, 0))
+	await _mouse_move(game, p1)
+	await _frames(3)
+	await _mouse_button(game, p1, MOUSE_BUTTON_LEFT, false)
+	await _key(KEY_ESCAPE)
+	var poles: Array[PowerPole] = []
+	for dx in [1, 8, 15]:
+		poles.append(bm.get_at(Vector2i(spot.x + dx, spot.y + 5)) as PowerPole)
+	_expect(poles[0] != null and poles[1] != null and poles[2] != null and bm.get_at(Vector2i(spot.x + 2, spot.y + 5)) == null,
+		"протягивание ставит опоры через 7 тайлов")
+	_expect(poles[1] != null and poles[0].is_linked(poles[1]) and poles[1].is_linked(poles[2]), "протянутые опоры связаны проводами")
+	await _frames(5)
+	await _shot("i08_pole_drag.png")
+	await _drone_to(game, base)
 
 
 ## Питание для построек сценария: термогенераторы с углём (по мощности) и опоры от них к каждому потребителю.

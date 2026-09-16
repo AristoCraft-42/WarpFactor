@@ -172,3 +172,17 @@ func get_info_lines() -> PackedStringArray:
 	if power_net == null:
 		lines.append(tr("INFO_NO_POLE"))
 	return lines
+
+
+# --- Окно ---
+
+func get_window_sections() -> Array[WindowSection]:
+	var d := get_generator_def()
+	var sections: Array[WindowSection] = []
+	if d.kind == GeneratorDef.Kind.STEAM:
+		sections.append(WindowSection.fluid(tr("WINDOW_STEAM"), world.fluids.get_port_network(self, get_steam_side(0))))
+	else:
+		sections.append(WindowSection.fuel_slot(fuel_counts))
+		sections.append(WindowSection.burn(fuel_energy))
+	sections.append(WindowSection.output(last_output_kw, d.max_output))
+	return sections

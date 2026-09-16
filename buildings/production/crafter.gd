@@ -427,3 +427,58 @@ func _dump_one() -> bool:
 			_output_cursor = (item + 1) % n
 			return true
 	return false
+
+
+# --- Окно ---
+
+## Сырьё текущего рецепта (пустые ячейки с подсказкой), топливо, продукт, прогресс, питание или горение.
+func get_window_sections() -> Array[WindowSection]:
+	var sections: Array[WindowSection] = []
+	var d := get_crafter_def()
+	var recipe := get_recipe()
+	var in_stacks: Array[Vector2i] = []
+	var in_hints := PackedInt32Array()
+	var out_stacks: Array[Vector2i] = []
+	var out_hints := PackedInt32Array()
+	var shown_in := {}
+	var shown_out := {}
+	if recipe != null:
+		for c in recipe.consumes:
+			for st in c.display_stacks():
+				var item := st.item.index
+				if shown_in.has(item):
+					continue
+				shown_in[item] = true
+				in_stacks.append(Vector2i(item, inputs[item]) if inputs[item] > 0 else Vector2i(-1, 0))
+				in_hints.append(item)
+		for p in recipe.produces:
+			for st in p.display_stacks():
+				var item := st.item.index
+				if shown_out.has(item):
+					continue
+				shown_out[item] = true
+				out_stacks.append(Vector2i(item, outputs[item]) if outputs[item] > 0 else Vector2i(-1, 0))
+				out_hints.append(item)
+	for item in inputs.size():
+		if inputs[item] > 0 and not shown_in.has(item):
+			in_stacks.append(Vector2i(item, inputs[item]))
+			in_hints.append(-1)
+		if outputs[item] > 0 and not shown_out.has(item):
+			out_stacks.append(Vector2i(item, outputs[item]))
+			out_hints.append(-1)
+	if in_stacks.is_empty():
+		in_stacks.append(Vector2i(-1, 0))
+		in_hints.append(-1)
+	if out_stacks.is_empty():
+		out_stacks.append(Vector2i(-1, 0))
+		out_hints.append(-1)
+	sections.append(WindowSection.slots(tr("WINDOW_INPUTS"), in_stacks, in_hints))
+	if d.fuel_use > 0.0:
+		sections.append(WindowSection.fuel_slot(fuel_counts))
+	sections.append(WindowSection.slots(tr("WINDOW_OUTPUTS"), out_stacks, out_hints))
+	sections.append(WindowSection.progress(progress if crafting else 0.0))
+	if def.power_use > 0.0:
+		sections.append(WindowSection.power(self))
+	elif d.fuel_use > 0.0:
+		sections.append(WindowSection.burn(fuel_energy))
+	return sections

@@ -1,7 +1,9 @@
 class_name InventoryWindow
 extends PanelContainer
 ## Окно инвентаря дрона. Слева — ячейки инвентаря, справа — ручной крафт (открывается по E)
-## или содержимое выбранного здания: склада, завода, бура (открывается кликом по зданию).
+## или содержимое выбранного здания (открывается кликом по зданию): у склада — сетка ячеек,
+## у остальных — разделы здания (Building.get_window_sections): отдельные ячейки сырья, топлива
+## и продукта, полоски прогресса, питания, жидкостей и мощности.
 ##
 ## Ячейки здания: ЛКМ — забрать стопку, ПКМ — половину, Shift+ЛКМ — всё этого предмета.
 ## Ячейки инвентаря при открытом здании: ЛКМ — положить стопку, ПКМ — половину, Shift+ЛКМ — всё.
@@ -41,6 +43,10 @@ var _building_box: VBoxContainer
 var _building_grid: GridContainer
 var _building_slots: Array[ItemSlot] = []
 var _building_info: Label
+## Разделы здания: контейнер, подпись набора разделов (перестраиваются при её смене) и элементы по разделам.
+var _sections_box: VBoxContainer
+var _sections_signature: String = ""
+var _section_views: Array[Dictionary] = []
 var _building: Building
 var _inventory_revision: int = -1
 var _timer: float = 0.0
@@ -140,6 +146,8 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 	_building_grid.add_theme_constant_override("h_separation", 4)
 	_building_grid.add_theme_constant_override("v_separation", 4)
 	_building_box.add_child(_building_grid)
+	_sections_box = UiUtil.vbox(8)
+	_building_box.add_child(_sections_box)
 	_building_info = Label.new()
 	_building_info.theme_type_variation = &"DimLabel"
 	_building_info.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
@@ -224,7 +232,7 @@ func _process(delta: float) -> void:
 
 func _on_selection_changed() -> void:
 	var b := _tools.selected
-	if b != null and b.world != null and (b.get_inventory() != null or b.accepts_player_items() or b is Drill):
+	if b != null and b.world != null and (b.get_inventory() != null or not b.get_window_sections().is_empty()):
 		mode = Mode.BUILDING
 		_building = b
 		visible = true
@@ -244,6 +252,7 @@ func _apply_mode() -> void:
 	elif _building != null:
 		_right_title.text = tr(_building.def.name_key)
 		_take_hint.text = "TURRET_WINDOW_HINT" if _building is Turret else "BUILDING_WINDOW_HINT"
+		_take_hint.visible = _building.accepts_player_items() or _building.get_inventory() != null
 
 
 func _refresh_all() -> void:
@@ -370,11 +379,14 @@ func _rebuild_building_slots() -> void:
 		_building_grid.remove_child(child)
 		child.queue_free()
 	_building_slots.clear()
+	_clear_sections()
 	if _building == null:
 		return
 	var inventory := _building.get_inventory()
-	var count := inventory.size() if inventory != null else RIGHT_COLUMNS
-	for i in count:
+	_building_grid.visible = inventory != null
+	if inventory == null:
+		return
+	for i in inventory.size():
 		var slot := ItemSlot.new()
 		slot.slot_clicked.connect(_on_building_slot_clicked.bind(i))
 		_building_grid.add_child(slot)
@@ -389,12 +401,7 @@ func _refresh_building() -> void:
 		for i in _building_slots.size():
 			_building_slots[i].set_stack(inventory.slot_items[i], inventory.slot_counts[i])
 	else:
-		var stacks := _building.get_player_stacks()
-		for i in _building_slots.size():
-			if i < stacks.size():
-				_building_slots[i].set_stack(stacks[i].x, stacks[i].y)
-			else:
-				_building_slots[i].set_stack(-1, 0)
+		_refresh_sections(_building.get_window_sections())
 	var lines := _building.get_info_lines()
 	_building_info.text = "\n".join(lines)
 
@@ -416,8 +423,137 @@ func _on_building_slot_clicked(button: MouseButton, shift: bool, slot: int) -> v
 	_refresh_all()
 
 
+# --- Разделы здания ---
+
+func _clear_sections() -> void:
+	for child in _sections_box.get_children():
+		_sections_box.remove_child(child)
+		child.queue_free()
+	_section_views.clear()
+	_sections_signature = ""
+
+
+## Подпись набора разделов: виды, заголовки и число ячеек. Совпала — обновляются только значения.
+static func _signature(sections: Array[WindowSection]) -> String:
+	var parts := PackedStringArray()
+	for section in sections:
+		parts.append("%d:%s:%d" % [section.kind, section.title, section.stacks.size()])
+	return "|".join(parts)
+
+
+func _refresh_sections(sections: Array[WindowSection]) -> void:
+	var signature := _signature(sections)
+	if signature != _sections_signature:
+		_clear_sections()
+		_sections_signature = signature
+		for section in sections:
+			_section_views.append(_make_section_view(section))
+	for i in sections.size():
+		_update_section_view(_section_views[i], sections[i])
+
+
+func _make_section_view(section: WindowSection) -> Dictionary:
+	var view := {}
+	if section.kind == WindowSection.Kind.SLOTS:
+		var box := UiUtil.vbox(4)
+		_sections_box.add_child(box)
+		var title := Label.new()
+		title.theme_type_variation = &"DimLabel"
+		title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		title.text = section.title
+		box.add_child(title)
+		var row := GridContainer.new()
+		row.columns = RIGHT_COLUMNS
+		row.add_theme_constant_override("h_separation", 4)
+		row.add_theme_constant_override("v_separation", 4)
+		box.add_child(row)
+		var slots: Array[ItemSlot] = []
+		for i in section.stacks.size():
+			var slot := ItemSlot.new()
+			slot.slot_clicked.connect(_on_section_slot_clicked.bind(slot, section.can_take))
+			row.add_child(slot)
+			slots.append(slot)
+		view["slots"] = slots
+	else:
+		var row := UiUtil.hbox(10)
+		_sections_box.add_child(row)
+		var title := Label.new()
+		title.theme_type_variation = &"DimLabel"
+		title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		title.text = section.title
+		title.custom_minimum_size = Vector2(130, 0)
+		row.add_child(title)
+		var bar := ProgressBar.new()
+		bar.show_percentage = false
+		bar.max_value = 1.0
+		bar.step = 0.0
+		bar.custom_minimum_size = Vector2(0, 22)
+		bar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var fill := StyleBoxFlat.new()
+		fill.set_corner_radius_all(3)
+		bar.add_theme_stylebox_override("fill", fill)
+		var background := StyleBoxFlat.new()
+		background.bg_color = Color(0.11, 0.13, 0.13, 0.9)
+		background.set_corner_radius_all(3)
+		bar.add_theme_stylebox_override("background", background)
+		row.add_child(bar)
+		var value := Label.new()
+		value.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		value.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		value.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		value.add_theme_font_size_override("font_size", 13)
+		value.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.95))
+		value.add_theme_constant_override("outline_size", 4)
+		value.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		bar.add_child(value)
+		view["bar"] = bar
+		view["fill"] = fill
+		view["value"] = value
+	return view
+
+
+func _update_section_view(view: Dictionary, section: WindowSection) -> void:
+	if view.has("slots"):
+		var slots: Array[ItemSlot] = view["slots"]
+		for i in slots.size():
+			var stack := section.stacks[i] if i < section.stacks.size() else Vector2i(-1, 0)
+			var hint := section.hints[i] if i < section.hints.size() else -1
+			if stack.x >= 0 and stack.y > 0:
+				slots[i].set_stack(stack.x, stack.y)
+				slots[i].modulate = Color.WHITE
+			elif hint >= 0:
+				# Пустая ячейка с бледной иконкой того, что сюда кладётся.
+				slots[i].set_stack(hint, 0, true)
+				slots[i].modulate = Color(1, 1, 1, 0.35)
+			else:
+				slots[i].set_stack(-1, 0)
+				slots[i].modulate = Color.WHITE
+	else:
+		(view["bar"] as ProgressBar).value = section.fraction
+		(view["fill"] as StyleBoxFlat).bg_color = section.color
+		(view["value"] as Label).text = section.text
+
+
+func _on_section_slot_clicked(button: MouseButton, shift: bool, slot: ItemSlot, can_take: bool) -> void:
+	if _building == null or _building.world == null or not can_take or slot.item < 0 or slot.amount <= 0:
+		return
+	var amount := slot.amount
+	if shift:
+		amount = 1 << 30
+	elif button == MOUSE_BUTTON_RIGHT:
+		amount = maxi(1, slot.amount / 2)
+	_world.player_take(_building, slot.item, amount)
+	if _world.last_error == GameWorld.ActionError.INVENTORY_FULL:
+		Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
+	_refresh_all()
+
+
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_TRANSLATION_CHANGED and _recipe_grid != null:
 		_apply_mode()
+		_sections_signature = ""
 		if visible:
 			_refresh_all()

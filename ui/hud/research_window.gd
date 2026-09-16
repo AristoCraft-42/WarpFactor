@@ -1,12 +1,13 @@
 class_name ResearchWindow
 extends PanelContainer
-## Окно исследований (J или кнопка в HUD): карточки исследований с прогрессом, стоимостью и тем,
-## что они открывают. Клик по доступному исследованию делает его текущим. Кнопка «Сдать наборы»
+## Окно исследований (J или кнопка в HUD): дерево карточек с прогрессом, стоимостью и тем,
+## что они открывают; линии ведут от предшественника к следующему. Клик по доступному исследованию делает его текущим. Кнопка «Сдать наборы»
 ## кладёт научные наборы первого уровня из инвентаря дрона в ручную очередь — она обрабатывается
 ## медленно (ResearchState.MANUAL_SECONDS на набор); научный цех работает быстрее.
 
 const REFRESH := 0.25
-const CARD_WIDTH := 300
+## Дерево больше этого прокручивается.
+const MAX_TREE_SIZE := Vector2(1330, 560)
 
 var _game: Game
 var _list: VBoxContainer
@@ -14,6 +15,7 @@ var _queue_label: Label
 var _deposit_button: Button
 var _manual_bar: ProgressBar
 var _cards: Dictionary[StringName, Dictionary] = {}
+var _tree: ResearchTreeView
 var _timer: float = 0.0
 
 
@@ -39,15 +41,18 @@ func setup(game: Game) -> void:
 	header.add_child(close)
 	var hint := UiUtil.label("RESEARCH_HINT", &"DimLabel")
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size = Vector2(CARD_WIDTH * 2 + 10, 0)
 	column.add_child(hint)
-	var grid := GridContainer.new()
-	grid.columns = 2
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 10)
-	column.add_child(grid)
+	_tree = ResearchTreeView.new()
+	var cards: Dictionary[StringName, Control] = {}
 	for research in Registry.researches:
-		grid.add_child(_make_card(research))
+		cards[research.id] = _make_card(research)
+	_tree.setup(cards)
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size = Vector2(minf(_tree.custom_minimum_size.x, MAX_TREE_SIZE.x) + 12.0,
+		minf(_tree.custom_minimum_size.y, MAX_TREE_SIZE.y) + 12.0)
+	scroll.add_child(_tree)
+	column.add_child(scroll)
+	hint.custom_minimum_size = Vector2(scroll.custom_minimum_size.x, 0)
 	var footer := UiUtil.hbox(10)
 	column.add_child(footer)
 	_deposit_button = UiUtil.button("RESEARCH_DEPOSIT", _deposit, &"AccentButton")
@@ -103,7 +108,7 @@ func _make_card(research: ResearchDef) -> Control:
 	var button := Button.new()
 	button.toggle_mode = true
 	button.focus_mode = Control.FOCUS_NONE
-	button.custom_minimum_size = Vector2(CARD_WIDTH, 112)
+	button.custom_minimum_size = ResearchTreeView.CARD_SIZE
 	button.theme_type_variation = &"SlotButton"
 	button.pressed.connect(func() -> void:
 		var state := _game.run.research
@@ -189,6 +194,8 @@ func refresh() -> void:
 	_deposit_button.disabled = active == null or kits == 0 or room <= 0 or active.cost_item.science_tier != 1
 	_deposit_button.text = tr("RESEARCH_DEPOSIT") % kits
 	_queue_label.text = tr("RESEARCH_QUEUE") % [state.manual_queue, ResearchState.MANUAL_SECONDS]
+	_tree.state = state
+	_tree.queue_redraw()
 	_manual_bar.value = state.get_manual_fraction() if state.manual_queue > 0 else 0.0
 
 

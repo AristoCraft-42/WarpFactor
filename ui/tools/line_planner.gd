@@ -1,6 +1,7 @@
 class_name LinePlanner
 extends RefCounted
-## Геометрия протягивания: L-трасса для лент и прямой ряд для остальных зданий.
+## Геометрия протягивания: L-трасса для лент (с мостами и перекрёстками через препятствия) и прямой ряд
+## для остальных зданий.
 
 
 ## L-трасса от start до end (включительно). x_first — сначала идём по X, потом по Y.
@@ -33,6 +34,115 @@ static func straight_line(start: Vector2i, end: Vector2i, step: int) -> Array[Ve
 	for i in count + 1:
 		result.append(start + axis * step * i)
 	return result
+
+
+## Трасса ленты с обходом препятствий. На прямых участках внутри трассы:
+## - постройку или непригодную землю (скала, вода) перекрывает мостовой конвейер — вход перед препятствием,
+##   выход сразу за ним (если хватает дальности моста);
+## - поперечную ленту пересекает перекрёсток; стоящий перекрёсток остаётся как есть.
+## Существующее не ломается: если мостов или перекрёстков в инвентаре не хватает, препятствие остаётся
+## препятствием (лента на нём не строится), а пересекаемая лента — нетронутой. Чужие постройки на концах
+## и углах трассы тоже не заменяются (заменить здание лентой можно одиночным кликом).
+static func plan_belt(world: GameWorld, def: BuildingDef, path: Array[Vector3i], budget: Inventory.Budget) -> Array[PlacementPreview.Ghost]:
+	const BELT := 0
+	const OBSTACLE := 1
+	const CROSS := 2
+	const KEEP := 3
+	var n := path.size()
+	var bridge_def := Registry.get_building(&"bridge_conveyor") as LogisticDef
+	var junction_def := Registry.get_building(&"junction")
+	var bridges_left := _available(world, bridge_def)
+	var junctions_left := _available(world, junction_def)
+
+	var kinds := PackedInt32Array()
+	kinds.resize(n)
+	for i in n:
+		var tile := Vector2i(path[i].x, path[i].y)
+		kinds[i] = BELT
+		var straight := i > 0 and i < n - 1 and path[i - 1].z == path[i].z
+		var check := world.buildings.check_place(def, tile, path[i].z)
+		var existing := world.buildings.get_at(tile)
+		if not straight:
+			# Концы и углы трассы: чужую постройку лента не заменяет (перекрыть её нечем).
+			if check == BuildingManager.Check.REPLACE and not (existing is Conveyor):
+				kinds[i] = OBSTACLE
+			continue
+		if existing is Conveyor and existing.rotation % 2 != path[i].z % 2:
+			kinds[i] = CROSS
+		elif existing is Junction:
+			kinds[i] = KEEP
+		elif check == BuildingManager.Check.OCCUPIED or check == BuildingManager.Check.BAD_TERRAIN \
+				or check == BuildingManager.Check.ON_FLUID \
+				or (check == BuildingManager.Check.REPLACE and not (existing is Conveyor)):
+			kinds[i] = OBSTACLE
+
+	# Мосты над сплошными участками препятствий: tile_def / tile_config по индексу трассы.
+	var bridge_at: Dictionary[int, Variant] = {}
+	var covered: Dictionary[int, bool] = {}
+	var i := 0
+	while i < n:
+		if kinds[i] != OBSTACLE:
+			i += 1
+			continue
+		var first := i
+		while i < n and kinds[i] == OBSTACLE and path[i].z == path[first].z:
+			i += 1
+		var entry := first - 1
+		var exit := i
+		if bridge_def == null or entry < 0 or exit >= n or kinds[exit] != BELT or kinds[entry] != BELT:
+			continue
+		var dir := path[first].z
+		if path[entry].z != dir or exit - entry > bridge_def.link_range:
+			continue
+		var entry_tile := Vector2i(path[entry].x, path[entry].y)
+		var exit_tile := Vector2i(path[exit].x, path[exit].y)
+		if not BuildingManager.is_valid_check(world.buildings.check_place(bridge_def, entry_tile, dir)) \
+				or not BuildingManager.is_valid_check(world.buildings.check_place(bridge_def, exit_tile, dir)):
+			continue
+		var need := 1 if bridge_at.has(entry) else 2
+		if bridges_left < need:
+			continue
+		bridges_left -= need
+		bridge_at[entry] = exit_tile - entry_tile
+		if not bridge_at.has(exit):
+			bridge_at[exit] = null
+		for k in range(first, exit):
+			covered[k] = true
+
+	var ghosts: Array[PlacementPreview.Ghost] = []
+	for k in n:
+		var origin := Vector2i(path[k].x, path[k].y)
+		var rot := path[k].z
+		if bridge_at.has(k):
+			var ghost := PlacementPreview.Ghost.new(bridge_def, origin, rot, world.check_build(bridge_def, origin, rot, budget))
+			ghost.config = bridge_at[k]
+			ghosts.append(ghost)
+		elif covered.has(k) or kinds[k] == KEEP:
+			continue
+		elif kinds[k] == CROSS:
+			if junctions_left > 0:
+				junctions_left -= 1
+				ghosts.append(PlacementPreview.Ghost.new(junction_def, origin, 0, world.check_build(junction_def, origin, 0, budget)))
+		elif kinds[k] == OBSTACLE:
+			# Не перекрыто мостом: препятствие остаётся — лента его не заменит.
+			var blocked := world.buildings.check_place(def, origin, rot)
+			if BuildingManager.is_valid_check(blocked):
+				blocked = BuildingManager.Check.OCCUPIED
+			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, blocked))
+		else:
+			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, world.check_build(def, origin, rot, budget)))
+	return ghosts
+
+
+## Сколько построек def можно поставить из инвентаря (в творческом режиме — без ограничений).
+static func _available(world: GameWorld, def: BuildingDef) -> int:
+	if def == null:
+		return 0
+	if world.creative:
+		return 1 << 30
+	if world.drone == null or def.item == null:
+		return 0
+	return world.drone.inventory.count(def.item.index)
 
 
 ## Добавляет тайлы от a (не включая) до b (включая) по одной оси.

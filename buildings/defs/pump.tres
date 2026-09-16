@@ -44,3 +44,4 @@ logic_script = ExtResource("3_logic")
 role = 1
 pump_per_tile = 120.0
 rotatable = false
+allowed_on_fluid = true

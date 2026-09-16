@@ -292,6 +292,7 @@ func _process(_delta: float) -> void:
 	var show_areas := (held != null and (held.power_use > 0.0 or held is PowerPoleDef or held is GeneratorDef)) \
 		or tools.hover_building is PowerPole
 	active_view.network_view.show_power_areas = show_areas
+	active_view.network_view.show_underground = held is FluidBuildingDef or tools.hover_building is UndergroundPipe
 	# Модальный диалог подтверждения тоже блокирует ввод в мир.
 	var enabled := not pause_menu.is_open() and not hud.is_modal_open()
 	if enabled != tools.input_enabled:

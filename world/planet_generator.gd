@@ -26,11 +26,12 @@ static func generate(node: StarMap.StarNode, pad_size: int) -> LevelMap:
 
 	var patches := FastNoiseLite.new()
 	patches.seed = rng.randi()
-	patches.frequency = 0.045
+	# Частоты шума подобраны под карты 340–480 тайлов: пятна и скалы крупные и редкие.
+	patches.frequency = 0.01
 	var rocks := FastNoiseLite.new()
 	rocks.seed = rng.randi()
-	rocks.frequency = 0.06
-	rocks.fractal_octaves = 3
+	rocks.frequency = 0.012
+	rocks.fractal_octaves = 2
 
 	var center := Vector2i(w / 2, h / 2)
 	var clear_radius := pad_size * 0.5 + LANDING_MARGIN
@@ -79,11 +80,11 @@ static func _place_ores(map: LevelMap, node: StarMap.StarNode, rng: RandomNumber
 			# Первая залежь каждой руды — недалеко от посадки, остальные — по всей карте.
 			var near := d == 0
 			var min_dist := clear_radius + 4.0
-			var max_dist := clear_radius + 22.0 if near else max_reach
+			var max_dist := clear_radius + 30.0 if near else max_reach
 			var angle := rng.randf() * TAU
 			var dist := rng.randf_range(min_dist, maxf(min_dist + 1.0, max_dist))
 			var blob_center := Vector2(center) + Vector2.from_angle(angle) * dist
-			var radius := rng.randf_range(2.8, 4.8) * (1.0 if ore.hardness <= 2 else 0.85)
+			var radius := rng.randf_range(6.0, 10.0) * (1.0 if ore.hardness <= 2 else 0.85)
 			_blob(map, blob_center, radius, ore_index + 1, rng.randf() * TAU)
 
 

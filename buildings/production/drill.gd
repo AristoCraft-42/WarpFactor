@@ -1,6 +1,7 @@
 class_name Drill
 extends Building
-## Бур: добывает самую частую доступную руду под собой и отдаёт соседям по кругу.
+## Бур: добывает самую частую доступную руду под собой и отдаёт её только с лицевой стороны (поворот R):
+## по кругу соседям, примыкающим к этой стороне. Разгрузчик может забрать добытое с любой стороны.
 ## Работает от электричества: пока буфер не полон, бодрствует и копит прогресс со скоростью
 ## удовлетворённости сети. Если отдать некуда и буфер полон — спит до освобождения места у соседей.
 
@@ -31,6 +32,10 @@ func on_proximity_changed() -> void:
 	wake()
 
 
+func on_rotated(_old_rotation: int) -> void:
+	wake()
+
+
 func update_tick(_tick: int) -> bool:
 	power_request = 0.0
 	if _item < 0:
@@ -47,14 +52,31 @@ func update_tick(_tick: int) -> bool:
 
 	blocked = false
 	if buffer > 0:
-		if dump(_item):
+		if _dump_front(_item):
 			buffer -= 1
 		else:
 			blocked = true
-			wait_for_proximity()
+			for target in proximity:
+				if side_of(target) == rotation:
+					wait_for(target)
 	if buffer < capacity:
 		power_request = def.power_use
 		return true
+	return false
+
+
+## Отдать предмет одному из соседей с лицевой стороны по кругу.
+func _dump_front(item: int) -> bool:
+	var n := proximity.size()
+	for k in n:
+		var index := (_dump_index + k) % n
+		var target := proximity[index]
+		if side_of(target) != rotation:
+			continue
+		if target.accept_item(self, item):
+			target.handle_item(self, item)
+			_dump_index = (index + 1) % n
+			return true
 	return false
 
 
@@ -140,3 +162,14 @@ func get_info_lines() -> PackedStringArray:
 	if def.power_use > 0.0:
 		lines.append(power_info_line())
 	return lines
+
+
+# --- Окно ---
+
+func get_window_sections() -> Array[WindowSection]:
+	var sections: Array[WindowSection] = []
+	sections.append(WindowSection.single(tr("WINDOW_MINED"), _item, buffer, _item))
+	sections.append(WindowSection.progress(progress if ore != null and buffer < (def as DrillDef).item_capacity else 0.0))
+	if def.power_use > 0.0:
+		sections.append(WindowSection.power(self))
+	return sections

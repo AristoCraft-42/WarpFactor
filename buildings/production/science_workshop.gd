@@ -126,3 +126,26 @@ func get_info_lines() -> PackedStringArray:
 	lines.append(tr("INFO_WORKSHOP_RESEARCH") % (tr(active.name_key) if active != null else "—"))
 	lines.append(power_info_line())
 	return lines
+
+
+# --- Окно ---
+
+func get_window_sections() -> Array[WindowSection]:
+	var kit_hint := -1
+	for item in Registry.items:
+		if item.science_tier > 0:
+			kit_hint = item.index
+			break
+	var stacks: Array[Vector2i] = []
+	var hints := PackedInt32Array()
+	for item in kits.size():
+		if kits[item] > 0:
+			stacks.append(Vector2i(item, kits[item]))
+			hints.append(item)
+	if stacks.is_empty():
+		stacks.append(Vector2i(-1, 0))
+		hints.append(kit_hint)
+	var sections: Array[WindowSection] = [WindowSection.slots(tr("WINDOW_KITS"), stacks, hints)]
+	sections.append(WindowSection.progress(progress if working_item >= 0 else 0.0))
+	sections.append(WindowSection.power(self))
+	return sections

@@ -93,6 +93,15 @@ func _draw() -> void:
 		draw_rect(Rect2(center - half, half * 2.0), Color(0.98, 0.74, 0.18, 0.12), true)
 		draw_rect(Rect2(center - half, half * 2.0), Color(0.98, 0.74, 0.18, 0.8), false, 2.0)
 		draw_arc(center, pd.wire_range * t, 0.0, TAU, 64, Color(0.85, 0.65, 0.3, 0.6), 2.0)
+	# Подземная труба в руке: дальность подземного участка по направлению поворота.
+	if not _ghosts.is_empty() and _ghosts[_ghosts.size() - 1].def is FluidBuildingDef 			and (_ghosts[_ghosts.size() - 1].def as FluidBuildingDef).role == FluidBuildingDef.Role.UNDERGROUND:
+		var under := _ghosts[_ghosts.size() - 1]
+		var ud := under.def as FluidBuildingDef
+		var from := Vector2(under.origin) * t + Vector2.ONE * t * 0.5
+		var dir := Vector2(GameConst.dir_vector(under.rotation))
+		draw_dashed_line(from, from + dir * ud.underground_range * t, Color(0.51, 0.65, 0.6, 0.7), 2.0, 8.0)
+		draw_rect(Rect2(Vector2(under.origin + GameConst.dir_vector(under.rotation) * ud.underground_range) * t, Vector2.ONE * t),
+			Color(0.51, 0.65, 0.6, 0.6), false, 2.0)
 	# Радиус турели в руке (у ряда — только у последней, чтобы не пестрило).
 	if not _ghosts.is_empty() and _ghosts[_ghosts.size() - 1].def is TurretDef:
 		var last := _ghosts[_ghosts.size() - 1]
@@ -104,6 +113,11 @@ func _draw() -> void:
 				draw_rect(rect.grow(-1.0), Color(1, 1, 1, 0.25), false, 1.0)
 			BuildingManager.Check.OK, BuildingManager.Check.REPLACE:
 				BuildingLayer.draw_building(self, g.def, g.origin, g.rotation, Color(1, 1, 1, 0.6))
+				if g.def is LogisticDef and g.config is Vector2i:
+					var link: Vector2i = g.config
+					draw_line(rect.get_center(), rect.get_center() + Vector2(link) * t, Color(0.98, 0.74, 0.18, 0.7), 3.0)
+				if g.def is DrillDef:
+					BuildingLayer.draw_side_arrow(self, rect.get_center(), g.def.size, g.rotation, false, 0.8)
 				var col := COLOR_VALID if g.check == BuildingManager.Check.OK else COLOR_REPLACE
 				draw_rect(rect.grow(-1.0), Color(col, 0.9), false, 2.0)
 			_:

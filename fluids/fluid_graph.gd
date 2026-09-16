@@ -1,7 +1,8 @@
 class_name FluidGraph
 extends RefCounted
 ## Сети труб мира. Узлы сети — трубы и порты машин (насос, бойлер, паровой генератор).
-## Трубы соединяются с соседними трубами и с портами машин на прилегающей стороне; порты двух машин,
+## Трубы соединяются с соседними трубами и с портами машин на прилегающей стороне (подземная труба — только
+## с открытой стороны, а под землёй — со своей парой); порты двух машин,
 ## стоящих вплотную лицом друг к другу, соединяются без трубы. Порты одной машины с одинаковой группой —
 ## одна сеть (паровой генератор пропускает пар насквозь).
 ##
@@ -131,11 +132,13 @@ func unregister_pipe(pipe: Building) -> void:
 
 ## Соединяется ли труба с соседом по стороне side (для отрисовки стыков).
 func pipe_connects(pipe: Building, side: int) -> bool:
+	if not (pipe as Pipe).connects_side(side):
+		return false
 	var other := _world.buildings.get_at(pipe.origin + GameConst.dir_vector(side))
 	if other == null:
 		return false
 	if other is Pipe:
-		return true
+		return (other as Pipe).connects_side((side + 2) % 4)
 	for port in other.get_fluid_ports():
 		if port.side == (side + 2) % 4:
 			return true
@@ -173,13 +176,17 @@ func rebuild() -> void:
 		machines.append(b)
 		for port in ports:
 			parent[port_key(b.id, port.side)] = port_key(b.id, port.side)
-	# Трубы между собой.
+	# Трубы между собой и подземные пары.
 	for id in ids:
-		var pipe := pipes[id]
+		var pipe := pipes[id] as Pipe
 		for side in [0, 1]:
 			var other := _world.buildings.get_at(pipe.origin + GameConst.dir_vector(side))
-			if other is Pipe:
+			if other is Pipe and pipe.connects_side(side) and (other as Pipe).connects_side((side + 2) % 4):
 				_union(parent, pipe_key(id), pipe_key(other.id))
+		if pipe is UndergroundPipe:
+			var partner := (pipe as UndergroundPipe).get_linked_partner()
+			if partner != null:
+				_union(parent, pipe_key(id), pipe_key(partner.id))
 	# Порты машин: с трубами и портами соседей по стороне; порты одной группы.
 	for b in machines:
 		var ports := b.get_fluid_ports()
@@ -193,7 +200,8 @@ func rebuild() -> void:
 				if other == null or other == b:
 					continue
 				if other is Pipe:
-					_union(parent, key, pipe_key(other.id))
+					if (other as Pipe).connects_side((port.side + 2) % 4):
+						_union(parent, key, pipe_key(other.id))
 				else:
 					for other_port in other.get_fluid_ports():
 						if other_port.side == (port.side + 2) % 4 and _compatible(port, other_port):
