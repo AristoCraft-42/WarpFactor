@@ -152,7 +152,8 @@ func _make_card(research: ResearchDef) -> Control:
 		var main := recipe.get_main_output()
 		if main != null:
 			names.append(tr(main.item.name_key))
-	tips.append(tr("RESEARCH_UNLOCKS") % ", ".join(names))
+	if not names.is_empty():
+		tips.append(tr("RESEARCH_UNLOCKS") % ", ".join(names))
 	button.tooltip_text = "\n".join(tips)
 	_cards[research.id] = {"button": button, "status": status, "bar": bar}
 	return button

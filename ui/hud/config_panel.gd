@@ -69,6 +69,9 @@ func _rebuild() -> void:
 			_build_router_sides()
 		Building.ConfigKind.RECIPE:
 			_build_recipe_picker()
+		Building.ConfigKind.MODE:
+			if _building is Lift:
+				_build_lift_direction()
 	if _building.supports_inversion():
 		_build_inversion_toggle()
 
@@ -142,6 +145,24 @@ func _build_router_sides() -> void:
 					value = {"in": in_side, "out": out_side}
 				_world.configure(router, value))
 			row.add_child(b)
+
+
+## Направление лифта: вниз (площадка → этаж) или вверх (этаж → площадка).
+func _build_lift_direction() -> void:
+	var lift := _building as Lift
+	var hint := UiUtil.label("CONFIG_LIFT_HINT", &"DimLabel")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(ITEM_COLUMNS * (ITEM_BUTTON + 4), 0)
+	_content.add_child(hint)
+	var row := UiUtil.hbox(6)
+	_content.add_child(row)
+	for value in [Lift.Direction.DOWN, Lift.Direction.UP]:
+		var b := UiUtil.button("CONFIG_LIFT_DOWN" if value == Lift.Direction.DOWN else "CONFIG_LIFT_UP",
+			func() -> void: _world.configure(lift, value))
+		b.focus_mode = Control.FOCUS_NONE
+		b.toggle_mode = true
+		b.button_pressed = lift.direction == value
+		row.add_child(b)
 
 
 ## Выбор рецепта сборщика: иконки результатов; закрытые исследованием недоступны.

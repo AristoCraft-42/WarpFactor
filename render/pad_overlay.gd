@@ -2,7 +2,7 @@ class_name PadOverlay
 extends Node2D
 ## Граница площадки центрального шлюза: пунктирная рамка и лёгкая заливка.
 ## Всё, что стоит на площадке, переезжает вместе с базой; остальное на планете теряется при телепорте.
-## Рисуется один раз — площадка не меняется, пока нет исследований.
+## Перерисовывается, когда площадка расширяется исследованием (GameWorld.bounds_changed).
 
 const COLOR := Color(0.51, 0.65, 0.6)
 const DASH := 12.0
@@ -12,8 +12,8 @@ var _rect: Rect2 = Rect2()
 
 func setup(world: GameWorld) -> void:
 	z_index = 2
-	if world.pad_rect.size == Vector2i.ZERO:
-		visible = false
+	visible = world.pad_rect.size != Vector2i.ZERO
+	if not visible:
 		return
 	var t := float(GameConst.TILE_SIZE)
 	_rect = Rect2(Vector2(world.pad_rect.position) * t, Vector2(world.pad_rect.size) * t)

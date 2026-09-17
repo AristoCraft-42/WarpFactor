@@ -12,6 +12,9 @@ const AREA_COLOR := Color(0.98, 0.74, 0.18)
 var show_power_areas: bool = false
 ## Показать подземные участки труб (в руке постройка для жидкостей).
 var show_underground: bool = false
+## Оверлей электросетей (P): зоны опор цветом своей сети, перегруженные сети мигают красным,
+## связанные с другим этажом — со значком «⇅».
+var power_overlay: bool = false
 
 var _world: GameWorld
 var _camera: CameraController
@@ -36,7 +39,9 @@ func _draw() -> void:
 	_draw_pipes(view)
 	if show_underground:
 		_draw_underground(view)
-	if show_power_areas:
+	if power_overlay:
+		_draw_network_overlay(view)
+	elif show_power_areas:
 		_draw_areas(view)
 	_draw_wires(view)
 	_draw_power_marks(view)
@@ -113,6 +118,35 @@ func _draw_areas(view: Rect2) -> void:
 			continue
 		draw_rect(r, Color(AREA_COLOR, 0.07), true)
 		draw_rect(r, Color(AREA_COLOR, 0.55), false, 2.0)
+
+
+func _draw_network_overlay(view: Rect2) -> void:
+	var t := float(GameConst.TILE_SIZE)
+	var pulse := 0.55 + 0.45 * sin(_time * 5.0)
+	var font := ThemeDB.fallback_font
+	for net in _world.power.networks:
+		var col := Color.from_hsv(fposmod(net.key * 0.618034, 1.0), 0.55, 0.95)
+		var overloaded := net.demand_kw > 0.0 and net.satisfaction < 0.999
+		for pole in net.poles:
+			var rect := pole.get_supply_rect()
+			var r := Rect2(Vector2(rect.position) * t, Vector2(rect.size) * t)
+			if not view.intersects(r):
+				continue
+			draw_rect(r, Color(col, 0.16), true)
+			if overloaded:
+				draw_rect(r, Color(0.98, 0.29, 0.2, pulse), false, 3.0)
+			else:
+				draw_rect(r, Color(col, 0.7), false, 2.0)
+		if net.poles.is_empty():
+			continue
+		var first := net.poles[0]
+		var anchor := first.get_world_center() + Vector2(10, -14)
+		if view.has_point(anchor) and font != null:
+			var label := tr("WINDOW_KW_OF") % [roundi(net.demand_kw), roundi(net.capacity_kw)]
+			if net.linked:
+				label += "  ⇅"
+			draw_string_outline(font, anchor, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.9))
+			draw_string(font, anchor, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.98, 0.29, 0.2) if overloaded else col)
 
 
 func _draw_power_marks(view: Rect2) -> void:

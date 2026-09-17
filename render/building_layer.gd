@@ -54,8 +54,11 @@ static func draw_building_extras(canvas: CanvasItem, building: Building) -> void
 			_draw_side_mark(canvas, building, router.world_side(router.priority_out), false)
 	if building is GatewayBuilding:
 		var gate := building as GatewayBuilding
-		draw_side_arrow(canvas, gate.get_world_center(), gate.def.size, gate.get_input_side(), true)
-		draw_side_arrow(canvas, gate.get_world_center(), gate.def.size, gate.get_output_side(), false)
+		if gate.items_enabled():
+			for tile in gate.get_input_tiles():
+				draw_port_arrow(canvas, tile, gate.get_input_side(), true)
+			for tile in gate.get_output_tiles():
+				draw_port_arrow(canvas, tile, gate.get_output_side(), false)
 	if building is Drill:
 		draw_side_arrow(canvas, building.get_world_center(), building.def.size, building.rotation, false)
 	if building.is_inverted():
@@ -110,6 +113,21 @@ static func draw_side_arrow(canvas: CanvasItem, center: Vector2, size_tiles: int
 	var outline := PackedVector2Array([tip + point * 2.5, back - point * 1.5 + side_vec * 13.0, back - point * 1.5 - side_vec * 13.0])
 	canvas.draw_colored_polygon(outline, Color(0, 0, 0, 0.6 * alpha))
 	canvas.draw_colored_polygon(PackedVector2Array([tip, back + side_vec * 10.0, back - side_vec * 10.0]), Color(col, 0.9 * alpha))
+
+
+## Стрелка порта у тайла port снаружи здания: вход — внутрь (зелёная), выход — наружу (оранжевая).
+static func draw_port_arrow(canvas: CanvasItem, port: Vector2i, side: int, incoming: bool) -> void:
+	var t := float(GameConst.TILE_SIZE)
+	var dir := Vector2(GameConst.dir_vector(side))
+	# Стрелка у края здания напротив порта: наполовину внутри, чтобы её не закрывала лента.
+	var edge := (Vector2(port) + Vector2.ONE * 0.5) * t - dir * (t * 0.5 + 4.0)
+	var point := -dir if incoming else dir
+	var side_vec := Vector2(-point.y, point.x)
+	var col := Color(0.72, 0.73, 0.15) if incoming else Color(0.99, 0.5, 0.1)
+	var tip := edge + point * 9.0
+	var back := edge - point * 7.0
+	canvas.draw_colored_polygon(PackedVector2Array([tip + point * 2.0, back - point * 1.5 + side_vec * 10.0, back - point * 1.5 - side_vec * 10.0]), Color(0, 0, 0, 0.6))
+	canvas.draw_colored_polygon(PackedVector2Array([tip, back + side_vec * 8.0, back - side_vec * 8.0]), Color(col, 0.9))
 
 
 ## Рисует здание (или «призрак» при размещении) на произвольном CanvasItem.

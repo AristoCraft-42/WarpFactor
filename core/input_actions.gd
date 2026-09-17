@@ -52,6 +52,7 @@ static func definitions() -> Array[Dictionary]:
 		{"name": &"overlay_ores", "label": "ACTION_OVERLAY_ORES", "group": GROUP_VIEW, "events": ["key:O"]},
 		{"name": &"overlay_belts", "label": "ACTION_OVERLAY_BELTS", "group": GROUP_VIEW, "events": ["key:L"]},
 		{"name": &"overlay_ranges", "label": "ACTION_OVERLAY_RANGES", "group": GROUP_VIEW, "events": ["key:T"]},
+		{"name": &"overlay_power", "label": "ACTION_OVERLAY_POWER", "group": GROUP_VIEW, "events": ["key:P"]},
 		{"name": &"toggle_grid", "label": "ACTION_TOGGLE_GRID", "group": GROUP_VIEW, "events": ["key:G"]},
 		{"name": &"toggle_debug", "label": "ACTION_TOGGLE_DEBUG", "group": GROUP_VIEW, "events": ["key:F3"]},
 	]

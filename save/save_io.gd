@@ -222,6 +222,10 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.charge_ticks_left = int(run_data.get("charge_left", 0))
 	run.charge_ticks_total = int(run_data.get("charge_total", 0))
 	run.planet_arrival_tick = int(run_data.get("arrival_tick", 0))
+	run.attach_world(run.planet)
+	run.attach_world(run.base)
+	run.relink_lifts()
+	run.apply_research_effects(false)
 
 	# Угроза планеты: расписание, поле потоков — как в сохранении (старые сохранения начинают угрозу заново).
 	var planet_data: Dictionary = data.get("planet", {})
@@ -255,7 +259,7 @@ static func world_to_dict(world: GameWorld) -> Dictionary:
 	var result := {
 		"width": world.grid.width, "height": world.grid.height,
 		"floors": world.grid.floors.duplicate(), "ores": world.grid.ores.duplicate(),
-		"is_base": world.is_base, "creative": world.creative, "pad": world.pad_rect,
+		"is_base": world.is_base, "creative": world.creative, "pad": world.pad_rect, "play": world.play_rect,
 		"level": String(world.level.id) if world.level != null else "",
 		"rng_seed": world.rng.seed, "rng_state": world.rng.state,
 		"buildings": entries,
@@ -284,6 +288,7 @@ static func world_from_dict(d: Dictionary, drone: Drone) -> GameWorld:
 	var world := GameWorld.create(level, map, bool(d.get("creative", false)), drone)
 	world.is_base = bool(d.get("is_base", false))
 	world.pad_rect = d.get("pad", Rect2i())
+	world.play_rect = d.get("play", Rect2i())
 	world.rng.seed = int(d.get("rng_seed", 1))
 	world.rng.state = int(d.get("rng_state", world.rng.state))
 	var sim: Dictionary = d.get("sim", {})

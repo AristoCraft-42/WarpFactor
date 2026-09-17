@@ -90,7 +90,7 @@ func _update_preview() -> void:
 	_preview_seed = run_seed
 	var star_map := StarMap.new(run_seed, Registry.run_def, Registry.planet_types)
 	var node := star_map.get_current()
-	var map := PlanetGenerator.generate(node, Run.PAD_SIZE)
+	var map := PlanetGenerator.generate(node, Registry.run_def.pad_start_size, Run.max_pad_size())
 	var img := MapPreview.build_terrain_image(map.width, map.height, map.floors, map.ores)
 	_preview.texture = ImageTexture.create_from_image(img)
 	_info.text = "%s %s  ·  %s" % [tr(node.type.name_key), node.code, tr("LEVELS_SIZE") % [map.width, map.height]]

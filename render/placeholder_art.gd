@@ -487,6 +487,19 @@ static func make_building(def: BuildingDef) -> Image:
 			var bolt := PackedVector2Array([c + Vector2(2, -9) * k, c + Vector2(-5, 1) * k, c + Vector2(0, 1) * k,
 				c + Vector2(-2, 9) * k, c + Vector2(5, -1) * k, c + Vector2(0, -1) * k])
 			_poly(img, bolt, ACCENT)
+		BuildingDef.Glyph.BATTERY:
+			# Аккумулятор: три банки с клеммами и шкалой заряда.
+			for i in 3:
+				var cx := c.x + (i - 1) * 8.0 * k
+				_rect(img, Rect2i(Vector2i(Vector2(cx - 3.5 * k, c.y - 9.0 * k)), Vector2i(Vector2(7, 18) * k)), dark)
+				_rect(img, Rect2i(Vector2i(Vector2(cx - 2.0 * k, c.y - 1.0 * k)), Vector2i(Vector2(4, 8) * k)), Color("b8bb26"))
+				_rect(img, Rect2i(Vector2i(Vector2(cx - 1.5 * k, c.y - 11.0 * k)), Vector2i(Vector2(3, 2) * k)), glyph_col)
+		BuildingDef.Glyph.LIFT:
+			# Лифт: шахта с платформой и стрелками вверх-вниз.
+			_rect(img, Rect2i(Vector2i(c + Vector2(-11, -11) * k), Vector2i(Vector2(22, 22) * k)), dark)
+			_rect(img, Rect2i(Vector2i(c + Vector2(-8, -2) * k), Vector2i(Vector2(16, 4) * k)), body.lightened(0.25))
+			_poly(img, PackedVector2Array([c + Vector2(0, -10) * k, c + Vector2(5, -5) * k, c + Vector2(-5, -5) * k]), ACCENT)
+			_poly(img, PackedVector2Array([c + Vector2(0, 10) * k, c + Vector2(5, 5) * k, c + Vector2(-5, 5) * k]), Color("83a598"))
 		BuildingDef.Glyph.TURRET:
 			# Основание турели: круглая площадка с болтами, ствол рисуется поверх (TurretView).
 			_circle(img, c, 12.5 * k, dark)

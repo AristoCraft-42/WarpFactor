@@ -220,14 +220,14 @@ CONFIG_INVERT_SORTER_HINT,With inversion the selected item goes to the sides and
 INFO_INVERTED,Inverted,Инверсия
 BUILD_BUTTON_HINT,"LMB — take in hand, RMB — craft 1, Shift+RMB — craft 5","ЛКМ — взять в руку, ПКМ — скрафтить 1, Shift+ПКМ — 5"
 BUILDING_CENTRAL_GATEWAY,Central Gateway,Центральный шлюз
-BUILDING_CENTRAL_GATEWAY_DESC,"Connects the planet with the mobile base: one port sends items to the base, the other receives them from the base. R rotates the ports. Fly over it and press F to enter the base; click it to open the star map and teleport.","Связывает планету с мобильной базой: один порт отправляет предметы в базу, другой принимает их из базы. R поворачивает порты. Зависните над ним и нажмите F, чтобы войти в базу; клик — звёздная карта и телепорт."
-BUILDING_BASE_GATEWAY,Base Gateway,Шлюз базы
-BUILDING_BASE_GATEWAY_DESC,"The pair of the central gateway inside the base: items from the planet leave through one port, items entering the other go to the planet. R rotates the ports.","Пара центрального шлюза внутри базы: предметы с планеты выходят из одного порта, вошедшие в другой уходят на планету. R поворачивает порты."
-INFO_GATEWAY_TO_BASE,To the base: %d / %d,В базу: %d / %d
-INFO_GATEWAY_TO_PLANET,To the planet: %d / %d,На планету: %d / %d
-LOCATION_BASE,Mobile base,Мобильная база
-HINT_GATEWAY_TO_BASE,%s — enter the base,%s — войти в базу
-HINT_GATEWAY_TO_PLANET,%s — go out to the planet,%s — выйти на планету
+BUILDING_CENTRAL_GATEWAY_DESC,The heart of the mobile base on the planet. Its ports pass items to the underground floor and back (after research). R rotates the ports. Fly over it and press F to go down; click it to open the star map and teleport.,"Сердце мобильной базы на планете. Порты передают предметы на подземный этаж и обратно (после исследования). R поворачивает порты. Зависните над ним и нажмите F, чтобы спуститься; клик — звёздная карта и телепорт."
+BUILDING_BASE_GATEWAY,Gateway pair,Пара шлюза
+BUILDING_BASE_GATEWAY_DESC,"The pair of the central gateway on the underground floor: items from the pad leave through one side, items entering the other go up. R rotates the ports.","Пара центрального шлюза на подземном этаже: предметы с площадки выходят с одной стороны, вошедшие с другой уходят наверх. R поворачивает порты."
+INFO_GATEWAY_TO_BASE,Down: %d / %d,Вниз: %d / %d
+INFO_GATEWAY_TO_PLANET,Up: %d / %d,Вверх: %d / %d
+LOCATION_BASE,Underground floor,Подземный этаж
+HINT_GATEWAY_TO_BASE,%s — go down to the underground floor,%s — спуститься на подземный этаж
+HINT_GATEWAY_TO_PLANET,%s — go up to the pad,%s — подняться на площадку
 ACTION_USE_GATEWAY,Pass through the gateway,Пройти через шлюз
 HUD_INFO_PAD,Gateway pad: moves together with the base,Площадка шлюза: переезжает вместе с базой
 MENU_NEW_RUN,New run,Новый забег
@@ -259,7 +259,7 @@ SUMMARY_LEFT,Left %s after %d min %02d s,Покинута %s через %d ми�
 SUMMARY_MOVED,Moved with the pad: %d buildings,Переехало с площадкой построек: %d
 SUMMARY_LOST,Left behind: %d buildings and %d items,"Осталось на планете: построек %d, предметов %d"
 SUMMARY_SAFE,This planet is safe — the enemy will not attack.,Эта планета безопасна — враг не нападёт.
-SUMMARY_SENT,Sent to the base:,Отправлено в базу:
+SUMMARY_SENT,Sent to the underground floor:,Отправлено на подземный этаж:
 SUMMARY_NOTHING,nothing,ничего
 SUMMARY_OK,Continue,Продолжить
 MENU_CONTINUE,Continue,Продолжить
@@ -453,3 +453,75 @@ WINDOW_NETWORK_FLUID,In the pipes,В трубах
 WINDOW_NETWORK_LOAD,Network load,Нагрузка сети
 WINDOW_AMMO,Ammo,Патроны
 WINDOW_AMMO_STOCK,Shots,Запас выстрелов
+RESEARCH_ACCUMULATORS,Accumulators,Аккумуляторы
+RESEARCH_ACCUMULATORS_DESC,Energy storage: charges from the network surplus and covers shortages.,Накопители энергии: заряжаются излишком сети и покрывают нехватку.
+RESEARCH_UNDERGROUND,Underground floor,Подземный этаж
+RESEARCH_UNDERGROUND_DESC,Opens the underground floor of the base under the gateway pad (16×16). Fly over the gateway and press F.,Открывает подземный этаж базы под площадкой шлюза (16×16). Переход — F над шлюзом.
+RESEARCH_GATEWAY_ITEMS,Item transfer,Передача предметов
+RESEARCH_GATEWAY_ITEMS_DESC,The gateway passes items between the pad and the underground floor by belts.,Шлюз передаёт предметы между площадкой и подземным этажом по лентам.
+RESEARCH_GATEWAY_PORTS_1,Gateway ports I,Порты шлюза I
+RESEARCH_GATEWAY_PORTS_1_DESC,One more gateway input and output.,Ещё один вход и выход у шлюза.
+RESEARCH_GATEWAY_PORTS_2,Gateway ports II,Порты шлюза II
+RESEARCH_GATEWAY_PORTS_2_DESC,One more gateway input and output.,Ещё один вход и выход у шлюза.
+RESEARCH_GATEWAY_POWER,Power transfer,Передача энергии
+RESEARCH_GATEWAY_POWER_DESC,The gateway and lifts join the power networks of both floors (poles next to them on both floors).,Шлюз и лифты объединяют электросети обоих этажей (нужны опоры рядом с ними на обоих этажах).
+RESEARCH_GATEWAY_FLUIDS,Fluid transfer,Передача жидкостей
+RESEARCH_GATEWAY_FLUIDS_DESC,Pipes connect to the free sides of the gateway and to lifts: fluids flow between floors.,Трубы подключаются к свободным сторонам шлюза и к лифтам: жидкости перетекают между этажами.
+RESEARCH_LIFT,Lift,Лифт
+RESEARCH_LIFT_DESC,"Lifts connect the pad and the underground floor anywhere: items, power, fluids and the drone.","Лифты соединяют площадку и подземный этаж в любом месте: предметы, энергия, жидкости и дрон."
+RESEARCH_PAD_1,Pad expansion I,Расширение площадки I
+RESEARCH_PAD_1_DESC,The gateway pad grows by 4 tiles per side.,Площадка шлюза увеличивается на 4 тайла по стороне.
+RESEARCH_PAD_2,Pad expansion II,Расширение площадки II
+RESEARCH_PAD_2_DESC,The gateway pad grows by 4 tiles per side.,Площадка шлюза увеличивается на 4 тайла по стороне.
+RESEARCH_PAD_3,Pad expansion III,Расширение площадки III
+RESEARCH_PAD_3_DESC,The gateway pad grows by 4 tiles per side.,Площадка шлюза увеличивается на 4 тайла по стороне.
+RESEARCH_PAD_4,Pad expansion IV,Расширение площадки IV
+RESEARCH_PAD_4_DESC,The gateway pad grows by 4 tiles per side.,Площадка шлюза увеличивается на 4 тайла по стороне.
+RESEARCH_PAD_5,Pad expansion V,Расширение площадки V
+RESEARCH_PAD_5_DESC,The gateway pad grows by 4 tiles per side.,Площадка шлюза увеличивается на 4 тайла по стороне.
+RESEARCH_UNDERGROUND_1,Underground expansion I,Расширение подземного этажа I
+RESEARCH_UNDERGROUND_1_DESC,The underground floor grows by 6 tiles per side.,Подземный этаж увеличивается на 6 тайлов по стороне.
+RESEARCH_UNDERGROUND_2,Underground expansion II,Расширение подземного этажа II
+RESEARCH_UNDERGROUND_2_DESC,The underground floor grows by 6 tiles per side.,Подземный этаж увеличивается на 6 тайлов по стороне.
+RESEARCH_UNDERGROUND_3,Underground expansion III,Расширение подземного этажа III
+RESEARCH_UNDERGROUND_3_DESC,The underground floor grows by 6 tiles per side.,Подземный этаж увеличивается на 6 тайлов по стороне.
+RESEARCH_UNDERGROUND_4,Underground expansion IV,Расширение подземного этажа IV
+RESEARCH_UNDERGROUND_4_DESC,The underground floor grows by 6 tiles per side.,Подземный этаж увеличивается на 6 тайлов по стороне.
+RESEARCH_UNDERGROUND_5,Underground expansion V,Расширение подземного этажа V
+RESEARCH_UNDERGROUND_5_DESC,The underground floor grows by 6 tiles per side.,Подземный этаж увеличивается на 6 тайлов по стороне.
+BUILDING_ACCUMULATOR,Accumulator,Аккумулятор
+BUILDING_ACCUMULATOR_DESC,Stores the surplus of its network and gives it back when generation falls short.,"Запасает излишек своей сети и отдаёт его, когда выработки не хватает."
+BUILDING_LIFT,Lift,Лифт
+BUILDING_LIFT_DESC,"Stands on the gateway pad or on the underground floor; its pair appears at the same spot on the other floor. Items go in the chosen direction, power and fluids pass once researched, the drone passes with F.","Ставится на площадке шлюза или на подземном этаже; пара появляется в том же месте на другом этаже. Предметы едут в выбранном направлении, энергия и жидкости проходят после исследований, дрон переходит по F."
+FLOOR_VOID,Void,Пустота
+HINT_GATEWAY_LOCKED,Requires research «%s»,Нужно исследование «%s»
+PROBLEM_LIFT_AREA,"A lift stands only on the gateway pad or in the open part of the underground floor, and so must its pair",Лифт ставится только на площадке шлюза или в открытой части подземного этажа — и его пара тоже
+PROBLEM_LIFT_PAIR,The spot for the pair on the other floor is taken,На другом этаже место для пары занято
+PROBLEM_LOCKED,Requires research,Нужно исследование
+INFO_GATEWAY_ITEMS_LOCKED,Item transfer: after research «%s»,Передача предметов — после исследования «%s»
+INFO_GATEWAY_PORTS,Open ports per side: %d,Открыто портов на сторону: %d
+INFO_LIFT_NO_PAIR,No pair on the other floor,Нет пары на другом этаже
+INFO_LIFT_DOWN,Direction: down (pad → underground floor),Направление: вниз (площадка → этаж)
+INFO_LIFT_UP,Direction: up (underground floor → pad),Направление: вверх (этаж → площадка)
+INFO_LIFT_BUFFER,Waiting: %d / %d,Ждут перехода: %d / %d
+INFO_ACCUMULATOR_CHARGE,Charge: %.1f / %.1f MJ,Заряд: %.1f / %.1f МДж
+INFO_ACCUMULATOR_CHARGING,Charging: %d kW,Заряжается: %d кВт
+INFO_ACCUMULATOR_DISCHARGING,Discharging: %d kW,Разряжается: %d кВт
+STAT_ACCUMULATOR,"Capacity %.1f MJ, up to %d kW","Ёмкость %.1f МДж, до %d кВт"
+CONFIG_LIFT_HINT,Items enter the lift on the source floor and leave the pair on the other floor.,Предметы входят в лифт на исходном этаже и выходят из пары на другом.
+CONFIG_LIFT_DOWN,Down,Вниз
+CONFIG_LIFT_UP,Up,Вверх
+WINDOW_STORED,Stored,Запас
+WINDOW_MJ_OF,%.1f / %.1f MJ,%.1f / %.1f МДж
+WINDOW_CHARGE_RATE,Charging,Заряд
+WINDOW_DISCHARGE,Discharging,Разряд
+WINDOW_LIFT_QUEUE,Waiting to pass,Ждут перехода
+WINDOW_LIFT_LOAD,Queue,Очередь
+WINDOW_GRAPH_TOP,Last 2 min · up to %d kW,За 2 мин · до %d кВт
+WINDOW_GRAPH_DEMAND,demand,спрос
+WINDOW_GRAPH_SUPPLY,supply,выработка
+WINDOW_GRAPH_CHARGE,charge,заряд
+WINDOW_NETWORK_LINKED,Linked with the other floor through the gateway or a lift,Связана с другим этажом через шлюз или лифт
+WINDOW_NETWORK_GENERATORS,Sources: %s,Источники: %s
+WINDOW_NETWORK_CONSUMERS,Consumers: %s,Потребители: %s
+ACTION_OVERLAY_POWER,Power networks overlay,Оверлей электросетей

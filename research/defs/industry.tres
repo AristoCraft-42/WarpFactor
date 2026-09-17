@@ -17,3 +17,4 @@ cost_amount = 30
 prerequisites = Array[StringName]([&"logistics"])
 unlock_buildings = Array[ExtResource("3_building_script")]([ExtResource("b_assembler")])
 unlock_recipes = Array[ExtResource("4_recipe_script")]([])
+effects = Array[StringName]([])

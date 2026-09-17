@@ -19,6 +19,10 @@ signal drone_destroyed
 signal drone_respawned
 ## Дрон подобрал moved предметов из выпавшего груза.
 signal crate_picked(moved: int)
+## Пол или руда изменились в прямоугольнике тайлов (расширение площадки или этажа) — перерисовать террейн.
+signal terrain_changed(rect: Rect2i)
+## Площадка или открытая часть мира изменили размер.
+signal bounds_changed
 
 ## Почему не удалось последнее действие игрока (для уведомлений).
 enum ActionError { NONE, OUT_OF_RANGE, INVENTORY_FULL, NOT_ALLOWED }
@@ -35,6 +39,10 @@ var creative: bool = false
 var is_base: bool = false
 ## Площадка центрального шлюза на планете (size 0 — нет): переезжает вместе с базой.
 var pad_rect: Rect2i = Rect2i()
+## Открытая часть мира, тайлов: дрон и камера не выходят за неё (size 0 — вся карта).
+var play_rect: Rect2i = Rect2i()
+## Проверка места лифта (задаёт забег): func(world, def, origin) -> BuildingManager.Check.
+var lift_check: Callable
 var last_error: ActionError = ActionError.NONE
 ## Сколько предметов из содержимого не поместилось в инвентарь при последнем сносе (они теряются).
 var last_lost_items: int = 0
@@ -103,14 +111,68 @@ static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_
 	return world
 
 
-## Мир базы: пустое пространство размера base_def.size с общим дроном забега.
+## Подземный этаж базы: карта наибольшего размера, заполненная пустотой; открытая часть — start_size
+## в центре (пока этаж не открыт исследованием, дрон туда не попадает).
 static func create_base(base_def: BaseDef, p_creative: bool, shared_drone: Drone) -> GameWorld:
-	var floor_def := Registry.get_floor(base_def.floor_id)
-	var map := LevelMap.new(base_def.size, base_def.size, floor_def.index if floor_def != null else 0)
+	var void_def := Registry.get_floor(base_def.void_floor_id)
+	var map := LevelMap.new(base_def.size, base_def.size, void_def.index if void_def != null else 0)
 	var world := GameWorld.create(null, map, p_creative, shared_drone)
 	world.is_base = true
 	world.rng.seed = hash(String(base_def.id))
+	world.open_area(base_rect(base_def, base_def.start_size), false)
 	return world
+
+
+## Прямоугольник открытой части этажа стороной side в центре карты.
+static func base_rect(base_def: BaseDef, side: int) -> Rect2i:
+	var s := clampi(side, 1, base_def.size)
+	var corner := (base_def.size - s) / 2
+	return Rect2i(corner, corner, s, s)
+
+
+## Открыть часть подземного этажа: пустота внутри rect становится полом, rect — открытая часть.
+func open_area(rect: Rect2i, notify: bool = true) -> void:
+	var open_def := Registry.get_floor(Registry.base_def.floor_id)
+	var void_def := Registry.get_floor(Registry.base_def.void_floor_id)
+	if open_def == null or void_def == null:
+		return
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			if grid.in_bounds(x, y) and grid.get_floor(x, y) == void_def.index:
+				grid.floors[grid.index_of(x, y)] = open_def.index
+	if play_rect == rect:
+		return
+	play_rect = rect
+	if notify:
+		terrain_changed.emit(rect)
+		bounds_changed.emit()
+
+
+## Новая площадка шлюза: свободные пригодные тайлы добавленной части становятся платформой без руды
+## (где стоят постройки — пол и руда остаются как были).
+func resize_pad(rect: Rect2i) -> void:
+	if rect == pad_rect:
+		return
+	var platform := Registry.get_floor(&"metal_plates")
+	if platform != null:
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				if not grid.in_bounds(x, y) or pad_rect.has_point(Vector2i(x, y)):
+					continue
+				if not grid.is_buildable(x, y) or buildings.get_at(Vector2i(x, y)) != null:
+					continue
+				var i := grid.index_of(x, y)
+				grid.floors[i] = platform.index
+				grid.ores[i] = 0
+	pad_rect = rect
+	terrain_changed.emit(rect)
+	bounds_changed.emit()
+
+
+## Открытая часть мира в пикселях (вся карта, если не задана).
+func get_play_rect_px() -> Rect2:
+	var rect := play_rect if play_rect.size != Vector2i.ZERO else Rect2i(Vector2i.ZERO, Vector2i(grid.width, grid.height))
+	return Rect2(Vector2(rect.position * GameConst.TILE_SIZE), Vector2(rect.size * GameConst.TILE_SIZE))
 
 
 ## Ставит шлюз (или его пару), убирая всё, что стоит на его месте.
@@ -274,6 +336,10 @@ func check_build(def: BuildingDef, origin: Vector2i, rotation: int, budget: Inve
 	var check := buildings.check_place(def, origin, rotation)
 	if check != BuildingManager.Check.OK and check != BuildingManager.Check.REPLACE:
 		return check
+	if def is LiftDef and lift_check.is_valid():
+		var lift := lift_check.call(self, def, origin) as BuildingManager.Check
+		if lift != BuildingManager.Check.OK:
+			return lift
 	if not has_drone():
 		return BuildingManager.Check.OUT_OF_RANGE
 	if creative:

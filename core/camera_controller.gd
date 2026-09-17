@@ -19,7 +19,8 @@ var follow_source: Callable
 ## Смещение взгляда от точки слежения (пиксели мира).
 var look_offset: Vector2 = Vector2.ZERO
 
-var _map_size_px: Vector2 = Vector2.ZERO
+## Границы взгляда в пикселях мира (открытая часть карты); size 0 — без ограничений.
+var _bounds_px: Rect2 = Rect2()
 var _target_zoom: float = 1.0
 var _zoom_anchor: Vector2 = Vector2.ZERO
 var _panning: bool = false
@@ -31,15 +32,15 @@ var _mouse_screen: Vector2 = Vector2.ZERO
 var _has_mouse: bool = false
 
 
-func setup(map_size_px: Vector2) -> void:
-	_map_size_px = map_size_px
+func setup(bounds_px: Rect2) -> void:
+	_bounds_px = bounds_px
 	Settings.changed.connect(_on_setting_changed)
 	_apply_zoom_property()
 
 
 ## Смена мира: новые границы карты, взгляд возвращается к дрону.
-func set_map_size(map_size_px: Vector2) -> void:
-	_map_size_px = map_size_px
+func set_map_size(bounds_px: Rect2) -> void:
+	_bounds_px = bounds_px
 	look_offset = Vector2.ZERO
 	_anchor_point = _follow_point()
 	_apply_position()
@@ -177,9 +178,10 @@ func _apply_zoom_property() -> void:
 func _apply_position() -> void:
 	var follow := _follow_point()
 	var wanted := follow + look_offset
-	if _map_size_px != Vector2.ZERO:
+	if _bounds_px.size != Vector2.ZERO:
 		var half := get_viewport().get_visible_rect().size / zoom * 0.5
-		wanted = Vector2(clamp_axis(wanted.x, half.x, _map_size_px.x), clamp_axis(wanted.y, half.y, _map_size_px.y))
+		var local := wanted - _bounds_px.position
+		wanted = _bounds_px.position + Vector2(clamp_axis(local.x, half.x, _bounds_px.size.x), clamp_axis(local.y, half.y, _bounds_px.size.y))
 	position = wanted
 	look_offset = wanted - follow
 

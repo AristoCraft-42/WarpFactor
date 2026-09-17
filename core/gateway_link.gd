@@ -5,6 +5,7 @@ extends RefCounted
 
 var planet_gateway: GatewayBuilding
 var base_gateway: GatewayBuilding
+## Вместимость очереди на один открытый порт (очередь вмещает capacity × портов).
 var capacity: int = 10
 ## Сколько предметов каждого типа ушло в базу и на планету за время на текущей планете.
 var sent_to_base := PackedInt32Array()

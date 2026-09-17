@@ -87,6 +87,12 @@ func _ready() -> void:
 	_test_underground_pipes()
 	_test_pole_drag_and_camera()
 	_test_building_windows()
+	_test_research_effects_and_floors()
+	_test_gateway_ports()
+	_test_accumulator()
+	_test_power_and_fluids_between_floors()
+	_test_lift()
+	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
 
@@ -133,13 +139,14 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 5, "ожидалось 5 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 22, "ожидалось 22 здания (20 строится + шлюз и пара), есть %d" % Registry.buildings.size())
+	_check(Registry.buildings.size() == 24, "ожидалось 24 здания (22 строится + шлюз и пара), есть %d" % Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
-	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 5,
-		"13 рецептов и 5 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
-	_check(Registry.base_def != null and Registry.base_def.size == 24, "параметры базы загружены (24×24)")
+	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 23,
+		"13 рецептов и 23 исследования (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16 and Registry.base_def.size_step == 6,
+		"параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 17 + 20, "ожидалось 17 предметов и 20 предметов-построек, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 17 + 22, "ожидалось 17 предметов и 22 предмета-постройки, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
 	for def in Registry.buildings:
@@ -241,7 +248,7 @@ func _test_levels_load() -> void:
 				"уровень %s: стартовый инвентарь содержит %s" % [level.id, stack.item.id])
 		world.dispose()
 		var run := Run.create(level, map, false)
-		_check(run.get_gateway(run.planet) != null and run.can_use_gateway(), "уровень %s: шлюз на месте посадки, дрон над ним" % level.id)
+		_check(run.get_gateway(run.planet) != null and run.is_over_gateway(), "уровень %s: шлюз на месте посадки, дрон над ним" % level.id)
 		_check(Rect2i(0, 0, map.width, map.height).encloses(run.planet.pad_rect), "уровень %s: площадка внутри карты" % level.id)
 		run.dispose()
 
@@ -1236,6 +1243,7 @@ func _test_inversion_config() -> void:
 func _test_run_gateway() -> void:
 	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
 	var run := Run.create(null, map, false)
+	_unlock_all(run)
 	var copper := _item(&"hematite")
 	var lead := _item(&"brick")
 	var gate := run.get_gateway(run.planet)
@@ -1247,7 +1255,8 @@ func _test_run_gateway() -> void:
 		return
 	_check(run.drone.world == run.planet and run.can_use_gateway(), "дрон появляется над шлюзом на планете")
 	var center := gate.origin + Vector2i.ONE
-	_check(run.planet.pad_rect == Rect2i(center - Vector2i(7, 7), Vector2i(15, 15)), "площадка 15×15 вокруг шлюза")
+	var pad_side := run.get_pad_size()
+	_check(run.planet.pad_rect == Rect2i(center - Vector2i.ONE * (pad_side / 2), Vector2i(pad_side, pad_side)), "площадка вокруг шлюза (после всех расширений)")
 
 	# Планета → база: в западный порт шлюза, из западного порта пары.
 	var in_port := gate.get_input_tile()
@@ -1281,7 +1290,7 @@ func _test_run_gateway() -> void:
 	run.base.buildings.remove(base_sink, true)
 	for i in 600:
 		run.step()
-	_check(run.link.size_of(true) == run.link.capacity, "без выхода очередь шлюза заполнена (%d)" % run.link.size_of(true))
+	_check(run.link.size_of(true) == run.link.capacity * gate.port_count(), "без выхода очередь шлюза заполнена: по %d на порт (%d)" % [run.link.capacity, run.link.size_of(true)])
 	base_sink = _sink(run.base, out_port + Vector2i(-2, 0))
 	for i in 300:
 		run.step()
@@ -1406,15 +1415,16 @@ func _test_star_map() -> void:
 func _test_planet_generator() -> void:
 	var star_map := StarMap.new(777, Registry.run_def, Registry.planet_types)
 	var node := star_map.get_current()
-	var map_a := PlanetGenerator.generate(node, Run.PAD_SIZE)
-	var map_b := PlanetGenerator.generate(node, Run.PAD_SIZE)
+	var map_a := PlanetGenerator.generate(node, Registry.run_def.pad_start_size)
+	var map_b := PlanetGenerator.generate(node, Registry.run_def.pad_start_size)
 	_check(map_a.floors == map_b.floors and map_a.ores == map_b.ores, "генерация детерминирована")
 	_check(map_a.width == node.size.x and map_a.height == node.size.y, "размер карты как у узла")
 	var center := Vector2i(map_a.width / 2, map_a.height / 2)
 	var platform := Registry.get_floor(&"metal_plates").index
 	var pad_ok := true
-	for y in range(center.y - 7, center.y + 8):
-		for x in range(center.x - 7, center.x + 8):
+	var half := Registry.run_def.pad_start_size / 2
+	for y in range(center.y - half, center.y + half):
+		for x in range(center.x - half, center.x + half):
 			pad_ok = pad_ok and map_a.get_floor(x, y) == platform and map_a.get_ore(x, y) == 0
 	_check(pad_ok, "площадка — платформа без руды")
 	var near_ore := 0
@@ -1426,7 +1436,7 @@ func _test_planet_generator() -> void:
 	_check(node.size.x >= 336 and node.size.x <= 480 and node.size.y >= 252 and node.size.y <= 360,
 		"обычная планета втрое больше прежней по стороне (%d×%d)" % [node.size.x, node.size.y])
 	var started := Time.get_ticks_msec()
-	PlanetGenerator.generate(node, Run.PAD_SIZE)
+	PlanetGenerator.generate(node, Registry.run_def.pad_start_size)
 	print("Генерация планеты %d×%d: %d мс" % [node.size.x, node.size.y, Time.get_ticks_msec() - started])
 	var world := GameWorld.create(null, map_a, false)
 	var drill := Registry.get_building(&"drill")
@@ -1435,7 +1445,7 @@ func _test_planet_generator() -> void:
 	for id in star_map.nodes.size():
 		var n := star_map.get_node(id)
 		if n.type.safe:
-			var waste := PlanetGenerator.generate(n, Run.PAD_SIZE)
+			var waste := PlanetGenerator.generate(n, Registry.run_def.pad_start_size)
 			var ores := 0
 			for v in waste.ores:
 				ores += 1 if v != 0 else 0
@@ -1481,7 +1491,7 @@ func _test_teleport() -> void:
 	var copper := _item(&"hematite")
 	var gate := run.get_gateway(run.planet)
 	var pad := run.planet.pad_rect
-	_check(pad.size == Vector2i(15, 15) and run.drone.world == run.planet, "новый забег: дрон на площадке планеты")
+	_check(pad.size == Vector2i.ONE * Registry.run_def.pad_start_size and run.drone.world == run.planet, "новый забег: дрон на площадке 20×20 планеты")
 	_check(TeleportSummary.total(run.drone.inventory.totals) > 0, "стартовый инвентарь выдан")
 	# На площадке: склад с гематитом и лента с предметами. Вне площадки — склад, который потеряется.
 	var on_pad := run.planet.buildings.place(Registry.get_building(&"container"), pad.position + Vector2i(1, 1), 0, true) as StorageBuilding
@@ -1550,6 +1560,9 @@ func _build_save_run() -> Run:
 			map.set_ore(x, y, Registry.get_ore(&"hematite").index + 1)
 	map.set_ore(40, 30, Registry.get_ore(&"water").index + 1)
 	var run := Run.create(null, map, false)
+	for id in [&"underground", &"gateway_items"]:
+		run.research.done[id] = true
+	run.apply_research_effects()
 	var p := run.planet
 	var bm := p.buildings
 	var hematite := _item(&"hematite")
@@ -1873,6 +1886,13 @@ func _test_flow_field() -> void:
 	big.dispose()
 
 
+## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
+func _unlock_all(run: Run) -> void:
+	for research in Registry.researches:
+		run.research.done[research.id] = true
+	run.apply_research_effects()
+
+
 func _enemy_run() -> Run:
 	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
 	var run := Run.create(null, map, false)
@@ -2006,7 +2026,7 @@ func _test_spawn_points() -> void:
 		if node.type.safe or checked >= 3:
 			continue
 		checked += 1
-		var map := PlanetGenerator.generate(node, Run.PAD_SIZE)
+		var map := PlanetGenerator.generate(node, Registry.run_def.pad_start_size)
 		_check(map.spawn_points.size() == node.type.threat.spawn_point_count, "у планеты %s все точки появления (%d)" % [node.code, map.spawn_points.size()])
 		var reach := PackedByteArray()
 		reach.resize(map.width * map.height)
@@ -2106,7 +2126,8 @@ func _test_breach_teleport() -> void:
 	planet.damage_building(damaged, 100.0)
 	var doomed := planet.buildings.place(container, pad.position + Vector2i(4, 1), 0, true)
 	planet.damage_building(doomed, 10000.0)
-	planet.crates.append(DroneCrate.from_counts(Vector2(pad.position + Vector2i(10, 10)) * GameConst.TILE_SIZE, _counts(copper, 15)))
+	# Груз на площадке — в стороне от дрона над шлюзом, чтобы тот его не подобрал.
+	planet.crates.append(DroneCrate.from_counts(Vector2(pad.position + pad.size / 2 + Vector2i(4, 4)) * GameConst.TILE_SIZE, _counts(copper, 15)))
 	planet.crates.append(DroneCrate.from_counts(Vector2(pad.position + Vector2i(-8, 0)) * GameConst.TILE_SIZE, _counts(copper, 9)))
 	var old_node := run.star_map.get_current()
 	var neighbors := old_node.links.duplicate()
@@ -2812,4 +2833,277 @@ func _test_building_windows() -> void:
 	_check(pole.has_player_window() and pipe.has_player_window() and pole.get_window_sections().size() == 1 and pipe.get_window_sections().size() == 1,
 		"у опоры и трубы окно с полоской сети")
 	_check(not bm.place(Registry.get_building(&"router"), Vector2i(24, 4), 0, true).get_window_sections().size() > 0, "у маршрутизатора разделов окна нет")
+	world.dispose()
+
+
+# --- Этап 11: энергия, этажи, шлюз ---
+
+## Забег на пустой карте 48×32 с водой над шлюзом; research — завершённые исследования.
+func _floors_run(research: Array[StringName]) -> Run:
+	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
+	map.set_ore(24, 10, Registry.get_ore(&"water").index + 1)
+	var run := Run.create(null, map, false)
+	for id in research:
+		run.research.done[id] = true
+	run.apply_research_effects()
+	return run
+
+
+## Эффекты исследований: размеры площадки и подземного этажа, закрытый проход.
+func _test_research_effects_and_floors() -> void:
+	var run := _floors_run([])
+	var state := run.research
+	_check(ResearchState.max_effect(&"pad_size") == 5 and ResearchState.max_effect(&"underground_size") == 5 and ResearchState.max_effect(&"gateway_ports") == 2,
+		"пять расширений площадки и этажа, два шага портов")
+	_check(run.get_pad_size() == 20 and run.planet.pad_rect.size == Vector2i(20, 20), "площадка в начале 20×20")
+	_check(run.base.play_rect.size == Vector2i(16, 16) and run.base.grid.width == 46, "открытая часть этажа 16×16 на карте 46×46")
+	var void_floor := Registry.get_floor(&"void").index
+	_check(run.base.grid.get_floor(0, 0) == void_floor and not run.base.grid.is_buildable(0, 0)
+		and run.base.grid.get_floor(run.base.play_rect.position.x, run.base.play_rect.position.y) != void_floor,
+		"за краем открытой части — пустота, на ней не строят")
+	_check(run.is_over_gateway() and not run.can_use_gateway() and not run.use_gateway(), "без «Подземного этажа» через шлюз не пройти")
+	# Площадка растёт: свободные тайлы — платформа, под постройкой пол не меняется.
+	var old_pad := run.planet.pad_rect
+	var outside := old_pad.position + Vector2i(-2, 5)
+	run.planet.buildings.place(Registry.get_building(&"stone_wall"), outside, 0, true)
+	var free_tile := old_pad.position + Vector2i(-1, 5)
+	state.done[&"pad_1"] = true
+	run.apply_research_effects()
+	var platform := Registry.get_floor(&"metal_plates").index
+	_check(run.planet.pad_rect.size == Vector2i(24, 24) and run.planet.pad_rect.encloses(old_pad), "«Расширение площадки I»: 24×24 вокруг прежней")
+	_check(run.planet.grid.get_floor(free_tile.x, free_tile.y) == platform and run.planet.grid.get_floor(outside.x, outside.y) != platform,
+		"новая часть площадки — платформа, под стеной пол прежний")
+	state.done[&"underground"] = true
+	state.done[&"underground_1"] = true
+	state.done[&"underground_2"] = true
+	run.apply_research_effects()
+	_check(run.base.play_rect.size == Vector2i(28, 28) and run.base.grid.is_buildable(run.base.play_rect.position.x, run.base.play_rect.position.y),
+		"два расширения этажа: 28×28, новая часть — пол")
+	_check(run.use_gateway() and run.drone.world == run.base, "после «Подземного этажа» дрон проходит через шлюз")
+	run.drone.move_input = Vector2(-1, 0)
+	for i in 30 * 10:
+		run.step()
+	_check(run.drone.position.x >= run.base.get_play_rect_px().position.x - 0.01, "дрон не вылетает за открытую часть этажа")
+	run.dispose()
+
+	var creative := Run.create(null, LevelMap.new(64, 64, Registry.get_floor(&"stone").index), true)
+	_check(creative.get_pad_size() == 40 and creative.base.play_rect.size == Vector2i(46, 46) and creative.can_use_gateway(),
+		"в творческом режиме площадка 40, этаж 46 и проход открыты сразу")
+	creative.dispose()
+
+
+## Шлюз: передача предметов закрыта исследованием, «Порты шлюза» добавляют вход и выход.
+func _test_gateway_ports() -> void:
+	var run := _floors_run([&"underground"])
+	var gate := run.get_gateway(run.planet)
+	var pair := run.get_gateway(run.base)
+	var hematite := _item(&"hematite")
+	var inputs := gate.get_gateway_def().get_port_tiles(gate.origin, gate.get_input_side(), 2)
+	var outputs := pair.get_gateway_def().get_port_tiles(pair.origin, pair.get_output_side(), 2)
+	var sources: Array[Building] = []
+	var sinks: Array[Building] = []
+	for k in 2:
+		var src := run.planet.buildings.place(Worlds.source_def(), inputs[k], 0, true)
+		src.set("items", PackedInt32Array([hematite]))
+		sources.append(src)
+		sinks.append(run.base.buildings.place(Worlds.sink_def(), outputs[k], 0, true))
+	for i in 150:
+		run.step()
+	_check(run.link.size_of(true) == 0 and sinks[0].received == 0, "без «Передачи предметов» шлюз ничего не принимает")
+	run.research.done[&"gateway_items"] = true
+	run.apply_research_effects()
+	for i in 150:
+		run.step()
+	var before: int = sinks[0].received + sinks[1].received
+	for i in 600:
+		run.step()
+	var one_port: float = (sinks[0].received + sinks[1].received - before) / 20.0
+	_check(absf(one_port - 6.0) < 0.5 and sinks[1].received == 0, "один порт: %.1f предм./с только через средний" % one_port)
+	run.research.done[&"gateway_ports_1"] = true
+	run.apply_research_effects()
+	_check(gate.port_count() == 2 and gate.get_input_tiles() == inputs, "«Порты шлюза I»: второй вход и выход")
+	for i in 150:
+		run.step()
+	before = sinks[0].received + sinks[1].received
+	for i in 600:
+		run.step()
+	var two_ports: float = (sinks[0].received + sinks[1].received - before) / 20.0
+	_check(absf(two_ports - 12.0) < 1.0 and sinks[1].received > 0, "два порта: %.1f предм./с" % two_ports)
+	run.dispose()
+
+
+## Аккумулятор: заряжается излишком, покрывает нехватку, запас сохраняется.
+func _test_accumulator() -> void:
+	var world := Worlds.empty_world(32, 20)
+	var bm := world.buildings
+	var acc_def := Registry.get_building(&"accumulator") as AccumulatorDef
+	_check(acc_def != null and is_equal_approx(acc_def.capacity_kj, 5000.0) and is_equal_approx(acc_def.max_rate, 300.0), "аккумулятор: 5 МДж, 300 кВт")
+	var pole := bm.place(Registry.get_building(&"small_power_pole"), Vector2i(10, 8), 0, true)
+	var acc := bm.place(acc_def, Vector2i(11, 9), 0, true) as Accumulator
+	var generator := bm.place(Registry.get_building(&"thermal_generator"), Vector2i(8, 9), 0, true) as Generator
+	var assembler := bm.place(Registry.get_building(&"assembler"), Vector2i(11, 6), 0, true) as Crafter
+	world.configure(assembler, &"gear")
+	for i in 3:
+		generator.handle_item(null, _item(&"coal"))
+	for i in 40:
+		assembler.handle_item(null, _item(&"iron_ingot"))
+	Worlds.run_ticks(world, 2 * GameConst.TICK_RATE)
+	_check(pole.power_net != null and pole.power_net.storages.has(acc), "аккумулятор в сети опоры")
+	_check(absf(acc.stored_kj - 150.0) < 6.0, "излишек 150 − 75 кВт заряжает: %.0f кДж за 2 с (≈150)" % acc.stored_kj)
+	# Без генератора аккумулятор питает сборщик.
+	bm.remove(generator, true)
+	acc.stored_kj = 1000.0
+	assembler.outputs[_item(&"gear")] = 0
+	for i in 40:
+		assembler.handle_item(null, _item(&"iron_ingot"))
+	Worlds.run_ticks(world, 3 * GameConst.TICK_RATE)
+	var net := assembler.power_net
+	_check(net != null and is_equal_approx(net.satisfaction, 1.0) and assembler.outputs[_item(&"gear")] >= 5, "без генератора сборщик работает от аккумулятора")
+	_check(absf(acc.stored_kj - (1000.0 - 75.0 * 3.0)) < 10.0, "разряд по спросу: %.0f кДж (≈775)" % acc.stored_kj)
+	acc.stored_kj = 10.0
+	Worlds.run_ticks(world, 30)
+	_check(acc.stored_kj == 0.0 and assembler.power_net.satisfaction < 1.0, "пустой аккумулятор не спасает")
+	var copy := bm.place(acc_def, Vector2i(20, 12), 0, true) as Accumulator
+	acc.stored_kj = 1234.0
+	copy.load_state(acc.save_state())
+	_check(is_equal_approx(copy.stored_kj, 1234.0), "запас аккумулятора сохраняется")
+	world.dispose()
+
+
+## Ток и жидкости между этажами: открываются исследованиями, шлюз соединяет сети.
+func _test_power_and_fluids_between_floors() -> void:
+	var run := _floors_run([&"underground"])
+	var planet := run.planet
+	var base := run.base
+	var gate := run.get_gateway(planet)
+	var pair := run.get_gateway(base)
+	planet.buildings.place(Registry.get_building(&"small_power_pole"), gate.origin + Vector2i(-1, -1), 0, true)
+	var generator := planet.buildings.place(Registry.get_building(&"thermal_generator"), gate.origin + Vector2i(-4, -3), 0, true) as Generator
+	for i in 5:
+		generator.handle_item(null, _item(&"coal"))
+	base.buildings.place(Registry.get_building(&"small_power_pole"), pair.origin + Vector2i(-1, -1), 0, true)
+	var assembler := base.buildings.place(Registry.get_building(&"assembler"), pair.origin + Vector2i(-4, -3), 0, true) as Crafter
+	base.configure(assembler, &"gear")
+	for i in 30:
+		assembler.handle_item(null, _item(&"iron_ingot"))
+	for i in 60:
+		run.step()
+	_check(assembler.get_status() == Building.Status.NO_POWER and assembler.outputs[_item(&"gear")] == 0, "без «Передачи энергии» этаж без тока")
+	run.research.done[&"gateway_power"] = true
+	run.apply_research_effects()
+	for i in 3 * GameConst.TICK_RATE:
+		run.step()
+	var net := assembler.power_net
+	_check(gate.power_net != null and pair.power_net != null and net.linked and is_equal_approx(net.satisfaction, 1.0), "шлюз соединяет сети площадки и этажа")
+	_check(assembler.outputs[_item(&"gear")] >= 5 and generator.last_output_kw > 70.0, "сборщик этажа работает от генератора планеты (%d)" % assembler.outputs[_item(&"gear")])
+
+	# Жидкости: насос над шлюзом — трубы в порт шлюза — вода выходит из порта пары.
+	var pump_tile := Vector2i(24, 10)
+	planet.buildings.place(Registry.get_building(&"pump"), pump_tile, 0, true)
+	var up_side := gate.get_fluid_side(1)
+	var gate_port := gate.get_rect().get_center()
+	var pipe_line := Vector2i(24, gate.origin.y - 1) if up_side == GameConst.Dir.UP else Vector2i(24, gate.origin.y + 3)
+	for y in range(pump_tile.y + 1, pipe_line.y + 1):
+		planet.buildings.place(Registry.get_building(&"pipe"), Vector2i(24, y), 0, true)
+	var pair_side := pair.get_fluid_side(1)
+	var base_pipe := pair.origin + Vector2i(1, -1) if pair_side == GameConst.Dir.UP else pair.origin + Vector2i(1, 3)
+	var tank := base.buildings.place(Registry.get_building(&"pipe"), base_pipe, 0, true)
+	for i in 5 * GameConst.TICK_RATE:
+		run.step()
+	_check(base.fluids.get_pipe_network(tank) == null or base.fluids.get_pipe_network(tank).amount == 0.0, "без «Передачи жидкостей» вода на этаж не идёт")
+	run.research.done[&"gateway_fluids"] = true
+	run.apply_research_effects()
+	for i in 5 * GameConst.TICK_RATE:
+		run.step()
+	var tank_net := base.fluids.get_pipe_network(tank)
+	_check(gate_port != Vector2i.ZERO and tank_net != null and tank_net.fluid == Registry.get_fluid(&"water").index and tank_net.amount > 50.0,
+		"вода перетекла через шлюз на этаж (%.0f)" % (tank_net.amount if tank_net != null else -1.0))
+	run.dispose()
+
+
+## Лифт: место, пара на другом этаже, предметы в обе стороны, дрон, снос пары, переезд, сохранение.
+func _test_lift() -> void:
+	var run := _floors_run([&"underground", &"underground_1", &"lift"])
+	var planet := run.planet
+	var base := run.base
+	var lift_def := Registry.get_building(&"lift") as LiftDef
+	var hematite := _item(&"hematite")
+	var inside := run.planet.pad_rect.position + Vector2i(4, 3)
+	_check(run._check_lift(planet, lift_def, run.planet.pad_rect.position + Vector2i(-3, 3)) == BuildingManager.Check.LIFT_AREA, "вне площадки лифт не ставится")
+	var blocker := base.buildings.place(Registry.get_building(&"container"), run.pair_origin(planet, inside), 0, true)
+	_check(run._check_lift(planet, lift_def, inside) == BuildingManager.Check.LIFT_PAIR, "место пары занято — нельзя")
+	base.buildings.remove(blocker, true)
+	_check(run._check_lift(planet, lift_def, inside) == BuildingManager.Check.OK, "место для лифта и его пары свободно")
+	var top := planet.buildings.place(lift_def, inside, 0, true) as Lift
+	var bottom := base.buildings.get_at(run.pair_origin(planet, inside)) as Lift
+	_check(top != null and bottom != null and top.pair == bottom and bottom.pair == top, "пара лифта появилась на этаже в том же месте")
+	var source := planet.buildings.place(Worlds.source_def(), inside + Vector2i(-1, 0), 0, true)
+	source.set("items", PackedInt32Array([hematite]))
+	var down_sink := base.buildings.place(Worlds.sink_def(), bottom.origin + Vector2i(2, 0), 0, true)
+	for i in 10 * GameConst.TICK_RATE:
+		run.step()
+	_check(down_sink.received >= 55 and down_sink.received <= 62, "вниз едет со скоростью ленты: %d за 10 с" % down_sink.received)
+	planet.buildings.remove(source, true)
+	var up_source := base.buildings.place(Worlds.source_def(), bottom.origin + Vector2i(-1, 0), 0, true)
+	up_source.set("items", PackedInt32Array([_item(&"brick")]))
+	var up_sink := planet.buildings.place(Worlds.sink_def(), top.origin + Vector2i(2, 1), 0, true)
+	base.configure(bottom, Lift.Direction.UP)
+	_check(top.direction == Lift.Direction.UP and bottom.is_source() and not top.is_source(), "направление — общая настройка пары")
+	for i in 5 * GameConst.TICK_RATE:
+		run.step()
+	var up_before: int = up_sink.count_of(_item(&"brick"))
+	for i in 5 * GameConst.TICK_RATE:
+		run.step()
+	var up_rate: int = up_sink.count_of(_item(&"brick")) - up_before
+	_check(up_rate >= 27 and up_rate <= 31, "вверх тоже едет со скоростью ленты: %d за 5 с" % up_rate)
+	# Дрон через лифт.
+	run.drone.world = planet
+	run.drone.position = top.get_world_center()
+	_check(run.can_use_gateway() and run.use_gateway() and run.drone.world == base and bottom.get_world_rect().has_point(run.drone.position),
+		"дрон переходит через лифт на этаж")
+	run.drone.world = planet
+	run.drone.position = run.get_gateway(planet).get_world_center()
+	# Сохранение: пара и направление восстанавливаются.
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(SaveIO.run_to_dict(run))))
+	var loaded_top := loaded.planet.buildings.get_at(inside) as Lift
+	_check(loaded_top != null and loaded_top.pair != null and loaded_top.pair.world == loaded.base and loaded_top.direction == Lift.Direction.UP,
+		"после загрузки лифт снова в паре, направление прежнее")
+	loaded.dispose()
+	# Переезд: лифт на площадке переезжает и снова находит пару на этаже.
+	base.buildings.remove(up_source, true)
+	var offset := top.origin - planet.pad_rect.position
+	var next := run.star_map.get_next()
+	run.start_teleport(next[0].id)
+	for i in Registry.run_def.get_charge_ticks() + 1:
+		run.step()
+	var moved := run.planet.buildings.get_at(run.planet.pad_rect.position + offset) as Lift
+	_check(run.planet != planet and moved != null and moved.pair == bottom and bottom.pair == moved, "после телепорта лифт площадки снова в паре")
+	# Снос одного лифта сносит пару.
+	base.buildings.remove(bottom, true)
+	_check(moved.world == null and bottom.world == null, "снос лифта на этаже сносит и лифт на площадке")
+	run.dispose()
+
+
+## Окно опоры: нагрузка, заряд, график за последние минуты, состав сети.
+func _test_power_window() -> void:
+	var world := Worlds.empty_world(32, 20)
+	var bm := world.buildings
+	var pole := bm.place(Registry.get_building(&"small_power_pole"), Vector2i(10, 8), 0, true) as PowerPole
+	bm.place(Registry.get_building(&"accumulator"), Vector2i(11, 9), 0, true)
+	var generator := bm.place(Registry.get_building(&"thermal_generator"), Vector2i(8, 9), 0, true) as Generator
+	generator.handle_item(null, _item(&"coal"))
+	var assembler := bm.place(Registry.get_building(&"assembler"), Vector2i(11, 6), 0, true) as Crafter
+	world.configure(assembler, &"gear")
+	for i in 40:
+		assembler.handle_item(null, _item(&"iron_ingot"))
+	Worlds.run_ticks(world, PowerGraph.HISTORY_TICKS * 5)
+	var sections := pole.get_window_sections()
+	var kinds := PackedStringArray()
+	for sec in sections:
+		kinds.append(str(sec.kind))
+	_check(sections.size() == 4 and sections[2].kind == WindowSection.Kind.GRAPH and sections[3].kind == WindowSection.Kind.TEXT,
+		"окно опоры: нагрузка, заряд, график, состав (%s)" % ",".join(kinds))
+	_check(sections[2].series.size() == 3 and sections[2].series[0].size() == 5 and sections[2].series[0][4] > 70.0,
+		"график: спрос, выработка, заряд; 5 точек, спрос ≈75 кВт")
+	_check(sections[3].lines[0].contains("×1") and sections[3].lines[1].contains("×1"), "состав сети: источники и потребители")
 	world.dispose()

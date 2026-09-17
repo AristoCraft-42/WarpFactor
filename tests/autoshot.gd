@@ -52,6 +52,7 @@ func _run_game(game: Game) -> void:
 	_hold_threat(game)
 	await _run_research(game)
 	await _run_gateway(game)
+	await _run_lift(game)
 	await _run_drone(game, base)
 	await _run_interaction(game, base)
 	await _run_build_helpers(game, base)
@@ -81,6 +82,7 @@ func _run_game(game: Game) -> void:
 
 	await _run_teleport(game)
 	_hold_threat(game)
+	await _run_pad_expansion(game)
 	await _run_saves(game)
 	await _run_breach(game)
 
@@ -158,13 +160,24 @@ func _run_research(game: Game) -> void:
 	await _key(KEY_ESCAPE)
 	_expect(not window.visible and not game.pause_menu.is_open(), "Esc закрывает окно исследований")
 
-	# Дальше — всё открыто.
+	# Шлюз под дроном: без «Подземного этажа» — подсказка об исследовании, F не переносит.
+	run.drone.position = run.get_gateway(run.planet).get_world_center()
+	await _frames(5)
+	var gateway_label: Label = game.hud.get("_gateway_label")
+	_expect(gateway_label.visible and gateway_label.text.contains(tr(Registry.get_research(&"underground").name_key)),
+		"над шлюзом подсказка: нужен «Подземный этаж»")
+	await _key(KEY_F)
+	_expect(game.world == run.planet, "без исследования F не переносит на этаж")
+
+	# Дальше — всё открыто, кроме расширений площадки (их смотрим после телепорта).
 	for research in Registry.researches:
-		state.done[research.id] = true
+		if not research.effects.has(&"pad_size"):
+			state.done[research.id] = true
 	state.progress.clear()
 	state.manual_queue = 0
 	state.active = &""
 	state.changed.emit()
+	run.apply_research_effects()
 	# Меню обновляет кнопки раз в 0.2 с.
 	await _frames(40)
 	_expect(drill_button.modulate.r > 0.9 and state.is_building_unlocked(drill_def), "после исследования бур открыт в меню")
@@ -432,9 +445,10 @@ func _run_gateway(game: Game) -> void:
 	await _key(KEY_F)
 	await _frames(5)
 	_expect(game.world == run.base and run.drone.world == run.base and game.is_in_base(), "F над шлюзом — дрон и вид в базе")
-	# База меньше экрана — камера стоит в её центре и не показывает пустоту за краем.
-	var base_center := Vector2(run.base.grid.width, run.base.grid.height) * GameConst.TILE_SIZE * 0.5
-	_expect(game.camera.position.distance_to(base_center) < 2.0, "камера в базе — по центру карты базы, не за её краем")
+	# Этаж по ширине меньше экрана — камера по X стоит в его центре и не показывает пустоту за краем.
+	var bounds := run.base.get_play_rect_px()
+	_expect(absf(game.camera.position.x - bounds.get_center().x) < 2.0 and bounds.has_point(game.camera.position),
+		"камера на этаже — в пределах открытой части")
 
 	# Стройка в базе настоящим вводом.
 	var base_tile := pair.origin + Vector2i(1, -3)
@@ -1118,6 +1132,35 @@ func _run_power(game: Game, base: Vector2i) -> void:
 	await _key(KEY_ESCAPE)
 	await _frames(3)
 	_expect(not game.planet_view.network_view.show_power_areas, "без опоры в руке зоны скрыты")
+	# Аккумулятор рядом со сборщиком, оверлей сетей (P) и окно опоры с графиком.
+	var accumulator := bm.place(Registry.get_building(&"accumulator"), assembler.origin + Vector2i(3, 0), 0, true) as Accumulator
+	_wire(world, generator, accumulator)
+	game.clock.set_speed_index(2)
+	await _wait_ticks(world, 12 * GameConst.TICK_RATE)
+	game.clock.set_speed_index(0)
+	_expect(accumulator != null and accumulator.power_net != null and accumulator.stored_kj > 0.0, "аккумулятор заряжается излишком пара (%.0f кДж)" % (accumulator.stored_kj if accumulator != null else -1.0))
+	await _key(KEY_P)
+	await _frames(5)
+	_expect(game.planet_view.network_view.power_overlay, "P включает оверлей электросетей")
+	await _shot("p05_power_overlay.png")
+	await _key(KEY_P)
+	var net_pole: PowerPole = null
+	for id in world.power.poles:
+		if world.power.poles[id].power_net == accumulator.power_net:
+			net_pole = world.power.poles[id]
+			break
+	if net_pole != null:
+		await _mouse_move(game, net_pole.origin)
+		await _mouse_button(game, net_pole.origin, MOUSE_BUTTON_LEFT, true)
+		await _mouse_button(game, net_pole.origin, MOUSE_BUTTON_LEFT, false)
+		await _frames(15)
+		var pole_views: Array = game.hud.inventory_window.get("_section_views")
+		var has_chart := false
+		for v in pole_views:
+			has_chart = has_chart or (v as Dictionary).has("chart")
+		_expect(game.hud.inventory_window.visible and has_chart, "окно опоры: график сети")
+		await _shot("p06_network_window.png")
+		await _key(KEY_ESCAPE)
 	await _mouse_move(game, boiler.origin)
 	await _frames(40)
 	await _shot("p03_tooltip_boiler.png")
@@ -1435,6 +1478,63 @@ func _find_free_water(world: GameWorld, center: Vector2i, radius: int) -> Vector
 				if ore != null and ore.fluid != null:
 					return Vector2i(x, y)
 	return Vector2i(-1, -1)
+
+
+## Лифт: кликом на площадке шлюза, пара появляется на подземном этаже, дрон проходит по F.
+func _run_lift(game: Game) -> void:
+	var run := game.run
+	var planet := run.planet
+	var tools := game.tools
+	var lift_def := Registry.get_building(&"lift")
+	var gate := run.get_gateway(planet)
+	await _drone_to(game, gate.origin + Vector2i(1, 5))
+	var spot := Vector2i(-1, -1)
+	for dy in range(4, 9):
+		for dx in range(-6, 6):
+			var candidate := gate.origin + Vector2i(dx, dy)
+			if planet.check_build(lift_def, candidate, 0) == BuildingManager.Check.NO_ITEM:
+				spot = candidate
+				break
+		if spot.x >= 0:
+			break
+	_expect(spot.x >= 0, "на площадке есть место для лифта")
+	if spot.x < 0:
+		return
+	run.drone.inventory.add(lift_def.item.index, 1)
+	tools.select_building(lift_def)
+	await _mouse_move(game, spot)
+	await _mouse_button(game, spot, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, spot, MOUSE_BUTTON_LEFT, false)
+	await _key(KEY_ESCAPE)
+	var lift := planet.buildings.get_at(spot) as Lift
+	_expect(lift != null and lift.pair != null and lift.pair.world == run.base, "лифт поставлен кликом, пара — на подземном этаже")
+	if lift == null or lift.pair == null:
+		return
+	await _drone_to(game, spot)
+	await _frames(3)
+	await _shot("f01_lift_pad.png")
+	await _key(KEY_F)
+	await _frames(5)
+	_expect(game.world == run.base and lift.pair.get_world_rect().has_point(run.drone.position), "F над лифтом — дрон на подземном этаже у пары")
+	await _shot("f02_lift_underground.png")
+	await _key(KEY_F)
+	await _frames(5)
+	_expect(game.world == run.planet, "F над парой — обратно на площадку")
+
+
+## После телепорта: «Расширение площадки I» — площадка 24×24, рамка и платформа перерисованы.
+func _run_pad_expansion(game: Game) -> void:
+	var run := game.run
+	var before := run.planet.pad_rect
+	run.research.done[&"pad_1"] = true
+	run.apply_research_effects()
+	await _frames(10)
+	_expect(run.planet.pad_rect.size == before.size + Vector2i(4, 4) and run.planet.pad_rect.encloses(before), "расширение площадки: %s → %s" % [before.size, run.planet.pad_rect.size])
+	await _drone_to(game, GameConst.world_to_tile(run.get_gateway(run.planet).get_world_center()))
+	game.camera.focus_on(run.drone.position, 0.6)
+	await _frames(10)
+	await _shot("t06_pad_expanded.png")
+	game.camera.recenter()
 
 
 ## Протягивание: лента через стены (мост) и поперёк другой ленты (перекрёсток), опоры через 7 тайлов.

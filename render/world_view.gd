@@ -78,6 +78,10 @@ func setup(p_world: GameWorld, camera: CameraController, clock: SimClock) -> voi
 	add_child(combat_overlay)
 	combat_overlay.setup(world, camera, clock)
 
+	# Расширение площадки или этажа меняет пол — перерисовать террейн и рамку площадки.
+	world.terrain_changed.connect(terrain.refresh_rect)
+	world.bounds_changed.connect(pad_overlay.setup.bind(world))
+
 	ore_overlay = OreOverlay.new()
 	ore_overlay.name = "OreOverlay"
 	add_child(ore_overlay)

@@ -13,7 +13,9 @@ const LANDING_MARGIN := 6
 const EDGE := 2
 
 
-static func generate(node: StarMap.StarNode, pad_size: int) -> LevelMap:
+## pad_size — сторона площадки (платформа), clear_size — под какую площадку расчистить землю от скал
+## (наибольшую после расширений, чтобы расширение не упёрлось в скалы).
+static func generate(node: StarMap.StarNode, pad_size: int, clear_size: int = 0) -> LevelMap:
 	var type := node.type
 	var w := node.size.x
 	var h := node.size.y
@@ -34,7 +36,7 @@ static func generate(node: StarMap.StarNode, pad_size: int) -> LevelMap:
 	rocks.fractal_octaves = 2
 
 	var center := Vector2i(w / 2, h / 2)
-	var clear_radius := pad_size * 0.5 + LANDING_MARGIN
+	var clear_radius := maxi(pad_size, clear_size) * 0.5 + LANDING_MARGIN
 	# Порог скал подбирается так, чтобы доля скал была примерно rock_density.
 	var rock_threshold := lerpf(0.55, -0.1, clampf(type.rock_density / 0.6, 0.0, 1.0))
 	for y in h:

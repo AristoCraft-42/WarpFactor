@@ -241,6 +241,16 @@ func is_power_generator() -> bool:
 	return false
 
 
+## Накопитель энергии (аккумулятор).
+func is_power_storage() -> bool:
+	return false
+
+
+## Связь электросетей между этажами (шлюз, лифт), если это открыто исследованием.
+func is_power_link() -> bool:
+	return false
+
+
 ## Сколько энергии генератор может дать за dt секунд, кДж.
 func get_power_capacity_kj(_dt: float) -> float:
 	return 0.0

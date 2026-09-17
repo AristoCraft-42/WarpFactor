@@ -92,6 +92,21 @@ func refresh_tile(x: int, y: int) -> void:
 	_overview_texture.update(_overview_image)
 
 
+## Обновить прямоугольник тайлов (расширение площадки или этажа): обзорная текстура — одной загрузкой.
+func refresh_rect(rect: Rect2i) -> void:
+	for y in range(maxi(rect.position.y, 0), mini(rect.end.y, _grid.height)):
+		for x in range(maxi(rect.position.x, 0), mini(rect.end.x, _grid.width)):
+			var i := _grid.index_of(x, y)
+			var chunk_idx := _grid.chunk_index(GameConst.tile_to_chunk(Vector2i(x, y)))
+			if _filled[chunk_idx] == 1:
+				_set_tile(x, y, i)
+			var c := ArtRegistry.floor_colors[_grid.floors[i]]
+			if _grid.ores[i] != 0:
+				c = ArtRegistry.ore_colors[_grid.ores[i] - 1]
+			_overview_image.set_pixel(x, y, c)
+	_overview_texture.update(_overview_image)
+
+
 func get_filled_chunk_count() -> int:
 	return _filled.count(1)
 

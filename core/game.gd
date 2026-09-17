@@ -50,6 +50,7 @@ var _last_autosave_tick: int = 0
 var _ores_shown: bool = false
 var _belts_shown: bool = false
 var _ranges_shown: bool = false
+var _power_shown: bool = false
 
 
 func _ready() -> void:
@@ -168,7 +169,7 @@ func _build_scene() -> void:
 	camera.name = "Camera"
 	add_child(camera)
 	camera.make_current()
-	camera.setup(world.grid.get_pixel_size())
+	camera.setup(world.get_play_rect_px())
 	camera.follow_source = func() -> Vector2: return run.drone.get_draw_position(clock.alpha)
 	camera.view_changed.connect(_on_view_changed)
 
@@ -180,6 +181,8 @@ func _build_scene() -> void:
 	base_view.name = "BaseView"
 	add_child(base_view)
 	base_view.setup(run.base, camera, clock)
+	run.base.bounds_changed.connect(_on_bounds_changed.bind(run.base))
+	run.planet.bounds_changed.connect(_on_bounds_changed.bind(run.planet))
 	active_view = _view_of(world)
 	planet_view.set_active(active_view == planet_view)
 	base_view.set_active(active_view == base_view)
@@ -222,7 +225,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if tools == null or not tools.input_enabled:
 		return
 	if event.is_action_pressed("use_gateway"):
-		run.use_gateway()
+		if run.is_over_gateway() and not run.is_underground_open():
+			Events.toast(tr("TOAST_LOCKED") % tr(Registry.get_research(&"underground").name_key), Events.ToastKind.WARNING)
+		else:
+			run.use_gateway()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("research"):
 		hud.research_window.toggle()
@@ -241,6 +247,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_ores_shown = not _ores_shown
 		ore_overlay.visible = _ores_shown
 		hud.set_ore_legend_visible(_ores_shown)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("overlay_power"):
+		_power_shown = not _power_shown
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("overlay_ranges"):
 		_ranges_shown = not _ranges_shown
@@ -292,6 +301,7 @@ func _process(_delta: float) -> void:
 	var show_areas := (held != null and (held.power_use > 0.0 or held is PowerPoleDef or held is GeneratorDef)) \
 		or tools.hover_building is PowerPole
 	active_view.network_view.show_power_areas = show_areas
+	active_view.network_view.power_overlay = _power_shown
 	active_view.network_view.show_underground = held is FluidBuildingDef or tools.hover_building is UndergroundPipe
 	# Модальный диалог подтверждения тоже блокирует ввод в мир.
 	var enabled := not pause_menu.is_open() and not hud.is_modal_open()
@@ -318,7 +328,7 @@ func _on_drone_changed_world() -> void:
 	belt_overlay.visible = _belts_shown
 	grid_overlay.set_chunk_lines_visible(_debug_enabled)
 	tools.set_world(world)
-	camera.set_map_size(world.grid.get_pixel_size())
+	camera.set_map_size(world.get_play_rect_px())
 	hud.on_world_changed()
 	_on_view_changed()
 	terrain.flush()
@@ -332,6 +342,7 @@ func _on_planet_changed() -> void:
 	add_child(planet_view)
 	move_child(planet_view, old_view.get_index())
 	planet_view.setup(run.planet, camera, clock)
+	run.planet.bounds_changed.connect(_on_bounds_changed.bind(run.planet))
 	planet_view.turret_view.show_ranges = _ranges_shown
 	remove_child(old_view)
 	old_view.queue_free()
@@ -343,11 +354,17 @@ func _on_planet_changed() -> void:
 	belt_overlay.visible = _belts_shown
 	grid_overlay.set_chunk_lines_visible(_debug_enabled)
 	tools.set_world(world)
-	camera.set_map_size(world.grid.get_pixel_size())
+	camera.set_map_size(world.get_play_rect_px())
 	hud.on_planet_changed()
 	_on_view_changed()
 	terrain.flush()
 	save_named(AUTOSAVE_FILE, tr("SAVE_NAME_AUTO"), false)
+
+
+## Площадка или открытая часть этажа расширилась: камера получает новые границы, если этот мир на экране.
+func _on_bounds_changed(changed: GameWorld) -> void:
+	if changed == world:
+		camera.set_map_size(world.get_play_rect_px())
 
 
 func _view_of(target: GameWorld) -> WorldView:

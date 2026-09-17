@@ -22,6 +22,9 @@ var active: StringName = &""
 var manual_queue: int = 0
 var manual_ticks: int = 0
 
+var _effect_counts: Dictionary[StringName, int] = {}
+var _effects_signature: int = -1
+
 
 func is_done(id: StringName) -> bool:
 	return done.has(id)
@@ -52,6 +55,33 @@ func set_active(id: StringName) -> bool:
 	active = id
 	changed.emit()
 	return true
+
+
+## Сколько завершённых исследований дают эффект (в творческом режиме — все такие исследования).
+## Кэш пересчитывается, когда меняется число завершённых исследований или режим.
+func count_effect(effect: StringName) -> int:
+	var signature := done.size() * 2 + (1 if creative else 0)
+	if signature != _effects_signature:
+		_effects_signature = signature
+		_effect_counts.clear()
+		for research in Registry.researches:
+			if creative or is_done(research.id):
+				for e in research.effects:
+					_effect_counts[e] = int(_effect_counts.get(e, 0)) + 1
+	return int(_effect_counts.get(effect, 0))
+
+
+func has_effect(effect: StringName) -> bool:
+	return count_effect(effect) > 0
+
+
+## Сколько всего исследований дают эффект (наибольшее число шагов).
+static func max_effect(effect: StringName) -> int:
+	var n := 0
+	for research in Registry.researches:
+		if research.effects.has(effect):
+			n += 1
+	return n
 
 
 func is_building_unlocked(def: BuildingDef) -> bool:

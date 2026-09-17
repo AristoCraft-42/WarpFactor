@@ -426,8 +426,8 @@ func _process(delta: float) -> void:
 		if not _drone_was_dead:
 			Events.toast(tr("TOAST_DRONE_DESTROYED"), Events.ToastKind.WARNING)
 	_drone_was_dead = dead
-	# Подсказка перехода: дрон над центральным шлюзом.
-	var can_pass := _game.run != null and _game.run.can_use_gateway()
+	# Подсказка перехода: дрон над центральным шлюзом (закрытый этаж — подсказка об исследовании).
+	var can_pass := _game.run != null and _game.run.is_over_gateway()
 	if can_pass != _gateway_label.visible:
 		_gateway_label.visible = can_pass
 		if can_pass:
@@ -501,6 +501,9 @@ func _update_hint() -> void:
 
 
 func _update_gateway_label() -> void:
+	if not _game.run.is_underground_open():
+		_gateway_label.text = tr("HINT_GATEWAY_LOCKED") % tr(Registry.get_research(&"underground").name_key)
+		return
 	var key := "HINT_GATEWAY_TO_PLANET" if _game.world.is_base else "HINT_GATEWAY_TO_BASE"
 	_gateway_label.text = tr(key) % InputActions.primary_label(&"use_gateway")
 
@@ -519,6 +522,12 @@ func _update_problem() -> void:
 				key = "PROBLEM_BAD_TERRAIN"
 			BuildingManager.Check.ON_FLUID:
 				key = "PROBLEM_ON_FLUID"
+			BuildingManager.Check.LIFT_AREA:
+				key = "PROBLEM_LIFT_AREA"
+			BuildingManager.Check.LIFT_PAIR:
+				key = "PROBLEM_LIFT_PAIR"
+			BuildingManager.Check.LOCKED:
+				key = "PROBLEM_LOCKED"
 			BuildingManager.Check.OCCUPIED:
 				key = "PROBLEM_OCCUPIED"
 			BuildingManager.Check.OUT_OF_BOUNDS:

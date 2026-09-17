@@ -10,6 +10,9 @@ extends Resource
 @export var first_planet_type: PlanetTypeDef
 ## На сколько шагов вперёд видна звёздная карта (позже — открывается исследованиями).
 @export var visible_depth: int = 3
+## Сторона площадки шлюза на планете в начале и прирост за каждое исследование «Расширение площадки», тайлов.
+@export var pad_start_size: int = 20
+@export var pad_size_step: int = 4
 ## Сколько планет в каждом шаге звёздной карты.
 @export var min_nodes_per_step: int = 2
 @export var max_nodes_per_step: int = 3

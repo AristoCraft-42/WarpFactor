@@ -154,7 +154,8 @@ func update_tick(tick: int) -> void:
 		return
 	if move_input != Vector2.ZERO:
 		var step := move_input.limit_length(1.0) * def.get_speed_per_tick()
-		position = (position + step).clamp(Vector2.ZERO, world.grid.get_pixel_size())
+		var bounds := world.get_play_rect_px()
+		position = (position + step).clamp(bounds.position, bounds.end)
 		facing = move_input.angle()
 	if is_mining():
 		_mine()

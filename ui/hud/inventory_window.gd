@@ -437,7 +437,8 @@ func _clear_sections() -> void:
 static func _signature(sections: Array[WindowSection]) -> String:
 	var parts := PackedStringArray()
 	for section in sections:
-		parts.append("%d:%s:%d" % [section.kind, section.title, section.stacks.size()])
+		var title := section.title if section.kind != WindowSection.Kind.GRAPH else ""
+		parts.append("%d:%s:%d:%d" % [section.kind, title, section.stacks.size(), section.series_names.size()])
 	return "|".join(parts)
 
 
@@ -474,6 +475,31 @@ func _make_section_view(section: WindowSection) -> Dictionary:
 			row.add_child(slot)
 			slots.append(slot)
 		view["slots"] = slots
+	elif section.kind == WindowSection.Kind.GRAPH:
+		var box := UiUtil.vbox(4)
+		_sections_box.add_child(box)
+		var chart := PowerChart.new()
+		chart.custom_minimum_size = Vector2(RIGHT_MIN_SIZE.x, 130)
+		box.add_child(chart)
+		var legend := UiUtil.hbox(12)
+		box.add_child(legend)
+		var legend_labels: Array[Label] = []
+		for i in section.series_names.size():
+			var l := Label.new()
+			l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+			l.add_theme_font_size_override("font_size", 13)
+			legend.add_child(l)
+			legend_labels.append(l)
+		view["chart"] = chart
+		view["legend"] = legend_labels
+	elif section.kind == WindowSection.Kind.TEXT:
+		var label := Label.new()
+		label.theme_type_variation = &"DimLabel"
+		label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.custom_minimum_size = Vector2(RIGHT_MIN_SIZE.x, 0)
+		_sections_box.add_child(label)
+		view["text"] = label
 	else:
 		var row := UiUtil.hbox(10)
 		_sections_box.add_child(row)
@@ -531,6 +557,14 @@ func _update_section_view(view: Dictionary, section: WindowSection) -> void:
 			else:
 				slots[i].set_stack(-1, 0)
 				slots[i].modulate = Color.WHITE
+	elif view.has("chart"):
+		(view["chart"] as PowerChart).set_data(section.series, section.series_colors, section.max_value, section.title)
+		var legend: Array[Label] = view["legend"]
+		for i in legend.size():
+			legend[i].text = "— " + section.series_names[i] if i < section.series_names.size() else ""
+			legend[i].add_theme_color_override("font_color", section.series_colors[i] if i < section.series_colors.size() else Color.WHITE)
+	elif view.has("text"):
+		(view["text"] as Label).text = "\n".join(section.lines)
 	else:
 		(view["bar"] as ProgressBar).value = section.fraction
 		(view["fill"] as StyleBoxFlat).bg_color = section.color

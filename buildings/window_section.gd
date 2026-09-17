@@ -5,7 +5,7 @@ extends RefCounted
 ## Клик по ячейке забирает предмет (take_player_items), клик по инвентарю кладёт (accept_item сам решает,
 ## куда: топливо — в топливо, сырьё — во вход).
 
-enum Kind { SLOTS, BAR }
+enum Kind { SLOTS, BAR, GRAPH, TEXT }
 
 const COLOR_PROGRESS := Color(0.98, 0.74, 0.18)
 const COLOR_POWER := Color(0.72, 0.73, 0.15)
@@ -24,6 +24,13 @@ var can_take: bool = true
 var fraction: float = 0.0
 var text: String = ""
 var color: Color = COLOR_PROGRESS
+## График: ряды значений, их цвета и подписи, верх шкалы.
+var series: Array[PackedFloat32Array] = []
+var series_colors := PackedColorArray()
+var series_names := PackedStringArray()
+var max_value: float = 1.0
+## Текст: строки.
+var lines := PackedStringArray()
 
 
 static func slots(p_title: String, p_stacks: Array[Vector2i], p_hints: PackedInt32Array = PackedInt32Array(), p_can_take: bool = true) -> WindowSection:
@@ -43,6 +50,25 @@ static func bar(p_title: String, p_fraction: float, p_text: String, p_color: Col
 	s.fraction = clampf(p_fraction, 0.0, 1.0)
 	s.text = p_text
 	s.color = p_color
+	return s
+
+
+static func graph(p_title: String, p_series: Array[PackedFloat32Array], p_colors: PackedColorArray,
+		p_names: PackedStringArray, p_max: float) -> WindowSection:
+	var s := WindowSection.new()
+	s.kind = Kind.GRAPH
+	s.title = p_title
+	s.series = p_series
+	s.series_colors = p_colors
+	s.series_names = p_names
+	s.max_value = p_max
+	return s
+
+
+static func text_lines(p_lines: PackedStringArray) -> WindowSection:
+	var s := WindowSection.new()
+	s.kind = Kind.TEXT
+	s.lines = p_lines
 	return s
 
 

@@ -6,5 +6,8 @@
 script = ExtResource("1_def")
 id = &"base"
 title_key = "LOCATION_BASE"
-size = 24
+size = 46
+start_size = 16
+size_step = 6
 floor_id = &"metal_plates"
+void_floor_id = &"void"
