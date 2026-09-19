@@ -61,6 +61,9 @@ func _ready() -> void:
 	for arg in args:
 		if arg.begins_with("--load="):
 			Session.load_path = arg.substr("--load=".length())
+		elif arg == "--creative":
+			# Творческий забег прямо из командной строки: нужен автопрогону и ручной отладке.
+			Session.creative = true
 	if not Session.load_path.is_empty():
 		var path := Session.load_path
 		Session.load_path = ""
@@ -122,6 +125,10 @@ func _start() -> void:
 		var shot_script: Script = load("res://tests/autoshot.gd")
 		if shot_script != null:
 			add_child(shot_script.new())
+	if args.has("--players-check"):
+		var players_script: Script = load("res://tests/players_check.gd")
+		if players_script != null:
+			add_child(players_script.new())
 	for arg in args:
 		if arg.begins_with("--stress="):
 			var stress_script: Script = load("res://tests/stress_render.gd")

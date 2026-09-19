@@ -290,13 +290,13 @@ func _run_players(game: Game) -> void:
 	_expect(second.drone.inventory.count(conveyor.item.index) == 4 and first.drone.inventory.count(conveyor.item.index) == mine_before,
 		"лента списалась у напарника, а не у меня")
 	run.planet.buildings.remove(run.planet.buildings.get_at(tile), true)
-	# Переключение между игроками: интерфейс и камера переезжают.
-	game.switch_player()
+	# Переключение между игроками настоящей клавишей.
+	await _key(KEY_U)
 	await _frames(20)
 	_expect(run.local_player == second.id and game.hud.inventory_window != null, "F8 переключает на напарника")
 	_expect(run.drone == second.drone, "теперь играем за напарника")
 	await _shot("m02_switched.png")
-	game.switch_player()
+	await _key(KEY_U)
 	await _frames(10)
 	_expect(run.local_player == first.id, "обратное переключение вернуло своего дрона")
 	run.remove_player(second.id)
@@ -943,10 +943,12 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	await _mouse_move(game, a)
 	var old_rotation := straight.rotation
 	await _key(KEY_R)
+	await _settle(game)
 	_expect(straight.rotation == (old_rotation + 1) % 4, "R пустой рукой поворачивает ленту под курсором")
 	await _key(KEY_R)
 	await _key(KEY_R)
 	await _key(KEY_R)
+	await _settle(game)
 	_expect(straight.rotation == old_rotation, "четыре поворота возвращают исходное направление")
 
 	# Пипетка копирует здание под курсором.
@@ -1889,6 +1891,7 @@ func _run_build_helpers(game: Game, base: Vector2i) -> void:
 	await _shot("i07_belt_obstacles_preview.png")
 	await _mouse_button(game, b, MOUSE_BUTTON_LEFT, false)
 	await _key(KEY_ESCAPE)
+	await _settle(game)
 	var entry := bm.get_at(Vector2i(spot.x + 4, y)) as BridgeConveyor
 	var exit := bm.get_at(Vector2i(spot.x + 7, y)) as BridgeConveyor
 	_expect(entry != null and exit != null and entry.get_link_target() == exit, "лента перепрыгнула стены мостом")
@@ -1910,6 +1913,7 @@ func _run_build_helpers(game: Game, base: Vector2i) -> void:
 	await _frames(3)
 	await _mouse_button(game, p1, MOUSE_BUTTON_LEFT, false)
 	await _key(KEY_ESCAPE)
+	await _settle(game)
 	var poles: Array[PowerPole] = []
 	for dx in [1, 8, 15]:
 		poles.append(bm.get_at(Vector2i(spot.x + dx, spot.y + 5)) as PowerPole)

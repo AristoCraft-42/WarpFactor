@@ -16,7 +16,7 @@ const GROUP_GAME := "INPUT_GROUP_GAME"
 const SLOTS := 2
 ## Версия схемы управления. Сохранённые привязки старой версии сбрасываются к умолчаниям,
 ## если схема изменилась несовместимо (например, WASD стали двигать дрона, а не камеру).
-const BINDINGS_VERSION := 4
+const BINDINGS_VERSION := 5
 
 
 ## Описание всех действий: имя, ключ перевода, группа, привязки по умолчанию.
@@ -56,8 +56,9 @@ static func definitions() -> Array[Dictionary]:
 		{"name": &"toggle_grid", "label": "ACTION_TOGGLE_GRID", "group": GROUP_VIEW, "events": ["key:G"]},
 		{"name": &"toggle_debug", "label": "ACTION_TOGGLE_DEBUG", "group": GROUP_VIEW, "events": ["key:F3"]},
 
-		{"name": &"player_add", "label": "ACTION_PLAYER_ADD", "group": GROUP_GAME, "events": ["key:F7"]},
-		{"name": &"player_switch", "label": "ACTION_PLAYER_SWITCH", "group": GROUP_GAME, "events": ["key:F8"]},
+		# F5-F8 не годятся: их перехватывает редактор Godot (запуск, пауза, остановка игры).
+		{"name": &"player_add", "label": "ACTION_PLAYER_ADD", "group": GROUP_GAME, "events": ["key:Ctrl+U"]},
+		{"name": &"player_switch", "label": "ACTION_PLAYER_SWITCH", "group": GROUP_GAME, "events": ["key:U"]},
 	]
 
 
