@@ -36,7 +36,7 @@ godot --headless --path D:\Mind res://tests/test_runner.tscn
 ```
 
 `tests/test_runner.gd` — плоский список функций `_test_*`, каждая печатает свои проверки.
-В конце — счётчик (сейчас **1336 проверок**) и ненулевой код возврата при провале.
+В конце — счётчик (сейчас **1376 проверок**) и ненулевой код возврата при провале.
 
 Что покрыто, по группам:
 
@@ -51,6 +51,7 @@ godot --headless --path D:\Mind res://tests/test_runner.tscn
 | Мир и забег | `_test_star_map`, `_test_planet_generator`, `_test_teleport`, `_test_run_gateway`, `_test_breach_teleport`, `_test_gateway_growth` |
 | Сохранения | `_test_save_roundtrip_and_determinism`, `_test_save_remap`, `_test_save_files`, `_test_building_state_roundtrip`, `_test_determinism`, `_test_enemy_save_determinism` |
 | Игроки и команды | `_test_players`, `_test_commands`, `_test_command_order`, `_test_command_determinism` |
+| Сеть | `_test_net_join`, `_test_net_play`, `_test_net_desync_repair`, `_test_net_leave` (протокол на транспорте в памяти) |
 | Бой и оборона | `_test_enemy_attack`, `_test_flow_field`, `_test_threat_schedule`, `_test_spawn_points`, `_test_turret_*`, `_test_walls_route`, `_test_drone_gun_and_repair`, `_test_artillery` |
 | Интерфейс (логика) | `_test_building_windows`, `_test_pole_drag_and_camera`, `_test_belt_drag_obstacles`, `_test_line_planner`, `_test_quick_transfer`, `_test_settings_entries`, `_test_input_codes` |
 
@@ -95,6 +96,17 @@ godot --path D:\Mind res://ui/menu/main_menu.tscn -- --autoshot --autoshot-dir=D
 - Сценарий пишет в слот сохранения с именем `autoshot slot` — он перезаписывается каждым прогоном.
 
 ---
+
+## 2а. Сеть через настоящий ENet
+
+```
+godot --headless --path D:\Mind res://tests/net_check.tscn
+```
+
+`tests/net_check.gd` поднимает хоста и клиента в одном процессе, но через настоящий ENet
+на 127.0.0.1: соединение, снимок мира по сети, обмен командами, состав игроков и сверка отпечатков
+состояния по одинаковым тикам (клиент идёт позади хоста на задержку ввода, поэтому сравнивать
+«сейчас с сейчас» нельзя). 9 проверок, несколько секунд.
 
 ## 2б. Совместная игра
 

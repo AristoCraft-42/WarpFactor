@@ -57,6 +57,11 @@ func _ready() -> void:
 	Registry.ensure_loaded()
 	ArtRegistry.ensure_built()
 
+	# Клиент вошёл в сетевую игру ещё из меню: забег уже пришёл снимком.
+	if Session.net.role == NetSession.Role.CLIENT and Session.net.run != null:
+		run = Session.net.run
+		_start()
+		return
 	var args := OS.get_cmdline_user_args()
 	for arg in args:
 		if arg.begins_with("--load="):
@@ -170,7 +175,13 @@ func _build_scene() -> void:
 	clock = SimClock.new()
 	clock.name = "SimClock"
 	add_child(clock)
-	clock.setup(run.step)
+	clock.setup(_net_step)
+	Session.net.run_replaced.connect(_on_run_replaced)
+	Session.net.time_state.connect(_on_net_time)
+	clock.state_changed.connect(_on_clock_changed)
+	Session.net.notice.connect(func(text: String) -> void: Events.toast(text, Events.ToastKind.INFO))
+	if Session.net.is_networked():
+		Session.net.set_run(run)
 
 	camera = CameraController.new()
 	camera.name = "Camera"
@@ -227,6 +238,62 @@ func _build_scene() -> void:
 	pause_menu.closed.connect(_update_input_enabled)
 
 	Settings.changed.connect(_on_setting_changed)
+
+
+## Шаг симуляции с оглядкой на сеть: клиент считает тик, только когда получил его команды.
+func _net_step() -> void:
+	if Session.net.is_networked():
+		Session.net.poll()
+		if not Session.net.can_step():
+			return
+	run.step()
+	Session.net.after_step()
+
+
+## Время общее: свою паузу и скорость отправляем всем, чужие принимаем молча.
+var _applying_net_time: bool = false
+
+
+func _on_clock_changed() -> void:
+	if _applying_net_time or not Session.net.is_networked():
+		return
+	Session.net.send_time(clock.paused, clock.speed_index)
+
+
+func _on_net_time(paused: bool, speed_index: int) -> void:
+	_applying_net_time = true
+	clock.speed_index = clampi(speed_index, 0, SimClock.SPEEDS.size() - 1)
+	clock.paused = paused
+	clock.state_changed.emit()
+	_applying_net_time = false
+
+
+## Клиенту пришёл снимок мира: старый забег выбрасываем и собираем сцену заново.
+func _on_run_replaced(fresh: Run) -> void:
+	if fresh == run:
+		return
+	var old := run
+	run = fresh
+	world = run.drone.world
+	_rebuild_for_new_run()
+	if old != null:
+		old.dispose()
+
+
+func _rebuild_for_new_run() -> void:
+	for child in get_children():
+		if child == clock:
+			continue
+		remove_child(child)
+		child.queue_free()
+	_build_scene()
+	clock.setup(_net_step)
+	run.drone_changed_world.connect(_on_drone_changed_world)
+	run.planet_changed.connect(_on_planet_changed)
+	Session.net.set_run(run)
+	camera.focus_on(run.drone.position, 1.0)
+	_on_view_changed()
+	terrain.flush()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -310,6 +377,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
+	if Session.net.is_networked():
+		Session.net.poll()
 	if tools == null:
 		return
 	# Автосохранение по времени игры (тики базы), интервал — из настроек.

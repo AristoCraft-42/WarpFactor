@@ -12,6 +12,30 @@ var run_seed: int = -1
 var load_path: String = ""
 ## Творческий режим: постройки не расходуются, радиус дрона не ограничен.
 var creative: bool = false
+## Совместная игра: одна на всё приложение, переживает смену сцен.
+var net := NetSession.new()
+## Имя игрока в сети.
+var player_name: String = ""
+## Поиск игр в локальной сети (создаётся по требованию).
+var discovery: LanDiscovery
+
+
+func _process(_delta: float) -> void:
+	# Транспорт опрашивается и в меню: так работает подключение до загрузки игровой сцены.
+	if net.is_networked():
+		net.poll()
+	if discovery != null:
+		discovery.poll()
+
+
+## Имя игрока: из настроек, иначе имя компьютера.
+func get_player_name() -> String:
+	if not player_name.is_empty():
+		return player_name
+	var saved := String(Settings.get_value(&"net/player_name"))
+	if not saved.is_empty():
+		return saved
+	return OS.get_environment("USERNAME") if not OS.get_environment("USERNAME").is_empty() else "Игрок"
 
 
 ## Загрузить сохранение: игровая сцена перезапускается и берёт забег из файла.
@@ -43,6 +67,10 @@ func start_level(level_def: LevelDef, p_creative: bool) -> void:
 
 
 func exit_to_menu() -> void:
+	net.close()
+	if discovery != null:
+		discovery.stop()
+		discovery = null
 	get_tree().paused = false
 	get_tree().change_scene_to_file(MENU_SCENE)
 

@@ -38,6 +38,9 @@ var local_player: int = 1
 var next_player_id: int = 1
 ## Очередь команд: через неё идут все действия игроков (см. core/command.gd).
 var commands := CommandQueue.new()
+## Куда уходит отданная команда. Пусто — сразу в очередь (одиночная игра); в сетевой игре
+## её ставит NetSession: команда идёт хосту и вернётся окончательным списком на тик.
+var command_router: Callable
 
 ## Дрон локального игрока — старый код и интерфейс обращаются к нему как раньше.
 var drone: Drone:
@@ -152,11 +155,11 @@ func _register_player(name: String, p_drone: Drone, id: int = 0) -> Player:
 
 
 ## Новый игрок: дрон появляется у центрального шлюза планеты со стартовым набором забега.
-func add_player(name: String = "") -> Player:
+func add_player(name: String = "", id: int = 0) -> Player:
 	var gate := get_gateway(planet)
 	var spawn := gate.get_world_center() if gate != null else Vector2(planet.grid.width, planet.grid.height) * GameConst.TILE_SIZE * 0.5
 	var fresh := Drone.new(Registry.drone_def, planet, spawn)
-	var player := _register_player(name, fresh)
+	var player := _register_player(name, fresh, id)
 	fresh.crafting.recipe_filter = research.is_hand_recipe_unlocked if research != null else Callable()
 	if research != null:
 		fresh.apply_upgrades(research, false)
@@ -318,7 +321,43 @@ func submit_for(player_id: int, kind: Command.Kind, args: Dictionary = {}) -> vo
 	var cmd := Command.make(kind, player_id, args)
 	cmd.seq = player.next_seq
 	player.next_seq += 1
-	commands.submit(cmd, get_tick())
+	if command_router.is_valid():
+		command_router.call(cmd)
+	else:
+		commands.submit(cmd, get_tick())
+
+
+## Отпечаток состояния забега для сверки между участниками сетевой игры.
+## Считается быстро (без сериализации) и по всему, что влияет на ход игры: тик, постройки
+## и их состояние, предметы на лентах, дроны с инвентарями, исследования.
+## Расходится — значит симуляции разъехались.
+func state_hash() -> int:
+	var parts := PackedInt64Array()
+	parts.append(get_tick())
+	parts.append(research.done.size() * 1000 + research.manual_queue)
+	for world in [planet, base]:
+		if world == null or world.buildings == null:
+			continue
+		parts.append(world.buildings.get_count())
+		parts.append(world.simulation.conveyors.get_item_count())
+		parts.append(world.enemies.count * 31 + world.enemies.killed)
+		var acc := 0
+		for b in world.buildings.get_all():
+			acc = (acc * 31 + b.id) & 0x3FFFFFFF
+			acc = (acc * 31 + b.origin.x * 1013 + b.origin.y * 7919 + b.rotation) & 0x3FFFFFFF
+			acc = (acc * 31 + roundi(b.health)) & 0x3FFFFFFF
+		parts.append(acc)
+	for p in players:
+		var d := p.drone
+		parts.append(p.id)
+		parts.append(roundi(d.position.x * 8.0))
+		parts.append(roundi(d.position.y * 8.0))
+		parts.append(roundi(d.health))
+		var items := 0
+		for i in d.inventory.totals.size():
+			items = (items * 17 + d.inventory.totals[i] * (i + 1)) & 0x3FFFFFFF
+		parts.append(items)
+	return hash(parts)
 
 
 ## Текущий тик забега (оба мира тикают вместе).
@@ -335,7 +374,7 @@ func _apply_commands() -> void:
 ## Выполнить одну команду. Все изменения мира проходят здесь: и в одиночной игре, и в сетевой.
 func execute(cmd: Command) -> void:
 	if cmd.kind == Command.Kind.PLAYER_ADD:
-		add_player(String(cmd.args.get("name", "")))
+		add_player(String(cmd.args.get("name", "")), int(cmd.args.get("id", 0)))
 		return
 	if cmd.kind == Command.Kind.PLAYER_REMOVE:
 		remove_player(int(cmd.args.get("player", cmd.player)))

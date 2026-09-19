@@ -10,6 +10,7 @@ var _background: TextureRect
 var _pages: CenterContainer
 var _new_run: NewRunScreen
 var _saves: SavesScreen
+var _network: NetworkScreen
 var _settings: SettingsMenu
 var _buttons: Array[Button] = []
 
@@ -50,6 +51,7 @@ func _ready() -> void:
 	_add_menu_button(left, "MENU_NEW_RUN", _show_new_run, &"BigButton")
 	var load_button := _add_menu_button(left, "MENU_LOAD", _show_saves, &"BigButton")
 	load_button.disabled = not has_saves
+	_add_menu_button(left, "MENU_JOIN_GAME", _show_network, &"BigButton")
 	_add_menu_button(left, "MENU_SETTINGS", _show_settings, &"BigButton")
 	_add_menu_button(left, "MENU_QUIT", func() -> void: Session.quit_game(), &"BigButton")
 
@@ -73,6 +75,11 @@ func _ready() -> void:
 	_saves.visible = false
 	_saves.back_requested.connect(_close_pages)
 	_pages.add_child(_saves)
+
+	_network = NetworkScreen.new()
+	_network.visible = false
+	_network.back_requested.connect(_close_pages)
+	_pages.add_child(_network)
 
 	_settings = SettingsMenu.new()
 	_settings.visible = false
@@ -125,9 +132,17 @@ func _continue_latest() -> void:
 		Session.load_game(path)
 
 
+func _show_network() -> void:
+	_new_run.visible = false
+	_saves.visible = false
+	_settings.visible = false
+	_network.visible = true
+
+
 func _show_settings() -> void:
 	_new_run.visible = false
 	_saves.visible = false
+	_network.visible = false
 	_settings.visible = true
 	_settings.refresh()
 
@@ -135,6 +150,7 @@ func _show_settings() -> void:
 func _close_pages() -> void:
 	_new_run.visible = false
 	_saves.visible = false
+	_network.visible = false
 	_settings.visible = false
 
 

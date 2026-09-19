@@ -106,6 +106,10 @@ func _ready() -> void:
 	_test_commands()
 	_test_command_order()
 	_test_command_determinism()
+	_test_net_join()
+	_test_net_play()
+	_test_net_desync_repair()
+	_test_net_leave()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -2385,6 +2389,177 @@ func _command_run() -> Run:
 		p.drone.position = run.get_gateway(run.planet).get_world_center()
 	second.drone.position += Vector2(0, GameConst.TILE_SIZE * 2)
 	return run
+
+
+## Вход в сетевую игру: клиент получает снимок мира и своего игрока.
+func _test_net_join() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	_check(host.host_run(host_run, 0, host_transport), "хост открыл игру")
+	_check(host_run.command_router.is_valid(), "команды забега уходят в сеть")
+	# Покрутим мир, чтобы снимок был не с нулевого тика.
+	for i in 40:
+		host.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	_check(client.run != null, "клиенту пришёл снимок мира")
+	if client.run == null:
+		host.close()
+		return
+	_check(client.run.get_tick() == host_run.get_tick(), "тик клиента совпал с хостом (%d и %d)"
+		% [client.run.get_tick(), host_run.get_tick()])
+	_check(client.run.state_hash() == host_run.state_hash(), "состояние клиента совпало с хостом")
+	_net_run(host, host_run, client, 20)
+	_check(host_run.players.size() == 2 and client.run.players.size() == 2, "игрок добавлен у обоих (%d и %d)"
+		% [host_run.players.size(), client.run.players.size()])
+	_check(client.run.local_player != 1 and client.run.get_player(client.run.local_player) != null,
+		"клиент играет за своего игрока")
+	host.close()
+	client.close()
+	host_run.dispose()
+
+
+## Игра по сети: команды обоих участников применяются в одном тике и мир остаётся одинаковым.
+func _test_net_play() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 20)
+	var conveyor := Registry.get_building(&"conveyor")
+	var host_player: Player = host_run.players[0]
+	var mate_id := client.run.local_player
+	for run in [host_run, client.run]:
+		for p in run.players:
+			p.drone.inventory.add(conveyor.item.index, 20)
+			p.drone.position = run.get_gateway(run.planet).get_world_center() + Vector2(0, GameConst.TILE_SIZE * (p.id - 1))
+	var host_tile := host_player.drone.get_tile() + Vector2i(3, 0)
+	var mate_tile := host_player.drone.get_tile() + Vector2i(3, 2)
+	# Оба отдают команды «одновременно» — каждый со своей стороны.
+	host_run.submit(Command.Kind.BUILD, {"places": [{"def": "conveyor", "origin": host_tile, "rotation": 0, "config": null}]})
+	client.run.submit(Command.Kind.BUILD, {"places": [{"def": "conveyor", "origin": mate_tile, "rotation": 0, "config": null}]})
+	client.run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT})
+	_net_run(host, host_run, client, 40)
+	_check(host_run.planet.buildings.get_at(host_tile) != null and host_run.planet.buildings.get_at(mate_tile) != null,
+		"у хоста построены обе ленты")
+	_check(client.run.planet.buildings.get_at(host_tile) != null and client.run.planet.buildings.get_at(mate_tile) != null,
+		"у клиента построены обе ленты")
+	_check(host_run.get_player(mate_id).drone.move_input == Vector2.RIGHT, "команда движения клиента дошла до хоста")
+	_check(host_run.state_hash() == client.run.state_hash(), "состояния совпадают после совместной игры")
+	_check(client.run.get_tick() <= host_run.get_tick(), "клиент не обгоняет хоста")
+	host.close()
+	client.close()
+	host_run.dispose()
+
+
+## Расхождение: хост замечает разную контрольную сумму и чинит клиента снимком.
+func _test_net_desync_repair() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	var notices := PackedStringArray()
+	host.notice.connect(func(text: String) -> void: notices.append(text))
+	var repaired := [false]
+	client.run_replaced.connect(func(_fresh: Run) -> void: repaired[0] = true)
+	_net_run(host, host_run, client, 20)
+	# Ломаем мир клиента мимо команд — так выглядит любое расхождение.
+	client.run.players[0].drone.position += Vector2(64, 0)
+	_check(client.run.state_hash() != host_run.state_hash(), "состояния разъехались")
+	_net_run(host, host_run, client, NetProtocol.CHECKSUM_EVERY * 2 + 20)
+	_check(repaired[0], "клиент получил снимок для починки")
+	_check(client.run.state_hash() == host_run.state_hash(), "после починки состояния снова совпадают")
+	_check(notices.size() > 0, "хост сообщил о расхождении")
+	host.close()
+	client.close()
+	host_run.dispose()
+
+
+## Выход игрока: дрон остаётся стоять, вещи при нём; вернувшийся занимает своё тело.
+func _test_net_leave() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 20)
+	var mate_id := client.run.local_player
+	var stone := _item(&"stone")
+	host_run.get_player(mate_id).drone.inventory.add(stone, 7)
+	client.run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT})
+	_net_run(host, host_run, client, 20)
+	host_transport.drop(2)
+	client.close()
+	for i in 20:
+		host.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+	var left := host_run.get_player(mate_id)
+	_check(left != null and left.drone.world != null, "дрон вышедшего остался в мире")
+	_check(left.drone.move_input == Vector2.ZERO, "дрон вышедшего остановлен")
+	_check(left.drone.inventory.count(stone) == 7, "вещи вышедшего при нём")
+	# Возвращаемся под тем же именем — занимаем своё тело.
+	var again := _join_client(host, host_transport, 3, "Напарник")
+	_check(again.run != null and again.run.local_player == mate_id, "вернувшийся занял своё тело (%d)"
+		% (again.run.local_player if again.run != null else -1))
+	_check(host_run.players.size() == 2, "новый игрок не заводится (%d)" % host_run.players.size())
+	if again.run != null:
+		_check(again.run.get_player(mate_id).drone.inventory.count(stone) == 7, "вещи на месте после возвращения")
+	host.close()
+	again.close()
+	host_run.dispose()
+
+
+## Подключить клиента к хосту и дождаться снимка.
+func _join_client(host: NetSession, host_transport: LoopbackTransport, id: int, name: String) -> NetSession:
+	var client_transport := LoopbackTransport.connect_client(host_transport, id)
+	var client := NetSession.new()
+	client.join_run("", 0, name, client_transport)
+	for i in 10:
+		host.poll()
+		client.poll()
+		if client.run != null:
+			break
+	return client
+
+
+## Прокрутить сетевую игру: обе стороны опрашивают транспорт и шагают, когда можно.
+func _net_run(host: NetSession, host_run: Run, client: NetSession, ticks: int) -> void:
+	for i in ticks:
+		host.poll()
+		client.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+		client.poll()
+		if client.can_step():
+			client.run.step()
+			client.after_step()
+	# Дать клиенту догнать хоста.
+	for i in 30:
+		host.poll()
+		client.poll()
+		if client.run != null and client.can_step() and client.run.get_tick() < host_run.get_tick():
+			client.run.step()
+			client.after_step()
 
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).

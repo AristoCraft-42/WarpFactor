@@ -1,0 +1,151 @@
+class_name NetworkScreen
+extends PanelContainer
+## Подключение к совместной игре: имя игрока, список игр в локальной сети и прямой адрес.
+## Сама игра приходит снимком от хоста — свой забег для этого не нужен.
+
+signal back_requested
+
+const REFRESH := 1.5
+
+var _name_edit: LineEdit
+var _address_edit: LineEdit
+var _port_edit: LineEdit
+var _list: ItemList
+var _status: Label
+var _join_button: Button
+var _timer: float = 0.0
+var _addresses: PackedStringArray = PackedStringArray()
+
+
+func _ready() -> void:
+	custom_minimum_size = Vector2(760, 520)
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	var root := UiUtil.vbox(12)
+	add_child(root)
+	var title := UiUtil.label("NET_JOIN_TITLE", &"HeaderLabel")
+	title.add_theme_font_size_override("font_size", 22)
+	root.add_child(title)
+	root.add_child(UiUtil.label("NET_JOIN_HINT", &"DimLabel"))
+
+	var name_row := UiUtil.hbox(8)
+	root.add_child(name_row)
+	name_row.add_child(UiUtil.label("NET_PLAYER_NAME"))
+	_name_edit = LineEdit.new()
+	_name_edit.text = Session.get_player_name()
+	_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_row.add_child(_name_edit)
+
+	root.add_child(UiUtil.label("NET_FOUND", &"DimLabel"))
+	_list = ItemList.new()
+	_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_list.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_list.item_selected.connect(_on_item_selected)
+	_list.item_activated.connect(func(index: int) -> void:
+		_on_item_selected(index)
+		_join())
+	root.add_child(_list)
+
+	var address_row := UiUtil.hbox(8)
+	root.add_child(address_row)
+	address_row.add_child(UiUtil.label("NET_ADDRESS"))
+	_address_edit = LineEdit.new()
+	_address_edit.placeholder_text = "127.0.0.1"
+	_address_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	address_row.add_child(_address_edit)
+	_port_edit = LineEdit.new()
+	_port_edit.text = str(NetProtocol.DEFAULT_PORT)
+	_port_edit.custom_minimum_size = Vector2(90, 0)
+	address_row.add_child(_port_edit)
+
+	_status = Label.new()
+	_status.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_status.theme_type_variation = &"DimLabel"
+	root.add_child(_status)
+
+	var buttons := UiUtil.hbox(8)
+	root.add_child(buttons)
+	_join_button = UiUtil.button("NET_CONNECT", _join, &"AccentButton")
+	buttons.add_child(_join_button)
+	buttons.add_child(UiUtil.spacer(true))
+	buttons.add_child(UiUtil.button("BACK", func() -> void: back_requested.emit()))
+
+	if Session.discovery == null:
+		Session.discovery = LanDiscovery.new()
+	Session.discovery.listen()
+	Session.discovery.refresh()
+	Session.net.notice.connect(_on_notice)
+
+
+func _exit_tree() -> void:
+	if Session.discovery != null:
+		Session.discovery.stop()
+
+
+func _process(delta: float) -> void:
+	_timer -= delta
+	if _timer > 0.0:
+		return
+	_timer = REFRESH
+	if Session.discovery != null:
+		Session.discovery.refresh()
+	_refresh_list()
+
+
+func _refresh_list() -> void:
+	var found := Session.discovery.found if Session.discovery != null else {}
+	var selected := _list.get_selected_items()
+	var keep := _addresses[selected[0]] if not selected.is_empty() and selected[0] < _addresses.size() else ""
+	_list.clear()
+	_addresses = PackedStringArray()
+	for address in found:
+		var info: Dictionary = found[address]
+		_list.add_item("%s — %s:%d (%d)" % [String(info.get("name", address)), address,
+			int(info.get("port", NetProtocol.DEFAULT_PORT)), int(info.get("players", 1))])
+		_addresses.append(address)
+	if _list.item_count == 0:
+		_status.text = tr("NET_SEARCHING")
+	for i in _addresses.size():
+		if _addresses[i] == keep:
+			_list.select(i)
+
+
+func _on_item_selected(index: int) -> void:
+	if index < 0 or index >= _addresses.size():
+		return
+	var address := _addresses[index]
+	var info: Dictionary = Session.discovery.found.get(address, {})
+	_address_edit.text = address
+	_port_edit.text = str(int(info.get("port", NetProtocol.DEFAULT_PORT)))
+
+
+func _join() -> void:
+	var address := _address_edit.text.strip_edges()
+	if address.is_empty():
+		_status.text = tr("NET_NEED_ADDRESS")
+		return
+	Session.player_name = _name_edit.text.strip_edges()
+	Settings.set_value(&"net/player_name", Session.player_name)
+	var port := _port_edit.text.to_int()
+	if port <= 0:
+		port = NetProtocol.DEFAULT_PORT
+	_status.text = tr("NET_CONNECTING") % address
+	_join_button.disabled = true
+	if not Session.net.join_run(address, port, Session.get_player_name()):
+		_status.text = tr("NET_CONNECT_FAILED")
+		_join_button.disabled = false
+		return
+	# Как только придёт снимок мира, переходим в игровую сцену.
+	Session.net.run_replaced.connect(_on_run_ready, CONNECT_ONE_SHOT)
+
+
+func _on_run_ready(_run: Run) -> void:
+	Session.load_path = ""
+	Session.run_seed = -1
+	Session.level = null
+	get_tree().paused = false
+	get_tree().change_scene_to_file(Session.GAME_SCENE)
+
+
+func _on_notice(text: String) -> void:
+	_status.text = text
+	_join_button.disabled = false

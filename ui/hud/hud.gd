@@ -460,13 +460,17 @@ func _process(delta: float) -> void:
 ## Список игроков: своё имя выделено, остальные — где они сейчас.
 func _update_players() -> void:
 	var run := _game.run
-	_players_label.visible = run.players.size() > 1
+	_players_label.visible = run.players.size() > 1 or Session.net.is_networked()
 	if not _players_label.visible:
 		return
+	var online := Session.net.online_players() if Session.net.is_networked() else PackedInt32Array()
 	var parts := PackedStringArray()
 	for p in run.players:
 		var mark := "▸" if p.id == run.local_player else "·"
-		parts.append("%s %s" % [mark, p.name])
+		var suffix := ""
+		if Session.net.is_networked() and not online.has(p.id):
+			suffix = " (%s)" % tr("HUD_NET_OFFLINE")
+		parts.append("%s %s%s" % [mark, p.name, suffix])
 	_players_label.text = tr("HUD_PLAYERS") % ", ".join(parts)
 
 

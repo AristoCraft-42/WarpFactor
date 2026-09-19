@@ -12,6 +12,8 @@ var _saves_holder: CenterContainer
 var _saves: SavesScreen
 ## Текущий забег (для сохранения).
 var run: Run
+var _net_button: Button
+var _net_status: Label
 
 
 func _ready() -> void:
@@ -40,6 +42,12 @@ func _ready() -> void:
 	column.add_child(HSeparator.new())
 	column.add_child(UiUtil.button("PAUSE_RESUME", close, &"AccentButton"))
 	column.add_child(UiUtil.button("MENU_SETTINGS", _open_settings))
+	_net_button = UiUtil.button("PAUSE_HOST", _toggle_host)
+	column.add_child(_net_button)
+	_net_status = Label.new()
+	_net_status.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_net_status.theme_type_variation = &"DimLabel"
+	column.add_child(_net_status)
 	column.add_child(UiUtil.button("PAUSE_SAVE", _open_saves.bind(SavesScreen.Mode.SAVE)))
 	column.add_child(UiUtil.button("MENU_LOAD", _open_saves.bind(SavesScreen.Mode.LOAD)))
 	column.add_child(HSeparator.new())
@@ -63,11 +71,45 @@ func _ready() -> void:
 	_saves_holder.add_child(_saves)
 
 
+## Открыть текущий забег для сети или закрыть его.
+func _toggle_host() -> void:
+	if Session.net.is_networked():
+		Session.net.close()
+		if Session.discovery != null:
+			Session.discovery.stop()
+		_refresh_net()
+		return
+	if run == null:
+		return
+	if Session.net.host_run(run, NetProtocol.DEFAULT_PORT):
+		if Session.discovery == null:
+			Session.discovery = LanDiscovery.new()
+		Session.discovery.serve(Session.get_player_name(), NetProtocol.DEFAULT_PORT)
+		Session.discovery.set_players(run.players.size())
+	_refresh_net()
+
+
+func _refresh_net() -> void:
+	if _net_button == null:
+		return
+	var net := Session.net
+	_net_button.text = "PAUSE_NET_CLOSE" if net.is_networked() else "PAUSE_HOST"
+	if net.role == NetSession.Role.HOST:
+		_net_status.text = tr("NET_HOSTING") % NetProtocol.DEFAULT_PORT
+	elif net.role == NetSession.Role.CLIENT:
+		_net_status.text = tr("NET_CONNECTED")
+	elif net.last_error == "port":
+		_net_status.text = tr("NET_PORT_BUSY") % NetProtocol.DEFAULT_PORT
+	else:
+		_net_status.text = ""
+
+
 func open() -> void:
 	visible = true
 	_main_panel.visible = true
 	_settings_holder.visible = false
 	_saves_holder.visible = false
+	_refresh_net()
 
 
 func close() -> void:
