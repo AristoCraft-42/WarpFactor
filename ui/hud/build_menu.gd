@@ -50,7 +50,7 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 		b.focus_mode = Control.FOCUS_NONE
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.add_theme_font_size_override("font_size", 13)
-		var sample := Registry.buildings_in_category(i as BuildingDef.Category)
+		var sample := Registry.buildings_in_category(i as BuildingDef.Category, _world.creative)
 		if not sample.is_empty():
 			b.icon = ArtRegistry.get_building_texture(sample[0])
 			b.add_theme_constant_override("icon_max_width", 18)
@@ -98,7 +98,7 @@ func _select_category(category: int) -> void:
 		child.queue_free()
 	_building_buttons.clear()
 	_count_labels.clear()
-	for def in Registry.buildings_in_category(category as BuildingDef.Category):
+	for def in Registry.buildings_in_category(category as BuildingDef.Category, _world.creative):
 		var b := Button.new()
 		b.toggle_mode = true
 		b.button_group = _building_group

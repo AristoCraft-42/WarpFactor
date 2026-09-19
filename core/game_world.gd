@@ -185,6 +185,12 @@ func place_gateway(def: GatewayDef, origin: Vector2i, rotation: int = 0) -> Gate
 	return gateway
 
 
+## Левый верхний тайл шлюза, чтобы его центр пришёлся на тайл center.
+static func gateway_origin(def: GatewayDef, center: Vector2i, gate_size: int = 0) -> Vector2i:
+	var s := gate_size if gate_size > 0 else def.start_size
+	return center - Vector2i.ONE * (s / 2)
+
+
 ## Угроза опасной планеты: поле потоков к шлюзу, точки появления, расписание волн.
 ## compute — сразу посчитать поле (при загрузке оно восстанавливается из сохранения).
 func setup_threat(def: ThreatDef, start_tick: int, seed_value: int, compute: bool = true) -> void:
@@ -194,7 +200,7 @@ func setup_threat(def: ThreatDef, start_tick: int, seed_value: int, compute: boo
 	if spawn_points.is_empty() and gateway != null:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = hash([seed_value, "spawns"])
-		var center := gateway.origin + Vector2i.ONE * (gateway.def.size / 2)
+		var center := gateway.origin + Vector2i.ONE * (gateway.get_size() / 2)
 		spawn_points = SpawnPoints.find(grid.width, grid.height, grid.floors, center, def.spawn_point_count, rng)
 	threat = ThreatDirector.new(self, def, start_tick, hash([seed_value, "threat"]))
 
@@ -332,7 +338,14 @@ func can_interact(building: Building) -> bool:
 ## Проверка строительства игроком: размещение, радиус дрона, постройка в инвентаре.
 ## budget — для планирования ряда построек: при успехе постройка резервируется в нём,
 ## иначе проверяется текущий инвентарь.
+## Творческие блоки доступны только в творческом режиме.
+func is_def_allowed(def: BuildingDef) -> bool:
+	return not def.creative_only or creative
+
+
 func check_build(def: BuildingDef, origin: Vector2i, rotation: int, budget: Inventory.Budget = null) -> BuildingManager.Check:
+	if not is_def_allowed(def):
+		return BuildingManager.Check.LOCKED
 	var check := buildings.check_place(def, origin, rotation)
 	if check != BuildingManager.Check.OK and check != BuildingManager.Check.REPLACE:
 		return check
@@ -452,6 +465,26 @@ func player_take(building: Building, item: int, amount: int) -> int:
 	if taken > 0:
 		drone.inventory.add(item, taken)
 	return taken
+
+
+## Shift+ЛКМ: забрать из здания всю накопленную продукцию. Возвращает, сколько забрано.
+func player_take_output(building: Building) -> int:
+	var taken := 0
+	for stack in building.get_player_output_stacks():
+		taken += player_take(building, stack.x, stack.y)
+	return taken
+
+
+## Shift+ПКМ: загрузить в здание всё подходящее из инвентаря дрона, сколько влезет.
+func player_fill(building: Building) -> int:
+	if not building.accepts_player_items():
+		return 0
+	var put := 0
+	for item in drone.inventory.totals.size():
+		var have := drone.inventory.count(item)
+		if have > 0 and building.accept_item(null, item):
+			put += player_put(building, item, have)
+	return put
 
 
 ## Положить предметы из инвентаря дрона в здание (сколько оно примет). Возвращает количество.

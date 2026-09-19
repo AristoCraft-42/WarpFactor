@@ -500,6 +500,27 @@ static func make_building(def: BuildingDef) -> Image:
 			_rect(img, Rect2i(Vector2i(c + Vector2(-8, -2) * k), Vector2i(Vector2(16, 4) * k)), body.lightened(0.25))
 			_poly(img, PackedVector2Array([c + Vector2(0, -10) * k, c + Vector2(5, -5) * k, c + Vector2(-5, -5) * k]), ACCENT)
 			_poly(img, PackedVector2Array([c + Vector2(0, 10) * k, c + Vector2(5, 5) * k, c + Vector2(-5, 5) * k]), Color("83a598"))
+		BuildingDef.Glyph.TANK:
+			# Бак: цилиндр с уровнем жидкости и обручем.
+			_rect(img, Rect2i(Vector2i(c + Vector2(-13, -12) * k), Vector2i(Vector2(26, 24) * k)), dark)
+			_rect(img, Rect2i(Vector2i(c + Vector2(-11, -10) * k), Vector2i(Vector2(22, 20) * k)), body.lightened(0.12))
+			_rect(img, Rect2i(Vector2i(c + Vector2(-11, -2) * k), Vector2i(Vector2(22, 12) * k)), Color("458588"))
+			_line(img, c + Vector2(-11, -2) * k, c + Vector2(11, -2) * k, 2.0 * k, LIGHT)
+		BuildingDef.Glyph.SOURCE:
+			# Источник: круг со стрелками наружу.
+			_circle(img, c, 11.0 * k, dark)
+			_circle(img, c, 8.0 * k, ACCENT)
+			for i in 4:
+				var a := i * TAU / 4.0
+				var dir := Vector2(cos(a), sin(a))
+				_poly(img, PackedVector2Array([c + dir * 13.0 * k, c + dir * 8.0 * k + Vector2(dir.y, -dir.x) * 4.0 * k,
+					c + dir * 8.0 * k - Vector2(dir.y, -dir.x) * 4.0 * k]), dark)
+		BuildingDef.Glyph.SINK:
+			# Поглотитель: воронка со стрелками внутрь.
+			_rect(img, Rect2i(Vector2i(c + Vector2(-12, -12) * k), Vector2i(Vector2(24, 24) * k)), dark)
+			_poly(img, PackedVector2Array([c + Vector2(-10, -8) * k, c + Vector2(10, -8) * k, c + Vector2(2, 10) * k,
+				c + Vector2(-2, 10) * k]), Color("504945"))
+			_circle(img, c + Vector2(0, -2) * k, 4.0 * k, Color("1d2021"))
 		BuildingDef.Glyph.TURRET:
 			# Основание турели: круглая площадка с болтами, ствол рисуется поверх (TurretView).
 			_circle(img, c, 12.5 * k, dark)

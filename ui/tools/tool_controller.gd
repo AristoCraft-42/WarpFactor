@@ -3,6 +3,8 @@ extends Node
 ## Инструменты игрока.
 ## - ЛКМ: строительство (одиночное и протягиванием), вставка скопированного; пустой рукой —
 ##   выбор здания (настройка, окно склада/завода) или добыча руды дроном, пока кнопка зажата.
+## - Shift+ЛКМ по зданию пустой рукой — забрать накопленную продукцию, Shift+ПКМ — загрузить в него
+##   всё подходящее сырьё из инвентаря.
 ## - ПКМ с зажатием: выделение области; X — снести выделенное (без выделения — здание под курсором),
 ##   C — скопировать выделенное в руку.
 ##   Клик ПКМ отменяет инструмент или выделение, а по зданию без инструмента выделяет его.
@@ -255,7 +257,11 @@ func copy_area() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled:
 		return
-	if event.is_action_pressed("build_primary"):
+	if event.is_action_pressed("build_primary") and _quick_transfer(true):
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("select_area") and _quick_transfer(false):
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("build_primary"):
 		match mode:
 			Mode.PLACE:
 				_begin_place_drag()
@@ -566,6 +572,27 @@ func _pipette() -> void:
 
 ## Клик ЛКМ пустой рукой: выбрать здание с настройкой или окном (склад, завод, бур); для выбранного
 ## моста клик по другому мосту в пределах дальности связывает их (повторный клик — разрывает связь).
+## Быстрый обмен с зданием под курсором по Shift: забрать продукцию (ЛКМ) или загрузить сырьё (ПКМ).
+## Возвращает true, если обмен состоялся и клик больше никому не нужен.
+func _quick_transfer(take: bool) -> bool:
+	if not Input.is_key_pressed(KEY_SHIFT) or mode != Mode.NONE or _over_ui:
+		return false
+	var building := hover_building
+	if building == null or not building.has_player_window():
+		return false
+	if not _world.can_interact(building):
+		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
+		return true
+	var moved := _world.player_take_output(building) if take else _world.player_fill(building)
+	if moved > 0:
+		Events.toast(tr("TOAST_QUICK_TAKE" if take else "TOAST_QUICK_PUT") % moved, Events.ToastKind.SUCCESS)
+	elif take:
+		Events.toast(tr("TOAST_QUICK_EMPTY"), Events.ToastKind.INFO)
+	else:
+		Events.toast(tr("TOAST_QUICK_NOTHING"), Events.ToastKind.INFO)
+	return true
+
+
 func _click_select() -> void:
 	var clicked := hover_building
 	if clicked != null and clicked.has_player_window() and not _world.can_interact(clicked):
@@ -595,9 +622,16 @@ func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 		if not _axis_locked and delta != Vector2i.ZERO:
 			_x_first = absi(delta.x) >= absi(delta.y)
 			_axis_locked = true
+		var fluid_def := def as FluidBuildingDef
+		if fluid_def != null and fluid_def.role == FluidBuildingDef.Role.UNDERGROUND:
+			# Подземные трубы протягиваются парами на наибольшем расстоянии — как опоры ЛЭП.
+			_set_ghosts(LinePlanner.plan_underground(_world, fluid_def, _drag_start, tile, rotation, budget))
+			return
 		var path := LinePlanner.l_path(_drag_start, tile, _x_first, rotation)
 		if def is ConveyorDef and path.size() > 1:
 			ghosts = LinePlanner.plan_belt(_world, def, path, budget)
+		elif fluid_def != null and fluid_def.role == FluidBuildingDef.Role.PIPE and path.size() > 1:
+			ghosts = LinePlanner.plan_pipe(_world, def, path, budget)
 		else:
 			for step in path:
 				var origin := Vector2i(step.x, step.y)

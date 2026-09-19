@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/creative_item_source.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"creative_item_source"
+name_key = "BUILDING_CREATIVE_ITEM_SOURCE"
+color = Color(0.694, 0.384, 0.525, 1)
+sort_order = 1900
+stack_size = 20
+building = ExtResource("2_building")

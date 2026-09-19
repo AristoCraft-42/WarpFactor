@@ -219,6 +219,13 @@ func get_player_stacks() -> Array[Vector2i]:
 	return stacks
 
 
+func get_player_output_stacks() -> Array[Vector2i]:
+	var stacks: Array[Vector2i] = []
+	if _item >= 0 and buffer > 0:
+		stacks.append(Vector2i(_item, buffer))
+	return stacks
+
+
 func take_player_items(item: int, amount: int) -> int:
 	var taken := 0
 	if item == _item:

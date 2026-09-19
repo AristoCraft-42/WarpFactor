@@ -15,6 +15,9 @@ var _gate_label: Label
 var _gate_bar: ProgressBar
 var _timer: float = 0.0
 var _gate_alert_timer: float = 0.0
+var _creative_row: HBoxContainer
+var _wave_button: Button
+var _waves_toggle: CheckButton
 ## Для уведомлений: мир планеты, последняя предупреждённая и начавшаяся волна, прочность шлюза.
 var _tracked_world: GameWorld
 var _warned_wave: int = 0
@@ -48,6 +51,23 @@ func setup(game: Game) -> void:
 	_gate_bar.max_value = 1.0
 	_gate_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_gate_row.add_child(_gate_bar)
+	# Творческий режим: позвать волну и включить/выключить волны совсем.
+	_creative_row = UiUtil.hbox(6)
+	column.add_child(_creative_row)
+	_wave_button = UiUtil.button("THREAT_CALL_WAVE", func() -> void:
+		_game.run.call_creative_wave()
+		refresh())
+	_wave_button.focus_mode = Control.FOCUS_NONE
+	_wave_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	_creative_row.add_child(_wave_button)
+	_waves_toggle = CheckButton.new()
+	_waves_toggle.text = "THREAT_WAVES_ON"
+	_waves_toggle.focus_mode = Control.FOCUS_NONE
+	_waves_toggle.mouse_filter = Control.MOUSE_FILTER_STOP
+	_waves_toggle.toggled.connect(func(on: bool) -> void:
+		_game.run.set_creative_threat(on)
+		refresh())
+	_creative_row.add_child(_waves_toggle)
 	refresh()
 
 
@@ -69,7 +89,14 @@ func refresh() -> void:
 	var threat := planet.threat
 	if planet != _tracked_world:
 		_reset_tracking(planet)
-	visible = threat != null
+	_creative_row.visible = run.creative
+	if run.creative:
+		mouse_filter = Control.MOUSE_FILTER_PASS
+		_waves_toggle.set_pressed_no_signal(threat != null)
+	visible = threat != null or run.creative
+	_wave_label.visible = threat != null
+	_enemies_label.visible = threat != null
+	_gate_row.visible = threat != null
 	if threat == null:
 		return
 	var tick := planet.simulation.tick

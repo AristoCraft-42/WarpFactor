@@ -8,6 +8,8 @@ extends Node2D
 
 const BODY_RADIUS := 13.0
 const RANGE_COLOR := Color(0.98, 0.74, 0.18, 0.35)
+## Сколько тиков висит надпись о добыче.
+const MINED_TICKS := 45
 const BEAM_COLOR := Color(0.99, 0.5, 0.1, 0.9)
 const TURN_SPEED := 14.0
 
@@ -52,6 +54,7 @@ func _draw() -> void:
 		_draw_range(pos)
 	if _drone.is_mining():
 		_draw_beam(pos)
+	_draw_mined_label()
 	if _drone.is_repairing():
 		_draw_repair(pos)
 	_draw_body(pos)
@@ -84,6 +87,26 @@ func _draw_repair(pos: Vector2) -> void:
 	draw_line(pos, target, Color(0.85, 1.0, 0.8, 0.8 * flicker), 1.2)
 	draw_circle(target, 4.0 * flicker, Color(0.72, 0.9, 0.6, 0.9))
 	draw_rect(rect.grow(1.0), Color(0.56, 0.75, 0.49, 0.6), false, 2.0)
+
+
+## Надпись «Камень ×11» над последним добытым тайлом: всплывает и гаснет за MINED_TICKS тиков.
+func _draw_mined_label() -> void:
+	if _drone.last_mined_item < 0 or _drone.world == null:
+		return
+	var age := _drone.world.simulation.tick - _drone.last_mined_tick
+	if age < 0 or age >= MINED_TICKS:
+		return
+	var font := ThemeDB.fallback_font
+	if font == null:
+		return
+	var fade := 1.0 - float(age) / MINED_TICKS
+	var t := float(GameConst.TILE_SIZE)
+	var pos := Vector2(_drone.last_mined_tile) * t + Vector2(t * 0.5, -10.0 - 14.0 * (1.0 - fade))
+	var text := "%s ×%d" % [tr(Registry.items[_drone.last_mined_item].name_key), _drone.last_mined_count]
+	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+	var at := pos - Vector2(width * 0.5, 0.0)
+	draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.85 * fade))
+	draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.98, 0.94, 0.78, fade))
 
 
 func _draw_beam(pos: Vector2) -> void:

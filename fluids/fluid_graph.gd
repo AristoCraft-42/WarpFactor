@@ -68,6 +68,8 @@ class FluidNetwork:
 var networks: Array[FluidNetwork] = []
 ## Трубы мира по id (для отрисовки).
 var pipes: Dictionary[int, Building] = {}
+## Растёт при каждой перестройке сетей — по нему отрисовка понимает, что кэш устарел.
+var version: int = 0
 
 var _world: GameWorld
 var _dirty: bool = true
@@ -148,6 +150,7 @@ func pipe_connects(pipe: Building, side: int) -> bool:
 # --- Пересборка ---
 
 func rebuild() -> void:
+	version += 1
 	_dirty = false
 	# Объём старых сетей — в доли узлов.
 	var shares: Dictionary[int, float] = {}

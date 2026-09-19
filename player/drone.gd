@@ -23,6 +23,12 @@ var mine_tile: Vector2i = NO_TILE
 var mine_progress: int = 0
 ## Добыча стоит: нет руды, далеко, мешает здание или инвентарь полон.
 var mine_blocked: bool = false
+## Последняя добыча для надписи над тайлом (только отрисовка, в сохранение не идёт):
+## что добыли, сколько его стало в инвентаре, где и в каком тике.
+var last_mined_item: int = -1
+var last_mined_count: int = 0
+var last_mined_tile: Vector2i = NO_TILE
+var last_mined_tick: int = -100000
 var health: float = 0.0
 ## Дрон сбит и ждёт появления у шлюза (respawn_tick).
 var dead: bool = false
@@ -272,3 +278,7 @@ func _mine() -> void:
 	if mine_progress >= get_mine_ticks(ore):
 		mine_progress = 0
 		inventory.add(ore.item.index, 1)
+		last_mined_item = ore.item.index
+		last_mined_count = inventory.count(ore.item.index)
+		last_mined_tile = mine_tile
+		last_mined_tick = world.simulation.tick

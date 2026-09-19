@@ -18,6 +18,7 @@ var enemy_renderer: EnemyRenderer
 var combat_overlay: CombatOverlay
 var turret_view: TurretView
 var network_view: NetworkView
+var pipe_layer: PipeLayer
 
 
 func setup(p_world: GameWorld, camera: CameraController, clock: SimClock) -> void:
@@ -62,6 +63,11 @@ func setup(p_world: GameWorld, camera: CameraController, clock: SimClock) -> voi
 	enemy_renderer.name = "Enemies"
 	add_child(enemy_renderer)
 	enemy_renderer.setup(world, camera, clock)
+
+	pipe_layer = PipeLayer.new()
+	pipe_layer.name = "Pipes"
+	add_child(pipe_layer)
+	pipe_layer.setup(world)
 
 	network_view = NetworkView.new()
 	network_view.name = "Networks"

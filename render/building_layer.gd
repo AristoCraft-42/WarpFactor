@@ -60,7 +60,7 @@ static func draw_building_extras(canvas: CanvasItem, building: Building) -> void
 			for tile in gate.get_output_tiles():
 				draw_port_arrow(canvas, tile, gate.get_output_side(), false)
 	if building is Drill:
-		draw_side_arrow(canvas, building.get_world_center(), building.def.size, building.rotation, false)
+		draw_side_arrow(canvas, building.get_world_center(), building.get_size(), building.rotation, false)
 	if building.is_inverted():
 		# Инверсия: сиреневая рамка и уголок-отметка.
 		var rect := building.get_world_rect().grow(-2.0)
@@ -131,9 +131,11 @@ static func draw_port_arrow(canvas: CanvasItem, port: Vector2i, side: int, incom
 
 
 ## Рисует здание (или «призрак» при размещении) на произвольном CanvasItem.
-static func draw_building(canvas: CanvasItem, def: BuildingDef, origin: Vector2i, rotation: int, modulate: Color = Color.WHITE) -> void:
+## size — занимаемый размер в тайлах (0 — взять из данных): шлюз рисуется по своему текущему размеру.
+static func draw_building(canvas: CanvasItem, def: BuildingDef, origin: Vector2i, rotation: int,
+		modulate: Color = Color.WHITE, size: int = 0) -> void:
 	var texture := ArtRegistry.get_building_texture(def)
-	var size_px := def.get_pixel_size()
+	var size_px := Vector2.ONE * (size * GameConst.TILE_SIZE) if size > 0 else def.get_pixel_size()
 	var top_left := Vector2(origin * GameConst.TILE_SIZE)
 	if def.rotatable and posmod(rotation, 4) != 0:
 		canvas.draw_set_transform(top_left + size_px * 0.5, GameConst.dir_angle(rotation))

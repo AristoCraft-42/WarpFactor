@@ -17,7 +17,7 @@
 | `research/` | `research_state.gd`, `research_def.gd`, дерево и эффекты — `research/defs/*.tres` |
 | `enemies/`, `combat/` | Враги, волны (`threat_director.gd`), поле потоков, снаряды |
 | `player/` | Дрон, очередь крафта, выпавший груз; параметры — `player/drone.tres` |
-| `render/` | Отрисовка мира, предметов, врагов, оверлеи (ленты, сети, радиусы) |
+| `render/` | Отрисовка мира, предметов, врагов, оверлеи (ленты, сети, радиусы). Тяжёлые слои (`building_layer.gd`, `pipe_layer.gd`) кэшируют отрисовку по чанкам — не рисовать мир каждый кадр обходом всех зданий |
 | `ui/` | `hud/` (окна, панели, дерево исследований, график сети), `menu/`, `tools/` (инструменты мыши, протягивание линий) |
 | `save/` | `save_io.gd` (формат и слоты), `save_context.gd` (ремап ссылок при загрузке) |
 | `i18n/` | `strings.csv` — все тексты RU/EN (переводы пересобираются при импорте) |
@@ -36,10 +36,10 @@ $g = "D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.e
 # Переимпорт (обязателен после новых class_name и новых .tres)
 & $g --headless --path D:\Mind --import
 
-# Логические тесты (сейчас 1222 проверки)
+# Логические тесты (сейчас 1303 проверки)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 
-# Автопрогон со скриншотами (НЕ headless, нужно видимое окно; 179 проверок, ~130 с)
+# Автопрогон со скриншотами (НЕ headless, нужно видимое окно; 191 проверка, ~150 с)
 & $g --path D:\Mind res://core/game.tscn -- --autoshot --autoshot-dir=D:/shots
 & $g --path D:\Mind res://ui/menu/main_menu.tscn -- --autoshot --autoshot-dir=D:/shots
 
@@ -66,6 +66,7 @@ $g = "D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.e
 - **Тексты** добавляются в `i18n/strings.csv` (ключ, EN, RU), иначе в интерфейсе появится сырой ключ.
 - **Парсер GDScript:** метод не может называться как поле класса; типизированные массивы не складываются через `+`; целочисленное деление обрезает.
 - **Ссылки на сети** (`PowerNetwork`, сети жидкостей) пересоздаются при пересборке — перечитывать после тиков.
+- **Размер здания** берётся из `Building.get_size()`, а не из `def.size`: шлюз растёт по исследованиям.
 - `.godot/` и `/builds/` в `.gitignore`; коммиты — по одному на этап.
 
 ## Уровень 2 — подробности

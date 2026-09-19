@@ -96,6 +96,12 @@ func _ready() -> void:
 	_test_coal_drill()
 	_test_drone_upgrades()
 	_test_research_queue()
+	_test_pipe_dragging()
+	_test_creative_blocks()
+	_test_gateway_growth()
+	_test_quick_transfer()
+	_test_pipe_layer()
+	_test_creative_research()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -143,14 +149,14 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 5, "ожидалось 5 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 25, "ожидалось 25 зданий (23 строится + шлюз и пара), есть %d" % Registry.buildings.size())
+	_check(Registry.buildings.size() == 30, "ожидалось 30 зданий (24 обычных, 4 творческих, шлюз и пара), есть %d" % Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
-	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 41,
-		"13 рецептов и 41 исследование (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 42,
+		"13 рецептов и 42 исследования (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16 and Registry.base_def.size_step == 6,
 		"параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 17 + 23, "ожидалось 17 предметов и 23 предмета-постройки, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 17 + 28, "ожидалось 17 предметов и 28 предметов-построек, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
 	for def in Registry.buildings:
@@ -163,7 +169,7 @@ func _test_registry() -> void:
 	for i in Registry.items.size():
 		_check(Registry.items[i].index == i, "индекс предмета не совпадает")
 	for def in Registry.buildings:
-		if def.player_buildable:
+		if def.player_buildable and not def.creative_only:
 			_check(def.item != null and def.item.building == def, "у здания %s есть предмет-постройка" % def.id)
 			_check(def.item != null and Registry.get_hand_recipe(def.item.index) != null, "у здания %s есть рецепт крафта" % def.id)
 	for category in 4:
@@ -1258,7 +1264,7 @@ func _test_run_gateway() -> void:
 		run.dispose()
 		return
 	_check(run.drone.world == run.planet and run.can_use_gateway(), "дрон появляется над шлюзом на планете")
-	var center := gate.origin + Vector2i.ONE
+	var center := gate.origin + Vector2i.ONE * (gate.get_size() / 2)
 	var pad_side := run.get_pad_size()
 	_check(run.planet.pad_rect == Rect2i(center - Vector2i.ONE * (pad_side / 2), Vector2i(pad_side, pad_side)), "площадка вокруг шлюза (после всех расширений)")
 
@@ -2022,6 +2028,210 @@ func _test_research_queue() -> void:
 	var queued: StringName = state.queue[0]
 	state.set_active(queued)
 	_check(state.queue_position(queued) == 0, "выбранное руками уходит из очереди")
+
+
+## Протягивание труб: препятствия перекрываются парой подземных, а ряд подземных ставится
+## с наибольшим шагом (как опоры ЛЭП).
+func _test_pipe_dragging() -> void:
+	var world := Worlds.empty_world(40, 12)
+	var pipe_def := Registry.get_building(&"pipe")
+	var under_def := Registry.get_building(&"underground_pipe") as FluidBuildingDef
+	var y := 5
+	# Стена из трёх построек поперёк трассы.
+	for x in range(6, 9):
+		world.buildings.place(Registry.get_building(&"stone_wall"), Vector2i(x, y), 0, true)
+	var path := LinePlanner.l_path(Vector2i(3, y), Vector2i(14, y), true, GameConst.Dir.RIGHT)
+	var budget := world.drone.inventory.make_budget()
+	var ghosts := LinePlanner.plan_pipe(world, pipe_def, path, budget)
+	var under_ghosts: Array[PlacementPreview.Ghost] = []
+	for g in ghosts:
+		if g.def == under_def:
+			under_ghosts.append(g)
+	_check(under_ghosts.size() == 2, "через стену встают две подземные трубы (%d)" % under_ghosts.size())
+	if under_ghosts.size() == 2:
+		_check(under_ghosts[0].origin == Vector2i(5, y) and under_ghosts[1].origin == Vector2i(9, y),
+			"вход перед стеной и выход сразу за ней (%s → %s)" % [under_ghosts[0].origin, under_ghosts[1].origin])
+		_check(under_ghosts[0].rotation == GameConst.Dir.RIGHT and under_ghosts[1].rotation == GameConst.Dir.LEFT,
+			"выход развёрнут навстречу входу")
+	for g in ghosts:
+		_check(g.origin.x < 6 or g.origin.x > 8, "на тайлы стены труба не ставится (%s)" % g.origin)
+
+	# Ряд подземных труб: пара на всю дальность, следующая пара сразу за ней.
+	var line := LinePlanner.plan_underground(world, under_def, Vector2i(2, 9), Vector2i(2 + under_def.underground_range + 3, 9),
+		GameConst.Dir.RIGHT, budget)
+	_check(line.size() == 4, "ряд подземных труб: две пары (%d труб)" % line.size())
+	if line.size() == 4:
+		_check(line[1].origin.x - line[0].origin.x == under_def.underground_range, "пара на наибольшем расстоянии")
+		_check(line[2].origin.x - line[1].origin.x == 1, "следующая пара начинается вплотную к прошлой")
+		_check(line[0].rotation == GameConst.Dir.RIGHT and line[1].rotation == GameConst.Dir.LEFT
+			and line[2].rotation == GameConst.Dir.RIGHT, "повороты чередуются")
+	world.dispose()
+
+
+## Творческие блоки: источник предметов, энергии и жидкости, поглотитель; вне творческого режима не ставятся.
+func _test_creative_blocks() -> void:
+	var world := Worlds.empty_world(32, 16, true)
+	var item_def := Registry.get_building(&"creative_item_source") as CreativeBlockDef
+	var power_def := Registry.get_building(&"creative_power_source") as CreativeBlockDef
+	var fluid_def := Registry.get_building(&"creative_fluid_source") as CreativeBlockDef
+	var void_def := Registry.get_building(&"creative_void") as CreativeBlockDef
+	_check(item_def.creative_only and power_def.creative_only and fluid_def.creative_only and void_def.creative_only,
+		"творческие блоки помечены creative_only")
+	var normal := Worlds.empty_world(16, 12, false)
+	_check(normal.check_build(item_def, Vector2i(4, 4), 0) == BuildingManager.Check.LOCKED, "вне творческого режима блок не ставится")
+	_check(world.check_build(item_def, Vector2i(4, 4), 0) == BuildingManager.Check.OK, "в творческом режиме ставится")
+	normal.dispose()
+
+	# Источник предметов: выдаёт выбранное с выбранной скоростью.
+	var source := world.buildings.place(item_def, Vector2i(4, 4), 0, true) as CreativeBlock
+	var stone := _item(&"stone")
+	world.configure(source, Vector2i(stone, 2))
+	var sink := _sink(world, Vector2i(5, 4))
+	Worlds.run_ticks(world, 10 * GameConst.TICK_RATE)
+	var rate := float(sink.received) / 10.0
+	_check(absf(rate - item_def.get_rate(2)) <= 0.6, "источник выдаёт %.1f предм./с (ожидалось %.0f)" % [rate, item_def.get_rate(2)])
+
+	# Поглотитель принимает всё.
+	var sink_block := world.buildings.place(void_def, Vector2i(10, 4), 0, true) as CreativeBlock
+	_check(sink_block.accept_item(null, stone) and sink_block.accept_item(null, _item(&"coal")), "поглотитель принимает любые предметы")
+
+	# Источник энергии кормит потребителя без топлива.
+	var assembler := world.buildings.place(Registry.get_building(&"assembler"), Vector2i(4, 9), 0, true) as Crafter
+	world.configure(assembler, &"gear")
+	for i in 20:
+		assembler.handle_item(null, _item(&"iron_ingot"))
+	var power := world.buildings.place(power_def, Vector2i(8, 9), 0, true) as CreativeBlock
+	world.buildings.place(Registry.get_building(&"small_power_pole"), Vector2i(7, 10), 0, true)
+	Worlds.run_ticks(world, 60)
+	_check(power.power_net != null and assembler.power_net == power.power_net, "источник энергии и сборщик в одной сети")
+	_check(is_equal_approx(assembler.get_power_satisfaction(), 1.0), "сборщик питается от творческого источника")
+
+	# Источник жидкости наливает в трубу, поглотитель её выкачивает.
+	var water := Registry.get_fluid(&"water").index
+	var fluid_source := world.buildings.place(fluid_def, Vector2i(14, 4), 0, true) as CreativeBlock
+	world.configure(fluid_source, Vector2i(water, 2))
+	Worlds.conveyor_line(world, Vector2i(15, 4), 1, GameConst.Dir.RIGHT, &"pipe")
+	Worlds.run_ticks(world, 60)
+	var net := world.fluids.get_port_network(fluid_source, 0)
+	_check(net != null and net.fluid == water and net.amount > 0.0, "источник налил воду в трубу (%.0f)" % (net.amount if net != null else 0.0))
+	world.dispose()
+
+
+## Шлюз начинает забег 2×2 и вырастает до 4×4 после всех «Портов шлюза»; центр не съезжает.
+func _test_gateway_growth() -> void:
+	var run := Run.create(null, LevelMap.new(64, 48, Registry.get_floor(&"stone").index), false)
+	var gate := run.get_gateway(run.planet)
+	var pair := run.get_gateway(run.base)
+	var def := gate.get_gateway_def()
+	_check(def.start_size == 2 and def.grown_size == 4, "в данных два размера шлюза")
+	_check(gate.get_size() == 2 and pair.get_size() == 2, "в начале забега шлюз 2×2")
+	var center := gate.origin + Vector2i.ONE
+	var pad := run.planet.pad_rect
+	_check(pad.position + pad.size / 2 == center, "площадка симметрична вокруг центра шлюза")
+	_check(run.planet.buildings.get_at(gate.origin) == gate and run.planet.buildings.get_at(gate.origin + Vector2i.ONE) == gate
+		and run.planet.buildings.get_at(gate.origin + Vector2i(2, 0)) == null, "шлюз занимает ровно 2×2")
+	var steps := ResearchState.max_effect(&"gateway_ports")
+	for research in Registry.researches:
+		if research.effects.has(&"gateway_ports"):
+			run.research.done[research.id] = true
+	run.research._effects_signature = -1
+	run.apply_research_effects()
+	_check(steps > 0 and gate.get_size() == 4 and pair.get_size() == 4, "после всех «Портов шлюза» шлюз 4×4")
+	_check(gate.origin + Vector2i(2, 2) == center, "центр шлюза остался на месте")
+	_check(run.planet.buildings.get_at(gate.origin + Vector2i(3, 3)) == gate, "новые тайлы заняты шлюзом")
+	_check(gate.port_count() == 3, "открыто три порта")
+	var tiles := gate.get_input_tiles()
+	var rect := gate.get_rect()
+	for tile in tiles:
+		_check(not rect.has_point(tile) and rect.grow(1).has_point(tile), "порт %s примыкает к шлюзу" % tile)
+	# Размер переживает сохранение.
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(SaveIO.run_to_dict(run))))
+	var loaded_gate := loaded.get_gateway(loaded.planet)
+	_check(loaded_gate.get_size() == 4 and loaded_gate.origin == gate.origin, "размер шлюза сохраняется")
+	loaded.dispose()
+	run.dispose()
+
+
+## Shift-обмен: забрать продукцию завода и загрузить в него всё подходящее.
+func _test_quick_transfer() -> void:
+	var world := Worlds.empty_world(24, 16, false)
+	var inv := world.drone.inventory
+	var furnace := world.buildings.place(Registry.get_building(&"furnace"), Vector2i(6, 6), 0, true) as Crafter
+	var hematite := _item(&"hematite")
+	var coal := _item(&"coal")
+	inv.add(hematite, 40)
+	inv.add(coal, 10)
+	inv.add(_item(&"gear"), 5)
+	var put := world.player_fill(furnace)
+	_check(put > 0 and furnace.total_fuel() > 0 and furnace.inputs[hematite] > 0, "Shift+ПКМ кладёт и сырьё, и топливо (%d)" % put)
+	_check(inv.count(_item(&"gear")) == 5, "негодные предметы остаются у дрона")
+	Worlds.run_ticks(world, 20 * GameConst.TICK_RATE)
+	var iron := _item(&"iron_ingot")
+	_check(furnace.outputs[iron] > 0, "печь наплавила железа")
+	var before_inputs := furnace.inputs[hematite]
+	var taken := world.player_take_output(furnace)
+	_check(taken > 0 and inv.count(iron) == taken, "Shift+ЛКМ забирает продукцию (%d)" % taken)
+	_check(furnace.outputs[iron] == 0 and furnace.inputs[hematite] == before_inputs and furnace.total_fuel() > 0,
+		"сырьё и топливо остаются в печи")
+	world.dispose()
+
+
+## Слой труб перерисовывает чанк только при перестройке сети или заметном изменении заполнения.
+func _test_pipe_layer() -> void:
+	var world := Worlds.empty_world(32, 16, true)
+	var layer := PipeLayer.new()
+	add_child(layer)
+	layer.setup(world)
+	for x in range(4, 12):
+		world.buildings.place(Registry.get_building(&"pipe"), Vector2i(x, 5), 0, true)
+	world.fluids.update()
+	layer._process(0.0)
+	_check(layer.get_view_count() >= 1 and layer.redraw_count > 0, "трубы разложены по чанкам (%d)" % layer.get_view_count())
+	var after_first := layer.redraw_count
+	layer._process(0.0)
+	layer._process(0.0)
+	_check(layer.redraw_count == after_first, "без изменений чанки не перерисовываются")
+	var net := world.fluids.get_pipe_network(world.buildings.get_at(Vector2i(4, 5)))
+	net.insert(Registry.get_fluid(&"water").index, net.capacity)
+	layer._process(0.0)
+	_check(layer.redraw_count > after_first, "заполнение сети вызывает перерисовку")
+	var filled := layer.redraw_count
+	world.buildings.place(Registry.get_building(&"pipe"), Vector2i(12, 5), 0, true)
+	world.fluids.update()
+	layer._process(0.0)
+	_check(layer.redraw_count > filled, "новая труба вызывает перерисовку")
+	layer.queue_free()
+	world.dispose()
+
+
+## Творческий режим: полигон виден только там, «Исследовать заново» и «Открыть всё».
+func _test_creative_research() -> void:
+	var sandbox := Registry.get_research(&"sandbox")
+	_check(sandbox != null and sandbox.creative_only and sandbox.cost_amount > 1000, "полигон — бесконечное творческое исследование")
+	var normal := Run.create(null, LevelMap.new(32, 24, Registry.get_floor(&"stone").index), false)
+	_check(not normal.research.sandbox and not normal.research.is_available(sandbox), "в обычном забеге полигона нет")
+	normal.dispose()
+	var run := Run.create(null, LevelMap.new(32, 24, Registry.get_floor(&"stone").index), true)
+	var state := run.research
+	_check(state.sandbox and state.is_available(sandbox), "в творческом забеге полигон доступен")
+	_check(state.count_effect(&"pad_size") == ResearchState.max_effect(&"pad_size"), "в творческом режиме эффекты открыты")
+	state.reset_progress()
+	run.apply_research_effects()
+	_check(not state.creative and state.count_effect(&"pad_size") == 0 and state.done.is_empty(),
+		"«Исследовать заново» возвращает дерево в начало")
+	_check(run.get_pad_size() == run.run_def.pad_start_size, "площадка вернулась к стартовому размеру")
+	_check(state.is_available(Registry.get_research(&"electricity")) and not state.is_available(Registry.get_research(&"mining")),
+		"после сброса доступна только «Электрика»")
+	state.unlock_everything()
+	run.apply_research_effects()
+	_check(state.is_done(&"mining") and not state.is_done(&"sandbox") and state.creative, "«Открыть всё» закрывает дерево, кроме полигона")
+	_check(state.count_effect(&"pad_size") == ResearchState.max_effect(&"pad_size"), "эффекты снова открыты")
+	# Полигон принимает наборы и не заканчивается.
+	state.set_active(&"sandbox")
+	for i in 5:
+		state.add_kit(sandbox.cost_item.index)
+	_check(state.get_progress(sandbox) == 5 and not state.is_done(&"sandbox"), "полигон копит наборы и не завершается")
+	run.dispose()
 
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
@@ -3053,8 +3263,8 @@ func _test_gateway_ports() -> void:
 	var gate := run.get_gateway(run.planet)
 	var pair := run.get_gateway(run.base)
 	var hematite := _item(&"hematite")
-	var inputs := gate.get_gateway_def().get_port_tiles(gate.origin, gate.get_input_side(), 2)
-	var outputs := pair.get_gateway_def().get_port_tiles(pair.origin, pair.get_output_side(), 2)
+	var inputs := gate.get_gateway_def().get_port_tiles(gate.origin, gate.get_size(), gate.get_input_side(), 2)
+	var outputs := pair.get_gateway_def().get_port_tiles(pair.origin, pair.get_size(), pair.get_output_side(), 2)
 	var sources: Array[Building] = []
 	var sinks: Array[Building] = []
 	for k in 2:
@@ -3258,7 +3468,9 @@ func _test_power_window() -> void:
 		kinds.append(str(sec.kind))
 	_check(sections.size() == 4 and sections[2].kind == WindowSection.Kind.GRAPH and sections[3].kind == WindowSection.Kind.TEXT,
 		"окно опоры: нагрузка, заряд, график, состав (%s)" % ",".join(kinds))
-	_check(sections[2].series.size() == 3 and sections[2].series[0].size() == 5 and sections[2].series[0][4] > 70.0,
-		"график: спрос, выработка, заряд; 5 точек, спрос ≈75 кВт")
+	_check(sections[2].series.size() == 4 and sections[2].series[0].size() == 5 and sections[2].series[0][4] > 70.0,
+		"график: спрос, выработка, возможная выработка, заряд; 5 точек, спрос ≈75 кВт")
+	_check(sections[2].series[2].size() == 5 and sections[2].series[2][4] >= sections[2].series[1][4],
+		"ряд возможной выработки не ниже фактической")
 	_check(sections[3].lines[0].contains("×1") and sections[3].lines[1].contains("×1"), "состав сети: источники и потребители")
 	world.dispose()

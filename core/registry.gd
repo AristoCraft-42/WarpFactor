@@ -244,10 +244,10 @@ static func get_hand_recipe(item: int) -> HandRecipe:
 
 
 ## Здания категории для меню строительства (только доступные игроку).
-static func buildings_in_category(category: BuildingDef.Category) -> Array[BuildingDef]:
+static func buildings_in_category(category: BuildingDef.Category, creative: bool = true) -> Array[BuildingDef]:
 	var result: Array[BuildingDef] = []
 	for def in buildings:
-		if def.category == category and def.player_buildable:
+		if def.category == category and def.player_buildable and (creative or not def.creative_only):
 			result.append(def)
 	return result
 
@@ -287,7 +287,7 @@ static func validate() -> PackedStringArray:
 		for stack in def.cost:
 			if stack == null or stack.item == null:
 				errors.append("здание %s: пустая позиция стоимости" % def.id)
-		if def.player_buildable:
+		if def.player_buildable and not def.creative_only:
 			if def.item == null:
 				errors.append("здание %s: нет предмета-постройки в %s" % [def.id, BUILDING_ITEMS_DIR])
 			if def.cost.is_empty():

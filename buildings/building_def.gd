@@ -10,7 +10,7 @@ enum Category { TRANSPORT, PRODUCTION, POWER, DEFENSE }
 
 ## Глиф на процедурном плейсхолдере.
 enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL, GEAR, PRESS, FLAME, MIXER, SPLIT, BOX, CORE, WALL, TURRET, ARTILLERY,
-	PIPE, PUMP, BOILER, TURBINE, POLE, FLASK, GENERATOR, UNDERGROUND_PIPE, BATTERY, LIFT }
+	PIPE, PUMP, BOILER, TURBINE, POLE, FLASK, GENERATOR, UNDERGROUND_PIPE, BATTERY, LIFT, TANK, SOURCE, SINK }
 
 @export var id: StringName
 @export var name_key: String
@@ -22,6 +22,8 @@ enum Glyph { NONE, CHEVRONS, CROSS, ROUTER, FILTER, GATE, BRIDGE, UNLOAD, DRILL,
 @export var removable: bool = true
 ## Показывать в меню строительства и крафта (служебные здания ставятся только картой).
 @export var player_buildable: bool = true
+## Строится только в творческом режиме (блоки-источники и поглотитель).
+@export var creative_only: bool = false
 ## Протягивание мышью строит цепочку с автоповоротом по трассе (ленты).
 @export var line_placement: bool = false
 @export var sort_order: int = 0

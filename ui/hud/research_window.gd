@@ -3,22 +3,31 @@ extends PanelContainer
 ## Окно исследований (J или кнопка в HUD): дерево карточек с прогрессом, стоимостью и тем,
 ## что они открывают; линии ведут от предшественника к следующему. ЛКМ по доступному исследованию
 ## делает его текущим, ПКМ ставит в очередь (ResearchState.QUEUE_MAX штук; ПКМ по стоящему
-## в очереди убирает его). Кнопка «Сдать наборы»
+## в очереди убирает его). Колесо мыши над деревом приближает и отдаляет его. Кнопка «Сдать наборы»
 ## кладёт научные наборы первого уровня из инвентаря дрона в ручную очередь — она обрабатывается
 ## медленно (ResearchState.MANUAL_SECONDS на набор); научный цех работает быстрее.
 
 const REFRESH := 0.25
 ## Дерево больше этого прокручивается.
 const MAX_TREE_SIZE := Vector2(1330, 560)
+## Пределы и шаг приближения дерева колесом.
+const ZOOM_MIN := 0.5
+const ZOOM_MAX := 1.6
+const ZOOM_STEP := 1.1
 
 var _game: Game
 var _list: VBoxContainer
 var _queue_label: Label
 var _queue_list: Label
 var _deposit_button: Button
+var _creative_row: HBoxContainer
 var _manual_bar: ProgressBar
 var _cards: Dictionary[StringName, Dictionary] = {}
 var _tree: ResearchTreeView
+## Обёртка дерева: её минимальный размер задаёт прокрутку при приближении.
+var _tree_wrap: Control
+var _tree_size: Vector2 = Vector2.ZERO
+var _tree_zoom: float = 1.0
 var _timer: float = 0.0
 
 
@@ -53,14 +62,34 @@ func setup(game: Game) -> void:
 	for research in Registry.researches:
 		cards[research.id] = _make_card(research)
 	_tree.setup(cards)
+	_tree_size = _tree.custom_minimum_size
+	_tree_wrap = Control.new()
+	_tree_wrap.custom_minimum_size = _tree_size
+	_tree_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tree_wrap.add_child(_tree)
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(minf(_tree.custom_minimum_size.x, MAX_TREE_SIZE.x) + 12.0,
-		minf(_tree.custom_minimum_size.y, MAX_TREE_SIZE.y) + 12.0)
-	scroll.add_child(_tree)
+	scroll.custom_minimum_size = Vector2(minf(_tree_size.x, MAX_TREE_SIZE.x) + 12.0,
+		minf(_tree_size.y, MAX_TREE_SIZE.y) + 12.0)
+	scroll.add_child(_tree_wrap)
+	scroll.gui_input.connect(_on_tree_scroll.bind(scroll))
 	column.add_child(scroll)
 	hint.custom_minimum_size = Vector2(scroll.custom_minimum_size.x, 0)
 	var footer := UiUtil.hbox(10)
 	column.add_child(footer)
+	_creative_row = UiUtil.hbox(6)
+	column.add_child(_creative_row)
+	var reset := UiUtil.button("RESEARCH_RESET", func() -> void:
+		_game.run.research.reset_progress()
+		_game.run.apply_research_effects()
+		refresh())
+	reset.focus_mode = Control.FOCUS_NONE
+	_creative_row.add_child(reset)
+	var unlock := UiUtil.button("RESEARCH_UNLOCK_ALL", func() -> void:
+		_game.run.research.unlock_everything()
+		_game.run.apply_research_effects()
+		refresh())
+	unlock.focus_mode = Control.FOCUS_NONE
+	_creative_row.add_child(unlock)
 	_deposit_button = UiUtil.button("RESEARCH_DEPOSIT", _deposit, &"AccentButton")
 	_deposit_button.focus_mode = Control.FOCUS_NONE
 	_deposit_button.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
@@ -81,6 +110,37 @@ func setup(game: Game) -> void:
 	_manual_bar.show_percentage = false
 	_manual_bar.max_value = 1.0
 	queue_column.add_child(_manual_bar)
+
+
+## Колесо над деревом меняет масштаб, а не прокручивает список.
+func _on_tree_scroll(event: InputEvent, scroll: ScrollContainer) -> void:
+	var click := event as InputEventMouseButton
+	if click == null or not click.pressed:
+		return
+	var factor := 0.0
+	if click.button_index == MOUSE_BUTTON_WHEEL_UP:
+		factor = ZOOM_STEP
+	elif click.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		factor = 1.0 / ZOOM_STEP
+	else:
+		return
+	var before := _tree_zoom
+	_tree_zoom = clampf(_tree_zoom * factor, ZOOM_MIN, ZOOM_MAX)
+	scroll.accept_event()
+	if is_equal_approx(before, _tree_zoom):
+		return
+	_tree.scale = Vector2(_tree_zoom, _tree_zoom)
+	_tree_wrap.custom_minimum_size = _tree_size * _tree_zoom
+	# Точка под курсором остаётся на месте.
+	var offset := Vector2(scroll.scroll_horizontal, scroll.scroll_vertical)
+	var at := click.position + offset
+	var moved := at * (_tree_zoom / before) - at
+	scroll.scroll_horizontal = maxi(roundi(offset.x + moved.x), 0)
+	scroll.scroll_vertical = maxi(roundi(offset.y + moved.y), 0)
+
+
+func get_tree_zoom() -> float:
+	return _tree_zoom
 
 
 func is_open() -> bool:
@@ -181,11 +241,16 @@ func refresh() -> void:
 	if run == null or run.research == null:
 		return
 	var state := run.research
+	_creative_row.visible = state.sandbox
 	for research in Registry.researches:
 		var card: Dictionary = _cards.get(research.id, {})
 		if card.is_empty():
 			continue
 		var button: Button = card["button"]
+		if research.creative_only:
+			button.visible = state.sandbox
+			if not state.sandbox:
+				continue
 		var status: Label = card["status"]
 		var bar: ProgressBar = card["bar"]
 		var progress := state.get_progress(research)

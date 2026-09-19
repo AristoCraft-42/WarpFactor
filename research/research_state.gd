@@ -22,7 +22,10 @@ const MANUAL_SECONDS := 12.0
 ## Сколько исследований помещается в очередь.
 const QUEUE_MAX := 5
 
+## Всё открыто (творческий режим). Кнопкой «Исследовать заново» выключается, чтобы пройти дерево.
 var creative: bool = false
+## Забег творческий: доступен полигон и кнопки управления деревом.
+var sandbox: bool = false
 var done: Dictionary[StringName, bool] = {}
 var progress: Dictionary[StringName, int] = {}
 var active: StringName = &""
@@ -34,6 +37,8 @@ var manual_ticks: int = 0
 
 var _effect_counts: Dictionary[StringName, int] = {}
 var _effects_signature: int = -1
+## Состояние пришло из сохранения — «всё открыто» не перезаписывать флагом забега.
+var loaded: bool = false
 
 
 func is_done(id: StringName) -> bool:
@@ -51,6 +56,8 @@ func get_active() -> ResearchDef:
 ## Можно ли начать: не завершено и все предшествующие завершены.
 func is_available(research: ResearchDef) -> bool:
 	if research == null or is_done(research.id):
+		return false
+	if research.creative_only and not sandbox:
 		return false
 	for id in research.prerequisites:
 		if not is_done(id):
@@ -110,6 +117,32 @@ func _take_from_queue() -> void:
 		i += 1
 
 
+## Творческий режим: начать дерево заново (creative выключается — эффекты считаются по done).
+func reset_progress() -> void:
+	done.clear()
+	progress.clear()
+	queue.clear()
+	active = &""
+	manual_queue = 0
+	manual_ticks = 0
+	creative = false
+	_effects_signature = -1
+	changed.emit()
+
+
+## Творческий режим: открыть всё разом.
+func unlock_everything() -> void:
+	for research in Registry.researches:
+		if not research.creative_only:
+			done[research.id] = true
+	progress.clear()
+	queue.clear()
+	active = &""
+	creative = true
+	_effects_signature = -1
+	changed.emit()
+
+
 ## Сколько завершённых исследований дают эффект (в творческом режиме — все такие исследования).
 ## Кэш пересчитывается, когда меняется число завершённых исследований или режим.
 func count_effect(effect: StringName) -> int:
@@ -118,7 +151,7 @@ func count_effect(effect: StringName) -> int:
 		_effects_signature = signature
 		_effect_counts.clear()
 		for research in Registry.researches:
-			if creative or is_done(research.id):
+			if (creative and not research.creative_only) or is_done(research.id):
 				for e in research.effects:
 					_effect_counts[e] = int(_effect_counts.get(e, 0)) + 1
 	return int(_effect_counts.get(effect, 0))
@@ -233,7 +266,7 @@ func save_data() -> Dictionary:
 		progress_values.append(progress[id])
 	return {"done": done_ids, "progress_ids": progress_ids, "progress_values": progress_values,
 		"active": String(active), "manual_queue": manual_queue, "manual_ticks": manual_ticks,
-		"queue": _queue_ids()}
+		"queue": _queue_ids(), "creative": creative}
 
 
 func _queue_ids() -> PackedStringArray:
@@ -259,6 +292,10 @@ func load_data(data: Dictionary) -> void:
 		active = &""
 	manual_queue = int(data.get("manual_queue", 0))
 	manual_ticks = int(data.get("manual_ticks", 0))
+	if data.has("creative"):
+		creative = bool(data["creative"])
+		loaded = true
+	_effects_signature = -1
 	queue.clear()
 	for id in (data.get("queue", PackedStringArray()) as PackedStringArray):
 		var name := StringName(id)

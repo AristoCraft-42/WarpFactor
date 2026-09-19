@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="CreativeBlockDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/creative/creative_block_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://buildings/creative/creative_block.gd" id="3_logic"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"creative_item_source"
+name_key = "BUILDING_CREATIVE_ITEM_SOURCE"
+description_key = "BUILDING_CREATIVE_ITEM_SOURCE_DESC"
+category = 0
+size = 1
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 900
+craft_time = 0.5
+craft_amount = 1
+health = 400.0
+solid = true
+color = Color(0.694, 0.384, 0.525, 1)
+glyph = 30
+logic_script = ExtResource("3_logic")
+kind = 0
+rates = PackedFloat32Array(1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0)
+default_rate = 3
+rotatable = false
+creative_only = true

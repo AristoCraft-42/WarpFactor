@@ -88,9 +88,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not input_enabled:
 		return
 	if event.is_action_pressed("zoom_in", true):
+		if _wheel_over_ui(event):
+			return
 		_zoom_by(ZOOM_STEP, event)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("zoom_out", true):
+		if _wheel_over_ui(event):
+			return
 		_zoom_by(1.0 / ZOOM_STEP, event)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("cam_pan"):
@@ -99,6 +103,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("cam_home"):
 		get_viewport().set_input_as_handled()
 		recenter()
+
+
+## Колесо над панелью интерфейса крутит саму панель, а не масштаб мира.
+## Клавиши «=» и «−» работают всегда.
+func _wheel_over_ui(event: InputEvent) -> bool:
+	return event is InputEventMouseButton and get_viewport().gui_get_hovered_control() != null
 
 
 func _input(event: InputEvent) -> void:

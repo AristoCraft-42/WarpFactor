@@ -1,7 +1,8 @@
 class_name LinePlanner
 extends RefCounted
-## Геометрия протягивания: L-трасса для лент (с мостами и перекрёстками через препятствия) и прямой ряд
-## для остальных зданий.
+## Геометрия протягивания: L-трасса для лент (с мостами и перекрёстками через препятствия),
+## трасса труб (подземные через препятствия), ряд подземных труб на максимальном шаге
+## и прямой ряд для остальных зданий.
 
 
 ## L-трасса от start до end (включительно). x_first — сначала идём по X, потом по Y.
@@ -131,6 +132,119 @@ static func plan_belt(world: GameWorld, def: BuildingDef, path: Array[Vector3i],
 			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, blocked))
 		else:
 			ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, world.check_build(def, origin, rot, budget)))
+	return ghosts
+
+
+## Трасса трубы с обходом препятствий: сплошной участок, где труба не ставится, перекрывается парой
+## подземных труб (вход перед участком, выход сразу за ним), если хватает дальности и самих труб.
+## Стоящие трубы на трассе остаются как есть. Ничего чужого не ломается: если подземных не хватает,
+## препятствие так и остаётся препятствием.
+static func plan_pipe(world: GameWorld, def: BuildingDef, path: Array[Vector3i], budget: Inventory.Budget) -> Array[PlacementPreview.Ghost]:
+	const PIPE := 0
+	const OBSTACLE := 1
+	const KEEP := 2
+	var n := path.size()
+	var under_def := Registry.get_building(&"underground_pipe") as FluidBuildingDef
+	var under_left := _available(world, under_def)
+	var under_range := under_def.underground_range if under_def != null else 0
+
+	var kinds := PackedInt32Array()
+	kinds.resize(n)
+	for i in n:
+		var tile := Vector2i(path[i].x, path[i].y)
+		var check := world.buildings.check_place(def, tile, path[i].z)
+		var existing := world.buildings.get_at(tile)
+		if existing is Pipe:
+			kinds[i] = KEEP
+		elif check == BuildingManager.Check.OCCUPIED or check == BuildingManager.Check.BAD_TERRAIN \
+				or check == BuildingManager.Check.OUT_OF_BOUNDS or check == BuildingManager.Check.LOCKED \
+				or (check == BuildingManager.Check.REPLACE and existing != null):
+			kinds[i] = OBSTACLE
+		else:
+			kinds[i] = PIPE
+
+	# Подземные пары над сплошными участками препятствий.
+	var under_at: Dictionary[int, int] = {}
+	var covered: Dictionary[int, bool] = {}
+	var i := 0
+	while i < n:
+		if kinds[i] != OBSTACLE:
+			i += 1
+			continue
+		var first := i
+		while i < n and kinds[i] == OBSTACLE and path[i].z == path[first].z:
+			i += 1
+		var entry := first - 1
+		var exit := i
+		if under_def == null or entry < 0 or exit >= n or kinds[exit] == OBSTACLE or kinds[entry] == OBSTACLE:
+			continue
+		var dir: int = path[first].z
+		if path[entry].z != dir or exit - entry > under_range:
+			continue
+		var entry_tile := Vector2i(path[entry].x, path[entry].y)
+		var exit_tile := Vector2i(path[exit].x, path[exit].y)
+		if not BuildingManager.is_valid_check(world.buildings.check_place(under_def, entry_tile, dir)) \
+				or not BuildingManager.is_valid_check(world.buildings.check_place(under_def, exit_tile, (dir + 2) % 4)):
+			continue
+		if under_left < 2:
+			continue
+		under_left -= 2
+		under_at[entry] = dir
+		under_at[exit] = (dir + 2) % 4
+		for k in range(first, exit):
+			covered[k] = true
+
+	var ghosts: Array[PlacementPreview.Ghost] = []
+	for k in n:
+		var origin := Vector2i(path[k].x, path[k].y)
+		if under_at.has(k):
+			var rot: int = under_at[k]
+			ghosts.append(PlacementPreview.Ghost.new(under_def, origin, rot, world.check_build(under_def, origin, rot, budget)))
+		elif covered.has(k) or kinds[k] == KEEP:
+			continue
+		elif kinds[k] == OBSTACLE:
+			var blocked := world.buildings.check_place(def, origin, 0)
+			if BuildingManager.is_valid_check(blocked):
+				blocked = BuildingManager.Check.OCCUPIED
+			ghosts.append(PlacementPreview.Ghost.new(def, origin, 0, blocked))
+		else:
+			ghosts.append(PlacementPreview.Ghost.new(def, origin, 0, world.check_build(def, origin, 0, budget)))
+	return ghosts
+
+
+## Ряд подземных труб вдоль одной оси: вход и выход на наибольшем расстоянии, следующая пара
+## начинается сразу за предыдущей — получается сплошная подземная линия из минимума труб
+## (так же, как опоры ЛЭП протягиваются через wire_range).
+static func plan_underground(world: GameWorld, def: FluidBuildingDef, start: Vector2i, end: Vector2i,
+		fallback_dir: int, budget: Inventory.Budget) -> Array[PlacementPreview.Ghost]:
+	var ghosts: Array[PlacementPreview.Ghost] = []
+	var delta := end - start
+	var axis_x := absi(delta.x) >= absi(delta.y)
+	var length := absi(delta.x) if axis_x else absi(delta.y)
+	var dir := fallback_dir
+	if length > 0:
+		if axis_x:
+			dir = GameConst.Dir.RIGHT if delta.x > 0 else GameConst.Dir.LEFT
+		else:
+			dir = GameConst.Dir.DOWN if delta.y > 0 else GameConst.Dir.UP
+	var step := GameConst.dir_vector(dir)
+	var back := (dir + 2) % 4
+	var span := maxi(def.underground_range, 1)
+	if length == 0:
+		# Одиночный клик: выход сам разворачивается ко входу (placement_rotation).
+		var rot := def.placement_rotation(world, start, fallback_dir)
+		ghosts.append(PlacementPreview.Ghost.new(def, start, rot, world.check_build(def, start, rot, budget)))
+		return ghosts
+	var at := 0
+	while at <= length:
+		var entry := start + step * at
+		ghosts.append(PlacementPreview.Ghost.new(def, entry, dir, world.check_build(def, entry, dir, budget)))
+		if at == length:
+			break
+		var exit_at := mini(at + span, length)
+		var exit_tile := start + step * exit_at
+		ghosts.append(PlacementPreview.Ghost.new(def, exit_tile, back, world.check_build(def, exit_tile, back, budget)))
+		at = exit_at + 1
 	return ghosts
 
 

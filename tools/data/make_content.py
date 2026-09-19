@@ -96,6 +96,7 @@ DEF_SCRIPTS = {
     "workshop": ("ScienceWorkshopDef", "res://buildings/production/science_workshop_def.gd"),
     "accumulator": ("AccumulatorDef", "res://buildings/power/accumulator_def.gd"),
     "lift": ("LiftDef", "res://buildings/gateway/lift_def.gd"),
+    "creative": ("CreativeBlockDef", "res://buildings/creative/creative_block_def.gd"),
 }
 LOGIC = {
     "conveyor": "res://buildings/transport/conveyor.gd",
@@ -118,12 +119,13 @@ LOGIC = {
     "workshop": "res://buildings/production/science_workshop.gd",
     "accumulator": "res://buildings/power/accumulator.gd",
     "lift": "res://buildings/gateway/lift.gd",
+    "creative": "res://buildings/creative/creative_block.gd",
 }
 
 # Категории: TRANSPORT 0, PRODUCTION 1, POWER 2, DEFENSE 3.
 # Глифы: CHEVRONS 1, CROSS 2, ROUTER 3, FILTER 4, BRIDGE 6, UNLOAD 7, DRILL 8, GEAR 9, FLAME 11, BOX 14, CORE 15,
 # WALL 16, TURRET 17, PIPE 19, PUMP 20, BOILER 21, TURBINE 22, POLE 23, FLASK 24, GENERATOR 25, UNDERGROUND_PIPE 26,
-# BATTERY 27, LIFT 28.
+# BATTERY 27, LIFT 28, TANK 29, SOURCE 30, SINK 31.
 # Патроны пулемёта: предмет, выстрелов, урон, взрыв (тайлы), скорость (тайл/с), множитель паузы, цвет, горение/с, горение с.
 MG_AMMO = [
     ("cartridge_stone", 4, 7.0, 0.0, 14.0, 1.0, "b5b3a8", 0.0, 0.0),
@@ -176,8 +178,10 @@ BUILDINGS = [
      {"kind": 0, "max_output": 150.0, "efficiency": 0.5, "fuel_capacity": 10}, (220, True), (2.0, 1, 10)),
     ("pipe", "fluid", "pipe", 2, 1, True, True, True, 19, "5d6a74", 30, [("iron_ingot", 1)],
      {"role": 0, "fluid_capacity": 100.0, "rotatable": False, "allowed_on_fluid": True}, (50, False), (0.25, 2, 100)),
-    ("underground_pipe", "fluid", "underground_pipe", 2, 1, False, True, True, 26, "4f5d66", 35, [("pipe", 10), ("iron_ingot", 5)],
+    ("underground_pipe", "fluid", "underground_pipe", 2, 1, True, True, True, 26, "4f5d66", 35, [("pipe", 10), ("iron_ingot", 5)],
      {"role": 3, "fluid_capacity": 100.0, "underground_range": 10, "allowed_on_fluid": True}, (80, False), (1.0, 2, 50)),
+    ("water_tank", "fluid", "pipe", 2, 2, False, True, True, 29, "4a6b7a", 36, [("iron_ingot", 12), ("brick", 8)],
+     {"role": 0, "fluid_capacity": 4000.0, "rotatable": False, "allowed_on_fluid": True}, (260, True), (3.0, 1, 10)),
     ("pump", "fluid", "pump", 2, 1, False, True, True, 20, "3f6f8f", 40, [("iron_ingot", 5), ("gear", 3), ("pipe", 2)],
      {"role": 1, "pump_per_tile": 120.0, "rotatable": False, "allowed_on_fluid": True}, (100, True), (1.0, 1, 20)),
     ("boiler", "fluid", "boiler", 2, 2, False, True, True, 21, "7a4a3a", 50, [("brick", 12), ("iron_ingot", 6), ("pipe", 4)],
@@ -195,11 +199,26 @@ BUILDINGS = [
     ("machine_gun", "turret", "turret", 3, 1, False, True, True, 17, "7a6a55", 20, [("iron_ingot", 10), ("gear", 5), ("resistor", 3)],
      {"rotatable": False, "shoot_range": 8.5, "reload_seconds": 0.3, "rotate_speed": 540.0, "shoot_cone": 12.0,
       "inaccuracy": 3.0, "max_ammo": 40, "artillery": False, "barrel_length": 13.0, "ammo": MG_AMMO}, (220, True), (1.5, 1, 20)),
+    # Творческий режим
+    ("creative_item_source", "creative", "creative", 0, 1, False, True, True, 30, "b16286", 900, [],
+     {"kind": 0, "rates": [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0], "default_rate": 3, "rotatable": False,
+      "creative_only": True}, (400, True), (0.5, 1, 20)),
+    ("creative_power_source", "creative", "creative", 2, 1, False, True, True, 30, "d79921", 900, [],
+     {"kind": 1, "rates": [100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 25000.0], "default_rate": 2,
+      "rotatable": False, "creative_only": True}, (400, True), (0.5, 1, 20)),
+    ("creative_fluid_source", "creative", "creative", 2, 1, False, True, True, 30, "458588", 901, [],
+     {"kind": 2, "rates": [30.0, 60.0, 120.0, 300.0, 600.0, 1200.0, 3000.0, 6000.0], "default_rate": 2,
+      "rotatable": False, "creative_only": True}, (400, True), (0.5, 1, 20)),
+    ("creative_void", "creative", "creative", 0, 1, False, True, True, 31, "504945", 901, [],
+     {"kind": 3, "rates": [100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 25000.0], "default_rate": 2,
+      "rotatable": False, "creative_only": True, "power_use": 1.0}, (400, True), (0.5, 1, 20)),
     # Шлюзы (не строятся)
-    ("central_gateway", "gateway", "gateway", 0, 3, False, False, False, 15, "b0601c", 0, [],
-     {"in_base": False, "inbound_side": 2, "outbound_side": 0, "buffer_capacity": 10, "throughput": "conveyor"}, (1800, True), None),
-    ("base_gateway", "gateway", "gateway", 0, 3, False, False, False, 15, "5f7f9a", 1, [],
-     {"in_base": True, "inbound_side": 2, "outbound_side": 0, "buffer_capacity": 10, "throughput": "conveyor"}, (3000, True), None),
+    ("central_gateway", "gateway", "gateway", 0, 4, False, False, False, 15, "b0601c", 0, [],
+     {"in_base": False, "inbound_side": 2, "outbound_side": 0, "buffer_capacity": 10, "throughput": "conveyor",
+      "start_size": 2, "grown_size": 4}, (1800, True), None),
+    ("base_gateway", "gateway", "gateway", 0, 4, False, False, False, 15, "5f7f9a", 1, [],
+     {"in_base": True, "inbound_side": 2, "outbound_side": 0, "buffer_capacity": 10, "throughput": "conveyor",
+      "start_size": 2, "grown_size": 4}, (3000, True), None),
 ]
 BUILDING_IDS = {b[0] for b in BUILDINGS}
 
@@ -244,6 +263,8 @@ RESEARCH = [
     ("gateway_power", 150, 25, ["underground"], [], [], ["gateway_power"]),
     ("gateway_fluids", 160, 25, ["gateway_power"], [], [], ["gateway_fluids"]),
     ("lift", 140, 30, ["underground_1"], ["lift"], [], []),
+    # Полигон: бесконечное исследование для замеров скорости науки, видно только в творческом режиме.
+    ("sandbox", 300, 1000000, [], [], [], []),
 ] + [("pad_%d" % i, 100 + i, 10 + 10 * i, ["pad_%d" % (i - 1)] if i > 1 else ["mining"], [], [], ["pad_size"]) for i in range(1, 6)] \
   + [("underground_%d" % i, 130 + i, 10 + 10 * i, ["underground_%d" % (i - 1)] if i > 1 else ["underground"], [], [], ["underground_size"])
      for i in range(1, 6)] + DRONE_RESEARCH
@@ -393,6 +414,8 @@ def write_building(b):
             out.append('throughput_of = ExtResource("5_throughput")')
         elif k in ("water_fluid", "steam_fluid"):
             out.append(f'{k} = ExtResource("fluid_{v}")')
+        elif isinstance(v, list):
+            out.append("%s = PackedFloat32Array(%s)" % (k, ", ".join(fmt(x) for x in v)))
         else:
             out.append(f"{k} = {fmt(v)}")
     out.append("")
@@ -436,6 +459,8 @@ def write_research():
         out.append(f'unlock_recipes = Array[ExtResource("4_recipe_script")]([{subs}])')
         eff = ", ".join(f'&"{e}"' for e in effects)
         out.append(f"effects = Array[StringName]([{eff}])")
+        if rid == "sandbox":
+            out.append("creative_only = true")
         out.append("")
         write(f"research/defs/{rid}.tres", out)
 

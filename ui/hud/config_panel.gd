@@ -72,6 +72,8 @@ func _rebuild() -> void:
 		Building.ConfigKind.MODE:
 			if _building is Lift:
 				_build_lift_direction()
+		Building.ConfigKind.SOURCE:
+			_build_creative_source()
 	if _building.supports_inversion():
 		_build_inversion_toggle()
 
@@ -100,6 +102,70 @@ func _build_item_picker() -> void:
 		b.tooltip_text = item.name_key
 		b.pressed.connect(_world.configure.bind(_building, item.index))
 		grid.add_child(b)
+
+
+## Творческий блок: что выдавать (предмет или жидкость) и ступень скорости.
+func _build_creative_source() -> void:
+	var block := _building as CreativeBlock
+	if block == null:
+		return
+	var def := block.get_creative_def()
+	var hint := UiUtil.label("CONFIG_CREATIVE_HINT", &"DimLabel")
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size = Vector2(ITEM_COLUMNS * (ITEM_BUTTON + 4), 0)
+	_content.add_child(hint)
+	if def.kind == CreativeBlockDef.Kind.ITEM or def.kind == CreativeBlockDef.Kind.FLUID:
+		var grid := GridContainer.new()
+		grid.columns = ITEM_COLUMNS
+		grid.add_theme_constant_override("h_separation", 4)
+		grid.add_theme_constant_override("v_separation", 4)
+		_content.add_child(grid)
+		if def.kind == CreativeBlockDef.Kind.ITEM:
+			for item in Registry.items:
+				var b := _make_button(block.pick == item.index)
+				b.icon = ArtRegistry.get_item_icon(item)
+				b.expand_icon = true
+				b.tooltip_text = item.name_key
+				b.pressed.connect(func() -> void: _world.configure(block, Vector2i(item.index, block.rate_index)))
+				grid.add_child(b)
+		else:
+			for fluid in Registry.fluids:
+				var b := _make_button(block.pick == fluid.index)
+				b.tooltip_text = fluid.name_key
+				b.text = tr(fluid.name_key).substr(0, 1)
+				b.add_theme_color_override("font_color", fluid.color)
+				b.pressed.connect(func() -> void: _world.configure(block, Vector2i(fluid.index, block.rate_index)))
+				grid.add_child(b)
+	# Ступени скорости.
+	var row := UiUtil.hbox(4)
+	_content.add_child(row)
+	var minus := UiUtil.button("−", func() -> void: _world.configure(block, Vector2i(block.pick, block.rate_index - 1)))
+	minus.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	minus.focus_mode = Control.FOCUS_NONE
+	minus.disabled = block.rate_index <= 0
+	row.add_child(minus)
+	var value := Label.new()
+	value.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	value.text = tr(_rate_key(def.kind)) % block.get_rate()
+	row.add_child(value)
+	var plus := UiUtil.button("+", func() -> void: _world.configure(block, Vector2i(block.pick, block.rate_index + 1)))
+	plus.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	plus.focus_mode = Control.FOCUS_NONE
+	plus.disabled = block.rate_index >= def.rates.size() - 1
+	row.add_child(plus)
+
+
+static func _rate_key(kind: CreativeBlockDef.Kind) -> String:
+	match kind:
+		CreativeBlockDef.Kind.POWER:
+			return "CONFIG_RATE_POWER"
+		CreativeBlockDef.Kind.FLUID:
+			return "CONFIG_RATE_FLUID"
+		CreativeBlockDef.Kind.VOID:
+			return "CONFIG_RATE_VOID"
+	return "CONFIG_RATE_ITEM"
 
 
 ## Переключатель инверсии сортировщика: «выбранное в стороны».

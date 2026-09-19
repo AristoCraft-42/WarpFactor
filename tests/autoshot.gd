@@ -163,16 +163,31 @@ func _run_research(game: Game) -> void:
 	await _frames(5)
 	_expect(state.queue == [&"mining"], "повторный ПКМ убирает из очереди")
 	run.drone.inventory.add(kit, 12)
-	await _frames(20)
+	# Окно обновляется по таймеру (0.25 с), а кадры короче — обновляем сразу, чтобы не ловить гонку.
+	window.refresh()
+	await _frames(5)
 	var deposit: Button = window.get("_deposit_button")
 	await _click_control(deposit)
-	_expect(state.manual_queue == 10 and run.drone.inventory.count(kit) == 2, "кнопка сдаёт нужные наборы в ручную очередь (%d)" % state.manual_queue)
+	_expect(state.manual_queue == 10 and run.drone.inventory.count(kit) == 2,
+		"кнопка сдаёт нужные наборы в ручную очередь (сдано %d, наборов у дрона %d, выбрано «%s», кнопка %s)"
+			% [state.manual_queue, run.drone.inventory.count(kit), state.active, "выключена" if deposit.disabled else "включена"])
 	game.clock.set_speed_index(2)
 	await _wait_ticks(run.planet, roundi(ResearchState.MANUAL_SECONDS * GameConst.TICK_RATE) * 2 + 5)
 	game.clock.set_speed_index(0)
 	await _frames(20)
 	_expect(state.get_progress(Registry.get_research(&"electricity")) == 2, "ручная очередь: 2 набора за %d с" % roundi(ResearchState.MANUAL_SECONDS * 2))
 	await _shot("r01_research_window.png")
+	# Колесо над деревом приближает его.
+	var tree_center := window.get_global_rect().get_center()
+	await _mouse_move_screen(tree_center)
+	var zoom_before: float = window.get_tree_zoom()
+	await _wheel_screen(tree_center, true)
+	await _frames(5)
+	_expect(window.get_tree_zoom() > zoom_before, "колесо приближает дерево исследований (%.2f)" % window.get_tree_zoom())
+	await _shot("r01b_research_zoom.png")
+	await _wheel_screen(tree_center, false)
+	await _frames(5)
+	_expect(is_equal_approx(window.get_tree_zoom(), zoom_before), "колесо назад возвращает масштаб")
 	await _key(KEY_ESCAPE)
 	_expect(not window.visible and not game.pause_menu.is_open(), "Esc закрывает окно исследований")
 
@@ -197,6 +212,12 @@ func _run_research(game: Game) -> void:
 	# Меню обновляет кнопки раз в 0.2 с.
 	await _frames(40)
 	_expect(drill_button.modulate.r > 0.9 and state.is_building_unlocked(drill_def), "после исследования электробур открыт в меню")
+	# «Порты шлюза II» открыты — шлюз вырос до 4×4, центр остался на месте.
+	var grown := run.get_gateway(run.planet)
+	_expect(grown.get_size() == 4 and run.planet.buildings.get_at(grown.origin + Vector2i(3, 3)) == grown,
+		"после «Портов шлюза II» шлюз занимает 4×4")
+	_expect(run.planet.pad_rect.position + run.planet.pad_rect.size / 2 == grown.origin + Vector2i(2, 2),
+		"площадка осталась симметричной вокруг центра шлюза")
 	_expect(run.drone.get_speed() > run.drone.def.speed and run.drone.get_max_health() > run.drone.def.health,
 		"ветка дрона поднимает скорость (%.1f) и прочность (%.0f)" % [run.drone.get_speed(), run.drone.get_max_health()])
 	run.drone.inventory.remove(kit, 2)
@@ -233,6 +254,28 @@ func _run_coal_drill(game: Game, base: Vector2i) -> void:
 	await _shot("p12_coal_drill.png")
 	await _mouse_move(game, tile + Vector2i(0, 4))
 	world.buildings.remove(drill, true)
+
+
+## Колесо мыши на экранной точке.
+func _wheel_screen(pos: Vector2, up: bool) -> void:
+	var event := InputEventMouseButton.new()
+	event.position = pos
+	event.global_position = pos
+	event.button_index = MOUSE_BUTTON_WHEEL_UP if up else MOUSE_BUTTON_WHEEL_DOWN
+	event.pressed = true
+	Input.parse_input_event(event)
+	await _frames(2)
+	var release := InputEventMouseButton.new()
+	release.position = pos
+	release.global_position = pos
+	release.button_index = event.button_index
+	release.pressed = false
+	Input.parse_input_event(release)
+	await _frames(2)
+
+
+func _iron_index() -> int:
+	return Registry.get_item(&"iron_ingot").index
 
 
 ## Отложить волны текущей планеты, чтобы враги не мешали остальным сценариям.
@@ -501,6 +544,38 @@ func _run_gateway(game: Game) -> void:
 	_expect(absf(game.camera.position.x - bounds.get_center().x) < 2.0 and bounds.has_point(game.camera.position),
 		"камера на этаже — в пределах открытой части")
 
+	# Много труб на экране: раньше кадр перерисовывал их все заново, теперь чанки кэшируются.
+	# Ставим только на свободные тайлы этажа, ничего не сносим.
+	var pipe_def := Registry.get_building(&"pipe")
+	# Берём кусок этажа 24×24 — этого хватает, чтобы нагрузить отрисовку, и сцена не затягивается.
+	var open_rect := run.base.play_rect.grow(-2)
+	var field := Rect2i(open_rect.get_center() - Vector2i(12, 12), Vector2i(24, 24)).intersection(open_rect)
+	var placed := 0
+	for y in range(field.position.y, field.end.y):
+		for x in range(field.position.x, field.end.x):
+			var tile := Vector2i(x, y)
+			if run.base.buildings.check_place(pipe_def, tile, 0) != BuildingManager.Check.OK:
+				continue
+			if run.base.buildings.place(pipe_def, tile, 0) != null:
+				placed += 1
+	run.base.fluids.update()
+	var zoom_before := game.camera.user_zoom
+	game.camera.focus_on(Vector2(field.get_center() * GameConst.TILE_SIZE), 0.5)
+	await _frames(20)
+	await _measure_frames("%d труб на экране" % placed)
+	_expect(placed > 100, "этаж заставлен трубами (%d)" % placed)
+	await _shot("w01b_pipe_field.png")
+	for y in range(field.position.y, field.end.y):
+		for x in range(field.position.x, field.end.x):
+			var pipe := run.base.buildings.get_at(Vector2i(x, y))
+			if pipe is Pipe:
+				run.base.buildings.remove(pipe)
+	run.base.fluids.update()
+	# Масштаб возвращаем: иначе дальше камера смотрит слишком широко и упирается в край карты.
+	game.camera.focus_on(run.drone.position, zoom_before)
+	game.camera.recenter()
+	await _frames(20)
+
 	# Стройка в базе настоящим вводом.
 	var base_tile := pair.origin + Vector2i(1, -3)
 	game.tools.select_building(conveyor)
@@ -652,8 +727,9 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	await _frames(20)
 	await _key_hold(KEY_D, false)
 	_expect(drone.position.x > start.x + 16.0, "D двигает дрона вправо (%.0f px)" % (drone.position.x - start.x))
-	await _frames(20)
-	_expect(game.camera.position.distance_to(drone.get_draw_position(game.clock.alpha)) < 2.0, "камера следует за дроном")
+	await _frames(60)
+	_expect(game.camera.position.distance_to(drone.get_draw_position(game.clock.alpha)) < 2.0,
+		"камера следует за дроном (%.1f px)" % game.camera.position.distance_to(drone.get_draw_position(game.clock.alpha)))
 	await _shot("d00_drone.png")
 
 	# Добыча: ЛКМ по руде с зажатием.
@@ -674,6 +750,10 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	await _shot("d01_mining.png")
 	await _mouse_button(game, ore_tile, MOUSE_BUTTON_LEFT, false)
 	_expect(inv.count(copper) >= copper_before + 2, "дрон добыл гематит (+%d)" % (inv.count(copper) - copper_before))
+	_expect(drone.last_mined_item == copper and drone.last_mined_count == inv.count(copper)
+		and drone.last_mined_tile == ore_tile and world.simulation.tick - drone.last_mined_tick < DroneView.MINED_TICKS,
+		"над тайлом видна надпись «%s ×%d»" % [tr(Registry.items[copper].name_key), drone.last_mined_count])
+	await _shot("d05b_mined_label.png")
 	_expect(drone.get_mineable_ore(_find_any_ore_tile(world, &"malachite", base, 60)) == null, "малахит дрону не по силам")
 	_expect(not drone.is_mining(), "отпускание кнопки останавливает добычу")
 
@@ -1100,6 +1180,38 @@ func _run_factory(game: Game, base: Vector2i) -> void:
 		and (furnace_views[3] as Dictionary).has("bar"), "окно печи: сырьё, топливо, продукт, прогресс, горение")
 	await _shot("g13_furnace_window.png")
 	await _key(KEY_ESCAPE)
+	# Shift+ПКМ загружает всё подходящее, Shift+ЛКМ забирает только продукцию.
+	# Печь для показа ставим отдельно: у печи из цепочки продукцию сразу забирает разгрузчик.
+	var demo_at := spot + Vector2i(3, 4)
+	if bm.check_place(Registry.get_building(&"furnace"), demo_at, 0) == BuildingManager.Check.OK:
+		var demo := bm.place(Registry.get_building(&"furnace"), demo_at, 0, true) as Crafter
+		var inv := world.drone.inventory
+		inv.add(hematite, 20)
+		inv.add(coal, 5)
+		await _drone_to(game, demo_at + Vector2i(1, 3))
+		await _mouse_move(game, demo_at)
+		await _key_hold(KEY_SHIFT, true)
+		await _mouse_button(game, demo_at, MOUSE_BUTTON_RIGHT, true)
+		await _mouse_button(game, demo_at, MOUSE_BUTTON_RIGHT, false)
+		await _frames(5)
+		_expect(demo.inputs[hematite] > 0 and demo.total_fuel() > 0, "Shift+ПКМ загружает сырьё и топливо")
+		game.clock.set_speed_index(2)
+		await _wait_ticks(world, 12 * GameConst.TICK_RATE)
+		game.clock.set_speed_index(0)
+		inv.remove(hematite, inv.count(hematite))
+		inv.remove(coal, inv.count(coal))
+		var iron := _iron_index()
+		var before_iron := inv.count(iron)
+		var ready: int = demo.outputs[iron]
+		await _mouse_button(game, demo_at, MOUSE_BUTTON_LEFT, true)
+		await _mouse_button(game, demo_at, MOUSE_BUTTON_LEFT, false)
+		await _key_hold(KEY_SHIFT, false)
+		await _frames(5)
+		_expect(ready > 0 and inv.count(iron) == before_iron + ready and demo.outputs[iron] == 0,
+			"Shift+ЛКМ забирает продукцию (%d)" % ready)
+		_expect(demo.inputs[hematite] > 0 and demo.total_fuel() > 0, "сырьё и топливо остаются в печи")
+		await _shot("g13b_quick_transfer.png")
+		bm.remove(demo, true)
 	await _mouse_move(game, spot + Vector2i(20, 20))
 	await _frames(3)
 	await _drone_to(game, base)
@@ -1210,6 +1322,22 @@ func _run_power(game: Game, base: Vector2i) -> void:
 		for v in pole_views:
 			has_chart = has_chart or (v as Dictionary).has("chart")
 		_expect(game.hud.inventory_window.visible and has_chart, "окно опоры: график сети")
+		# Ряды графика включаются кнопками под ним.
+		for v in pole_views:
+			var dict := v as Dictionary
+			if not dict.has("chart"):
+				continue
+			var chart: PowerChart = dict["chart"]
+			var legend: Array = dict["legend"]
+			_expect(chart.series.size() == 4 and legend.size() == 4, "на графике четыре ряда: спрос, выработка, возможная, заряд")
+			if legend.size() == 4:
+				await _click_control(legend[1] as Button)
+				await _frames(5)
+				_expect(chart.hidden_series.has(1), "кнопка выключает ряд выработки")
+				await _shot("p06b_network_series.png")
+				await _click_control(legend[1] as Button)
+				await _frames(5)
+				_expect(not chart.hidden_series.has(1), "повторный клик возвращает ряд")
 		await _shot("p06_network_window.png")
 		await _key(KEY_ESCAPE)
 	await _mouse_move(game, boiler.origin)
@@ -1223,8 +1351,80 @@ func _run_power(game: Game, base: Vector2i) -> void:
 	_expect(window.visible and views.size() == 5, "окно бойлера: топливо и четыре полоски (%d)" % views.size())
 	await _shot("p04_boiler_window.png")
 	await _key(KEY_ESCAPE)
+	await _run_pipe_dragging(game, layout)
 	await _mouse_move(game, layout + Vector2i(20, 20))
 	await _drone_to(game, base)
+
+
+## Трубы протягиванием: стена перекрывается подземной парой сама; ряд подземных встаёт с наибольшим шагом.
+## Рядом — водный бак: он входит в ту же сеть труб и вмещает много.
+func _run_pipe_dragging(game: Game, layout: Vector2i) -> void:
+	var world := game.world
+	var bm := world.buildings
+	var tools := game.tools
+	var inv := world.drone.inventory
+	var pipe_def := Registry.get_building(&"pipe")
+	var under_def := Registry.get_building(&"underground_pipe") as FluidBuildingDef
+	var row := layout + Vector2i(-2, 6)
+	if not _rect_clear(world, Rect2i(row + Vector2i(0, -1), Vector2i(16, 5))):
+		return
+	await _drone_to(game, row + Vector2i(6, 3))
+	bm.place(Registry.get_building(&"stone_wall"), row + Vector2i(-4, 0), 0, true)
+	bm.place(Registry.get_building(&"stone_wall"), row + Vector2i(-5, 0), 0, true)
+	inv.add(pipe_def.item.index, 20)
+	inv.add(under_def.item.index, 10)
+	tools.select_building(pipe_def)
+	await _mouse_move(game, row)
+	await _mouse_button(game, row, MOUSE_BUTTON_LEFT, true)
+	await _mouse_move(game, row + Vector2i(-8, 0))
+	await _frames(3)
+	await _mouse_button(game, row + Vector2i(-8, 0), MOUSE_BUTTON_LEFT, false)
+	await _key(KEY_ESCAPE)
+	var entry := bm.get_at(row + Vector2i(-3, 0)) as UndergroundPipe
+	var exit := bm.get_at(row + Vector2i(-6, 0)) as UndergroundPipe
+	_expect(entry != null and exit != null and entry.get_linked_partner() == exit,
+		"протягивание трубы через стену само ставит подземную пару")
+	await _shot("p07_pipe_drag.png")
+
+	# Ряд подземных труб: клик с протягиванием ставит пары на наибольшем расстоянии.
+	var under_row := row + Vector2i(0, 2)
+	tools.select_building(under_def)
+	await _mouse_move(game, under_row)
+	await _mouse_button(game, under_row, MOUSE_BUTTON_LEFT, true)
+	await _mouse_move(game, under_row + Vector2i(-under_def.underground_range, 0))
+	await _frames(3)
+	await _mouse_button(game, under_row + Vector2i(-under_def.underground_range, 0), MOUSE_BUTTON_LEFT, false)
+	await _key(KEY_ESCAPE)
+	var far := bm.get_at(under_row + Vector2i(-under_def.underground_range, 0)) as UndergroundPipe
+	var near := bm.get_at(under_row) as UndergroundPipe
+	_expect(near != null and far != null and near.get_linked_partner() == far,
+		"ряд подземных труб: пара на всю дальность")
+	var middle_empty := true
+	for i in range(1, under_def.underground_range):
+		middle_empty = middle_empty and bm.get_at(under_row + Vector2i(-i, 0)) == null
+	_expect(middle_empty, "между парой пусто — трубы не тратятся зря")
+	await _shot("p08_underground_drag.png")
+
+	# Водный бак 2×2 в ту же сеть.
+	var tank_def := Registry.get_building(&"water_tank")
+	var tank_at := row + Vector2i(2, 1)
+	if bm.check_place(tank_def, tank_at, 0) == BuildingManager.Check.OK:
+		inv.add(tank_def.item.index, 1)
+		tools.select_building(tank_def)
+		await _mouse_move(game, tank_at)
+		await _mouse_button(game, tank_at, MOUSE_BUTTON_LEFT, true)
+		await _mouse_button(game, tank_at, MOUSE_BUTTON_LEFT, false)
+		await _key(KEY_ESCAPE)
+		var tank := bm.get_at(tank_at)
+		_expect(tank != null and tank.get_size() == 2, "водный бак 2×2 поставлен")
+		if tank != null:
+			bm.place(pipe_def, tank_at + Vector2i(-1, 0), 0, true)
+			world.fluids.update()
+			var tank_net := world.fluids.get_pipe_network(tank)
+			var row_net := world.fluids.get_pipe_network(bm.get_at(row))
+			_expect(tank_net != null and tank_net == row_net and tank_net.capacity > 1000.0,
+				"бак в одной сети с трубами и сильно поднял её ёмкость (%.0f)" % (tank_net.capacity if tank_net != null else 0.0))
+
 
 
 ## Логистика: витрина зданий, настройка кликами, мосты, оверлей загрузки лент.

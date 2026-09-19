@@ -347,6 +347,14 @@ func get_player_stacks() -> Array[Vector2i]:
 	return stacks
 
 
+func get_player_output_stacks() -> Array[Vector2i]:
+	var stacks: Array[Vector2i] = []
+	for item in outputs.size():
+		if outputs[item] > 0:
+			stacks.append(Vector2i(item, outputs[item]))
+	return stacks
+
+
 func take_player_items(item: int, amount: int) -> int:
 	var from_outputs := mini(outputs[item], amount)
 	outputs[item] -= from_outputs

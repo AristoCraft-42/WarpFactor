@@ -1,12 +1,15 @@
 class_name PowerChart
 extends Control
-## График окна электросети: несколько рядов значений (спрос, выработка, заряд) линиями от 0 до max_value,
-## последняя точка — справа. Сетка из четырёх делений и подпись верха шкалы.
+## График окна электросети: несколько рядов значений (спрос, выработка, возможная выработка, заряд)
+## линиями от 0 до max_value, последняя точка — справа. Сетка из четырёх делений и подпись верха шкалы.
+## Ряды включаются кнопками под графиком (hidden).
 
 var series: Array[PackedFloat32Array] = []
 var colors := PackedColorArray()
 var max_value: float = 1.0
 var top_label: String = ""
+## Номера скрытых рядов.
+var hidden_series: Dictionary[int, bool] = {}
 
 
 func _init() -> void:
@@ -33,6 +36,8 @@ func _draw() -> void:
 		draw_string(font, Vector2(4, 13), top_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(1, 1, 1, 0.45))
 	var slots := float(PowerGraph.HISTORY_SIZE - 1)
 	for k in series.size():
+		if hidden_series.has(k):
+			continue
 		var values := series[k]
 		if values.size() < 2:
 			continue

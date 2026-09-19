@@ -13,7 +13,7 @@ extends RefCounted
 ## индексами вместе с таблицами id: при изменении контента индексы переносятся (SaveContext).
 
 const MAGIC := "FWSV"
-const VERSION := 3
+const VERSION := 4
 const DIR := "user://saves/"
 ## Автопрогон пишет в отдельную папку, чтобы не трогать сохранения игрока.
 const AUTOSHOT_DIR := "user://saves_autoshot/"
@@ -250,6 +250,10 @@ static func world_to_dict(world: GameWorld) -> Dictionary:
 	for b in world.buildings.get_all():
 		var entry := {"id": b.id, "def": String(b.def.id), "origin": b.origin, "rotation": b.rotation,
 			"config": b.get_config(), "state": b.save_state(), "dump": b.get_dump_cursor()}
+		# Занимаемый размер пишем, если он отличается от данных или может измениться (шлюз растёт
+		# по исследованиям, а они загружаются уже после построек).
+		if b.size != b.def.size or b is GatewayBuilding:
+			entry["size"] = b.size
 		if b.is_damaged():
 			entry["hp"] = b.health
 		entries.append(entry)
@@ -336,7 +340,8 @@ static func _place_entry(world: GameWorld, entry: Dictionary) -> void:
 	if def == null:
 		push_warning("SaveIO: здание «%s» больше не существует — пропущено" % entry.get("def", ""))
 		return
-	var b := world.buildings.place(def, entry.get("origin", Vector2i.ZERO), int(entry.get("rotation", 0)), true, int(entry.get("id", 0)))
+	var b := world.buildings.place(def, entry.get("origin", Vector2i.ZERO), int(entry.get("rotation", 0)), true,
+		int(entry.get("id", 0)), int(entry.get("size", 0)))
 	if b == null:
 		return
 	var config: Variant = entry.get("config", null)

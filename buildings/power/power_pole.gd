@@ -120,13 +120,15 @@ func get_window_sections() -> Array[WindowSection]:
 			top = maxf(top, v)
 		for v in history.supply:
 			top = maxf(top, v)
+		for v in history.capacity:
+			top = maxf(top, v)
 		top = maxf(top, 1.0)
 		var charge := PackedFloat32Array()
 		for v in history.charge:
 			charge.append(v * top)
-		var series: Array[PackedFloat32Array] = [history.demand, history.supply]
-		var colors := PackedColorArray([Color(0.98, 0.29, 0.2), Color(0.72, 0.73, 0.15)])
-		var names := PackedStringArray([tr("WINDOW_GRAPH_DEMAND"), tr("WINDOW_GRAPH_SUPPLY")])
+		var series: Array[PackedFloat32Array] = [history.demand, history.supply, history.capacity]
+		var colors := PackedColorArray([Color(0.98, 0.29, 0.2), Color(0.72, 0.73, 0.15), Color(0.98, 0.74, 0.18)])
+		var names := PackedStringArray([tr("WINDOW_GRAPH_DEMAND"), tr("WINDOW_GRAPH_SUPPLY"), tr("WINDOW_GRAPH_CAPACITY")])
 		if net.storage_capacity_kj > 0.0:
 			series.append(charge)
 			colors.append(Color(0.51, 0.65, 0.6))

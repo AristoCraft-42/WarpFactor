@@ -54,22 +54,28 @@ class PowerNetwork:
 class PowerHistory:
 	var demand := PackedFloat32Array()
 	var supply := PackedFloat32Array()
+	## Сколько сеть могла бы выдать (генераторы на полную) — верхняя граница выработки.
+	var capacity := PackedFloat32Array()
 	var charge := PackedFloat32Array()
 	var _sum_demand: float = 0.0
 	var _sum_supply: float = 0.0
+	var _sum_capacity: float = 0.0
 	var _ticks: int = 0
 
-	func add(demand_kw: float, supply_kw: float, charge_share: float) -> void:
+	func add(demand_kw: float, supply_kw: float, capacity_kw: float, charge_share: float) -> void:
 		_sum_demand += demand_kw
 		_sum_supply += supply_kw
+		_sum_capacity += capacity_kw
 		_ticks += 1
 		if _ticks < HISTORY_TICKS:
 			return
 		demand = _push(demand, _sum_demand / _ticks)
 		supply = _push(supply, _sum_supply / _ticks)
+		capacity = _push(capacity, _sum_capacity / _ticks)
 		charge = _push(charge, charge_share)
 		_sum_demand = 0.0
 		_sum_supply = 0.0
+		_sum_capacity = 0.0
 		_ticks = 0
 
 	static func _push(values: PackedFloat32Array, value: float) -> PackedFloat32Array:
@@ -195,7 +201,7 @@ static func balance(group: Array[PowerNetwork]) -> void:
 		net.storage_capacity_kj = storage_capacity
 		net.linked = group.size() > 1
 		if net.history != null:
-			net.history.add(net.demand_kw, (from_generators + discharge) / dt,
+			net.history.add(net.demand_kw, (from_generators + discharge) / dt, net.capacity_kw,
 				stored / storage_capacity if storage_capacity > 0.0 else 0.0)
 
 

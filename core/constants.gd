@@ -13,7 +13,7 @@ const TICK_RATE: int = 30
 const TICK_DT: float = 1.0 / TICK_RATE
 
 ## Максимальный размер здания в тайлах.
-const MAX_BUILDING_SIZE: int = 3
+const MAX_BUILDING_SIZE: int = 4
 
 ## Границы размера уровня.
 const MIN_LEVEL_SIZE: int = 16

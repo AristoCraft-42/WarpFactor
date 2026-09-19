@@ -481,17 +481,27 @@ func _make_section_view(section: WindowSection) -> Dictionary:
 		var chart := PowerChart.new()
 		chart.custom_minimum_size = Vector2(RIGHT_MIN_SIZE.x, 130)
 		box.add_child(chart)
-		var legend := UiUtil.hbox(12)
+		var legend := UiUtil.hbox(8)
 		box.add_child(legend)
-		var legend_labels: Array[Label] = []
+		var legend_buttons: Array[Button] = []
 		for i in section.series_names.size():
-			var l := Label.new()
-			l.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-			l.add_theme_font_size_override("font_size", 13)
-			legend.add_child(l)
-			legend_labels.append(l)
+			var b := Button.new()
+			b.toggle_mode = true
+			b.button_pressed = true
+			b.focus_mode = Control.FOCUS_NONE
+			b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+			b.add_theme_font_size_override("font_size", 13)
+			var index := i
+			b.toggled.connect(func(on: bool) -> void:
+				if on:
+					chart.hidden_series.erase(index)
+				else:
+					chart.hidden_series[index] = true
+				chart.queue_redraw())
+			legend.add_child(b)
+			legend_buttons.append(b)
 		view["chart"] = chart
-		view["legend"] = legend_labels
+		view["legend"] = legend_buttons
 	elif section.kind == WindowSection.Kind.TEXT:
 		var label := Label.new()
 		label.theme_type_variation = &"DimLabel"
@@ -559,10 +569,13 @@ func _update_section_view(view: Dictionary, section: WindowSection) -> void:
 				slots[i].modulate = Color.WHITE
 	elif view.has("chart"):
 		(view["chart"] as PowerChart).set_data(section.series, section.series_colors, section.max_value, section.title)
-		var legend: Array[Label] = view["legend"]
+		var legend: Array[Button] = view["legend"]
 		for i in legend.size():
 			legend[i].text = "— " + section.series_names[i] if i < section.series_names.size() else ""
-			legend[i].add_theme_color_override("font_color", section.series_colors[i] if i < section.series_colors.size() else Color.WHITE)
+			var col: Color = section.series_colors[i] if i < section.series_colors.size() else Color.WHITE
+			legend[i].add_theme_color_override("font_color", col)
+			legend[i].add_theme_color_override("font_pressed_color", col)
+			legend[i].add_theme_color_override("font_hover_color", col.lightened(0.2))
 	elif view.has("text"):
 		(view["text"] as Label).text = "\n".join(section.lines)
 	else:

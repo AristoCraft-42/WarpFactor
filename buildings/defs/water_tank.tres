@@ -2,40 +2,40 @@
 
 [ext_resource type="Script" path="res://buildings/fluid/fluid_building_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
-[ext_resource type="Script" path="res://buildings/fluid/underground_pipe.gd" id="3_logic"]
-[ext_resource type="Resource" path="res://items/types/buildings/pipe.tres" id="item_pipe"]
+[ext_resource type="Script" path="res://buildings/fluid/pipe.gd" id="3_logic"]
 [ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/brick.tres" id="item_brick"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_pipe")
-amount = 10
+item = ExtResource("item_iron_ingot")
+amount = 12
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_iron_ingot")
-amount = 5
+item = ExtResource("item_brick")
+amount = 8
 
 [resource]
 script = ExtResource("1_def")
-id = &"underground_pipe"
-name_key = "BUILDING_UNDERGROUND_PIPE"
-description_key = "BUILDING_UNDERGROUND_PIPE_DESC"
+id = &"water_tank"
+name_key = "BUILDING_WATER_TANK"
+description_key = "BUILDING_WATER_TANK_DESC"
 category = 2
-size = 1
+size = 2
 removable = true
 player_buildable = true
-line_placement = true
-sort_order = 35
+line_placement = false
+sort_order = 36
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
-craft_time = 1.0
-craft_amount = 2
-health = 80.0
-solid = false
-color = Color(0.310, 0.365, 0.400, 1)
-glyph = 26
+craft_time = 3.0
+craft_amount = 1
+health = 260.0
+solid = true
+color = Color(0.290, 0.420, 0.478, 1)
+glyph = 29
 logic_script = ExtResource("3_logic")
-role = 3
-fluid_capacity = 100.0
-underground_range = 10
+role = 0
+fluid_capacity = 4000.0
+rotatable = false
 allowed_on_fluid = true

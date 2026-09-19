@@ -101,7 +101,8 @@ func check_place(def: BuildingDef, origin: Vector2i, rotation: int) -> Check:
 
 ## Ставит здание. При force=false проверяет размещение (REPLACE сносит старое здание).
 ## forced_id — занять конкретный id (загрузка сохранения). Возвращает новое здание или null.
-func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = false, forced_id: int = 0) -> Building:
+func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = false, forced_id: int = 0,
+		forced_size: int = 0) -> Building:
 	var check := check_place(def, origin, rotation)
 	if check == Check.SAME:
 		return null
@@ -118,6 +119,7 @@ func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = fals
 	building.origin = origin
 	building.rotation = posmod(rotation, 4) if def.rotatable else 0
 	building.world = _world
+	building.size = forced_size if forced_size > 0 else building.get_initial_size()
 	building.health = def.get_max_health()
 	building.id = _reserve_id(forced_id) if forced_id > 0 else _allocate_id()
 	_by_id[building.id] = building
@@ -134,6 +136,41 @@ func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = fals
 	building.on_placed()
 	building_added.emit(building)
 	return building
+
+
+## Меняет занимаемый размер стоящего здания, сохраняя центр (шлюз растёт по исследованию «Порты шлюза II»).
+## Всё, что попало в новый прямоугольник, сносится. Слушатели получают «здание убрано» и «здание поставлено»,
+## поэтому соседство, сети и отрисовка обновляются сами.
+func resize_building(building: Building, new_size: int) -> bool:
+	if building == null or building.id == 0 or new_size < 1 or new_size == building.size:
+		return false
+	var shift := (new_size - building.size) / 2
+	var new_origin := building.origin - Vector2i.ONE * shift
+	var rect := Rect2i(new_origin, Vector2i(new_size, new_size))
+	if not grid.rect_in_bounds(rect):
+		return false
+	var old_rect := building.get_rect()
+	for y in range(old_rect.position.y, old_rect.end.y):
+		for x in range(old_rect.position.x, old_rect.end.x):
+			grid.building_ids[grid.index_of(x, y)] = 0
+	building_removed.emit(building)
+	for other in collect_in_rect(rect):
+		if other != building:
+			remove(other, true)
+	var old_chunk := grid.chunk_index(GameConst.tile_to_chunk(building.origin))
+	building.origin = new_origin
+	building.size = new_size
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			grid.building_ids[grid.index_of(x, y)] = building.id
+	var new_chunk := grid.chunk_index(GameConst.tile_to_chunk(new_origin))
+	if new_chunk != old_chunk:
+		var pos := _chunk_lists[old_chunk].find(building.id)
+		if pos >= 0:
+			_chunk_lists[old_chunk].remove_at(pos)
+		_chunk_lists[new_chunk].append(building.id)
+	building_added.emit(building)
+	return true
 
 
 ## Поворачивает здание на новое направление. false — если поворот невозможен или не нужен.

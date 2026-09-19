@@ -35,11 +35,20 @@ func get_output_side() -> int:
 
 
 func get_input_tile() -> Vector2i:
-	return get_gateway_def().get_port_tile(origin, get_input_side())
+	return get_gateway_def().get_port_tile(origin, get_size(), get_input_side())
 
 
 func get_output_tile() -> Vector2i:
-	return get_gateway_def().get_port_tile(origin, get_output_side())
+	return get_gateway_def().get_port_tile(origin, get_size(), get_output_side())
+
+
+## Шлюз начинает забег стороной start_size и вырастает до grown_size, когда открыты все «Порты шлюза».
+func get_initial_size() -> int:
+	var d := get_gateway_def()
+	if world == null or world.research == null:
+		return d.start_size
+	var steps := ResearchState.max_effect(&"gateway_ports")
+	return d.grown_size if steps > 0 and world.research.count_effect(&"gateway_ports") >= steps else d.start_size
 
 
 ## Передаёт ли шлюз предметы (исследование «Передача предметов»; вне забега — всегда).
@@ -50,7 +59,7 @@ func items_enabled() -> bool:
 ## Сколько портов открыто на каждой стороне (1 + исследования «Порты шлюза», не больше стороны здания).
 func port_count() -> int:
 	var extra := world.research.count_effect(&"gateway_ports") if world != null and world.research != null else 0
-	return clampi(1 + extra, 1, def.size)
+	return clampi(1 + extra, 1, get_size())
 
 
 ## Шлюз соединяет электросети этажей (исследование «Передача энергии»).
@@ -78,11 +87,11 @@ func get_fluid_ports() -> Array[FluidGraph.Port]:
 
 
 func get_input_tiles() -> Array[Vector2i]:
-	return get_gateway_def().get_port_tiles(origin, get_input_side(), port_count())
+	return get_gateway_def().get_port_tiles(origin, get_size(), get_input_side(), port_count())
 
 
 func get_output_tiles() -> Array[Vector2i]:
-	return get_gateway_def().get_port_tiles(origin, get_output_side(), port_count())
+	return get_gateway_def().get_port_tiles(origin, get_size(), get_output_side(), port_count())
 
 
 func on_placed() -> void:

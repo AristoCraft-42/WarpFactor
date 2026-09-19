@@ -11,6 +11,9 @@ extends BuildingDef
 @export var outbound_side: int = GameConst.Dir.RIGHT
 ## Сколько предметов ждёт перехода в каждую сторону.
 @export var buffer_capacity: int = 10
+## Сторона шлюза в начале забега и после «Портов шлюза II» (size в данных — наибольший из них).
+@export var start_size: int = 2
+@export var grown_size: int = 4
 ## Скорость портов — как у этой ленты.
 @export var throughput_of: ConveyorDef
 
@@ -19,22 +22,42 @@ func get_ticks_per_item() -> int:
 	return throughput_of.get_ticks_per_item() if throughput_of != null else 1
 
 
-## Тайл снаружи середины стороны side для здания с левым верхним тайлом origin.
-func get_port_tile(origin: Vector2i, side: int) -> Vector2i:
-	var half := size / 2
-	return origin + Vector2i(half, half) + GameConst.dir_vector(side) * (half + 1)
+## Тайл снаружи середины стороны side для здания размером gate_size с левым верхним тайлом origin.
+func get_port_tile(origin: Vector2i, gate_size: int, side: int) -> Vector2i:
+	var tiles := get_port_tiles(origin, gate_size, side, 1)
+	return tiles[0] if not tiles.is_empty() else origin
 
 
-## Тайлы портов стороны side: первые count из порядка «середина, затем по краям».
-func get_port_tiles(origin: Vector2i, side: int, count: int) -> Array[Vector2i]:
-	var middle := get_port_tile(origin, side)
+## Тайлы снаружи стороны side в порядке «от середины к краям», первые count штук.
+## При чётном размере середин две — сначала они, потом по краям.
+func get_port_tiles(origin: Vector2i, gate_size: int, side: int, count: int) -> Array[Vector2i]:
 	var dir := GameConst.dir_vector(side)
-	var along := Vector2i(-dir.y, dir.x)
-	var result: Array[Vector2i] = [middle]
-	var half := size / 2
-	for k in range(1, half + 1):
-		result.append(middle - along * k)
-		result.append(middle + along * k)
+	var outside := origin
+	if dir.x > 0:
+		outside = origin + Vector2i(gate_size, 0)
+	elif dir.x < 0:
+		outside = origin + Vector2i(-1, 0)
+	elif dir.y > 0:
+		outside = origin + Vector2i(0, gate_size)
+	else:
+		outside = origin + Vector2i(0, -1)
+	var step := Vector2i(0, 1) if dir.x != 0 else Vector2i(1, 0)
+	var all: Array[Vector2i] = []
+	for i in gate_size:
+		all.append(outside + step * i)
+	var result: Array[Vector2i] = []
+	var lo := (gate_size - 1) / 2
+	var hi := lo + 1 if gate_size % 2 == 0 else lo
+	result.append(all[lo])
+	if hi != lo:
+		result.append(all[hi])
+	while result.size() < gate_size:
+		lo -= 1
+		hi += 1
+		if lo >= 0:
+			result.append(all[lo])
+		if hi < gate_size and result.size() < gate_size:
+			result.append(all[hi])
 	return result.slice(0, clampi(count, 0, result.size()))
 
 

@@ -13,7 +13,7 @@ func _draw() -> void:
 	for id in manager.get_chunk_ids(chunk_index):
 		var b := manager.get_by_id(id)
 		if b != null:
-			BuildingLayer.draw_building(self, b.def, b.origin, b.rotation)
+			BuildingLayer.draw_building(self, b.def, b.origin, b.rotation, Color.WHITE, b.get_size())
 	# Детали рисуются вторым проходом, чтобы не разрывать батч основных спрайтов.
 	for id in manager.get_chunk_ids(chunk_index):
 		var b := manager.get_by_id(id)

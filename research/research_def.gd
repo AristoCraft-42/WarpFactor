@@ -26,5 +26,7 @@ extends Resource
 @export var unlock_buildings: Array[BuildingDef] = []
 @export var unlock_recipes: Array[Recipe] = []
 @export var effects: Array[StringName] = []
+## Видно и доступно только в творческом режиме (испытательный полигон с бесконечной стоимостью).
+@export var creative_only: bool = false
 
 var index: int = -1

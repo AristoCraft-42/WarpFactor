@@ -89,10 +89,12 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	setup_research(ResearchState.new())
 	link = GatewayLink.new()
 	var spawn := drone.get_tile()
-	var planet_gate := planet.place_gateway(Registry.get_building(&"central_gateway") as GatewayDef, spawn - Vector2i.ONE)
+	var planet_def := Registry.get_building(&"central_gateway") as GatewayDef
+	var planet_gate := planet.place_gateway(planet_def, GameWorld.gateway_origin(planet_def, spawn))
 	var base_size := base.grid.width
-	var base_gate := base.place_gateway(Registry.get_building(&"base_gateway") as GatewayDef,
-		Vector2i((base_size - 3) / 2, (base_size - 3) / 2))
+	var base_def := Registry.get_building(&"base_gateway") as GatewayDef
+	var base_gate := base.place_gateway(base_def,
+		GameWorld.gateway_origin(base_def, Vector2i(base_size / 2, base_size / 2)))
 	if planet_gate == null or base_gate == null:
 		return
 	link.planet_gateway = planet_gate
@@ -106,9 +108,44 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 
 
 ## Исследования забега: общие для обоих миров, фильтр ручного крафта дрона.
+## Творческий режим: включить или выключить волны на текущей планете.
+func set_creative_threat(on: bool) -> void:
+	if not creative or planet == null:
+		return
+	if on:
+		if planet.threat != null:
+			return
+		var node := star_map.get_current()
+		var def := node.type.threat if node != null and node.type != null else null
+		if def == null:
+			for type in Registry.planet_types:
+				if type.threat != null:
+					def = type.threat
+					break
+		if def == null:
+			return
+		planet.setup_threat(def, planet.simulation.tick, node.planet_seed if node != null else 0)
+	elif planet.threat != null:
+		planet.threat.dispose()
+		planet.threat = null
+
+
+func has_creative_threat() -> bool:
+	return planet != null and planet.threat != null
+
+
+## Творческий режим: позвать волну сейчас (включив волны, если они были выключены).
+func call_creative_wave() -> void:
+	set_creative_threat(true)
+	if planet != null and planet.threat != null:
+		planet.threat.call_next_wave(planet.simulation.tick)
+
+
 func setup_research(state: ResearchState) -> void:
+	state.sandbox = creative
 	research = state
-	research.creative = creative
+	if not research.loaded:
+		research.creative = creative
 	planet.research = research
 	base.research = research
 	drone.crafting.recipe_filter = research.is_hand_recipe_unlocked
@@ -148,6 +185,7 @@ func is_underground_open() -> bool:
 ## notify = false — после загрузки: размеры сверяются, но здания не будятся и сети не пересобираются
 ## (состояние симуляции должно совпасть с сохранённым).
 func apply_research_effects(notify: bool = true) -> void:
+	_grow_gateways()
 	if planet != null and link != null and link.planet_gateway != null:
 		planet.resize_pad(_pad_around(link.planet_gateway))
 	if base != null:
@@ -233,6 +271,18 @@ func get_passage() -> Building:
 		return gate
 	var lift := drone.world.buildings.get_at(drone.get_tile()) as Lift
 	return lift if lift != null and lift.pair != null else null
+
+
+## «Порты шлюза II» растят оба шлюза с 2×2 до 4×4, центр остаётся на месте.
+func _grow_gateways() -> void:
+	var size := _gateway_size()
+	for world in [planet, base]:
+		if world == null or world.buildings == null:
+			continue
+		var gate := get_gateway(world)
+		if gate != null and gate.world == world and gate.get_size() != size:
+			world.buildings.resize_building(gate, size)
+			world.gateway = gate
 
 
 ## Дрон над проходом между этажами (переход может быть закрыт исследованием).
@@ -368,7 +418,9 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 	attach_world(fresh)
 	fresh.simulation.tick = base.simulation.tick
 	var center := Vector2i(map.width / 2, map.height / 2)
-	var new_gate := fresh.place_gateway(Registry.get_building(&"central_gateway") as GatewayDef, center - Vector2i.ONE, gate_rotation)
+	var fresh_def := Registry.get_building(&"central_gateway") as GatewayDef
+	var new_gate := fresh.place_gateway(fresh_def,
+		GameWorld.gateway_origin(fresh_def, center, _gateway_size()), gate_rotation)
 	fresh.pad_rect = _pad_around(new_gate)
 	for e in entries:
 		var b := fresh.buildings.place(e["def"], fresh.pad_rect.position + (e["offset"] as Vector2i), e["rotation"], true)
@@ -625,8 +677,17 @@ func _pad_around(gate: GatewayBuilding) -> Rect2i:
 	if gate == null:
 		return Rect2i()
 	var size := get_pad_size()
-	var center := gate.origin + Vector2i.ONE * (gate.def.size / 2)
+	var center := gate.origin + Vector2i.ONE * (gate.get_size() / 2)
 	return Rect2i(center - Vector2i.ONE * (size / 2), Vector2i(size, size))
+
+
+## Сторона шлюза по исследованиям «Порты шлюза».
+func _gateway_size() -> int:
+	var def := Registry.get_building(&"central_gateway") as GatewayDef
+	if def == null:
+		return 2
+	var steps := ResearchState.max_effect(&"gateway_ports")
+	return def.grown_size if steps > 0 and research != null and research.count_effect(&"gateway_ports") >= steps else def.start_size
 
 
 func dispose() -> void:

@@ -12,7 +12,7 @@ extends RefCounted
 
 ## Вид настройки здания (что показывает панель настройки). MODE — только переключатели (инверсия),
 ## ROUTER — приоритетные стороны маршрутизатора, RECIPE — рецепт сборщика.
-enum ConfigKind { NONE, ITEM, BRIDGE, MODE, ROUTER, RECIPE }
+enum ConfigKind { NONE, ITEM, BRIDGE, MODE, ROUTER, RECIPE, SOURCE }
 ## Состояние здания для подсказки.
 enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE, NO_AMMO, NO_POWER, NO_FUEL, NO_RECIPE, NO_RESEARCH }
 
@@ -39,7 +39,17 @@ var power_net: PowerGraph.PowerNetwork
 var _dump_index: int = 0
 
 
+## Занимаемый размер в тайлах: обычно def.size, но шлюз растёт по исследованиям.
+## Выставляется при установке (BuildingManager.place) и меняется через BuildingManager.resize_building.
+var size: int = 0
+
+
 func get_size() -> int:
+	return size if size > 0 else def.size
+
+
+## Размер при установке: шлюз спрашивает исследования, остальные берут размер из данных.
+func get_initial_size() -> int:
 	return def.size
 
 
@@ -52,11 +62,12 @@ func is_damaged() -> bool:
 
 
 func get_rect() -> Rect2i:
-	return Rect2i(origin, Vector2i(def.size, def.size))
+	var s := get_size()
+	return Rect2i(origin, Vector2i(s, s))
 
 
 func get_world_rect() -> Rect2:
-	return Rect2(Vector2(origin * GameConst.TILE_SIZE), def.get_pixel_size())
+	return Rect2(Vector2(origin * GameConst.TILE_SIZE), Vector2.ONE * (get_size() * GameConst.TILE_SIZE))
 
 
 func get_world_center() -> Vector2:
@@ -226,6 +237,12 @@ func get_player_stacks() -> Array[Vector2i]:
 
 
 ## Забрать до amount предметов item руками игрока. Возвращает, сколько забрано.
+## Что игрок забирает быстрым обменом (Shift+ЛКМ): у заводов — только продукция,
+## сырьё и топливо остаются на месте. По умолчанию — всё, что отдаёт здание.
+func get_player_output_stacks() -> Array[Vector2i]:
+	return get_player_stacks()
+
+
 func take_player_items(_item: int, _amount: int) -> int:
 	return 0
 
