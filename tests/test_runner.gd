@@ -93,6 +93,9 @@ func _ready() -> void:
 	_test_accumulator()
 	_test_power_and_fluids_between_floors()
 	_test_lift()
+	_test_coal_drill()
+	_test_drone_upgrades()
+	_test_research_queue()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -140,14 +143,14 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 5, "ожидалось 5 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 24, "ожидалось 24 здания (22 строится + шлюз и пара), есть %d" % Registry.buildings.size())
+	_check(Registry.buildings.size() == 25, "ожидалось 25 зданий (23 строится + шлюз и пара), есть %d" % Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
-	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 23,
-		"13 рецептов и 23 исследования (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 41,
+		"13 рецептов и 41 исследование (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16 and Registry.base_def.size_step == 6,
 		"параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 17 + 22, "ожидалось 17 предметов и 22 предмета-постройки, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 17 + 23, "ожидалось 17 предметов и 23 предмета-постройки, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
 	for def in Registry.buildings:
@@ -280,7 +283,7 @@ func _test_building_manager() -> void:
 	_check(d != null and bm.get_at(Vector2i(6, 6)) == d, "бур занимает 2x2")
 	_check(bm.check_place(drill, Vector2i(6, 6), 0) == BuildingManager.Check.OCCUPIED, "пересечение запрещено")
 	_check(bm.check_place(drill, Vector2i(19, 5), 0) == BuildingManager.Check.BAD_TERRAIN, "скала запрещена")
-	_check(bm.check_place(vault, Vector2i(63, 63), 0) == BuildingManager.Check.OUT_OF_BOUNDS, "выход за карту")
+	_check(bm.check_place(vault, Vector2i(64, 10), 0) == BuildingManager.Check.OUT_OF_BOUNDS, "выход за карту")
 	_check(bm.check_place(drill, Vector2i(5, 5), 0) == BuildingManager.Check.SAME, "то же здание на том же месте")
 	_check(bm.check_place(drill, Vector2i(10, 20), 0) == BuildingManager.Check.NO_ORE, "бур без руды запрещён")
 	_check(bm.check_place(drill, Vector2i(17, 4), 0) == BuildingManager.Check.OK, "буру достаточно одного тайла руды")
@@ -303,11 +306,11 @@ func _test_building_manager() -> void:
 	_check(edge.size() == 1 and edge[0] == fixed_building, "рамка в правом нижнем тайле здания 3x3")
 
 	# Здание на границе чанков (32) и повторное использование id.
-	var cross := bm.place(vault, Vector2i(31, 31), 0)
-	_check(cross != null, "склад на стыке чанков")
+	var cross := bm.place(Registry.get_building(&"furnace"), Vector2i(31, 31), 0)
+	_check(cross != null, "здание 2×2 на стыке чанков")
 	_check(bm.collect_in_rect(Rect2i(32, 32, 1, 1)).has(cross), "поиск в соседнем чанке")
 	var old_id := cross.id
-	_check(bm.remove(cross), "снос склада")
+	_check(bm.remove(cross), "снос здания со стыка")
 	_check(bm.get_at(Vector2i(32, 32)) == null, "тайлы освобождены")
 	var reused := bm.place(conveyor, Vector2i(50, 5), 1)
 	_check(reused.id == old_id, "id переиспользуется")
@@ -413,7 +416,7 @@ func _test_drill_to_storage() -> void:
 	for y in range(8, 10):
 		for x in range(4, 6):
 			map.set_ore(x, y, ore)
-	map.add_placement(Registry.get_building(&"container"), Vector2i(30, 8))
+	map.add_placement(Registry.get_building(&"container"), Vector2i(30, 9))
 	var world := GameWorld.create(null, map, true)
 	var drill: Drill = world.buildings.place(Registry.get_building(&"drill"), Vector2i(4, 8), 0, true)
 	_check(drill.ore != null and drill.ore_tiles == 4, "бур нашёл 4 тайла гематита")
@@ -425,7 +428,7 @@ func _test_drill_to_storage() -> void:
 	Worlds.conveyor_line(world, Vector2i(6, 9), 24, GameConst.Dir.RIGHT)
 	var item := Registry.get_item(&"hematite").index
 	Worlds.run_ticks(world, 60 * GameConst.TICK_RATE)
-	var container := world.buildings.get_at(Vector2i(30, 8)) as StorageBuilding
+	var container := world.buildings.get_at(Vector2i(30, 9)) as StorageBuilding
 	var stored := container.inventory.count(item)
 	var in_transit := world.simulation.conveyors.get_item_count() + drill.buffer
 	var produced := 60 * GameConst.TICK_RATE / drill.ticks_per_item
@@ -858,11 +861,11 @@ func _test_bridge() -> void:
 ## Разгрузчик берёт из ядра по фильтру; изъятое вычитается из доставки.
 func _test_unloader() -> void:
 	var map := LevelMap.new(32, 24, Registry.get_floor(&"stone").index)
-	map.add_placement(Registry.get_building(&"container"), Vector2i(10, 10))
+	map.add_placement(Registry.get_building(&"container"), Vector2i(11, 11))
 	var world := GameWorld.create(null, map, true)
 	var copper := Registry.get_item(&"hematite").index
 	var lead := Registry.get_item(&"brick").index
-	var storage := world.buildings.get_at(Vector2i(10, 10)) as StorageBuilding
+	var storage := world.buildings.get_at(Vector2i(11, 11)) as StorageBuilding
 	storage.inventory.add(copper, 50)
 	var unloader := _place(world, &"unloader", Vector2i(12, 11))
 	Worlds.conveyor_line(world, Vector2i(13, 11), 3, GameConst.Dir.RIGHT)
@@ -1142,7 +1145,7 @@ func _test_logistics_throughput() -> void:
 		var world := Worlds.empty_world(32, 12)
 		var y := 5
 		if def.logic_script == preload("res://buildings/transport/unloader.gd"):
-			var storage := world.buildings.place(Registry.get_building(&"container"), Vector2i(6, y - 1), 0, true) as StorageBuilding
+			var storage := world.buildings.place(Registry.get_building(&"container"), Vector2i(7, y), 0, true) as StorageBuilding
 			storage.inventory.add(hematite, 800)
 		else:
 			_source(world, Vector2i(3, y), [hematite])
@@ -1204,7 +1207,7 @@ func _test_unloader_from_buildings() -> void:
 
 	# Склад → разгрузчик → печь: сырьё уходит в печь и назад в склад не возвращается.
 	var chain := Worlds.empty_world(32, 24)
-	var storage := chain.buildings.place(Registry.get_building(&"container"), Vector2i(4, 4), 0, true) as StorageBuilding
+	var storage := chain.buildings.place(Registry.get_building(&"container"), Vector2i(5, 4), 0, true) as StorageBuilding
 	storage.inventory.add(hematite, 100)
 	chain.buildings.place(Registry.get_building(&"unloader"), Vector2i(6, 4), 0, true)
 	var fed := chain.buildings.place(Registry.get_building(&"furnace"), Vector2i(7, 4), 0, true) as Crafter
@@ -1309,7 +1312,7 @@ func _test_run_gateway() -> void:
 	for i in 15:
 		run.step()
 	run.drone.move_input = Vector2.ZERO
-	_check(absf(run.drone.position.y - y0 - run.drone.def.speed * GameConst.TILE_SIZE * 0.5) < 1.0, "дрон обновляется один раз за тик в своём мире")
+	_check(absf(run.drone.position.y - y0 - run.drone.get_speed() * GameConst.TILE_SIZE * 0.5) < 1.0, "дрон обновляется один раз за тик в своём мире")
 	_check(not run.can_use_gateway(), "вдали от пары пройти нельзя")
 	run.drone.position = pair.get_world_center()
 	_check(run.use_gateway() and run.drone.world == run.planet, "дрон возвращается на планету")
@@ -1660,13 +1663,13 @@ func _build_save_run() -> Run:
 func world_to_gateway(run: Run, gate: GatewayBuilding, copper: int) -> void:
 	var p := run.planet
 	var port := gate.get_input_tile()
-	(p.buildings.place(Registry.get_building(&"container"), port + Vector2i(-4, 0), 0, true) as StorageBuilding).inventory.add(copper, 300)
+	(p.buildings.place(Registry.get_building(&"container"), port + Vector2i(-3, 0), 0, true) as StorageBuilding).inventory.add(copper, 300)
 	p.buildings.place(Registry.get_building(&"unloader"), port + Vector2i(-2, 0), 0, true)
 	Worlds.conveyor_line(p, port + Vector2i(-1, 0), 2, GameConst.Dir.RIGHT)
 	var pair := run.get_gateway(run.base)
 	var out := pair.get_output_tile()
 	Worlds.conveyor_line(run.base, out, 2, GameConst.Dir.LEFT)
-	run.base.buildings.place(Registry.get_building(&"container"), out + Vector2i(-3, 0), 0, true)
+	run.base.buildings.place(Registry.get_building(&"container"), out + Vector2i(-2, 0), 0, true)
 
 
 ## Путь к первому отличию двух значений (для сообщения теста).
@@ -1899,7 +1902,7 @@ func _test_flow_field() -> void:
 	var big := _flow_world(220, 160, 100, 20)
 	var big_flow := big.ensure_flow()
 	var old_dist := big_flow.get_dist(Vector2i(5, 80))
-	big.buildings.place(Registry.get_building(&"container"), Vector2i(99, 19), 0, true)
+	big.buildings.place(Registry.get_building(&"container"), Vector2i(100, 20), 0, true)
 	big_flow.update()
 	_check(big_flow.is_computing() and big_flow.get_dist(Vector2i(5, 80)) == old_dist, "пересчёт идёт порциями, старое поле действует")
 	var ticks := 1
@@ -1909,6 +1912,116 @@ func _test_flow_field() -> void:
 	_check(not big_flow.is_computing() and ticks >= 5 and big_flow.get_dist(Vector2i(5, 80)) > old_dist,
 		"пересчёт закончился за %d тиков, новое поле учитывает постройку" % ticks)
 	big.dispose()
+
+
+## Угольный бур 1×1: жжёт топливо вместо тока, на угле сам берёт себе сколько нужно,
+## малахит не берёт и работает вчетверо медленнее электробура.
+func _test_coal_drill() -> void:
+	var def := Registry.get_building(&"coal_drill") as DrillDef
+	var electric := Registry.get_building(&"drill") as DrillDef
+	var hematite := Registry.get_ore(&"hematite")
+	_check(def.size == 1 and def.power_use == 0.0 and def.fuel_use > 0.0, "угольный бур 1×1 без электричества")
+	_check(def.tier == 1 and Registry.get_ore(&"malachite").hardness > def.tier, "малахит угольному буру не по зубам")
+	var slow := def.seconds_per_item(hematite, 1)
+	var fast := electric.seconds_per_item(hematite, 4)
+	_check(absf(slow / fast - 4.0) < 0.01, "вчетверо медленнее электробура на четырёх тайлах (%.2f с против %.2f с)" % [slow, fast])
+
+	# Гематит: топливо нужно подвозить, добыча уходит на выход.
+	var map := LevelMap.new(32, 16, Registry.get_floor(&"stone").index)
+	map.set_ore(4, 4, Registry.get_ore(&"hematite").index + 1)
+	map.set_ore(10, 4, Registry.get_ore(&"coal").index + 1)
+	var world := GameWorld.create(null, map, true)
+	var iron_drill := world.buildings.place(def, Vector2i(4, 4), GameConst.Dir.RIGHT, true) as Drill
+	Worlds.run_ticks(world, 120)
+	_check(iron_drill.buffer == 0 and iron_drill.get_status() == Building.Status.NO_FUEL, "без топлива угольный бур стоит")
+	var coal := _item(&"coal")
+	_check(iron_drill.accept_item(null, coal), "бур принимает уголь")
+	iron_drill.handle_item(null, coal)
+	Worlds.run_ticks(world, roundi(slow * GameConst.TICK_RATE) + 2)
+	_check(iron_drill.buffer > 0 and iron_drill.total_fuel() == 0, "на угле бур добыл гематит (%d)" % iron_drill.buffer)
+	_check(not iron_drill.accept_item(null, _item(&"iron_ingot")), "не топливо бур не принимает")
+
+	# Уголь: бур сам набирает топливо до вместимости, дальше отдаёт наружу.
+	var coal_drill := world.buildings.place(def, Vector2i(10, 4), GameConst.Dir.RIGHT, true) as Drill
+	var sink := _sink(world, Vector2i(11, 4))
+	coal_drill.handle_item(null, coal)
+	Worlds.run_ticks(world, roundi(slow * (def.fuel_capacity + 4) * GameConst.TICK_RATE))
+	_check(coal_drill.total_fuel() == def.fuel_capacity, "бур набрал себе топлива до вместимости (%d)" % coal_drill.total_fuel())
+	_check(sink.received > 0, "остальной уголь ушёл на выход (%d)" % sink.received)
+
+	# Топливо и горение переживают сохранение.
+	var state := coal_drill.save_state()
+	var copy := world.buildings.place(def, Vector2i(10, 8), GameConst.Dir.RIGHT, true) as Drill
+	copy.load_state(state)
+	_check(copy.total_fuel() == coal_drill.total_fuel() and is_equal_approx(copy.fuel_energy, coal_drill.fuel_energy),
+		"топливо бура сохраняется")
+	world.dispose()
+
+
+## Ветка дрона: каждая ступень исследования меняет характеристику; загрузка дрона не лечит.
+func _test_drone_upgrades() -> void:
+	var run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var drone := run.drone
+	var d := drone.def
+	var hematite := Registry.get_ore(&"hematite")
+	_check(drone.get_speed() == d.speed and drone.get_max_health() == d.health, "без исследований характеристики дрона базовые")
+	var base_ticks := drone.get_mine_ticks(hematite)
+	run.research.done[&"drone_speed_1"] = true
+	run.research.done[&"drone_speed_2"] = true
+	run.research.done[&"drone_mining_1"] = true
+	run.research.done[&"drone_gun_1"] = true
+	run.research.done[&"drone_repair_1"] = true
+	run.research.done[&"drone_health_1"] = true
+	run.apply_research_effects()
+	_check(is_equal_approx(drone.get_speed(), d.speed + 2.0 * d.speed_step), "две ступени скорости: %.1f тайла/с" % drone.get_speed())
+	_check(drone.get_mine_ticks(hematite) < base_ticks, "добыча быстрее: %d тиков вместо %d" % [drone.get_mine_ticks(hematite), base_ticks])
+	_check(is_equal_approx(drone.get_gun_damage(), d.gun_damage + d.gun_damage_step), "урон автопушки вырос")
+	_check(is_equal_approx(drone.get_repair_per_second(), d.repair_per_second + d.repair_step), "ремонт быстрее")
+	_check(is_equal_approx(drone.get_max_health(), d.health + d.health_step) and is_equal_approx(drone.health, drone.get_max_health()),
+		"прочность выросла, дрон подлечен на прирост")
+	# Раненый дрон после загрузки не лечится сам.
+	drone.health = 20.0
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(SaveIO.run_to_dict(run))))
+	_check(is_equal_approx(loaded.drone.health, 20.0) and is_equal_approx(loaded.drone.get_max_health(), drone.get_max_health()),
+		"после загрузки здоровье прежнее, улучшения на месте")
+	loaded.dispose()
+	var creative := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), true)
+	_check(creative.drone.get_speed() == d.speed + ResearchState.max_effect(&"drone_speed") * d.speed_step,
+		"в творческом режиме открыты все ступени")
+	creative.dispose()
+	run.dispose()
+
+
+## Очередь исследований: до QUEUE_MAX штук, недоступные ждут, завершённые выбрасываются.
+func _test_research_queue() -> void:
+	var state := ResearchState.new()
+	state.done[&"electricity"] = true
+	_check(state.set_active(&"mining"), "текущее — «Электробур»")
+	# Промышленность пока недоступна (нужен Электробур), но в очередь встаёт.
+	_check(state.queue_add(&"industry") and state.queue_add(&"defense"), "в очередь встают и недоступные исследования")
+	_check(state.queue_position(&"industry") == 1 and state.queue_position(&"defense") == 2, "порядок очереди сохраняется")
+	var extra := [&"fluid_handling", &"underground", &"drone_speed_1", &"logistics", &"gateway_items"]
+	var added := 0
+	for id in extra:
+		if state.queue_add(id):
+			added += 1
+	_check(state.queue.size() == ResearchState.QUEUE_MAX and added == ResearchState.QUEUE_MAX - 2,
+		"в очередь помещается %d исследований" % ResearchState.QUEUE_MAX)
+	state.queue_remove(&"industry")
+	_check(state.queue_position(&"industry") == 0 and state.queue.size() == ResearchState.QUEUE_MAX - 1, "из очереди можно убрать")
+	_check(state.queue_add(&"industry") and state.queue.back() == &"industry", "освободившееся место снова занимается")
+	# Завершаем «Электробур»: из очереди берётся первое доступное.
+	var taken: Array[StringName] = []
+	state.next_taken.connect(func(r: ResearchDef) -> void: taken.append(r.id))
+	var mining := Registry.get_research(&"mining")
+	for i in mining.cost_amount:
+		state.add_kit(mining.cost_item.index)
+	_check(state.is_done(&"mining") and taken.size() == 1 and state.active == taken[0], "после завершения выбрано следующее из очереди")
+	_check(not state.queue.has(state.active), "взятое из очереди убрано из неё")
+	# Выбор руками убирает исследование из очереди.
+	var queued: StringName = state.queue[0]
+	state.set_active(queued)
+	_check(state.queue_position(queued) == 0, "выбранное руками уходит из очереди")
 
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
@@ -1955,10 +2068,9 @@ func _test_enemy_attack() -> void:
 	run.drone.position = Vector2(2, 2) * GameConst.TILE_SIZE
 	var container := Registry.get_building(&"container")
 	var ring := Rect2i(gate.origin - Vector2i(2, 2), Vector2i(7, 7))
-	for y in range(ring.position.y, ring.end.y, 2):
-		for x in range(ring.position.x, ring.end.x, 2):
-			var r := Rect2i(Vector2i(x, y), Vector2i(2, 2))
-			if not r.intersects(gate.get_rect()):
+	for y in range(ring.position.y, ring.end.y):
+		for x in range(ring.position.x, ring.end.x):
+			if not gate.get_rect().has_point(Vector2i(x, y)):
 				planet.buildings.place(container, Vector2i(x, y), 0, true)
 	Worlds.run_ticks(planet, 1)
 	var brute := Registry.get_enemy(&"brute")
@@ -2388,12 +2500,12 @@ func _test_drone_gun_and_repair() -> void:
 	# Ремонт: повреждённый склад в радиусе чинится бесплатно, дальний — нет.
 	var near := planet.buildings.place(Registry.get_building(&"container"), GameConst.world_to_tile(drone.position) + Vector2i(2, 2), 0, true)
 	var far := planet.buildings.place(Registry.get_building(&"container"), GameConst.world_to_tile(drone.position) + Vector2i(18, 0), 0, true)
-	planet.damage_building(near, 200.0)
-	planet.damage_building(far, 100.0)
+	planet.damage_building(near, 120.0)
+	planet.damage_building(far, 60.0)
 	var totals := TeleportSummary.total(drone.inventory.totals)
 	for i in 20:
 		run.step()
-	_check(drone.is_repairing() and near.health > near.get_max_health() - 200.0, "дрон чинит постройку в радиусе")
+	_check(drone.is_repairing() and near.health > near.get_max_health() - 120.0, "дрон чинит постройку в радиусе")
 	for i in 200:
 		run.step()
 	_check(not near.is_damaged() and not planet.damaged.has(near.id) and not drone.is_repairing(), "постройка починена полностью")
@@ -2526,38 +2638,50 @@ func _test_research() -> void:
 	var drill_def := Registry.get_building(&"drill")
 	var drill_item := drill_def.item.index
 	var kit := _item(&"science_kit")
-	_check(not state.is_building_unlocked(drill_def) and state.is_building_unlocked(Registry.get_building(&"furnace")), "бур закрыт исследованием, печь доступна сразу")
+	_check(not state.is_building_unlocked(drill_def) and state.is_building_unlocked(Registry.get_building(&"furnace"))
+		and state.is_building_unlocked(Registry.get_building(&"coal_drill")), "электробур закрыт, печь и угольный бур доступны сразу")
 	drone.inventory.add(_item(&"iron_ingot"), 50)
 	_check(drone.crafting.enqueue(Registry.get_hand_recipe(drill_item), 1) == 0, "закрытую постройку не скрафтить")
 	_check(not drone.crafting.is_available(Registry.get_hand_recipe(_item(&"cartridge_coal"))), "патроны закрыты «Обороной»")
-	_check(not state.set_active(&"defense"), "«Оборона» недоступна без «Добычи»")
-	_check(state.set_active(&"mining") and state.get_active().id == &"mining", "выбрано исследование «Добыча»")
+	_check(not state.set_active(&"defense") and not state.set_active(&"mining"), "«Оборона» и «Электробур» недоступны без «Электрики»")
+	_check(state.set_active(&"electricity") and state.get_active().id == &"electricity", "выбрано исследование «Электрика»")
 	drone.inventory.add(kit, 12)
 	_check(state.deposit_manual(drone.inventory) == 10 and drone.inventory.count(kit) == 2, "сдано ровно столько наборов, сколько нужно")
 	var ticks := roundi(ResearchState.MANUAL_SECONDS * GameConst.TICK_RATE)
 	for i in ticks * 3:
 		run.step()
-	_check(state.get_progress(Registry.get_research(&"mining")) == 3 and state.manual_queue == 7, "ручная сдача: 3 набора за %d с" % (3 * roundi(ResearchState.MANUAL_SECONDS)))
+	_check(state.get_progress(Registry.get_research(&"electricity")) == 3 and state.manual_queue == 7, "ручная сдача: 3 набора за %d с" % (3 * roundi(ResearchState.MANUAL_SECONDS)))
+	# Очередь: следующее исследование берётся само, когда текущее завершается.
+	_check(state.queue_add(&"mining") and state.queue_add(&"defense") and state.queue == [&"mining", &"defense"], "два исследования в очереди")
+	_check(not state.queue_add(&"mining"), "повторно в очередь не ставится")
 	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(SaveIO.run_to_dict(run))))
-	_check(loaded.research.get_progress(Registry.get_research(&"mining")) == 3 and loaded.research.manual_queue == 7 and loaded.research.active == &"mining",
-		"исследования сохраняются")
+	_check(loaded.research.get_progress(Registry.get_research(&"electricity")) == 3 and loaded.research.manual_queue == 7
+		and loaded.research.active == &"electricity" and loaded.research.queue == [&"mining", &"defense"],
+		"исследования и очередь сохраняются")
 	loaded.dispose()
 	var finished := [false]
-	state.completed.connect(func(r: ResearchDef) -> void: finished[0] = r.id == &"mining")
+	state.completed.connect(func(r: ResearchDef) -> void: finished[0] = r.id == &"electricity")
 	for i in ticks * 7 + 1:
 		run.step()
-	_check(finished[0] and state.is_done(&"mining") and state.active == &"", "исследование завершено")
-	_check(state.is_building_unlocked(drill_def) and drone.crafting.enqueue(Registry.get_hand_recipe(drill_item), 1) == 1, "бур открыт и крафтится")
+	_check(finished[0] and state.is_done(&"electricity"), "исследование завершено")
+	_check(state.active == &"mining" and state.queue == [&"defense"], "из очереди выбрано следующее исследование")
+	_check(state.is_building_unlocked(Registry.get_building(&"thermal_generator")), "термогенератор открыт «Электрикой»")
 	# Научный цех от электричества быстрее ручной сдачи.
-	_check(state.set_active(&"logistics"), "выбрана «Логистика»")
+	_check(state.get_active().id == &"mining", "выбран «Электробур»")
 	var workshop := run.planet.buildings.place(Registry.get_building(&"science_workshop"), Vector2i(6, 6), 0, true) as ScienceWorkshop
 	Worlds.power_area(run.planet, Vector2i(6, 4), 5, Vector2i(9, 5))
 	for i in 10:
 		workshop.handle_item(null, kit)
 	for i in 20 * GameConst.TICK_RATE:
 		run.step()
-	var progress := state.get_progress(Registry.get_research(&"logistics"))
+	var progress := state.get_progress(Registry.get_research(&"mining"))
 	_check(progress >= 9 and progress <= 10, "научный цех: %d наборов за 20 с (≈2 с на набор)" % progress)
+	for i in 10:
+		workshop.handle_item(null, kit)
+	for i in 20 * GameConst.TICK_RATE:
+		run.step()
+	_check(state.is_done(&"mining") and state.active == &"defense", "«Электробур» готов, из очереди взята «Оборона»")
+	_check(state.is_building_unlocked(drill_def) and drone.crafting.enqueue(Registry.get_hand_recipe(drill_item), 1) == 1, "электробур открыт и крафтится")
 	var creative := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), true)
 	_check(creative.research.is_building_unlocked(drill_def) and creative.drone.crafting.is_available(Registry.get_hand_recipe(_item(&"cartridge_coal"))),
 		"в творческом режиме всё открыто")
@@ -2624,16 +2748,22 @@ func _test_ammo_effects() -> void:
 ## Дерево исследований: ветки, столбцы по глубине, доступность по цепочке.
 func _test_research_tree() -> void:
 	var cells := ResearchTreeView.layout(Registry.researches)
-	_check(cells[&"mining"] == Vector2i(0, 0) and cells[&"logistics"] == Vector2i(1, 0) and cells[&"defense"] == Vector2i(1, 1)
-		and cells[&"industry"] == Vector2i(2, 0) and cells[&"science_automation"] == Vector2i(3, 0),
-		"дерево: Добыча → Логистика → Промышленность → Автоматизация науки, Добыча → Оборона")
+	_check(cells[&"electricity"].x == 0 and cells[&"mining"].x == 1 and cells[&"industry"].x == 2
+		and cells[&"science_automation"].x == 3 and cells[&"logistics"].x == 2 and cells[&"defense"].x == 1,
+		"дерево: Электрика → Электробур → Промышленность → Автоматизация науки, Электробур → Логистика")
+	_check(cells[&"fluid_handling"].x == 1 and cells[&"steam_power"].x == 2 and cells[&"accumulators"].x == 3,
+		"ветка жидкостей: Электрика → Трубы и насосы → Паровая энергия → Аккумуляторы")
+	_check(cells[&"drone_speed_1"].x == 0 and cells[&"drone_mining_1"].x == 1 and cells[&"drone_mining_3"].x == 3,
+		"ветка дрона отдельным корнем: Скорость I → остальные цепочки")
 	var state := ResearchState.new()
+	state.done[&"electricity"] = true
+	_check(state.is_available(Registry.get_research(&"mining")) and state.is_available(Registry.get_research(&"defense"))
+		and state.is_available(Registry.get_research(&"fluid_handling")) and not state.is_available(Registry.get_research(&"industry")),
+		"после Электрики доступны Электробур, Оборона и Трубы, Промышленность — нет")
 	state.done[&"mining"] = true
-	_check(state.is_available(Registry.get_research(&"logistics")) and state.is_available(Registry.get_research(&"defense"))
-		and not state.is_available(Registry.get_research(&"industry")), "после Добычи доступны Логистика и Оборона, Промышленность — нет")
-	state.done[&"logistics"] = true
-	_check(state.is_available(Registry.get_research(&"industry")) and not state.is_available(Registry.get_research(&"science_automation")),
-		"Промышленность — после Логистики, Автоматизация науки — после Промышленности")
+	_check(state.is_available(Registry.get_research(&"industry")) and state.is_available(Registry.get_research(&"logistics"))
+		and not state.is_available(Registry.get_research(&"science_automation")),
+		"Промышленность и Логистика — после Электробура, Автоматизация науки — после Промышленности")
 
 
 ## На воде можно ставить только трубы и насосы.
@@ -2645,7 +2775,7 @@ func _test_water_placement() -> void:
 	var world := GameWorld.create(null, map, true)
 	var bm := world.buildings
 	_check(bm.check_place(Registry.get_building(&"conveyor"), Vector2i(5, 5), 0) == BuildingManager.Check.ON_FLUID, "лента на воду не ставится")
-	_check(bm.check_place(Registry.get_building(&"container"), Vector2i(4, 4), 0) == BuildingManager.Check.ON_FLUID, "склад, задевший воду, не ставится")
+	_check(bm.check_place(Registry.get_building(&"furnace"), Vector2i(4, 4), 0) == BuildingManager.Check.ON_FLUID, "печь, задевшая воду, не ставится")
 	_check(bm.check_place(Registry.get_building(&"stone_wall"), Vector2i(6, 5), 0) == BuildingManager.Check.ON_FLUID, "стена на воду не ставится")
 	_check(bm.check_place(Registry.get_building(&"pipe"), Vector2i(5, 5), 0) == BuildingManager.Check.OK, "труба на воду ставится")
 	_check(bm.check_place(Registry.get_building(&"underground_pipe"), Vector2i(6, 5), 0) == BuildingManager.Check.OK, "подземная труба на воду ставится")

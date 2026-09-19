@@ -43,8 +43,8 @@ func _draw() -> void:
 	var tick := _drone.world.simulation.tick
 	if tick < _drone.invulnerable_until and fmod(_time, 0.24) < 0.12:
 		return
-	if _drone.health < _drone.def.health:
-		var fraction := clampf(_drone.health / _drone.def.health, 0.0, 1.0)
+	if _drone.health < _drone.get_max_health():
+		var fraction := clampf(_drone.health / _drone.get_max_health(), 0.0, 1.0)
 		var bar := Rect2(pos + Vector2(-16, BODY_RADIUS + 8), Vector2(32, 4))
 		draw_rect(bar.grow(1.0), Color(0, 0, 0, 0.7), true)
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * fraction, bar.size.y)), CombatOverlay.bar_color(fraction), true)

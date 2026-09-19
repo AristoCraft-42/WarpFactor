@@ -291,7 +291,7 @@ func respawn_drone(tick: int) -> void:
 	if drone == null or not drone.dead:
 		return
 	drone.dead = false
-	drone.health = drone.def.health
+	drone.health = drone.get_max_health()
 	drone.invulnerable_until = tick + drone.def.get_invulnerable_ticks()
 	if gateway != null and gateway.world == self:
 		drone.position = gateway.get_world_center()

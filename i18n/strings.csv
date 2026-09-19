@@ -341,8 +341,10 @@ CATEGORY_POWER,Power,Энергия
 CRAFT_COMPONENTS,Components,Компоненты
 BUILDING_FURNACE,Furnace,Печь
 BUILDING_FURNACE_DESC,"Smelts hematite into iron, stone into bricks and malachite into copper. Burns coal. Picks the recipe by the incoming ore.","Переплавляет гематит в железо, камень в кирпичи, малахит в медь. Жжёт уголь. Рецепт выбирает по пришедшему сырью."
-BUILDING_DRILL,Drill,Бур
-BUILDING_DRILL_DESC,"Mines the deposit underneath and outputs only from the front side (arrow, R rotates). Needs power: slows down when there is not enough.","Добывает месторождение под собой и отдаёт добытое только с лицевой стороны (стрелка, R поворачивает). Нужно электричество: при нехватке работает медленнее."
+BUILDING_DRILL,Electric Drill,Электробур
+BUILDING_DRILL_DESC,"Mines the deposit underneath, malachite included, and outputs only from the front side (arrow, R rotates). Needs power: slows down when there is not enough.","Добывает месторождение под собой, в том числе малахит, и отдаёт добытое только с лицевой стороны (стрелка, R поворачивает). Нужно электричество: при нехватке работает медленнее."
+BUILDING_COAL_DRILL,Coal Drill,Угольный бур
+BUILDING_COAL_DRILL_DESC,"One tile, burns coal instead of power and mines soft deposits four times slower than the electric drill. On a coal deposit it keeps what it needs and sends the rest out.","Один тайл, работает на угле вместо электричества и добывает мягкие месторождения вчетверо медленнее электробура. На угле сам берёт себе сколько нужно, остальное отдаёт наружу."
 BUILDING_ASSEMBLER,Assembler,Сборщик
 BUILDING_ASSEMBLER_DESC,Makes components and cartridges by the chosen recipe. Needs power.,Делает компоненты и патроны по выбранному рецепту. Нужно электричество.
 BUILDING_SCIENCE_WORKSHOP,Science Workshop,Научный цех
@@ -405,7 +407,12 @@ TOAST_LOCKED,Requires research: %s,Нужно исследование: %s
 HUD_RESEARCH,Research,Исследования
 ACTION_RESEARCH,Research,Исследования
 RESEARCH_TITLE,Research,Исследования
-RESEARCH_HINT,"Click a research to select it. Hand in science kits from the inventory (slow) or feed them to a Science Workshop (fast, needs power).","Кликните по исследованию, чтобы выбрать его. Сдавайте научные наборы из инвентаря (медленно) или подавайте их в научный цех (быстро, нужно электричество)."
+RESEARCH_HINT,"Left click a research to select it, right click to put it in the queue (up to %d). Hand in science kits from the inventory (slow) or feed them to a Science Workshop (fast, needs power).","ЛКМ по исследованию — выбрать его, ПКМ — поставить в очередь (до %d). Сдавайте научные наборы из инвентаря (медленно) или подавайте их в научный цех (быстро, нужно электричество)."
+RESEARCH_QUEUED,In queue: %d,В очереди: %d
+RESEARCH_QUEUE_LIST,Queue: %s,Очередь: %s
+RESEARCH_QUEUE_EMPTY,Queue is empty,Очередь пуста
+RESEARCH_QUEUE_FULL,The research queue is full (%d),Очередь исследований заполнена (%d)
+TOAST_RESEARCH_NEXT,Next research: %s,Следующее исследование: %s
 RESEARCH_DEPOSIT,Hand in kits (%d),Сдать наборы (%d)
 RESEARCH_QUEUE,"Handed in: %d kits, %.0f s each","Сдано вручную: %d наборов, по %.0f с на набор"
 RESEARCH_DONE,Researched,Исследовано
@@ -415,8 +422,44 @@ RESEARCH_REQUIRES,Requires: %s,Нужно: %s
 RESEARCH_UNLOCKS,Unlocks: %s,Открывает: %s
 TOAST_RESEARCH_DONE,Research complete: %s,Исследование завершено: %s
 TOAST_RESEARCH_DEPOSITED,Kits handed in: %d,Сдано наборов: %d
-RESEARCH_MINING,Mining,Добыча
-RESEARCH_MINING_DESC,"Electric drills for any deposit, including malachite.","Электрические буры для любых месторождений, включая малахит."
+RESEARCH_MINING,Electric drill,Электробур
+RESEARCH_MINING_DESC,"A drill on power: any deposit, malachite included, and four times faster than the coal drill.","Бур на электричестве: любые месторождения, включая малахит, и вчетверо быстрее угольного."
+RESEARCH_ELECTRICITY,Electricity,Электрика
+RESEARCH_ELECTRICITY_DESC,The thermal generator and the power pole: the first network of the run.,Термогенератор и опора ЛЭП: первая электросеть забега.
+RESEARCH_FLUID_HANDLING,Pipes and pumps,Трубы и насосы
+RESEARCH_FLUID_HANDLING_DESC,"Pumps, pipes and underground pipes: water from a deposit.","Насосы, трубы и подземные трубы: вода из месторождения."
+RESEARCH_STEAM_POWER,Steam power,Паровая энергия
+RESEARCH_STEAM_POWER_DESC,The boiler and the steam generator: much more power out of coal and water.,Бойлер и паровой генератор: намного больше энергии из угля и воды.
+RESEARCH_DRONE_SPEED_1,Drone speed I,Скорость дрона I
+RESEARCH_DRONE_SPEED_1_DESC,The drone flies faster.,Дрон летает быстрее.
+RESEARCH_DRONE_SPEED_2,Drone speed II,Скорость дрона II
+RESEARCH_DRONE_SPEED_2_DESC,The drone flies faster.,Дрон летает быстрее.
+RESEARCH_DRONE_SPEED_3,Drone speed III,Скорость дрона III
+RESEARCH_DRONE_SPEED_3_DESC,The drone flies faster.,Дрон летает быстрее.
+RESEARCH_DRONE_MINING_1,Drone mining I,Добыча дроном I
+RESEARCH_DRONE_MINING_1_DESC,The drone mines ore faster.,Дрон добывает руду быстрее.
+RESEARCH_DRONE_MINING_2,Drone mining II,Добыча дроном II
+RESEARCH_DRONE_MINING_2_DESC,The drone mines ore faster.,Дрон добывает руду быстрее.
+RESEARCH_DRONE_MINING_3,Drone mining III,Добыча дроном III
+RESEARCH_DRONE_MINING_3_DESC,The drone mines ore faster.,Дрон добывает руду быстрее.
+RESEARCH_DRONE_HEALTH_1,Drone hull I,Корпус дрона I
+RESEARCH_DRONE_HEALTH_1_DESC,More drone health.,Больше прочности дрона.
+RESEARCH_DRONE_HEALTH_2,Drone hull II,Корпус дрона II
+RESEARCH_DRONE_HEALTH_2_DESC,More drone health.,Больше прочности дрона.
+RESEARCH_DRONE_HEALTH_3,Drone hull III,Корпус дрона III
+RESEARCH_DRONE_HEALTH_3_DESC,More drone health.,Больше прочности дрона.
+RESEARCH_DRONE_GUN_1,Drone autocannon I,Автопушка дрона I
+RESEARCH_DRONE_GUN_1_DESC,More autocannon damage.,Больше урона автопушки.
+RESEARCH_DRONE_GUN_2,Drone autocannon II,Автопушка дрона II
+RESEARCH_DRONE_GUN_2_DESC,More autocannon damage.,Больше урона автопушки.
+RESEARCH_DRONE_GUN_3,Drone autocannon III,Автопушка дрона III
+RESEARCH_DRONE_GUN_3_DESC,More autocannon damage.,Больше урона автопушки.
+RESEARCH_DRONE_REPAIR_1,Drone repair I,Ремонт дроном I
+RESEARCH_DRONE_REPAIR_1_DESC,The drone repairs buildings faster.,Дрон чинит постройки быстрее.
+RESEARCH_DRONE_REPAIR_2,Drone repair II,Ремонт дроном II
+RESEARCH_DRONE_REPAIR_2_DESC,The drone repairs buildings faster.,Дрон чинит постройки быстрее.
+RESEARCH_DRONE_REPAIR_3,Drone repair III,Ремонт дроном III
+RESEARCH_DRONE_REPAIR_3_DESC,The drone repairs buildings faster.,Дрон чинит постройки быстрее.
 RESEARCH_SCIENCE_AUTOMATION,Science Automation,Автоматизация науки
 RESEARCH_SCIENCE_AUTOMATION_DESC,The Science Workshop spends kits without you.,Научный цех тратит наборы без вашего участия.
 RESEARCH_LOGISTICS,Logistics,Логистика

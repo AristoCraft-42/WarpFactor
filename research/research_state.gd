@@ -7,17 +7,27 @@ extends RefCounted
 ##   медленно (MANUAL_SECONDS на набор) и только для выбранного исследования;
 ## - научный цех: берёт наборы с ленты, работает от электричества и гораздо быстрее.
 ## Постройки и рецепты без исследования доступны сразу; в творческом режиме открыто всё.
+##
+## Очередь (queue): что исследовать после текущего, до QUEUE_MAX штук. Когда исследование
+## завершается, из очереди берётся первое доступное — недоступные остаются ждать своих
+## предшественников, уже завершённые выбрасываются.
 
 signal completed(research: ResearchDef)
 signal changed
+## Из очереди выбрано следующее исследование.
+signal next_taken(research: ResearchDef)
 
 ## Секунд на один набор при ручной сдаче.
-const MANUAL_SECONDS := 8.0
+const MANUAL_SECONDS := 12.0
+## Сколько исследований помещается в очередь.
+const QUEUE_MAX := 5
 
 var creative: bool = false
 var done: Dictionary[StringName, bool] = {}
 var progress: Dictionary[StringName, int] = {}
 var active: StringName = &""
+## Очередь следующих исследований (id, по порядку).
+var queue: Array[StringName] = []
 ## Наборы, сданные вручную и ещё не обработанные.
 var manual_queue: int = 0
 var manual_ticks: int = 0
@@ -53,8 +63,51 @@ func set_active(id: StringName) -> bool:
 	if id != &"" and not is_available(research):
 		return false
 	active = id
+	queue.erase(id)
 	changed.emit()
 	return true
+
+
+## Поставить исследование в очередь. false — уже завершено, уже выбрано, уже в очереди
+## или очередь полна.
+func queue_add(id: StringName) -> bool:
+	if id == &"" or id == active or is_done(id) or queue.has(id) or queue.size() >= QUEUE_MAX:
+		return false
+	if Registry.get_research(id) == null:
+		return false
+	# Пустой слот текущего исследования заполняем сразу, если оно доступно.
+	if active == &"" and is_available(Registry.get_research(id)):
+		return set_active(id)
+	queue.append(id)
+	changed.emit()
+	return true
+
+
+func queue_remove(id: StringName) -> void:
+	if queue.has(id):
+		queue.erase(id)
+		changed.emit()
+
+
+## Место в очереди начиная с 1 (0 — не в очереди).
+func queue_position(id: StringName) -> int:
+	return queue.find(id) + 1
+
+
+## Взять из очереди первое доступное исследование. Завершённые выбрасываются.
+func _take_from_queue() -> void:
+	var i := 0
+	while i < queue.size():
+		var id := queue[i]
+		if is_done(id):
+			queue.remove_at(i)
+			continue
+		if is_available(Registry.get_research(id)):
+			queue.remove_at(i)
+			active = id
+			next_taken.emit(Registry.get_research(id))
+			return
+		i += 1
 
 
 ## Сколько завершённых исследований дают эффект (в творческом режиме — все такие исследования).
@@ -164,6 +217,7 @@ func _advance(research: ResearchDef) -> void:
 		progress.erase(research.id)
 		if active == research.id:
 			active = &""
+			_take_from_queue()
 		completed.emit(research)
 	changed.emit()
 
@@ -178,7 +232,15 @@ func save_data() -> Dictionary:
 		progress_ids.append(String(id))
 		progress_values.append(progress[id])
 	return {"done": done_ids, "progress_ids": progress_ids, "progress_values": progress_values,
-		"active": String(active), "manual_queue": manual_queue, "manual_ticks": manual_ticks}
+		"active": String(active), "manual_queue": manual_queue, "manual_ticks": manual_ticks,
+		"queue": _queue_ids()}
+
+
+func _queue_ids() -> PackedStringArray:
+	var ids := PackedStringArray()
+	for id in queue:
+		ids.append(String(id))
+	return ids
 
 
 func load_data(data: Dictionary) -> void:
@@ -197,3 +259,8 @@ func load_data(data: Dictionary) -> void:
 		active = &""
 	manual_queue = int(data.get("manual_queue", 0))
 	manual_ticks = int(data.get("manual_ticks", 0))
+	queue.clear()
+	for id in (data.get("queue", PackedStringArray()) as PackedStringArray):
+		var name := StringName(id)
+		if Registry.get_research(name) != null and not is_done(name) and queue.size() < QUEUE_MAX:
+			queue.append(name)

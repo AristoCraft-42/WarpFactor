@@ -71,6 +71,8 @@ func setup(game: Game) -> void:
 	_drone_was_dead = game.run.drone.dead
 	game.run.research.completed.connect(func(research: ResearchDef) -> void:
 		Events.toast(tr("TOAST_RESEARCH_DONE") % tr(research.name_key), Events.ToastKind.SUCCESS))
+	game.run.research.next_taken.connect(func(research: ResearchDef) -> void:
+		Events.toast(tr("TOAST_RESEARCH_NEXT") % tr(research.name_key), Events.ToastKind.INFO))
 	Settings.changed.connect(_on_setting_changed)
 	Settings.bindings_changed.connect(_update_hint)
 	_update_info()

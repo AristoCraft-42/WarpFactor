@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ResearchDef" format=3]
+
+[ext_resource type="Script" path="res://research/research_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://items/types/science_kit.tres" id="2_kit"]
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="3_building_script"]
+[ext_resource type="Script" path="res://items/recipe.gd" id="4_recipe_script"]
+[ext_resource type="Resource" path="res://buildings/defs/thermal_generator.tres" id="b_thermal_generator"]
+[ext_resource type="Resource" path="res://buildings/defs/small_power_pole.tres" id="b_small_power_pole"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"electricity"
+name_key = "RESEARCH_ELECTRICITY"
+description_key = "RESEARCH_ELECTRICITY_DESC"
+sort_order = 10
+cost_item = ExtResource("2_kit")
+cost_amount = 10
+prerequisites = Array[StringName]([])
+unlock_buildings = Array[ExtResource("3_building_script")]([ExtResource("b_thermal_generator"), ExtResource("b_small_power_pole")])
+unlock_recipes = Array[ExtResource("4_recipe_script")]([])
+effects = Array[StringName]([])

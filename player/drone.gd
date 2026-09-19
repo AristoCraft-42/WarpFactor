@@ -36,6 +36,12 @@ var last_gun_tick: int = -1000
 ## Чинимое здание (0 — нет) и тик следующего поиска повреждённых.
 var repair_target: int = 0
 var repair_search_tick: int = 0
+## Ступени улучшений из исследований (Run.apply_research_effects, в сохранение не пишутся).
+var upgrade_speed: int = 0
+var upgrade_mining: int = 0
+var upgrade_health: int = 0
+var upgrade_gun: int = 0
+var upgrade_repair: int = 0
 
 ## Раз в сколько тиков дрон ищет, что починить, если чинить нечего.
 const REPAIR_SEARCH_TICKS := 10
@@ -49,6 +55,46 @@ func _init(p_def: DroneDef, p_world: GameWorld, spawn: Vector2) -> void:
 	health = def.health
 	inventory = Inventory.new(def.inventory_slots, true)
 	crafting = CraftQueue.new(inventory, def.craft_speed)
+
+
+## Пересчитать ступени улучшений по исследованиям. heal — подлечить дрона на прирост прочности
+## (при завершении исследования); на загрузке heal = false, иначе разойдётся сохранение.
+func apply_upgrades(research: ResearchState, heal: bool) -> void:
+	var was_max := get_max_health()
+	upgrade_speed = research.count_effect(&"drone_speed")
+	upgrade_mining = research.count_effect(&"drone_mining")
+	upgrade_health = research.count_effect(&"drone_health")
+	upgrade_gun = research.count_effect(&"drone_gun")
+	upgrade_repair = research.count_effect(&"drone_repair")
+	var grown := get_max_health() - was_max
+	if heal and grown > 0.0 and not dead:
+		health += grown
+	health = minf(health, get_max_health())
+
+
+func get_speed() -> float:
+	return def.speed + def.speed_step * upgrade_speed
+
+
+func get_speed_per_tick() -> float:
+	return get_speed() * GameConst.TILE_SIZE / GameConst.TICK_RATE
+
+
+func get_max_health() -> float:
+	return def.health + def.health_step * upgrade_health
+
+
+func get_gun_damage() -> float:
+	return def.gun_damage + def.gun_damage_step * upgrade_gun
+
+
+func get_repair_per_second() -> float:
+	return def.repair_per_second + def.repair_step * upgrade_repair
+
+
+## Тиков на один предмет с учётом улучшений добычи.
+func get_mine_ticks(ore: OreDef) -> int:
+	return maxi(1, roundi(def.mine_ticks(ore) / (1.0 + def.mine_speed_step * upgrade_mining)))
 
 
 func is_alive() -> bool:
@@ -111,7 +157,7 @@ func get_mine_fraction() -> float:
 	var ore := get_mineable_ore(mine_tile) if is_mining() else null
 	if ore == null:
 		return 0.0
-	return clampf(float(mine_progress) / def.mine_ticks(ore), 0.0, 1.0)
+	return clampf(float(mine_progress) / get_mine_ticks(ore), 0.0, 1.0)
 
 
 func save_data() -> Dictionary:
@@ -128,7 +174,7 @@ func load_data(data: Dictionary) -> void:
 	facing = float(data.get("facing", 0.0))
 	mine_tile = data.get("mine_tile", NO_TILE)
 	mine_progress = int(data.get("mine_progress", 0))
-	health = float(data.get("health", def.health))
+	health = float(data.get("health", get_max_health()))
 	dead = bool(data.get("dead", false))
 	respawn_tick = int(data.get("respawn_tick", 0))
 	invulnerable_until = int(data.get("invulnerable_until", 0))
@@ -153,7 +199,7 @@ func update_tick(tick: int) -> void:
 			world.respawn_drone(tick)
 		return
 	if move_input != Vector2.ZERO:
-		var step := move_input.limit_length(1.0) * def.get_speed_per_tick()
+		var step := move_input.limit_length(1.0) * get_speed_per_tick()
 		var bounds := world.get_play_rect_px()
 		position = (position + step).clamp(bounds.position, bounds.end)
 		facing = move_input.angle()
@@ -162,9 +208,9 @@ func update_tick(tick: int) -> void:
 	crafting.update_tick()
 	if not world.crates.is_empty():
 		world.pickup_crates()
-	if def.gun_damage > 0.0 and world.enemies.count > 0 and tick >= gun_ready_tick:
+	if get_gun_damage() > 0.0 and world.enemies.count > 0 and tick >= gun_ready_tick:
 		_shoot(tick)
-	if def.repair_per_second > 0.0 and (repair_target != 0 or not world.damaged.is_empty()):
+	if get_repair_per_second() > 0.0 and (repair_target != 0 or not world.damaged.is_empty()):
 		_repair(tick)
 
 
@@ -182,7 +228,7 @@ func _shoot(tick: int) -> void:
 	if dir == Vector2.ZERO:
 		dir = Vector2.RIGHT
 	var speed := def.get_gun_speed_per_tick()
-	world.projectiles.spawn_bullet(position + dir * 10.0, dir * speed, def.gun_damage,
+	world.projectiles.spawn_bullet(position + dir * 10.0, dir * speed, get_gun_damage(),
 		ceili((def.get_gun_range_px() + GameConst.TILE_SIZE) / speed), def.gun_color)
 	gun_angle = dir.angle()
 	last_gun_tick = tick
@@ -211,7 +257,7 @@ func _repair(tick: int) -> void:
 		if building == null:
 			return
 		repair_target = building.id
-	world.repair_building(building, def.repair_per_second / GameConst.TICK_RATE)
+	world.repair_building(building, get_repair_per_second() / GameConst.TICK_RATE)
 	if not building.is_damaged():
 		repair_target = 0
 
@@ -223,6 +269,6 @@ func _mine() -> void:
 	if mine_blocked:
 		return
 	mine_progress += 1
-	if mine_progress >= def.mine_ticks(ore):
+	if mine_progress >= get_mine_ticks(ore):
 		mine_progress = 0
 		inventory.add(ore.item.index, 1)

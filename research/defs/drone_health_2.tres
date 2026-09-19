@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="ResearchDef" format=3]
+
+[ext_resource type="Script" path="res://research/research_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://items/types/science_kit.tres" id="2_kit"]
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="3_building_script"]
+[ext_resource type="Script" path="res://items/recipe.gd" id="4_recipe_script"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"drone_health_2"
+name_key = "RESEARCH_DRONE_HEALTH_2"
+description_key = "RESEARCH_DRONE_HEALTH_2_DESC"
+sort_order = 222
+cost_item = ExtResource("2_kit")
+cost_amount = 20
+prerequisites = Array[StringName]([&"drone_health_1"])
+unlock_buildings = Array[ExtResource("3_building_script")]([])
+unlock_recipes = Array[ExtResource("4_recipe_script")]([])
+effects = Array[StringName]([&"drone_health"])

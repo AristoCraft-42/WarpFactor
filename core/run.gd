@@ -152,6 +152,8 @@ func apply_research_effects(notify: bool = true) -> void:
 		planet.resize_pad(_pad_around(link.planet_gateway))
 	if base != null:
 		base.open_area(GameWorld.base_rect(Registry.base_def, get_underground_size()))
+	if drone != null:
+		drone.apply_upgrades(research, notify)
 	if not notify:
 		return
 	for world in [planet, base]:

@@ -1,7 +1,9 @@
 class_name ResearchWindow
 extends PanelContainer
 ## Окно исследований (J или кнопка в HUD): дерево карточек с прогрессом, стоимостью и тем,
-## что они открывают; линии ведут от предшественника к следующему. Клик по доступному исследованию делает его текущим. Кнопка «Сдать наборы»
+## что они открывают; линии ведут от предшественника к следующему. ЛКМ по доступному исследованию
+## делает его текущим, ПКМ ставит в очередь (ResearchState.QUEUE_MAX штук; ПКМ по стоящему
+## в очереди убирает его). Кнопка «Сдать наборы»
 ## кладёт научные наборы первого уровня из инвентаря дрона в ручную очередь — она обрабатывается
 ## медленно (ResearchState.MANUAL_SECONDS на набор); научный цех работает быстрее.
 
@@ -12,6 +14,7 @@ const MAX_TREE_SIZE := Vector2(1330, 560)
 var _game: Game
 var _list: VBoxContainer
 var _queue_label: Label
+var _queue_list: Label
 var _deposit_button: Button
 var _manual_bar: ProgressBar
 var _cards: Dictionary[StringName, Dictionary] = {}
@@ -39,7 +42,10 @@ func setup(game: Game) -> void:
 	close.focus_mode = Control.FOCUS_NONE
 	close.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	header.add_child(close)
-	var hint := UiUtil.label("RESEARCH_HINT", &"DimLabel")
+	var hint := Label.new()
+	hint.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	hint.theme_type_variation = &"DimLabel"
+	hint.text = tr("RESEARCH_HINT") % [ResearchState.QUEUE_MAX, ResearchState.QUEUE_MAX]
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(hint)
 	_tree = ResearchTreeView.new()
@@ -62,6 +68,10 @@ func setup(game: Game) -> void:
 	var queue_column := UiUtil.vbox(4)
 	queue_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	footer.add_child(queue_column)
+	_queue_list = Label.new()
+	_queue_list.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_queue_list.clip_text = true
+	queue_column.add_child(_queue_list)
 	_queue_label = Label.new()
 	_queue_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_queue_label.theme_type_variation = &"DimLabel"
@@ -107,9 +117,16 @@ func _unhandled_input(event: InputEvent) -> void:
 func _make_card(research: ResearchDef) -> Control:
 	var button := Button.new()
 	button.toggle_mode = true
+	button.button_mask = MOUSE_BUTTON_MASK_LEFT | MOUSE_BUTTON_MASK_RIGHT
 	button.focus_mode = Control.FOCUS_NONE
 	button.custom_minimum_size = ResearchTreeView.CARD_SIZE
 	button.theme_type_variation = &"SlotButton"
+	button.gui_input.connect(func(event: InputEvent) -> void:
+		var click := event as InputEventMouseButton
+		if click == null or not click.pressed or click.button_index != MOUSE_BUTTON_RIGHT:
+			return
+		_toggle_queue(research)
+		button.accept_event())
 	button.pressed.connect(func() -> void:
 		var state := _game.run.research
 		if state.is_available(research):
@@ -189,15 +206,36 @@ func refresh() -> void:
 			if state.active == research.id:
 				status.text = tr("RESEARCH_ACTIVE") + " · " + status.text
 			button.modulate = Color.WHITE
+		var place := state.queue_position(research.id)
+		if place > 0:
+			status.text = tr("RESEARCH_QUEUED") % place + " · " + status.text
+			button.modulate = Color(0.85, 0.95, 1.0)
 	var active := state.get_active()
 	var kits := _game.run.drone.inventory.count(active.cost_item.index) if active != null and active.cost_item != null else 0
 	var room := state.get_needed(active) - state.manual_queue if active != null else 0
 	_deposit_button.disabled = active == null or kits == 0 or room <= 0 or active.cost_item.science_tier != 1
 	_deposit_button.text = tr("RESEARCH_DEPOSIT") % kits
 	_queue_label.text = tr("RESEARCH_QUEUE") % [state.manual_queue, ResearchState.MANUAL_SECONDS]
+	if state.queue.is_empty():
+		_queue_list.text = tr("RESEARCH_QUEUE_EMPTY")
+	else:
+		var names := PackedStringArray()
+		for id in state.queue:
+			names.append(tr(Registry.get_research(id).name_key))
+		_queue_list.text = tr("RESEARCH_QUEUE_LIST") % " → ".join(names)
 	_tree.state = state
 	_tree.queue_redraw()
 	_manual_bar.value = state.get_manual_fraction() if state.manual_queue > 0 else 0.0
+
+
+## ПКМ по карточке: поставить в очередь или убрать из неё.
+func _toggle_queue(research: ResearchDef) -> void:
+	var state := _game.run.research
+	if state.queue_position(research.id) > 0:
+		state.queue_remove(research.id)
+	elif not state.queue_add(research.id) and state.queue.size() >= ResearchState.QUEUE_MAX:
+		Events.toast(tr("RESEARCH_QUEUE_FULL") % ResearchState.QUEUE_MAX, Events.ToastKind.WARNING)
+	refresh()
 
 
 func _deposit() -> void:

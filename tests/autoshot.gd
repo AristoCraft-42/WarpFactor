@@ -56,6 +56,7 @@ func _run_game(game: Game) -> void:
 	await _run_drone(game, base)
 	await _run_interaction(game, base)
 	await _run_build_helpers(game, base)
+	await _run_coal_drill(game, base)
 	await _run_production_chain(game, base)
 	await _run_factory(game, base)
 	await _run_power(game, base)
@@ -140,12 +141,27 @@ func _run_research(game: Game) -> void:
 	await _frames(5)
 	_expect(window.visible, "J открывает окно исследований")
 	var cards: Dictionary = window.get("_cards")
+	var electricity_button: Button = (cards[&"electricity"] as Dictionary)["button"]
 	var mining_button: Button = (cards[&"mining"] as Dictionary)["button"]
-	var defense_button: Button = (cards[&"defense"] as Dictionary)["button"]
-	await _click_control(defense_button)
-	_expect(state.active == &"", "недоступное исследование не выбирается")
 	await _click_control(mining_button)
-	_expect(state.active == &"mining", "клик по карточке выбирает «Добычу»")
+	_expect(state.active == &"", "недоступное исследование не выбирается")
+	await _click_control(electricity_button)
+	_expect(state.active == &"electricity", "клик по карточке выбирает «Электрику»")
+	# ПКМ ставит следующие исследования в очередь.
+	var mining_center := mining_button.get_global_rect().get_center()
+	await _mouse_button_screen(mining_center, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button_screen(mining_center, MOUSE_BUTTON_RIGHT, false)
+	await _frames(5)
+	_expect(state.queue == [&"mining"], "ПКМ по карточке ставит «Электробур» в очередь")
+	var defense_center: Vector2 = ((cards[&"defense"] as Dictionary)["button"] as Button).get_global_rect().get_center()
+	await _mouse_button_screen(defense_center, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button_screen(defense_center, MOUSE_BUTTON_RIGHT, false)
+	await _frames(5)
+	_expect(state.queue == [&"mining", &"defense"], "в очереди два исследования")
+	await _mouse_button_screen(defense_center, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button_screen(defense_center, MOUSE_BUTTON_RIGHT, false)
+	await _frames(5)
+	_expect(state.queue == [&"mining"], "повторный ПКМ убирает из очереди")
 	run.drone.inventory.add(kit, 12)
 	await _frames(20)
 	var deposit: Button = window.get("_deposit_button")
@@ -155,7 +171,7 @@ func _run_research(game: Game) -> void:
 	await _wait_ticks(run.planet, roundi(ResearchState.MANUAL_SECONDS * GameConst.TICK_RATE) * 2 + 5)
 	game.clock.set_speed_index(0)
 	await _frames(20)
-	_expect(state.get_progress(Registry.get_research(&"mining")) == 2, "ручная очередь: 2 набора за %d с" % roundi(ResearchState.MANUAL_SECONDS * 2))
+	_expect(state.get_progress(Registry.get_research(&"electricity")) == 2, "ручная очередь: 2 набора за %d с" % roundi(ResearchState.MANUAL_SECONDS * 2))
 	await _shot("r01_research_window.png")
 	await _key(KEY_ESCAPE)
 	_expect(not window.visible and not game.pause_menu.is_open(), "Esc закрывает окно исследований")
@@ -180,8 +196,43 @@ func _run_research(game: Game) -> void:
 	run.apply_research_effects()
 	# Меню обновляет кнопки раз в 0.2 с.
 	await _frames(40)
-	_expect(drill_button.modulate.r > 0.9 and state.is_building_unlocked(drill_def), "после исследования бур открыт в меню")
+	_expect(drill_button.modulate.r > 0.9 and state.is_building_unlocked(drill_def), "после исследования электробур открыт в меню")
+	_expect(run.drone.get_speed() > run.drone.def.speed and run.drone.get_max_health() > run.drone.def.health,
+		"ветка дрона поднимает скорость (%.1f) и прочность (%.0f)" % [run.drone.get_speed(), run.drone.get_max_health()])
 	run.drone.inventory.remove(kit, 2)
+
+
+## Угольный бур: ставится в один тайл на угле, сам берёт себе топливо и отдаёт остальное на ленту.
+func _run_coal_drill(game: Game, base: Vector2i) -> void:
+	var world := game.world
+	var def := Registry.get_building(&"coal_drill") as DrillDef
+	var tile := _find_any_ore_tile(world, &"coal", base, 26)
+	_expect(tile.x >= 0, "рядом есть угольная порода")
+	if tile.x < 0:
+		return
+	await _drone_to(game, tile + Vector2i(0, 3))
+	world.drone.inventory.add(def.item.index, 1)
+	game.tools.select_building(def)
+	await _mouse_move(game, tile)
+	await _mouse_button(game, tile, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, tile, MOUSE_BUTTON_LEFT, false)
+	await _key(KEY_ESCAPE)
+	var drill := world.buildings.get_at(tile) as Drill
+	_expect(drill != null and drill.def.size == 1, "угольный бур занял один тайл")
+	if drill == null:
+		return
+	_expect(drill.get_status() == Building.Status.NO_FUEL, "пока нет топлива — бур стоит")
+	drill.handle_item(null, Registry.get_item(&"coal").index)
+	game.clock.set_speed_index(2)
+	await _wait_ticks(world, roundi(def.seconds_per_item(drill.ore, 1) * GameConst.TICK_RATE) * 3)
+	game.clock.set_speed_index(0)
+	await _frames(10)
+	_expect(drill.total_fuel() > 0, "бур оставил себе добытый уголь на топливо (%d)" % drill.total_fuel())
+	await _mouse_move(game, tile)
+	await _frames(20)
+	await _shot("p12_coal_drill.png")
+	await _mouse_move(game, tile + Vector2i(0, 4))
+	world.buildings.remove(drill, true)
 
 
 ## Отложить волны текущей планеты, чтобы враги не мешали остальным сценариям.
@@ -429,7 +480,7 @@ func _run_gateway(game: Game) -> void:
 
 	# Планета: склад с гематитом → разгрузчик → лента в западный порт шлюза.
 	var in_port := gate.get_input_tile()
-	var planet_storage := run.planet.buildings.place(Registry.get_building(&"container"), in_port + Vector2i(-4, 0), 0, true) as StorageBuilding
+	var planet_storage := run.planet.buildings.place(Registry.get_building(&"container"), in_port + Vector2i(-3, 0), 0, true) as StorageBuilding
 	planet_storage.inventory.add(copper, 300)
 	run.planet.buildings.place(Registry.get_building(&"unloader"), in_port + Vector2i(-2, 0), 0, true)
 	Worlds_line(run.planet, in_port + Vector2i(-1, 0), 2, GameConst.Dir.RIGHT)
@@ -462,7 +513,7 @@ func _run_gateway(game: Game) -> void:
 	# База: из западного порта пары — в склад; склад с кирпичами → разгрузчик → восточный порт пары.
 	var out_port := pair.get_output_tile()
 	Worlds_line(run.base, out_port, 2, GameConst.Dir.LEFT)
-	var base_in := run.base.buildings.place(Registry.get_building(&"container"), out_port + Vector2i(-3, 0), 0, true) as StorageBuilding
+	var base_in := run.base.buildings.place(Registry.get_building(&"container"), out_port + Vector2i(-2, 0), 0, true) as StorageBuilding
 	var back_in := pair.get_input_tile()
 	Worlds_line(run.base, back_in, 1, GameConst.Dir.LEFT)
 	run.base.buildings.place(Registry.get_building(&"unloader"), back_in + Vector2i(1, 0), 0, true)
@@ -988,7 +1039,7 @@ func _run_factory(game: Game, base: Vector2i) -> void:
 	_expect(spot.x >= 0, "есть место под сцену производства")
 	if spot.x < 0:
 		return
-	var source := bm.place(container_def, spot + Vector2i(0, 1), 0, true) as StorageBuilding
+	var source := bm.place(container_def, spot + Vector2i(1, 1), 0, true) as StorageBuilding
 	source.inventory.add(hematite, 200)
 	source.inventory.add(coal, 30)
 	bm.place(unloader_def, spot + Vector2i(2, 1), 0, true)
@@ -1076,7 +1127,7 @@ func _run_power(game: Game, base: Vector2i) -> void:
 	while boiler.accept_item(null, coal):
 		boiler.handle_item(null, coal)
 	# Потребитель: сборщик шестерней со складом железа.
-	var storage := bm.place(Registry.get_building(&"container"), layout + Vector2i(-12, 4), 0, true) as StorageBuilding
+	var storage := bm.place(Registry.get_building(&"container"), layout + Vector2i(-11, 4), 0, true) as StorageBuilding
 	storage.inventory.add(Registry.get_item(&"iron_ingot").index, 300)
 	bm.place(Registry.get_building(&"unloader"), layout + Vector2i(-10, 4), 0, true)
 	var assembler := bm.place(Registry.get_building(&"assembler"), layout + Vector2i(-9, 4), 0, true) as Crafter
@@ -1186,7 +1237,7 @@ func _run_logistics(game: Game, base: Vector2i) -> void:
 	await _drone_to(game, base)
 
 	# Витрина: разгрузчик у склада → сортировщик → маршрутизатор → мост над препятствием, перекрёсток.
-	var storage := bm.place(Registry.get_building(&"container"), base + Vector2i(1, 0), 0, true) as StorageBuilding
+	var storage := bm.place(Registry.get_building(&"container"), base + Vector2i(2, 1), 0, true) as StorageBuilding
 	storage.inventory.add(copper, 600)
 	var right := base + Vector2i(3, 1)
 	var unloader := bm.place(Registry.get_building(&"unloader"), right, 0, true)

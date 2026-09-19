@@ -8,7 +8,7 @@
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
 item = ExtResource("item_iron_ingot")
-amount = 20
+amount = 12
 
 [resource]
 script = ExtResource("1_def")
@@ -16,15 +16,15 @@ id = &"container"
 name_key = "BUILDING_CONTAINER"
 description_key = "BUILDING_CONTAINER_DESC"
 category = 0
-size = 2
+size = 1
 removable = true
 player_buildable = true
 line_placement = false
 sort_order = 70
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
-craft_time = 2.0
+craft_time = 1.5
 craft_amount = 1
-health = 300.0
+health = 180.0
 solid = true
 color = Color(0.416, 0.416, 0.353, 1)
 glyph = 14

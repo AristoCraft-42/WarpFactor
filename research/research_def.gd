@@ -10,7 +10,9 @@ extends Resource
 ##   gateway_items    — шлюз передаёт предметы;
 ##   gateway_ports    — ещё один вход и выход у шлюза;
 ##   gateway_power    — шлюз и лифты соединяют электросети этажей;
-##   gateway_fluids   — шлюз и лифты соединяют сети труб этажей.
+##   gateway_fluids   — шлюз и лифты соединяют сети труб этажей;
+##   drone_speed, drone_mining, drone_health, drone_gun, drone_repair — ступени улучшений дрона
+##                      (размер ступени — в player/drone.tres).
 
 @export var id: StringName
 @export var name_key: String

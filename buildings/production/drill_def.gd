@@ -9,6 +9,12 @@ extends BuildingDef
 ## Сколько добытых предметов бур держит, если их некуда отдать.
 @export var item_capacity: int = 10
 
+@export_group("Топливо")
+## Мощность горения топлива, кВт (0 — бур работает от электричества).
+@export var fuel_use: float = 0.0
+## Сколько единиц топлива помещается в буре.
+@export var fuel_capacity: int = 5
+
 
 func seconds_per_item(ore: OreDef, tiles: int) -> float:
 	return (base_seconds + hardness_seconds * ore.hardness) / maxi(tiles, 1)
@@ -49,4 +55,6 @@ func get_stat_lines() -> PackedStringArray:
 	])
 	if power_use > 0.0:
 		lines.append(tr("STAT_POWER_USE") % roundi(power_use))
+	if fuel_use > 0.0:
+		lines.append(tr("STAT_FUEL_USE") % roundi(fuel_use))
 	return lines

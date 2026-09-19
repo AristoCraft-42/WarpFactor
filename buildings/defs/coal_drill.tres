@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="DrillDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/production/drill_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/production/drill.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 6
+
+[resource]
+script = ExtResource("1_def")
+id = &"coal_drill"
+name_key = "BUILDING_COAL_DRILL"
+description_key = "BUILDING_COAL_DRILL_DESC"
+category = 1
+size = 1
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 15
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0")])
+craft_time = 1.5
+craft_amount = 1
+health = 140.0
+solid = true
+color = Color(0.373, 0.290, 0.220, 1)
+glyph = 8
+logic_script = ExtResource("3_logic")
+tier = 1
+base_seconds = 6.0
+hardness_seconds = 1.5
+item_capacity = 10
+fuel_use = 45.0
+fuel_capacity = 5

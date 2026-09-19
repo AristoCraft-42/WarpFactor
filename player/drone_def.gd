@@ -38,6 +38,15 @@ extends Resource
 ## Сколько прочности в секунду дрон чинит постройке в радиусе (бесплатно).
 @export var repair_per_second: float = 40.0
 
+@export_group("Улучшения")
+## Сколько добавляет одна ступень исследования: скорость (тайлов/с), множитель скорости добычи,
+## прочность, урон автопушки и ремонт в секунду.
+@export var speed_step: float = 1.0
+@export var mine_speed_step: float = 0.25
+@export var health_step: float = 50.0
+@export var gun_damage_step: float = 3.0
+@export var repair_step: float = 20.0
+
 @export_group("Внешний вид")
 @export var color: Color = Color(0.98, 0.74, 0.18)
 ## Готовый спрайт (нарисован «вправо»). Пусто — плейсхолдер.
