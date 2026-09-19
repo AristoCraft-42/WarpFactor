@@ -220,5 +220,5 @@ func get_window_sections() -> Array[WindowSection]:
 	sections.append(WindowSection.text_lines(get_info_lines()))
 	var net := world.fluids.get_port_network(self, 0) if not get_fluid_ports().is_empty() else null
 	if net != null:
-		sections.append(WindowSection.fluid(tr("WINDOW_FLUID"), net))
+		sections.append(WindowSection.fluid(tr("WINDOW_NETWORK_FLUID"), net))
 	return sections

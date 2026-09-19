@@ -54,7 +54,7 @@ func setup(game: Game) -> void:
 	var hint := Label.new()
 	hint.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	hint.theme_type_variation = &"DimLabel"
-	hint.text = tr("RESEARCH_HINT") % [ResearchState.QUEUE_MAX, ResearchState.QUEUE_MAX]
+	hint.text = tr("RESEARCH_HINT") % ResearchState.QUEUE_MAX
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(hint)
 	_tree = ResearchTreeView.new()

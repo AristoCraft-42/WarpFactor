@@ -283,11 +283,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		run.planet.threat.call_next_wave(run.planet.simulation.tick)
 		Events.toast(tr("TOAST_WAVE_CALLED"), Events.ToastKind.INFO)
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("player_add") and run.creative:
-		run.submit(Command.Kind.PLAYER_ADD)
+	elif event.is_action_pressed("player_add"):
+		if run.creative:
+			run.submit(Command.Kind.PLAYER_ADD)
+		else:
+			Events.toast(tr("TOAST_PLAYER_CREATIVE_ONLY"), Events.ToastKind.WARNING)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("player_switch"):
-		switch_player()
+		if run.players.size() > 1:
+			switch_player()
+		else:
+			Events.toast(tr("TOAST_PLAYER_ALONE"), Events.ToastKind.INFO)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_debug"):
 		_debug_enabled = hud.toggle_debug()

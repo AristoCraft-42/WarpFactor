@@ -36,6 +36,9 @@ $g = "D:\SteamLibrary\steamapps\common\Godot Engine\godot.windows.opt.tools.64.e
 # Переимпорт (обязателен после новых class_name и новых .tres)
 & $g --headless --path D:\Mind --import
 
+# Проверка строк интерфейса (подстановки %s/%d и пропавшие ключи)
+python tools/data/check_strings.py
+
 # Логические тесты (сейчас 1336 проверок)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 

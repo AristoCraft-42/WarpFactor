@@ -354,6 +354,7 @@ BUILDING_CREATIVE_FLUID_SOURCE,Fluid Source,Источник жидкости
 BUILDING_CREATIVE_FLUID_SOURCE_DESC,Creative mode only: pours the chosen fluid into the connected pipes.,Только творческий режим: наливает выбранную жидкость в подключённые трубы.
 BUILDING_CREATIVE_VOID,Void,Поглотитель
 BUILDING_CREATIVE_VOID_DESC,"Creative mode only: swallows items, fluid and power — handy for measuring throughput.","Только творческий режим: поглощает предметы, жидкость и энергию — удобно мерить пропускную способность."
+STAT_TURRET_RANGE_MIN,Range: %.1f — %.1f tiles,Дальность: %.1f — %.1f тайла
 STAT_CREATIVE_ITEM,Up to %.0f items/s,До %.0f предм./с
 STAT_CREATIVE_POWER,Up to %.0f kW,До %.0f кВт
 STAT_CREATIVE_FLUID,Up to %.0f units/s,До %.0f ед./с
@@ -371,6 +372,8 @@ CONFIG_RATE_FLUID,%.0f units/s,%.0f ед./с
 CONFIG_RATE_VOID,%.0f kW,%.0f кВт
 PLAYER_DEFAULT_NAME,Player %d,Игрок %d
 TOAST_PLAYER_SWITCHED,Now playing: %s,Теперь играете за: %s
+TOAST_PLAYER_CREATIVE_ONLY,A second player can only be added in creative mode,Второго игрока можно добавить только в творческом режиме
+TOAST_PLAYER_ALONE,You are alone in this run,В забеге вы один
 TOAST_PLAYER_JOINED,%s joined the run,%s присоединился к забегу
 ACTION_PLAYER_ADD,Add a player,Добавить игрока
 ACTION_PLAYER_SWITCH,Switch player,Сменить игрока
