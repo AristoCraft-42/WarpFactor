@@ -102,6 +102,10 @@ func _ready() -> void:
 	_test_quick_transfer()
 	_test_pipe_layer()
 	_test_creative_research()
+	_test_players()
+	_test_commands()
+	_test_command_order()
+	_test_command_determinism()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -1759,7 +1763,7 @@ func _test_save_remap() -> void:
 					elif arr[i] == lead:
 						arr[i] = copper
 				state[key] = arr
-	var drone_slots: Dictionary = data["drone"]["inventory"]
+	var drone_slots: Dictionary = (data["players"][0] as Dictionary)["drone"]["inventory"]
 	var drone_items: PackedInt32Array = drone_slots["slot_items"]
 	for i in drone_items.size():
 		if drone_items[i] == copper:
@@ -2234,6 +2238,155 @@ func _test_creative_research() -> void:
 	run.dispose()
 
 
+## Забег на двоих: у каждого свой дрон и инвентарь, исследования и улучшения — общие,
+## игроки могут быть на разных этажах.
+func _test_players() -> void:
+	var run := _floors_run(_all_research_ids())
+	_check(run.players.size() == 1 and run.local_player == run.players[0].id, "в новом забеге один игрок")
+	var first := run.get_player(run.local_player)
+	var second := run.add_player("Второй")
+	_check(run.players.size() == 2 and second.id != first.id and second.drone != first.drone,
+		"второй игрок со своим дроном")
+	_check(second.drone.world == run.planet and run.planet.drones.size() == 2, "оба дрона на планете")
+	_check(run.planet.drones[0].player_id < run.planet.drones[1].player_id, "дроны в мире отсортированы по id игрока")
+	# Инвентари раздельные.
+	var stone := _item(&"stone")
+	first.drone.inventory.add(stone, 10)
+	_check(first.drone.inventory.count(stone) == 10 and second.drone.inventory.count(stone) == 0, "инвентари у игроков свои")
+	# Улучшения дрона общие: их даёт исследование.
+	for research in Registry.researches:
+		if research.effects.has(&"drone_speed"):
+			run.research.done[research.id] = true
+	run.research._effects_signature = -1
+	run.apply_research_effects()
+	_check(second.drone.get_speed() > second.drone.def.speed and is_equal_approx(first.drone.get_speed(), second.drone.get_speed()),
+		"улучшения дрона общие для всех игроков")
+	# Игроки на разных этажах.
+	second.drone.position = run.get_gateway(run.planet).get_world_center()
+	_check(run.use_gateway(second.drone) and second.drone.world == run.base, "второй игрок ушёл на подземный этаж")
+	_check(run.planet.drones.size() == 1 and run.base.drones.size() == 1, "каждый мир знает своих дронов")
+	_check(run.drone == first.drone and run.planet.drone == first.drone, "локальный игрок не сменился")
+	run.set_local_player(second.id)
+	_check(run.drone == second.drone and run.base.view_drone == second.drone, "смена локального игрока переводит взгляд")
+	run.set_local_player(first.id)
+	# Сохранение: оба игрока, их этажи и вещи.
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(SaveIO.run_to_dict(run))))
+	_check(loaded.players.size() == 2 and loaded.local_player == first.id, "игроки сохраняются")
+	_check(loaded.get_player(first.id).drone.inventory.count(stone) == 10
+		and loaded.get_player(second.id).drone.inventory.count(stone) == 0, "инвентари сохраняются по игрокам")
+	_check(loaded.get_player(second.id).drone.world == loaded.base and loaded.base.drones.size() == 1,
+		"игрок остался на своём этаже")
+	loaded.dispose()
+	# Выход игрока: его вещи падают грузом, забег продолжается.
+	var before_crates := run.base.crates.size()
+	run.remove_player(second.id)
+	_check(run.players.size() == 1 and run.base.drones.is_empty(), "вышедший игрок убран из мира")
+	_check(run.base.crates.size() >= before_crates, "вещи вышедшего не исчезли молча")
+	run.dispose()
+
+
+## Команды: действия игрока меняют мир только через очередь и только в тике.
+func _test_commands() -> void:
+	var run := _floors_run(_all_research_ids())
+	var player := run.get_local_player()
+	var drone := player.drone
+	drone.position = Vector2(run.planet.grid.width, run.planet.grid.height) * GameConst.TILE_SIZE * 0.5
+	var conveyor := Registry.get_building(&"conveyor")
+	drone.inventory.add(conveyor.item.index, 10)
+	var tile := drone.get_tile() + Vector2i(2, 0)
+	run.submit(Command.Kind.BUILD, {"places": [{"def": "conveyor", "origin": tile, "rotation": 0, "config": null}]})
+	_check(run.planet.buildings.get_at(tile) == null, "команда не меняет мир до тика")
+	run.step()
+	var built := run.planet.buildings.get_at(tile)
+	_check(built != null and built.def == conveyor, "лента построена в тике")
+	_check(drone.inventory.count(conveyor.item.index) == 9, "постройка списана у того, кто её ставил")
+	# Движение и добыча — тоже команды.
+	run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT})
+	run.step()
+	_check(drone.move_input == Vector2.RIGHT, "команда движения дошла до дрона")
+	# Снос возвращает постройку владельцу команды.
+	run.submit(Command.Kind.REMOVE, {"ids": PackedInt32Array([built.id])})
+	run.step()
+	_check(run.planet.buildings.get_at(tile) == null and drone.inventory.count(conveyor.item.index) == 10, "снос командой вернул ленту")
+	# Команда чужого игрока действует от его дрона и его инвентаря.
+	var second := run.add_player("Второй")
+	second.drone.position = drone.position + Vector2(GameConst.TILE_SIZE * 2, 0)
+	second.drone.inventory.add(conveyor.item.index, 5)
+	var tile2 := second.drone.get_tile() + Vector2i(1, 0)
+	run.submit_for(second.id, Command.Kind.BUILD, {"places": [{"def": "conveyor", "origin": tile2, "rotation": 0, "config": null}]})
+	run.step()
+	_check(run.planet.buildings.get_at(tile2) != null, "второй игрок построил свою ленту")
+	_check(second.drone.inventory.count(conveyor.item.index) == 4 and drone.inventory.count(conveyor.item.index) == 10,
+		"списалось из инвентаря второго игрока")
+	run.dispose()
+
+
+## Порядок применения в тике не зависит от того, в каком порядке команды пришли.
+func _test_command_order() -> void:
+	var queue := CommandQueue.new()
+	var a := Command.make(Command.Kind.MOVE, 2)
+	a.seq = 0
+	var b := Command.make(Command.Kind.MOVE, 1)
+	b.seq = 5
+	var c := Command.make(Command.Kind.MOVE, 1)
+	c.seq = 2
+	queue.submit(a, 10)
+	queue.submit(b, 10)
+	queue.submit(c, 10)
+	var taken := queue.take(10)
+	_check(taken.size() == 3 and taken[0] == c and taken[1] == b and taken[2] == a,
+		"в тике команды идут по игроку, потом по номеру")
+	_check(queue.take(10).is_empty(), "команды тика забираются один раз")
+	queue.delay = 3
+	queue.submit(Command.make(Command.Kind.MOVE, 1), 10)
+	_check(queue.take(10).is_empty() and queue.take(13).size() == 1, "задержка сдвигает команду на нужный тик")
+
+
+## Два забега с одинаковыми командами считаются одинаково (основа сетевой игры).
+func _test_command_determinism() -> void:
+	var first := _command_run()
+	var second := _command_run()
+	var conveyor := "conveyor"
+	for run in [first, second]:
+		var p1: Player = run.players[0]
+		var p2: Player = run.players[1]
+		var base_tile: Vector2i = p1.drone.get_tile()
+		# В одном забеге команды подаются в одном порядке, в другом — в обратном:
+		# сортировка в тике должна дать одинаковый результат.
+		var order := [p1, p2] if run == first else [p2, p1]
+		for step in 6:
+			for p in order:
+				var who: Player = p
+				var tile: Vector2i = base_tile + Vector2i(2 + step, 2 if who == p1 else 4)
+				run.submit_for(who.id, Command.Kind.BUILD,
+					{"places": [{"def": conveyor, "origin": tile, "rotation": 0, "config": null}]})
+				run.submit_for(who.id, Command.Kind.MOVE, {"dir": Vector2(0.5 if who == p1 else -0.5, 0.25)})
+			for i in 5:
+				run.step()
+	for i in 60:
+		first.step()
+		second.step()
+	var dump_a := var_to_bytes(SaveIO.run_to_dict(first))
+	var dump_b := var_to_bytes(SaveIO.run_to_dict(second))
+	_check(dump_a == dump_b, "одинаковые команды — байт в байт одинаковые забеги (%d и %d байт)" % [dump_a.size(), dump_b.size()])
+	_check(first.planet.buildings.get_count() == second.planet.buildings.get_count() and first.planet.buildings.get_count() > 6,
+		"оба забега построили одинаково (%d построек)" % first.planet.buildings.get_count())
+	first.dispose()
+	second.dispose()
+
+
+## Забег на двоих с одинаковым сидом и запасом лент у обоих.
+func _command_run() -> Run:
+	var run := Run.create(null, LevelMap.new(64, 48, Registry.get_floor(&"stone").index), false)
+	var second := run.add_player("Второй")
+	var conveyor := Registry.get_building(&"conveyor")
+	for p in run.players:
+		p.drone.inventory.add(conveyor.item.index, 40)
+		p.drone.position = run.get_gateway(run.planet).get_world_center()
+	second.drone.position += Vector2(0, GameConst.TILE_SIZE * 2)
+	return run
+
+
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:
 	for research in Registry.researches:
@@ -2437,9 +2590,9 @@ func _test_drone_death_and_crate() -> void:
 	var death_pos := planet.gateway.get_world_center() + Vector2(8, 0) * GameConst.TILE_SIZE
 	drone.position = death_pos
 	var tick := planet.simulation.tick
-	planet.damage_drone(drone.def.health * 0.5, tick)
+	planet.damage_drone(drone, drone.def.health * 0.5, tick)
 	_check(not drone.dead and drone.health == drone.def.health * 0.5, "урон дрону уменьшает прочность")
-	planet.damage_drone(drone.def.health, tick)
+	planet.damage_drone(drone, drone.def.health, tick)
 	_check(drone.dead and drone.inventory.is_empty() and drone.crafting.is_empty(), "сбитый дрон теряет инвентарь и очередь")
 	_check(planet.crates.size() == 1 and planet.crates[0].total() == expected, "груз содержит инвентарь и сырьё отменённого крафта (%d из %d)" % [planet.crates[0].total(), expected])
 	_check(not run.can_use_gateway() and planet.check_build(Registry.get_building(&"conveyor"), GameConst.world_to_tile(death_pos), 0) == BuildingManager.Check.OUT_OF_RANGE,
@@ -2447,7 +2600,7 @@ func _test_drone_death_and_crate() -> void:
 	for i in drone.def.get_respawn_ticks():
 		run.step()
 	_check(not drone.dead and drone.position == planet.gateway.get_world_center() and drone.health == drone.def.health, "дрон появляется у шлюза с полной прочностью")
-	planet.damage_drone(1000.0, planet.simulation.tick)
+	planet.damage_drone(planet.drone, 1000.0, planet.simulation.tick)
 	_check(not drone.dead, "после появления дрон неуязвим")
 	drone.position = death_pos + Vector2(12, 0)
 	run.step()
@@ -2457,7 +2610,7 @@ func _test_drone_death_and_crate() -> void:
 	run.dispose()
 
 	var creative_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), true)
-	creative_run.planet.damage_drone(10000.0, 0)
+	creative_run.planet.damage_drone(creative_run.drone, 10000.0, 0)
 	_check(not creative_run.drone.dead, "в творческом режиме дрона не сбить")
 	creative_run.dispose()
 
@@ -3204,6 +3357,15 @@ func _test_building_windows() -> void:
 # --- Этап 11: энергия, этажи, шлюз ---
 
 ## Забег на пустой карте 48×32 с водой над шлюзом; research — завершённые исследования.
+## Все исследования забега (для тестов, где нужен полностью открытый забег).
+func _all_research_ids() -> Array[StringName]:
+	var ids: Array[StringName] = []
+	for r in Registry.researches:
+		if not r.creative_only:
+			ids.append(r.id)
+	return ids
+
+
 func _floors_run(research: Array[StringName]) -> Run:
 	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
 	map.set_ore(24, 10, Registry.get_ore(&"water").index + 1)

@@ -79,14 +79,12 @@ func setup(game: Game) -> void:
 	_creative_row = UiUtil.hbox(6)
 	column.add_child(_creative_row)
 	var reset := UiUtil.button("RESEARCH_RESET", func() -> void:
-		_game.run.research.reset_progress()
-		_game.run.apply_research_effects()
+		_game.run.submit(Command.Kind.RESEARCH_RESET)
 		refresh())
 	reset.focus_mode = Control.FOCUS_NONE
 	_creative_row.add_child(reset)
 	var unlock := UiUtil.button("RESEARCH_UNLOCK_ALL", func() -> void:
-		_game.run.research.unlock_everything()
-		_game.run.apply_research_effects()
+		_game.run.submit(Command.Kind.RESEARCH_UNLOCK)
 		refresh())
 	unlock.focus_mode = Control.FOCUS_NONE
 	_creative_row.add_child(unlock)
@@ -190,7 +188,7 @@ func _make_card(research: ResearchDef) -> Control:
 	button.pressed.connect(func() -> void:
 		var state := _game.run.research
 		if state.is_available(research):
-			state.set_active(research.id if state.active != research.id else &"")
+			_game.run.submit(Command.Kind.RESEARCH_SELECT, {"research": String(research.id) if state.active != research.id else ""})
 		refresh())
 	var column := UiUtil.vbox(4)
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -296,17 +294,15 @@ func refresh() -> void:
 ## ПКМ по карточке: поставить в очередь или убрать из неё.
 func _toggle_queue(research: ResearchDef) -> void:
 	var state := _game.run.research
-	if state.queue_position(research.id) > 0:
-		state.queue_remove(research.id)
-	elif not state.queue_add(research.id) and state.queue.size() >= ResearchState.QUEUE_MAX:
+	if state.queue_position(research.id) == 0 and state.queue.size() >= ResearchState.QUEUE_MAX:
 		Events.toast(tr("RESEARCH_QUEUE_FULL") % ResearchState.QUEUE_MAX, Events.ToastKind.WARNING)
+		return
+	_game.run.submit(Command.Kind.RESEARCH_QUEUE, {"research": String(research.id)})
 	refresh()
 
 
 func _deposit() -> void:
-	var moved := _game.run.research.deposit_manual(_game.run.drone.inventory)
-	if moved > 0:
-		Events.toast(tr("TOAST_RESEARCH_DEPOSITED") % moved, Events.ToastKind.SUCCESS)
+	_game.run.submit(Command.Kind.RESEARCH_DEPOSIT)
 	refresh()
 
 

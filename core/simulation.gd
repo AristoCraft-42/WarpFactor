@@ -85,8 +85,9 @@ func step() -> void:
 		_world.enemies.remove_dead()
 
 	# Дрон один на забег и обновляется в симуляции того мира, где находится.
-	if _world.drone != null and _world.drone.world == _world:
-		_world.drone.update_tick(tick)
+	for d in _world.drones:
+		if d.world == _world:
+			d.update_tick(tick)
 
 	last_tick_usec = Time.get_ticks_usec() - start
 	avg_tick_usec = lerpf(avg_tick_usec, float(last_tick_usec), 0.05)

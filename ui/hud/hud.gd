@@ -21,6 +21,8 @@ var _confirm: ConfirmationDialog
 var inventory_window: InventoryWindow
 var _title_label: Label
 var _safe_badge: Label
+## Кто в забеге (видно только когда игроков больше одного).
+var _players_label: Label
 var _gateway_label: Label
 var _charge_label: Label
 var _respawn_label: Label
@@ -67,6 +69,7 @@ func setup(game: Game) -> void:
 	game.tools.area_changed.connect(_update_hint)
 	game.tools.delete_confirmation_requested.connect(_on_delete_confirmation)
 	game.clock.state_changed.connect(_update_paused_badge)
+	game.run.players_changed.connect(_update_players)
 	_connect_world_signals()
 	_drone_was_dead = game.run.drone.dead
 	game.run.research.completed.connect(func(research: ResearchDef) -> void:
@@ -143,6 +146,11 @@ func _build_top_left() -> void:
 	_title_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_title_label.add_theme_font_size_override("font_size", 20)
 	title_row.add_child(_title_label)
+	_players_label = Label.new()
+	_players_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_players_label.theme_type_variation = &"DimLabel"
+	_players_label.visible = false
+	title_row.add_child(_players_label)
 	_safe_badge = UiUtil.label("HUD_SAFE_PLANET", &"BadgeLabel")
 	_safe_badge.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	title_row.add_child(_safe_badge)
@@ -325,6 +333,9 @@ func _build_build_menu() -> void:
 	_build_menu.setup(_game.tools, _game.world)
 
 
+var _craft_queue: CraftQueuePanel
+
+
 func _build_craft_queue() -> void:
 	var queue := CraftQueuePanel.new()
 	queue.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
@@ -332,7 +343,8 @@ func _build_craft_queue() -> void:
 	queue.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	queue.offset_bottom = -16
 	_root.add_child(queue)
-	queue.setup(_game.world.drone)
+	_craft_queue = queue
+	queue.setup(_game.world.drone, _game.world)
 
 
 func _build_inventory_window() -> void:
@@ -377,6 +389,8 @@ func on_world_changed() -> void:
 	_config_panel.set_world(world)
 	_build_menu.set_world(world)
 	inventory_window.set_world(world)
+	if _craft_queue != null and world.drone != null:
+		_craft_queue.set_drone(world.drone, world)
 	_update_title()
 	_update_info()
 	_update_hint()
@@ -386,6 +400,7 @@ func on_world_changed() -> void:
 func _update_title() -> void:
 	var world := _game.world
 	_title_label.text = _game.run.get_world_title(world)
+	_update_players()
 	_safe_badge.visible = not world.is_base and _game.run.is_planet_safe()
 
 
@@ -440,6 +455,19 @@ func _process(delta: float) -> void:
 		_info_timer = INFO_REFRESH
 		if _game.tools.hover_building != null:
 			_update_info()
+
+
+## Список игроков: своё имя выделено, остальные — где они сейчас.
+func _update_players() -> void:
+	var run := _game.run
+	_players_label.visible = run.players.size() > 1
+	if not _players_label.visible:
+		return
+	var parts := PackedStringArray()
+	for p in run.players:
+		var mark := "▸" if p.id == run.local_player else "·"
+		parts.append("%s %s" % [mark, p.name])
+	_players_label.text = tr("HUD_PLAYERS") % ", ".join(parts)
 
 
 func _update_info() -> void:

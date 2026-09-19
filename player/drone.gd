@@ -8,6 +8,8 @@ extends RefCounted
 const NO_TILE := Vector2i(-1, -1)
 
 var def: DroneDef
+## id игрока, которому принадлежит дрон (0 — ничей, например в тестовом мире).
+var player_id: int = 0
 var world: GameWorld
 ## Центр дрона в пикселях мира.
 var position: Vector2 = Vector2.ZERO
@@ -101,6 +103,17 @@ func get_repair_per_second() -> float:
 ## Тиков на один предмет с учётом улучшений добычи.
 func get_mine_ticks(ore: OreDef) -> int:
 	return maxi(1, roundi(def.mine_ticks(ore) / (1.0 + def.mine_speed_step * upgrade_mining)))
+
+
+## Переезд в другой мир: мир держит список своих дронов, поэтому менять world напрямую нельзя.
+func move_to_world(next: GameWorld) -> void:
+	if world == next:
+		return
+	if world != null:
+		world.remove_drone(self)
+	world = next
+	if next != null:
+		next.add_drone(self)
 
 
 func is_alive() -> bool:
@@ -202,7 +215,7 @@ func update_tick(tick: int) -> void:
 	prev_position = position
 	if dead:
 		if tick >= respawn_tick:
-			world.respawn_drone(tick)
+			world.respawn_drone(self, tick)
 		return
 	if move_input != Vector2.ZERO:
 		var step := move_input.limit_length(1.0) * get_speed_per_tick()

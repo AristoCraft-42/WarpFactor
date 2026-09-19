@@ -53,6 +53,7 @@ func _run_game(game: Game) -> void:
 	await _run_research(game)
 	await _run_gateway(game)
 	await _run_lift(game)
+	await _run_players(game)
 	await _run_drone(game, base)
 	await _run_interaction(game, base)
 	await _run_build_helpers(game, base)
@@ -146,6 +147,7 @@ func _run_research(game: Game) -> void:
 	await _click_control(mining_button)
 	_expect(state.active == &"", "недоступное исследование не выбирается")
 	await _click_control(electricity_button)
+	await _settle(game)
 	_expect(state.active == &"electricity", "клик по карточке выбирает «Электрику»")
 	# ПКМ ставит следующие исследования в очередь.
 	var mining_center := mining_button.get_global_rect().get_center()
@@ -168,6 +170,7 @@ func _run_research(game: Game) -> void:
 	await _frames(5)
 	var deposit: Button = window.get("_deposit_button")
 	await _click_control(deposit)
+	await _settle(game)
 	_expect(state.manual_queue == 10 and run.drone.inventory.count(kit) == 2,
 		"кнопка сдаёт нужные наборы в ручную очередь (сдано %d, наборов у дрона %d, выбрано «%s», кнопка %s)"
 			% [state.manual_queue, run.drone.inventory.count(kit), state.active, "выключена" if deposit.disabled else "включена"])
@@ -256,6 +259,57 @@ func _run_coal_drill(game: Game, base: Vector2i) -> void:
 	world.buildings.remove(drill, true)
 
 
+## Второй игрок в забеге: свой дрон и инвентарь, общие исследования, переключение между игроками.
+func _run_players(game: Game) -> void:
+	var run := game.run
+	var before := run.players.size()
+	run.submit(Command.Kind.PLAYER_ADD, {"name": "Напарник"})
+	await _settle(game)
+	_expect(run.players.size() == before + 1, "команда добавила второго игрока (%d)" % run.players.size())
+	if run.players.size() < 2:
+		return
+	var first := run.get_player(run.local_player)
+	var second: Player = run.players[run.players.size() - 1]
+	# Дрон напарника рядом со шлюзом, оба видны в одном мире.
+	second.drone.position = first.drone.position + Vector2(GameConst.TILE_SIZE * 3, 0)
+	second.drone.prev_position = second.drone.position
+	await _frames(10)
+	_expect(second.drone.world == run.planet and run.planet.drones.size() == 2, "оба дрона на планете")
+	await _drone_to(game, GameConst.world_to_tile(second.drone.position) + Vector2i(-2, 0))
+	await _frames(20)
+	await _shot("m01_two_players.png")
+	# Напарник строит свою ленту — из своего инвентаря.
+	var conveyor := Registry.get_building(&"conveyor")
+	second.drone.inventory.add(conveyor.item.index, 5)
+	var tile := GameConst.world_to_tile(second.drone.position) + Vector2i(1, 0)
+	var mine_before := first.drone.inventory.count(conveyor.item.index)
+	run.submit_for(second.id, Command.Kind.BUILD,
+		{"places": [{"def": "conveyor", "origin": tile, "rotation": 0, "config": null}]})
+	await _settle(game)
+	_expect(run.planet.buildings.get_at(tile) != null, "напарник построил свою ленту")
+	_expect(second.drone.inventory.count(conveyor.item.index) == 4 and first.drone.inventory.count(conveyor.item.index) == mine_before,
+		"лента списалась у напарника, а не у меня")
+	run.planet.buildings.remove(run.planet.buildings.get_at(tile), true)
+	# Переключение между игроками: интерфейс и камера переезжают.
+	game.switch_player()
+	await _frames(20)
+	_expect(run.local_player == second.id and game.hud.inventory_window != null, "F8 переключает на напарника")
+	_expect(run.drone == second.drone, "теперь играем за напарника")
+	await _shot("m02_switched.png")
+	game.switch_player()
+	await _frames(10)
+	_expect(run.local_player == first.id, "обратное переключение вернуло своего дрона")
+	run.remove_player(second.id)
+	await _frames(10)
+	_expect(run.players.size() == before, "напарник вышел из забега")
+
+
+## Подождать, пока отданные команды применятся: они выполняются в начале тика.
+func _settle(game: Game) -> void:
+	await _wait_ticks(game.world, 2)
+	await _frames(5)
+
+
 ## Колесо мыши на экранной точке.
 func _wheel_screen(pos: Vector2, up: bool) -> void:
 	var event := InputEventMouseButton.new()
@@ -329,7 +383,7 @@ func _run_enemies(game: Game, base: Vector2i) -> void:
 	var death_tile := GameConst.world_to_tile(gate.get_world_center()) + Vector2i(-9, 0)
 	await _drone_to(game, death_tile)
 	drone.inventory.add(Registry.get_item(&"hematite").index, 25)
-	planet.damage_drone(100000.0, planet.simulation.tick)
+	planet.damage_drone(planet.drone, 100000.0, planet.simulation.tick)
 	await _frames(6)
 	var respawn_label: Label = game.hud.get("_respawn_label")
 	_expect(drone.dead and respawn_label.visible and planet.crates.size() == 1, "дрон сбит: груз выпал, показан отсчёт")
@@ -405,6 +459,7 @@ func _run_defense(game: Game) -> void:
 	await _mouse_move(game, gun_tile)
 	await _mouse_button(game, gun_tile, MOUSE_BUTTON_LEFT, true)
 	await _mouse_button(game, gun_tile, MOUSE_BUTTON_LEFT, false)
+	await _settle(game)
 	var gun := planet.buildings.get_at(gun_tile) as Turret
 	_expect(gun != null, "пулемёт поставлен")
 	await _key(KEY_ESCAPE)
@@ -443,6 +498,7 @@ func _run_defense(game: Game) -> void:
 	await _mouse_move(game, b)
 	await _frames(3)
 	await _mouse_button(game, b, MOUSE_BUTTON_LEFT, false)
+	await _settle(game)
 	_expect(planet.buildings.get_count() - before == 8, "стены ставятся линией (%d)" % (planet.buildings.get_count() - before))
 	await _key(KEY_ESCAPE)
 
@@ -681,6 +737,7 @@ func _run_teleport(game: Game) -> void:
 	await _shot("t01_star_map.png")
 	var start_button: Button = window.get("_start_button")
 	await _click_control(start_button)
+	await _settle(game)
 	_expect(run.is_charging() and run.charge_target == next[next.size() - 1].id, "кнопка запускает зарядку телепорта")
 	await _frames(5)
 	await _shot("t02_charging.png")
@@ -742,6 +799,7 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	var copper_before := inv.count(copper)
 	await _mouse_move(game, ore_tile)
 	await _mouse_button(game, ore_tile, MOUSE_BUTTON_LEFT, true)
+	await _settle(game)
 	_expect(drone.is_mining() and drone.mine_tile == ore_tile, "ЛКМ по руде включает добычу")
 	game.clock.set_speed_index(2)
 	await _wait_ticks(world, drone.def.mine_ticks(Registry.get_ore(&"hematite")) * 2 + 4)
@@ -785,6 +843,7 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	var center := belt_slot.get_global_rect().get_center()
 	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, true)
 	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, false)
+	await _settle(game)
 	_expect(drone.crafting.units.size() >= 4, "ПКМ по рецепту ставит 5 крафтов (в очереди %d)" % drone.crafting.units.size())
 	await _frames(3)
 	await _shot("d03_craft_queue.png")
@@ -909,6 +968,7 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	await _mouse_move(game, ore_spot)
 	await _mouse_button(game, ore_spot, MOUSE_BUTTON_LEFT, true)
 	await _mouse_button(game, ore_spot, MOUSE_BUTTON_LEFT, false)
+	await _settle(game)
 	_expect(bm.get_count() - before == 1 and drills_before - inv.count(drill.item.index) == 1, "клик ставит бур на руду из инвентаря")
 	await _drone_to(game, base)
 
@@ -970,6 +1030,7 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	before = bm.get_count()
 	var belts_before_delete := inv.count(conveyor.item.index)
 	await _key(KEY_X)
+	await _settle(game)
 	_expect(before - bm.get_count() == expected and expected >= 10, "X сносит выделенные постройки (%d из %d)" % [before - bm.get_count(), expected])
 	_expect(inv.count(conveyor.item.index) - belts_before_delete == expected, "снесённые ленты вернулись в инвентарь")
 	_expect(not tools.has_area(), "выделение снято")
@@ -981,6 +1042,7 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	await _mouse_button(game, lone.origin, MOUSE_BUTTON_RIGHT, false)
 	_expect(tools.has_area() and tools.area_buildings.size() == 1, "клик ПКМ по зданию выделяет его")
 	await _key(KEY_X)
+	await _settle(game)
 	_expect(lone.world == null, "X сносит одиночное выделенное здание")
 
 	# Без выделения X сносит здание под курсором (и в руке с инструментом тоже).
@@ -988,11 +1050,13 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	await _mouse_move(game, hovered.origin)
 	_expect(not tools.has_area() and tools.hover_building == hovered, "курсор над лентой, выделения нет")
 	await _key(KEY_X)
+	await _settle(game)
 	_expect(hovered.world == null, "X без выделения сносит здание под курсором")
 	var hovered_in_hand := bm.place(conveyor, base + Vector2i(3, 7), 0)
 	tools.select_building(conveyor)
 	await _mouse_move(game, hovered_in_hand.origin)
 	await _key(KEY_X)
+	await _settle(game)
 	_expect(hovered_in_hand.world == null, "X сносит здание под курсором и с постройкой в руке")
 	await _key(KEY_ESCAPE)
 
@@ -1068,6 +1132,7 @@ func _run_production_chain(game: Game, base: Vector2i) -> void:
 	var in_container := container.inventory.count(copper)
 	if not slots.is_empty():
 		await _click_control(slots[0] as Control)
+	await _settle(game)
 	_expect(inv.count(copper) > copper_before and container.inventory.count(copper) < in_container, "ЛКМ по ячейке контейнера забирает гематит")
 	await _key(KEY_ESCAPE)
 	_expect(not window.visible and game.tools.selected == null, "Esc закрывает окно контейнера")
@@ -1258,6 +1323,7 @@ func _run_power(game: Game, base: Vector2i) -> void:
 		await _mouse_move(game, tile)
 		await _mouse_button(game, tile, MOUSE_BUTTON_LEFT, true)
 		await _mouse_button(game, tile, MOUSE_BUTTON_LEFT, false)
+	await _settle(game)
 	var entrance := bm.get_at(layout + Vector2i(-2, 0)) as UndergroundPipe
 	var exit := bm.get_at(layout + Vector2i(-4, 0)) as UndergroundPipe
 	_expect(entrance != null and exit != null and entrance.rotation == GameConst.Dir.LEFT and exit.rotation == GameConst.Dir.RIGHT,
@@ -1482,6 +1548,7 @@ func _run_logistics(game: Game, base: Vector2i) -> void:
 	_expect(down_buttons.size() == 2, "в панели строки приоритетного входа и выхода")
 	if down_buttons.size() == 2:
 		await _click_control(down_buttons[1])
+	await _settle(game)
 	_expect(router.priority_out == GameConst.Dir.DOWN and router.priority_in == Router.NO_SIDE, "клик по «↓» в строке выхода делает нижнюю сторону приоритетной")
 	await _frames(3)
 	await _shot("i06_router_priority.png")
@@ -1562,6 +1629,7 @@ func _run_logistics(game: Game, base: Vector2i) -> void:
 	await _mouse_move(game, start + Vector2i(1, 0))
 	await _mouse_move(game, finish)
 	await _mouse_button(game, finish, MOUSE_BUTTON_LEFT, false)
+	await _settle(game)
 	var b0 := bm.get_at(start) as BridgeConveyor
 	var b1 := bm.get_at(start + Vector2i(4, 0)) as BridgeConveyor
 	var b2 := bm.get_at(finish) as BridgeConveyor
@@ -1925,6 +1993,8 @@ func _wire(world: GameWorld, a: Building, b: Building) -> void:
 
 ## Ждать, пока очередь крафта дрона опустеет.
 func _wait_craft(world: GameWorld) -> void:
+	# Крафт ставится в очередь командой — сначала дожидаемся тика, где она применится.
+	await _wait_ticks(world, 2)
 	var guard := 0
 	while not world.drone.crafting.is_empty() and guard < 4000:
 		await get_tree().process_frame

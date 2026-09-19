@@ -7,6 +7,7 @@ extends PanelContainer
 const MAX_GROUPS := 10
 
 var _queue: CraftQueue
+var _world: GameWorld
 var _row: HBoxContainer
 var _progress: ProgressBar
 var _status: Label
@@ -14,8 +15,9 @@ var _revision: int = -1
 var _blocked: bool = false
 
 
-func setup(drone: Drone) -> void:
+func setup(drone: Drone, world: GameWorld = null) -> void:
 	_queue = drone.crafting
+	_world = world
 	theme_type_variation = &"HudPanel"
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
@@ -64,13 +66,23 @@ func _rebuild() -> void:
 	_status.text = tr("CRAFT_QUEUE_BLOCKED") if _queue.blocked else ""
 
 
+## Сменился локальный игрок — панель показывает его очередь.
+func set_drone(drone: Drone, world: GameWorld) -> void:
+	_queue = drone.crafting
+	_world = world
+	_revision = -1
+
+
 func _on_group_clicked(button: MouseButton, shift: bool, recipe: HandRecipe) -> void:
 	var count := 1
 	if button == MOUSE_BUTTON_RIGHT:
 		count = 5
 	elif shift:
 		count = _queue.count_of(recipe)
-	_queue.cancel_last(recipe, count)
+	if _world != null:
+		_world.submit(Command.Kind.CRAFT_CANCEL, {"item": recipe.output.index, "count": count})
+	else:
+		_queue.cancel_last(recipe, count)
 
 
 func _notification(what: int) -> void:

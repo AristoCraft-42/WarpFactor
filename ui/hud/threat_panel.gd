@@ -55,7 +55,7 @@ func setup(game: Game) -> void:
 	_creative_row = UiUtil.hbox(6)
 	column.add_child(_creative_row)
 	_wave_button = UiUtil.button("THREAT_CALL_WAVE", func() -> void:
-		_game.run.call_creative_wave()
+		_game.run.submit(Command.Kind.CREATIVE_WAVE)
 		refresh())
 	_wave_button.focus_mode = Control.FOCUS_NONE
 	_wave_button.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -65,7 +65,7 @@ func setup(game: Game) -> void:
 	_waves_toggle.focus_mode = Control.FOCUS_NONE
 	_waves_toggle.mouse_filter = Control.MOUSE_FILTER_STOP
 	_waves_toggle.toggled.connect(func(on: bool) -> void:
-		_game.run.set_creative_threat(on)
+		_game.run.submit(Command.Kind.CREATIVE_THREAT, {"on": on})
 		refresh())
 	_creative_row.add_child(_waves_toggle)
 	refresh()

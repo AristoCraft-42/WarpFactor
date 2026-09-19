@@ -25,7 +25,7 @@ godot --headless --path D:\Mind res://tests/test_runner.tscn
 ```
 
 `tests/test_runner.gd` — плоский список функций `_test_*`, каждая печатает свои проверки.
-В конце — счётчик (сейчас **1303 проверки**) и ненулевой код возврата при провале.
+В конце — счётчик (сейчас **1336 проверок**) и ненулевой код возврата при провале.
 
 Что покрыто, по группам:
 
@@ -39,6 +39,7 @@ godot --headless --path D:\Mind res://tests/test_runner.tscn
 | Исследования и этажи | `_test_research`, `_test_research_tree`, `_test_research_queue`, `_test_research_effects_and_floors`, `_test_gateway_ports`, `_test_lift`, `_test_creative_research` |
 | Мир и забег | `_test_star_map`, `_test_planet_generator`, `_test_teleport`, `_test_run_gateway`, `_test_breach_teleport`, `_test_gateway_growth` |
 | Сохранения | `_test_save_roundtrip_and_determinism`, `_test_save_remap`, `_test_save_files`, `_test_building_state_roundtrip`, `_test_determinism`, `_test_enemy_save_determinism` |
+| Игроки и команды | `_test_players`, `_test_commands`, `_test_command_order`, `_test_command_determinism` |
 | Бой и оборона | `_test_enemy_attack`, `_test_flow_field`, `_test_threat_schedule`, `_test_spawn_points`, `_test_turret_*`, `_test_walls_route`, `_test_drone_gun_and_repair`, `_test_artillery` |
 | Интерфейс (логика) | `_test_building_windows`, `_test_pole_drag_and_camera`, `_test_belt_drag_obstacles`, `_test_line_planner`, `_test_quick_transfer`, `_test_settings_entries`, `_test_input_codes` |
 
@@ -63,7 +64,7 @@ godot --path D:\Mind res://ui/menu/main_menu.tscn -- --autoshot --autoshot-dir=D
 
 `tests/autoshot.gd` подключается из `core/game.gd`, если в аргументах есть `--autoshot`.
 Он играет в игру настоящим вводом (движение дрона, клики, горячие клавиши), проверяет состояние
-и делает скриншот на каждом шаге. Сейчас **191 проверка**, около 150 секунд.
+и делает скриншот на каждом шаге. Сейчас **199 проверок**, около 150 секунд.
 
 Сценарии: `_run_menu`, `_run_game`, `_run_drone`, `_run_interaction`, `_run_build_helpers`,
 `_run_coal_drill`, `_run_production_chain`, `_run_factory`, `_run_logistics`, `_run_power`,
@@ -77,7 +78,8 @@ godot --path D:\Mind res://ui/menu/main_menu.tscn -- --autoshot --autoshot-dir=D
   свёрнутому или полностью закрытому окну, и прогон зависает в ожидании тиков (`_wait_ticks`)
   или завершается раньше времени. Один и тот же код может дать 171/171 и «зависнуть» —
   причина в занятом экране, а не в коде. Запускать, когда за компьютером не работают.
-- Числа бенчмарков заметно пляшут, если за компьютером работают: сравнивать стоит порядок величины, а не десятые доли.
+- Автопрогон ждёт тик после действия (`_settle`): команды применяются не мгновенно.
+- Числа бенчмарков заметно пляшут, если за компьютером работают (и особенно если открыт редактор Godot): сравнивать стоит порядок величины, а не десятые доли.
 - Скриншоты копятся в `--autoshot-dir`; имя файла печатается в консоль (`autoshot: <файл>`).
 - Сценарий пишет в слот сохранения с именем `autoshot slot` — он перезаписывается каждым прогоном.
 

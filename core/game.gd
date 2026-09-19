@@ -200,12 +200,13 @@ func _build_scene() -> void:
 	add_child(tools)
 	tools.setup(world, camera, preview)
 	tools.pause_menu_requested.connect(open_pause_menu)
-	drone_view.setup(run.drone, clock, tools)
+	drone_view.setup(run, world, clock, tools)
 
 	drone_controller = DroneController.new()
 	drone_controller.name = "DroneController"
 	add_child(drone_controller)
-	drone_controller.setup(run.drone)
+	drone_controller.setup(run.drone, world)
+	run.players_changed.connect(_on_players_changed)
 
 	hud = Hud.new()
 	hud.name = "Hud"
@@ -228,7 +229,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if run.is_over_gateway() and not run.is_underground_open():
 			Events.toast(tr("TOAST_LOCKED") % tr(Registry.get_research(&"underground").name_key), Events.ToastKind.WARNING)
 		else:
-			run.use_gateway()
+			run.submit(Command.Kind.USE_PASSAGE)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("research"):
 		hud.research_window.toggle()
@@ -282,6 +283,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		run.planet.threat.call_next_wave(run.planet.simulation.tick)
 		Events.toast(tr("TOAST_WAVE_CALLED"), Events.ToastKind.INFO)
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("player_add") and run.creative:
+		run.submit(Command.Kind.PLAYER_ADD)
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("player_switch"):
+		switch_player()
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_debug"):
 		_debug_enabled = hud.toggle_debug()
 		grid_overlay.set_chunk_lines_visible(_debug_enabled)
@@ -319,6 +326,34 @@ func _update_input_enabled() -> void:
 
 
 ## Дрон прошёл через шлюз: активным становится вид мира, где он оказался.
+## Следующий игрок забега становится локальным (проверка совместной игры без сети).
+func switch_player() -> void:
+	if run.players.size() < 2:
+		return
+	var index := 0
+	for i in run.players.size():
+		if run.players[i].id == run.local_player:
+			index = i
+			break
+	var next := run.players[(index + 1) % run.players.size()]
+	run.set_local_player(next.id)
+	Events.toast(tr("TOAST_PLAYER_SWITCHED") % next.name, Events.ToastKind.INFO)
+
+
+## Состав игроков изменился: камера и управление смотрят на дрона локального игрока.
+func _on_players_changed() -> void:
+	if run.drone == null:
+		return
+	world = run.drone.world
+	if active_view != _view_of(world):
+		_on_drone_changed_world()
+		return
+	drone_view.set_world(world)
+	drone_controller.setup(run.drone, world)
+	tools.set_world(world)
+	hud.on_world_changed()
+
+
 func _on_drone_changed_world() -> void:
 	world = run.drone.world
 	active_view.set_active(false)
@@ -328,6 +363,8 @@ func _on_drone_changed_world() -> void:
 	belt_overlay.visible = _belts_shown
 	grid_overlay.set_chunk_lines_visible(_debug_enabled)
 	tools.set_world(world)
+	drone_view.set_world(world)
+	drone_controller.setup(run.drone, world)
 	camera.set_map_size(world.get_play_rect_px())
 	hud.on_world_changed()
 	_on_view_changed()
@@ -354,6 +391,8 @@ func _on_planet_changed() -> void:
 	belt_overlay.visible = _belts_shown
 	grid_overlay.set_chunk_lines_visible(_debug_enabled)
 	tools.set_world(world)
+	drone_view.set_world(world)
+	drone_controller.setup(run.drone, world)
 	camera.set_map_size(world.get_play_rect_px())
 	hud.on_planet_changed()
 	_on_view_changed()

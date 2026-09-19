@@ -174,6 +174,10 @@ func set_world(world: GameWorld) -> void:
 		visible = false
 		_building = null
 	_world = world
+	# Локальный игрок мог смениться — окно показывает инвентарь его дрона.
+	if world.drone != null and world.drone != _drone:
+		_drone = world.drone
+		_inventory_revision = -1
 
 
 func open_craft() -> void:
@@ -282,7 +286,7 @@ func _on_inventory_slot_clicked(button: MouseButton, shift: bool, slot: int) -> 
 		var amount := inventory.count(item) if shift else inventory.slot_counts[slot]
 		if button == MOUSE_BUTTON_RIGHT:
 			amount = maxi(1, inventory.slot_counts[slot] / 2)
-		_world.player_put(_building, item, amount)
+		_world.submit(Command.Kind.PUT, {"id": _building.id, "item": item, "amount": amount})
 		_refresh_all()
 		return
 	# Постройку из инвентаря — сразу в руку.
@@ -343,9 +347,10 @@ func _on_recipe_clicked(button: MouseButton, shift: bool, recipe: HandRecipe) ->
 	if _world.creative:
 		_drone.inventory.add(recipe.output.index, recipe.amount * count)
 		return
-	var queued := _drone.crafting.enqueue(recipe, count)
-	if queued == 0:
+	if _drone.crafting.max_craftable(recipe, count) == 0:
 		Events.toast(tr("TOAST_CANNOT_CRAFT") % tr(recipe.output.name_key), Events.ToastKind.WARNING)
+	else:
+		_world.submit(Command.Kind.CRAFT, {"item": recipe.output.index, "count": count})
 	_refresh_recipes()
 
 
@@ -417,7 +422,7 @@ func _on_building_slot_clicked(button: MouseButton, shift: bool, slot: int) -> v
 		amount = 1 << 30
 	elif button == MOUSE_BUTTON_RIGHT:
 		amount = maxi(1, view.amount / 2)
-	_world.player_take(_building, view.item, amount)
+	_world.submit(Command.Kind.TAKE, {"id": _building.id, "item": view.item, "amount": amount})
 	if _world.last_error == GameWorld.ActionError.INVENTORY_FULL:
 		Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
 	_refresh_all()
@@ -592,7 +597,7 @@ func _on_section_slot_clicked(button: MouseButton, shift: bool, slot: ItemSlot, 
 		amount = 1 << 30
 	elif button == MOUSE_BUTTON_RIGHT:
 		amount = maxi(1, slot.amount / 2)
-	_world.player_take(_building, slot.item, amount)
+	_world.submit(Command.Kind.TAKE, {"id": _building.id, "item": slot.item, "amount": amount})
 	if _world.last_error == GameWorld.ActionError.INVENTORY_FULL:
 		Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
 	_refresh_all()

@@ -18,6 +18,8 @@ extends RefCounted
 
 ## Дрон перешёл в другой мир.
 signal drone_changed_world
+## Состав игроков или локальный игрок изменились.
+signal players_changed
 ## Мир планеты заменён новым (после телепорта); итог — в last_summary.
 signal planet_changed
 ## Зарядка телепорта началась, отменена или закончилась.
@@ -28,7 +30,22 @@ signal teleport_starting
 var planet: GameWorld
 var base: GameWorld
 var research: ResearchState
-var drone: Drone
+## Игроки забега по возрастанию id: у каждого свой дрон, инвентарь и очередь крафта.
+var players: Array[Player] = []
+## Чей дрон показывает и слушает этот клиент.
+var local_player: int = 1
+## Следующий свободный id игрока (id не переиспользуются: по ним сортируются команды).
+var next_player_id: int = 1
+## Очередь команд: через неё идут все действия игроков (см. core/command.gd).
+var commands := CommandQueue.new()
+
+## Дрон локального игрока — старый код и интерфейс обращаются к нему как раньше.
+var drone: Drone:
+	get:
+		var player := get_player(local_player)
+		if player != null:
+			return player.drone
+		return players[0].drone if not players.is_empty() else null
 var link: GatewayLink
 var star_map: StarMap
 var run_def: RunDef
@@ -82,8 +99,9 @@ static func create(level: LevelDef, map: LevelMap, p_creative: bool) -> Run:
 
 func _setup(level: LevelDef, map: LevelMap) -> void:
 	planet = GameWorld.create(level, map, creative)
-	drone = planet.drone
-	base = GameWorld.create_base(Registry.base_def, creative, drone)
+	var drone := planet.drone
+	_register_player("", drone)
+	base = GameWorld.create_base(Registry.base_def, creative)
 	attach_world(planet)
 	attach_world(base)
 	setup_research(ResearchState.new())
@@ -103,8 +121,75 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	planet_gate.link = link
 	base_gate.link = link
 	planet.pad_rect = _pad_around(planet_gate)
+	set_local_player(local_player)
 	apply_research_effects()
 	_setup_threat(planet, star_map.get_current(), 0)
+
+
+# --- Игроки ---
+
+func get_player(id: int) -> Player:
+	for p in players:
+		if p.id == id:
+			return p
+	return null
+
+
+func get_local_player() -> Player:
+	return get_player(local_player)
+
+
+## Завести игрока с готовым дроном (при создании забега и при загрузке).
+func _register_player(name: String, p_drone: Drone, id: int = 0) -> Player:
+	var player_id := id if id > 0 else next_player_id
+	next_player_id = maxi(next_player_id, player_id + 1)
+	var player := Player.create(player_id, name if not name.is_empty() else tr("PLAYER_DEFAULT_NAME") % player_id, p_drone)
+	players.append(player)
+	players.sort_custom(func(a: Player, b: Player) -> bool: return a.id < b.id)
+	if p_drone.world != null:
+		p_drone.world.add_drone(p_drone)
+	return player
+
+
+## Новый игрок: дрон появляется у центрального шлюза планеты со стартовым набором забега.
+func add_player(name: String = "") -> Player:
+	var gate := get_gateway(planet)
+	var spawn := gate.get_world_center() if gate != null else Vector2(planet.grid.width, planet.grid.height) * GameConst.TILE_SIZE * 0.5
+	var fresh := Drone.new(Registry.drone_def, planet, spawn)
+	var player := _register_player(name, fresh)
+	fresh.crafting.recipe_filter = research.is_hand_recipe_unlocked if research != null else Callable()
+	if research != null:
+		fresh.apply_upgrades(research, false)
+	players_changed.emit()
+	return player
+
+
+## Игрок вышел: дрон и его вещи исчезают вместе с ним (вещи не пропадают — падают грузом).
+func remove_player(id: int) -> void:
+	var player := get_player(id)
+	if player == null or players.size() <= 1:
+		return
+	var world := player.drone.world
+	if world != null:
+		world.kill_drone(player.drone, world.simulation.tick)
+		world.remove_drone(player.drone)
+	players.erase(player)
+	if local_player == id:
+		set_local_player(players[0].id)
+	players_changed.emit()
+
+
+## Сменить локального игрока: интерфейс и камера переезжают к его дрону.
+func set_local_player(id: int) -> void:
+	var player := get_player(id)
+	if player == null:
+		return
+	local_player = id
+	for world in [planet, base]:
+		if world != null:
+			world.view_drone = player.drone
+	players_changed.emit()
+	drone_changed_world.emit()
 
 
 ## Исследования забега: общие для обоих миров, фильтр ручного крафта дрона.
@@ -148,7 +233,8 @@ func setup_research(state: ResearchState) -> void:
 		research.creative = creative
 	planet.research = research
 	base.research = research
-	drone.crafting.recipe_filter = research.is_hand_recipe_unlocked
+	for p in players:
+		p.drone.crafting.recipe_filter = research.is_hand_recipe_unlocked
 	research.changed.connect(_on_research_changed)
 	research.completed.connect(func(_research: ResearchDef) -> void: apply_research_effects())
 
@@ -190,8 +276,8 @@ func apply_research_effects(notify: bool = true) -> void:
 		planet.resize_pad(_pad_around(link.planet_gateway))
 	if base != null:
 		base.open_area(GameWorld.base_rect(Registry.base_def, get_underground_size()))
-	if drone != null:
-		drone.apply_upgrades(research, notify)
+	for p in players:
+		p.drone.apply_upgrades(research, notify)
 	if not notify:
 		return
 	for world in [planet, base]:
@@ -217,7 +303,217 @@ func _on_research_changed() -> void:
 
 ## Один логический тик обоих миров, исследований и зарядки телепорта. Перед тиками миров —
 ## общие балансы: жидкости и электричество между этажами (через шлюз и лифты).
+# --- Команды ---
+
+## Отдать команду от локального игрока.
+func submit(kind: Command.Kind, args: Dictionary = {}) -> void:
+	submit_for(local_player, kind, args)
+
+
+## Отдать команду от имени игрока (из сети — от того, кто её прислал).
+func submit_for(player_id: int, kind: Command.Kind, args: Dictionary = {}) -> void:
+	var player := get_player(player_id)
+	if player == null:
+		return
+	var cmd := Command.make(kind, player_id, args)
+	cmd.seq = player.next_seq
+	player.next_seq += 1
+	commands.submit(cmd, get_tick())
+
+
+## Текущий тик забега (оба мира тикают вместе).
+func get_tick() -> int:
+	return planet.simulation.tick if planet != null and planet.simulation != null else 0
+
+
+## Применить команды этого тика по порядку.
+func _apply_commands() -> void:
+	for cmd in commands.take(get_tick()):
+		execute(cmd)
+
+
+## Выполнить одну команду. Все изменения мира проходят здесь: и в одиночной игре, и в сетевой.
+func execute(cmd: Command) -> void:
+	if cmd.kind == Command.Kind.PLAYER_ADD:
+		add_player(String(cmd.args.get("name", "")))
+		return
+	if cmd.kind == Command.Kind.PLAYER_REMOVE:
+		remove_player(int(cmd.args.get("player", cmd.player)))
+		return
+	var player := get_player(cmd.player)
+	if player == null:
+		return
+	var actor := player.drone
+	var world := actor.world
+	if world == null:
+		return
+	world.actor = actor
+	_run_command(cmd, player, actor, world)
+	world.actor = null
+
+
+func _run_command(cmd: Command, player: Player, actor: Drone, world: GameWorld) -> void:
+	var args := cmd.args
+	match cmd.kind:
+		Command.Kind.MOVE:
+			actor.move_input = args.get("dir", Vector2.ZERO)
+		Command.Kind.MINE:
+			var tile: Vector2i = args.get("tile", Drone.NO_TILE)
+			if tile == Drone.NO_TILE:
+				actor.stop_mining()
+			else:
+				actor.set_mine_target(tile)
+		Command.Kind.BUILD:
+			_execute_build(cmd, player, world)
+		Command.Kind.REMOVE:
+			_execute_remove(cmd, world)
+		Command.Kind.ROTATE:
+			var b := world.buildings.get_by_id(int(args.get("id", 0)))
+			if b != null:
+				world.rotate_building(b, int(args.get("delta", 1)))
+		Command.Kind.CONFIGURE:
+			var b := world.buildings.get_by_id(int(args.get("id", 0)))
+			if b != null:
+				world.configure(b, args.get("value", null))
+		Command.Kind.TAKE:
+			var b := world.buildings.get_by_id(int(args.get("id", 0)))
+			if b != null:
+				world.player_take(b, int(args.get("item", -1)), int(args.get("amount", 0)))
+		Command.Kind.PUT:
+			var b := world.buildings.get_by_id(int(args.get("id", 0)))
+			if b != null:
+				world.player_put(b, int(args.get("item", -1)), int(args.get("amount", 0)))
+		Command.Kind.TAKE_OUTPUT:
+			var b := world.buildings.get_by_id(int(args.get("id", 0)))
+			if b != null:
+				world.player_take_output(b)
+		Command.Kind.FILL:
+			var b := world.buildings.get_by_id(int(args.get("id", 0)))
+			if b != null:
+				world.player_fill(b)
+		Command.Kind.CRAFT:
+			# Рецепт ручного крафта опознаётся по предмету, который он делает.
+			var recipe := Registry.get_hand_recipe(int(args.get("item", -1)))
+			if recipe != null:
+				actor.crafting.enqueue(recipe, int(args.get("count", 1)))
+		Command.Kind.CRAFT_CANCEL:
+			var recipe := Registry.get_hand_recipe(int(args.get("item", -1)))
+			if recipe != null:
+				actor.crafting.cancel_last(recipe, int(args.get("count", 1)))
+		Command.Kind.RESEARCH_SELECT:
+			research.set_active(StringName(args.get("research", "")))
+		Command.Kind.RESEARCH_QUEUE:
+			var id := StringName(args.get("research", ""))
+			if research.queue_position(id) > 0:
+				research.queue_remove(id)
+			else:
+				research.queue_add(id)
+		Command.Kind.RESEARCH_DEPOSIT:
+			research.deposit_manual(actor.inventory)
+		Command.Kind.USE_PASSAGE:
+			use_gateway(actor)
+		Command.Kind.TELEPORT:
+			var node := int(args.get("node", -1))
+			if node < 0:
+				cancel_teleport()
+			else:
+				start_teleport(node)
+		Command.Kind.CREATIVE_WAVE:
+			call_creative_wave()
+		Command.Kind.CREATIVE_THREAT:
+			set_creative_threat(bool(args.get("on", true)))
+		Command.Kind.RESEARCH_RESET:
+			research.reset_progress()
+			apply_research_effects()
+		Command.Kind.RESEARCH_UNLOCK:
+			research.unlock_everything()
+			apply_research_effects()
+
+
+## Постройка списком: одно действие игрока (клик или протягивание) — одна команда.
+## Мосты, поставленные подряд, связываются между собой и с прошлым мостом игрока.
+func _execute_build(cmd: Command, player: Player, world: GameWorld) -> void:
+	var mine := cmd.player == local_player
+	var built: Array[Building] = []
+	var no_item := ""
+	var out_of_range := false
+	var inventory_full := false
+	for entry in (cmd.args.get("places", []) as Array):
+		var place: Dictionary = entry
+		var def := Registry.get_building(StringName(place.get("def", "")))
+		if def == null:
+			continue
+		var origin: Vector2i = place.get("origin", Vector2i.ZERO)
+		var rotation := int(place.get("rotation", 0))
+		var check := world.check_build(def, origin, rotation)
+		if check == BuildingManager.Check.NO_ITEM:
+			no_item = def.name_key
+			continue
+		if check == BuildingManager.Check.OUT_OF_RANGE:
+			out_of_range = true
+			continue
+		var b := world.build(def, origin, rotation, place.get("config", null))
+		if b != null:
+			built.append(b)
+		elif world.last_error == GameWorld.ActionError.INVENTORY_FULL:
+			inventory_full = true
+	if bool(cmd.args.get("link_bridges", false)):
+		_link_bridges(player, built, cmd.args.get("config", null) != null)
+	if not mine:
+		return
+	if inventory_full:
+		Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
+	elif not no_item.is_empty():
+		Events.toast(tr("TOAST_NO_ITEM") % tr(no_item), Events.ToastKind.WARNING)
+	elif out_of_range and built.is_empty():
+		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
+
+
+## Связать только что поставленные мосты в цепочку (если игрок не нёс в руке готовую настройку).
+func _link_bridges(player: Player, built: Array[Building], has_config: bool) -> void:
+	var bridges: Array[BridgeConveyor] = []
+	for b in built:
+		if b is BridgeConveyor:
+			bridges.append(b)
+	if bridges.is_empty():
+		return
+	if not has_config:
+		var last := player.last_bridge
+		if last != null and last.world != null and last.link == Vector2i.ZERO and last.can_link_to(bridges[0]):
+			last.world.configure(last, bridges[0].origin - last.origin)
+		for i in bridges.size() - 1:
+			if bridges[i].can_link_to(bridges[i + 1]):
+				bridges[i].world.configure(bridges[i], bridges[i + 1].origin - bridges[i].origin)
+	player.last_bridge = bridges[bridges.size() - 1]
+
+
+## Снос списком: подсказки о причинах — только тому, кто сносил.
+func _execute_remove(cmd: Command, world: GameWorld) -> void:
+	var out_of_range := 0
+	var inventory_full := 0
+	var lost := 0
+	for id in (cmd.args.get("ids", PackedInt32Array()) as PackedInt32Array):
+		var b := world.buildings.get_by_id(id)
+		if b == null:
+			continue
+		if world.demolish(b):
+			lost += world.last_lost_items
+		elif world.last_error == GameWorld.ActionError.OUT_OF_RANGE:
+			out_of_range += 1
+		elif world.last_error == GameWorld.ActionError.INVENTORY_FULL:
+			inventory_full += 1
+	if cmd.player != local_player:
+		return
+	if inventory_full > 0:
+		Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
+	elif out_of_range > 0:
+		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
+	if lost > 0:
+		Events.toast(tr("TOAST_ITEMS_LOST") % lost, Events.ToastKind.WARNING)
+
+
 func step() -> void:
+	_apply_commands()
 	_balance_fluids()
 	_balance_power()
 	planet.simulation.step()
@@ -263,13 +559,14 @@ func _setup_threat(world: GameWorld, node: StarMap.StarNode, start_tick: int, co
 # --- Дрон и шлюз ---
 
 ## Проход между этажами под дроном: центральный шлюз (или его пара) либо лифт с парой.
-func get_passage() -> Building:
-	if drone.dead or drone.world == null:
+func get_passage(who: Drone = null) -> Building:
+	var d := who if who != null else drone
+	if d == null or d.dead or d.world == null:
 		return null
-	var gate := get_gateway(drone.world)
-	if gate != null and gate.world != null and gate.get_world_rect().has_point(drone.position):
+	var gate := get_gateway(d.world)
+	if gate != null and gate.world != null and gate.get_world_rect().has_point(d.position):
 		return gate
-	var lift := drone.world.buildings.get_at(drone.get_tile()) as Lift
+	var lift := d.world.buildings.get_at(d.get_tile()) as Lift
 	return lift if lift != null and lift.pair != null else null
 
 
@@ -286,29 +583,31 @@ func _grow_gateways() -> void:
 
 
 ## Дрон над проходом между этажами (переход может быть закрыт исследованием).
-func is_over_gateway() -> bool:
-	return get_passage() != null
+func is_over_gateway(who: Drone = null) -> bool:
+	return get_passage(who) != null
 
 
 ## Дрон над проходом и подземный этаж открыт — можно пройти на другой этаж.
-func can_use_gateway() -> bool:
-	return is_over_gateway() and is_underground_open()
+func can_use_gateway(who: Drone = null) -> bool:
+	return is_over_gateway(who) and is_underground_open()
 
 
 ## Переносит дрона через шлюз или лифт: он оказывается над парой на другом этаже в той же точке.
-func use_gateway() -> bool:
-	if not can_use_gateway():
+func use_gateway(who: Drone = null) -> bool:
+	var d := who if who != null else drone
+	if not can_use_gateway(d):
 		return false
-	var from := get_passage()
-	var to: Building = (from as Lift).pair if from is Lift else get_gateway(base if drone.world == planet else planet)
+	var from := get_passage(d)
+	var to: Building = (from as Lift).pair if from is Lift else get_gateway(base if d.world == planet else planet)
 	var to_world := to.world
-	var offset := drone.position - from.get_world_center()
-	drone.stop_mining()
-	drone.world = to_world
-	drone.position = to.get_world_center() + offset
-	drone.prev_position = drone.position
-	drone.move_input = Vector2.ZERO
-	drone_changed_world.emit()
+	var offset := d.position - from.get_world_center()
+	d.stop_mining()
+	d.move_to_world(to_world)
+	d.position = to.get_world_center() + offset
+	d.prev_position = d.position
+	d.move_input = Vector2.ZERO
+	if d == drone:
+		drone_changed_world.emit()
 	return true
 
 
@@ -390,9 +689,13 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 			b.collect_contents(summary.items_lost)
 	var gate_rotation := old_gate.rotation if old_gate != null else 0
 	var gate_state := old_gate.save_state() if old_gate != null else {}
-	var drone_on_planet := drone.world == old
-	var drone_offset := drone.position - old_gate.get_world_center() if old_gate != null else Vector2.ZERO
-	var drone_on_pad := pad.has_point(drone.get_tile())
+	# Кто из игроков летит с планетой и куда его поставить у нового шлюза.
+	var travelers: Array[Dictionary] = []
+	for p in players:
+		if p.drone.world != old:
+			continue
+		var offset := p.drone.position - old_gate.get_world_center() if old_gate != null else Vector2.ZERO
+		travelers.append({"drone": p.drone, "offset": offset, "on_pad": pad.has_point(p.drone.get_tile())})
 	var gate_center := old_gate.get_world_center() if old_gate != null else Vector2.ZERO
 	var crates: Array[DroneCrate] = []
 	for crate in old.crates:
@@ -411,7 +714,7 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 	_linked_lifts.clear()
 	star_map.move_to(node_id)
 	var map := PlanetGenerator.generate(node, get_pad_size(), max_pad_size())
-	var fresh := GameWorld.create(null, map, creative, drone)
+	var fresh := GameWorld.create(null, map, creative, null, false)
 	fresh.research = research
 	# Пары лифтов свяжутся, когда новая планета станет текущей (шлюз и площадка уже на месте).
 	_pairing_suspended = true
@@ -447,13 +750,14 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 		new_gate.load_state(gate_state)
 	link.reset_counters()
 
-	if drone_on_planet:
-		drone.stop_mining()
-		drone.world = fresh
-		var target := new_gate.get_world_center() + (drone_offset if drone_on_pad else Vector2.ZERO)
-		drone.position = target
-		drone.prev_position = target
-		drone.move_input = Vector2.ZERO
+	for traveler in travelers:
+		var moved: Drone = traveler["drone"]
+		moved.stop_mining()
+		moved.move_to_world(fresh)
+		var target := new_gate.get_world_center() + ((traveler["offset"] as Vector2) if traveler["on_pad"] else Vector2.ZERO)
+		moved.position = target
+		moved.prev_position = target
+		moved.move_input = Vector2.ZERO
 
 	_setup_threat(fresh, node, fresh.simulation.tick)
 	old.dispose()
@@ -480,6 +784,7 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 
 ## Подключить мир к забегу: баланс тока ведёт забег, лифты связываются в пары.
 func attach_world(world: GameWorld) -> void:
+	world.run = self
 	world.power.managed = true
 	world.lift_check = _check_lift
 	world.buildings.building_added.connect(_on_building_added.bind(world))
@@ -556,6 +861,9 @@ func _on_lift_linked(lift: Lift) -> void:
 
 ## Снос лифта сносит и его пару (содержимое пары уже учтено в сносе).
 func _on_building_removed(building: Building, _world: GameWorld) -> void:
+	for p in players:
+		if p.last_bridge == building:
+			p.last_bridge = null
 	if not (building is Lift):
 		return
 	var lift := building as Lift
@@ -697,6 +1005,10 @@ func dispose() -> void:
 		planet.dispose()
 	if base != null:
 		base.dispose()
+	if planet != null:
+		planet.run = null
+	if base != null:
+		base.run = null
 	planet = null
 	base = null
-	drone = null
+	players.clear()

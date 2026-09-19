@@ -69,7 +69,7 @@ func setup(game: Game) -> void:
 	_start_button.focus_mode = Control.FOCUS_NONE
 	_start_button.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	buttons.add_child(_start_button)
-	_cancel_button = UiUtil.button("TELEPORT_CANCEL", func() -> void: _run.cancel_teleport())
+	_cancel_button = UiUtil.button("TELEPORT_CANCEL", func() -> void: _run.submit(Command.Kind.TELEPORT, {"node": -1}))
 	_cancel_button.focus_mode = Control.FOCUS_NONE
 	buttons.add_child(_cancel_button)
 	_charge_label = Label.new()
@@ -133,7 +133,7 @@ func _on_selection_changed() -> void:
 
 func _on_start() -> void:
 	if _map_view.selected_id >= 0:
-		_run.start_teleport(_map_view.selected_id)
+		_run.submit(Command.Kind.TELEPORT, {"node": _map_view.selected_id})
 
 
 func _refresh() -> void:

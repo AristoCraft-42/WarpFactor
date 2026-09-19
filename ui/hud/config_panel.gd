@@ -50,6 +50,12 @@ func _on_building_changed(building: Building) -> void:
 		_rebuild.call_deferred()
 
 
+## Настройка идёт командой: у всех участников она применится в одном и том же тике.
+func _configure(building: Building, value: Variant) -> void:
+	if building != null and building.world != null:
+		building.world.submit(Command.Kind.CONFIGURE, {"id": building.id, "value": value})
+
+
 func _rebuild() -> void:
 	_building = _tools.selected
 	for child in _content.get_children():
@@ -93,7 +99,7 @@ func _build_item_picker() -> void:
 	var none := _make_button(current < 0)
 	none.text = "✕"
 	none.tooltip_text = "CONFIG_ANY_ITEM" if _building is Unloader else "CONFIG_NO_ITEM"
-	none.pressed.connect(func() -> void: _world.configure(_building, null))
+	none.pressed.connect(func() -> void: _configure(_building, null))
 	grid.add_child(none)
 	for item in Registry.items:
 		var b := _make_button(current == item.index)
@@ -126,7 +132,7 @@ func _build_creative_source() -> void:
 				b.icon = ArtRegistry.get_item_icon(item)
 				b.expand_icon = true
 				b.tooltip_text = item.name_key
-				b.pressed.connect(func() -> void: _world.configure(block, Vector2i(item.index, block.rate_index)))
+				b.pressed.connect(func() -> void: _configure(block, Vector2i(item.index, block.rate_index)))
 				grid.add_child(b)
 		else:
 			for fluid in Registry.fluids:
@@ -134,12 +140,12 @@ func _build_creative_source() -> void:
 				b.tooltip_text = fluid.name_key
 				b.text = tr(fluid.name_key).substr(0, 1)
 				b.add_theme_color_override("font_color", fluid.color)
-				b.pressed.connect(func() -> void: _world.configure(block, Vector2i(fluid.index, block.rate_index)))
+				b.pressed.connect(func() -> void: _configure(block, Vector2i(fluid.index, block.rate_index)))
 				grid.add_child(b)
 	# Ступени скорости.
 	var row := UiUtil.hbox(4)
 	_content.add_child(row)
-	var minus := UiUtil.button("−", func() -> void: _world.configure(block, Vector2i(block.pick, block.rate_index - 1)))
+	var minus := UiUtil.button("−", func() -> void: _configure(block, Vector2i(block.pick, block.rate_index - 1)))
 	minus.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	minus.focus_mode = Control.FOCUS_NONE
 	minus.disabled = block.rate_index <= 0
@@ -150,7 +156,7 @@ func _build_creative_source() -> void:
 	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	value.text = tr(_rate_key(def.kind)) % block.get_rate()
 	row.add_child(value)
-	var plus := UiUtil.button("+", func() -> void: _world.configure(block, Vector2i(block.pick, block.rate_index + 1)))
+	var plus := UiUtil.button("+", func() -> void: _configure(block, Vector2i(block.pick, block.rate_index + 1)))
 	plus.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	plus.focus_mode = Control.FOCUS_NONE
 	plus.disabled = block.rate_index >= def.rates.size() - 1
@@ -175,7 +181,7 @@ func _build_inversion_toggle() -> void:
 	toggle.focus_mode = Control.FOCUS_NONE
 	toggle.button_pressed = _building.is_inverted()
 	var building := _building
-	toggle.toggled.connect(func(pressed: bool) -> void: _world.configure(building, pressed))
+	toggle.toggled.connect(func(pressed: bool) -> void: _configure(building, pressed))
 	_content.add_child(toggle)
 	var hint := UiUtil.label("CONFIG_INVERT_SORTER_HINT", &"DimLabel")
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -209,7 +215,7 @@ func _build_router_sides() -> void:
 				var value: Variant = null
 				if in_side != Router.NO_SIDE or out_side != Router.NO_SIDE:
 					value = {"in": in_side, "out": out_side}
-				_world.configure(router, value))
+				_configure(router, value))
 			row.add_child(b)
 
 
@@ -224,7 +230,7 @@ func _build_lift_direction() -> void:
 	_content.add_child(row)
 	for value in [Lift.Direction.DOWN, Lift.Direction.UP]:
 		var b := UiUtil.button("CONFIG_LIFT_DOWN" if value == Lift.Direction.DOWN else "CONFIG_LIFT_UP",
-			func() -> void: _world.configure(lift, value))
+			func() -> void: _configure(lift, value))
 		b.focus_mode = Control.FOCUS_NONE
 		b.toggle_mode = true
 		b.button_pressed = lift.direction == value
@@ -277,7 +283,7 @@ func _build_bridge_info() -> void:
 	hint.custom_minimum_size = Vector2(ITEM_COLUMNS * (ITEM_BUTTON + 4), 0)
 	hint.text = tr("CONFIG_BRIDGE_HINT") % bridge.get_range()
 	_content.add_child(hint)
-	var unlink := UiUtil.button("CONFIG_BRIDGE_UNLINK", func() -> void: _world.configure(bridge, null))
+	var unlink := UiUtil.button("CONFIG_BRIDGE_UNLINK", func() -> void: _configure(bridge, null))
 	unlink.focus_mode = Control.FOCUS_NONE
 	unlink.disabled = bridge.get_link_target() == null
 	_content.add_child(unlink)

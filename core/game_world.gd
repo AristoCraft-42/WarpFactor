@@ -31,7 +31,22 @@ var level: LevelDef
 var grid: WorldGrid
 var buildings: BuildingManager
 var simulation: Simulation
-var drone: Drone
+## Дроны, которые сейчас в этом мире (у каждого игрока свой), по возрастанию id игрока.
+var drones: Array[Drone] = []
+## Дрон локального игрока — его ставит забег; интерфейс смотрит на мир его глазами.
+var view_drone: Drone
+## Забег, которому принадлежит мир (пусто — отдельный мир уровня или теста).
+var run: Run
+## Дрон, от лица которого выполняется действие игрока: забег ставит его на время команды.
+## Пусто — действует дрон по умолчанию (в одиночной игре и в тестах он единственный).
+var actor: Drone
+
+## Дрон «по умолчанию» для интерфейса и старого кода: локальный, если он здесь, иначе первый.
+var drone: Drone:
+	get:
+		if view_drone != null and view_drone.world == self:
+			return view_drone
+		return drones[0] if not drones.is_empty() else null
 ## Генератор случайных чисел мира (сепаратор): детерминирован от id уровня.
 var rng := RandomNumberGenerator.new()
 var creative: bool = false
@@ -79,7 +94,9 @@ var breached: bool = false
 
 ## Создаёт мир из карты уровня: копирует слои, ставит предустановленные здания, создаёт дрона
 ## со стартовым инвентарём. shared_drone — дрон уже созданного мира забега (тогда свой не создаётся).
-static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_drone: Drone = null) -> GameWorld:
+## spawn_drone = false — мир создаётся без дронов (их добавит забег: при загрузке или для нового игрока).
+static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_drone: Drone = null,
+		spawn_drone: bool = true) -> GameWorld:
 	var world := GameWorld.new()
 	world.level = level_def
 	world.creative = p_creative
@@ -97,26 +114,30 @@ static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_
 		if world.buildings.place(p.def, p.origin, p.rotation, true) == null:
 			push_warning("GameWorld: не удалось поставить %s в %s" % [p.def.id, p.origin])
 	if shared_drone != null:
-		world.drone = shared_drone
+		world.add_drone(shared_drone)
+		shared_drone.world = world
+		return world
+	if not spawn_drone:
 		return world
 	var spawn_tile := Vector2i(map.width / 2, map.height / 2)
 	if level_def != null and world.grid.in_bounds_v(level_def.spawn):
 		spawn_tile = level_def.spawn
 	var spawn := Vector2(spawn_tile * GameConst.TILE_SIZE) + Vector2.ONE * GameConst.TILE_SIZE * 0.5
-	world.drone = Drone.new(Registry.drone_def, world, spawn)
+	var first := Drone.new(Registry.drone_def, world, spawn)
+	world.add_drone(first)
 	if level_def != null:
 		for stack in level_def.starting_items:
 			if stack != null and stack.item != null:
-				world.drone.inventory.add(stack.item.index, stack.amount)
+				first.inventory.add(stack.item.index, stack.amount)
 	return world
 
 
 ## Подземный этаж базы: карта наибольшего размера, заполненная пустотой; открытая часть — start_size
 ## в центре (пока этаж не открыт исследованием, дрон туда не попадает).
-static func create_base(base_def: BaseDef, p_creative: bool, shared_drone: Drone) -> GameWorld:
+static func create_base(base_def: BaseDef, p_creative: bool) -> GameWorld:
 	var void_def := Registry.get_floor(base_def.void_floor_id)
 	var map := LevelMap.new(base_def.size, base_def.size, void_def.index if void_def != null else 0)
-	var world := GameWorld.create(null, map, p_creative, shared_drone)
+	var world := GameWorld.create(null, map, p_creative, null, false)
 	world.is_base = true
 	world.rng.seed = hash(String(base_def.id))
 	world.open_area(base_rect(base_def, base_def.start_size), false)
@@ -264,16 +285,16 @@ func destroy_building(building: Building) -> void:
 
 
 ## Урон дрону (творческий режим — неуязвим).
-func damage_drone(amount: float, tick: int) -> void:
+func damage_drone(drone: Drone, amount: float, tick: int) -> void:
 	if creative or drone == null or drone.world != self or not drone.is_targetable(tick):
 		return
 	drone.health -= amount
 	if drone.health <= 0.0:
-		kill_drone(tick)
+		kill_drone(drone, tick)
 
 
 ## Дрон сбит: инвентарь и отменённая очередь крафта падают грузом, через паузу — появление у шлюза.
-func kill_drone(tick: int) -> void:
+func kill_drone(drone: Drone, tick: int) -> void:
 	if drone == null or drone.dead:
 		return
 	var counts := PackedInt32Array()
@@ -293,7 +314,36 @@ func kill_drone(tick: int) -> void:
 	drone_destroyed.emit()
 
 
-func respawn_drone(tick: int) -> void:
+## Дрон, которым сейчас играет этот клиент (для камеры, радиуса стройки и превью).
+## Если локальный дрон в другом мире, берётся первый из здешних — так тесты и уровни
+## продолжают работать с единственным дроном.
+func add_drone(d: Drone) -> void:
+	if drones.has(d):
+		return
+	drones.append(d)
+	# Порядок дронов — по id игрока: от него зависит порядок в тике, он должен совпадать у всех.
+	drones.sort_custom(func(a: Drone, b: Drone) -> bool: return a.player_id < b.player_id)
+
+
+func remove_drone(d: Drone) -> void:
+	drones.erase(d)
+
+
+## Ближайший к точке живой дрон, которого можно атаковать (null — таких нет).
+func nearest_targetable_drone(at: Vector2, tick: int) -> Drone:
+	var best: Drone = null
+	var best_distance := INF
+	for d in drones:
+		if not d.is_targetable(tick):
+			continue
+		var distance := d.position.distance_squared_to(at)
+		if distance < best_distance:
+			best_distance = distance
+			best = d
+	return best
+
+
+func respawn_drone(drone: Drone, tick: int) -> void:
 	if drone == null or not drone.dead:
 		return
 	drone.dead = false
@@ -307,7 +357,17 @@ func respawn_drone(tick: int) -> void:
 
 ## Дрон подбирает груз в радиусе: сколько поместится; пустой груз исчезает.
 func pickup_crates() -> int:
-	if crates.is_empty() or drone == null or drone.dead:
+	if crates.is_empty():
+		return 0
+	var moved := 0
+	for d in drones:
+		moved += _pickup_for(d)
+	return moved
+
+
+## Подбор груза одним дроном: сколько предметов он забрал.
+func _pickup_for(drone: Drone) -> int:
+	if drone == null or drone.dead:
 		return 0
 	var radius := drone.def.pickup_radius * GameConst.TILE_SIZE
 	var moved := 0
@@ -323,16 +383,31 @@ func pickup_crates() -> int:
 	return moved
 
 
+## Отдать команду от локального игрока. В отдельном мире (тесты, уровни) забега нет —
+## там интерфейс не работает, а код зовёт действия напрямую.
+func submit(kind: Command.Kind, args: Dictionary = {}) -> void:
+	if run != null:
+		run.submit(kind, args)
+
+
+## Чей дрон действует сейчас: назначенный командой или дрон по умолчанию.
+func acting_drone() -> Drone:
+	if actor != null and actor.world == self:
+		return actor
+	return drone
+
+
 ## Дрон сейчас в этом мире и не сбит (действовать можно только здесь).
 func has_drone() -> bool:
-	return drone != null and drone.world == self and not drone.dead
+	var who := acting_drone()
+	return who != null and who.world == self and not who.dead
 
 
 ## Может ли игрок взаимодействовать со зданием (настройка, окно, поворот): в радиусе дрона.
 func can_interact(building: Building) -> bool:
 	if building == null or building.world != self or not has_drone():
 		return false
-	return creative or drone.can_reach_tiles(building.get_rect())
+	return creative or acting_drone().can_reach_tiles(building.get_rect())
 
 
 ## Проверка строительства игроком: размещение, радиус дрона, постройка в инвентаре.
@@ -357,11 +432,12 @@ func check_build(def: BuildingDef, origin: Vector2i, rotation: int, budget: Inve
 		return BuildingManager.Check.OUT_OF_RANGE
 	if creative:
 		return check
-	if not drone.can_reach_tiles(Rect2i(origin, Vector2i(def.size, def.size))):
+	var who := acting_drone()
+	if not who.can_reach_tiles(Rect2i(origin, Vector2i(def.size, def.size))):
 		return BuildingManager.Check.OUT_OF_RANGE
 	if def.item == null:
 		return BuildingManager.Check.NO_ITEM
-	var local := budget if budget != null else drone.inventory.make_budget()
+	var local := budget if budget != null else who.inventory.make_budget()
 	if check == BuildingManager.Check.REPLACE:
 		var existing := buildings.get_at(origin)
 		if existing != null and existing.def.item != null:
@@ -382,11 +458,11 @@ func build(def: BuildingDef, origin: Vector2i, rotation: int, config: Variant = 
 		for old in buildings.collect_in_rect(Rect2i(origin, Vector2i(def.size, def.size))):
 			if not demolish(old):
 				return null
-	if not creative and drone.inventory.remove(def.item.index, 1) == 0:
+	if not creative and acting_drone().inventory.remove(def.item.index, 1) == 0:
 		return null
 	var building := buildings.place(def, origin, rotation)
 	if building == null and not creative:
-		drone.inventory.add(def.item.index, 1)
+		acting_drone().inventory.add(def.item.index, 1)
 	if building is PowerPole:
 		power.auto_link(building)
 	if building != null and config != null:
@@ -425,10 +501,10 @@ func demolish(building: Building) -> bool:
 		last_error = ActionError.OUT_OF_RANGE
 		return false
 	if not creative:
-		if not drone.can_reach_tiles(building.get_rect()):
+		if not acting_drone().can_reach_tiles(building.get_rect()):
 			last_error = ActionError.OUT_OF_RANGE
 			return false
-		if item != null and drone.inventory.space_for(item.index) < 1:
+		if item != null and acting_drone().inventory.space_for(item.index) < 1:
 			last_error = ActionError.INVENTORY_FULL
 			return false
 	var contents := PackedInt32Array()
@@ -438,10 +514,10 @@ func demolish(building: Building) -> bool:
 	if not buildings.remove(building):
 		return false
 	if not creative and item != null:
-		drone.inventory.add(item.index, 1)
+		acting_drone().inventory.add(item.index, 1)
 	for i in contents.size():
 		if contents[i] > 0:
-			last_lost_items += contents[i] - drone.inventory.add(i, contents[i])
+			last_lost_items += contents[i] - acting_drone().inventory.add(i, contents[i])
 	return true
 
 
@@ -457,13 +533,14 @@ func player_take(building: Building, item: int, amount: int) -> int:
 	last_error = ActionError.NONE
 	if not can_interact(building) or item < 0 or amount <= 0:
 		return 0
-	var room := drone.inventory.space_for(item)
+	var who := acting_drone()
+	var room := who.inventory.space_for(item)
 	if room <= 0:
 		last_error = ActionError.INVENTORY_FULL
 		return 0
 	var taken := building.take_player_items(item, mini(amount, room))
 	if taken > 0:
-		drone.inventory.add(item, taken)
+		who.inventory.add(item, taken)
 	return taken
 
 
@@ -480,8 +557,9 @@ func player_fill(building: Building) -> int:
 	if not building.accepts_player_items():
 		return 0
 	var put := 0
-	for item in drone.inventory.totals.size():
-		var have := drone.inventory.count(item)
+	var who := acting_drone()
+	for item in who.inventory.totals.size():
+		var have := who.inventory.count(item)
 		if have > 0 and building.accept_item(null, item):
 			put += player_put(building, item, have)
 	return put
@@ -491,13 +569,14 @@ func player_fill(building: Building) -> int:
 func player_put(building: Building, item: int, amount: int) -> int:
 	if not can_interact(building) or not building.accepts_player_items() or item < 0:
 		return 0
-	var limit := mini(amount, drone.inventory.count(item))
+	var who := acting_drone()
+	var limit := mini(amount, who.inventory.count(item))
 	var put := 0
 	while put < limit and building.accept_item(null, item):
 		building.handle_item(null, item)
 		put += 1
 	if put > 0:
-		drone.inventory.remove(item, put)
+		who.inventory.remove(item, put)
 	return put
 
 

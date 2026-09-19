@@ -1,9 +1,10 @@
 class_name DroneView
 extends Node2D
-## Отрисовка дрона игрока: корпус по интерполированной позиции, луч добычи с прогрессом,
-## круг радиуса строительства, пока в руке постройка или план вставки, полоска прочности при уроне.
-## Сбитый дрон не рисуется; после появления мигает, пока неуязвим.
+## Отрисовка дронов игроков в показанном сейчас мире: корпус по интерполированной позиции,
+## луч добычи с прогрессом, круг радиуса строительства (только у своего дрона, пока в руке постройка),
+## полоска прочности при уроне. Сбитый дрон не рисуется; после появления мигает, пока неуязвим.
 ## Зелёный луч — ремонт постройки, вспышка у корпуса — выстрел автопушки.
+## Чужие дроны рисуются цветом своего игрока и подписаны именем.
 ## Плейсхолдер рисуется примитивами; спрайт из DroneDef.sprite подменяет его без правки логики.
 
 const BODY_RADIUS := 13.0
@@ -13,32 +14,53 @@ const MINED_TICKS := 45
 const BEAM_COLOR := Color(0.99, 0.5, 0.1, 0.9)
 const TURN_SPEED := 14.0
 
-var _drone: Drone
+var _run: Run
+var _world: GameWorld
 var _clock: SimClock
 var _tools: ToolController
-var _angle: float = 0.0
+## Сглаженный угол корпуса по id игрока.
+var _angles: Dictionary[int, float] = {}
 var _time: float = 0.0
+## Дрон, который рисуется прямо сейчас (у отрисовки много мелких шагов, чтобы не таскать его всюду).
+var _drone: Drone
 
 
-func setup(drone: Drone, clock: SimClock, tools: ToolController) -> void:
-	_drone = drone
+func setup(run: Run, world: GameWorld, clock: SimClock, tools: ToolController) -> void:
+	_run = run
+	_world = world
 	_clock = clock
 	_tools = tools
-	_angle = drone.facing
 	z_index = 5
 
 
+func set_world(world: GameWorld) -> void:
+	_world = world
+
+
 func _process(delta: float) -> void:
-	if _drone == null:
+	if _run == null:
 		return
 	_time += delta
-	_angle = lerp_angle(_angle, _drone.facing, 1.0 - exp(-delta * TURN_SPEED))
+	for player in _run.players:
+		var drone := player.drone
+		if drone == null:
+			continue
+		var angle: float = _angles.get(player.id, drone.facing)
+		_angles[player.id] = lerp_angle(angle, drone.facing, 1.0 - exp(-delta * TURN_SPEED))
 	queue_redraw()
 
 
 func _draw() -> void:
-	if _drone == null:
+	if _run == null or _world == null:
 		return
+	for player in _run.players:
+		if player.drone != null and player.drone.world == _world:
+			_draw_drone(player)
+
+
+func _draw_drone(player: Player) -> void:
+	_drone = player.drone
+	var local := player.id == _run.local_player
 	if _drone.dead or _drone.world == null:
 		return
 	var pos := _drone.get_draw_position(_clock.alpha)
@@ -50,19 +72,33 @@ func _draw() -> void:
 		var bar := Rect2(pos + Vector2(-16, BODY_RADIUS + 8), Vector2(32, 4))
 		draw_rect(bar.grow(1.0), Color(0, 0, 0, 0.7), true)
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * fraction, bar.size.y)), CombatOverlay.bar_color(fraction), true)
-	if _tools != null and _tools.mode != ToolController.Mode.NONE and not _drone.world.creative:
+	if local and _tools != null and _tools.mode != ToolController.Mode.NONE and not _drone.world.creative:
 		_draw_range(pos)
 	if _drone.is_mining():
 		_draw_beam(pos)
-	_draw_mined_label()
+	if local:
+		_draw_mined_label()
 	if _drone.is_repairing():
 		_draw_repair(pos)
-	_draw_body(pos)
+	_draw_body(pos, player)
+	if not local:
+		_draw_name(pos, player)
 	var since := tick - _drone.last_gun_tick
 	if since < 3:
 		var muzzle := pos + Vector2.from_angle(_drone.gun_angle) * (BODY_RADIUS + 4.0)
 		draw_line(pos, muzzle, Color(_drone.def.gun_color.lightened(0.2), 0.9), 2.5)
 		draw_circle(muzzle, 3.5 - since, Color(_drone.def.gun_color.lightened(0.5), 0.9))
+
+
+## Имя чужого игрока над дроном.
+func _draw_name(pos: Vector2, player: Player) -> void:
+	var font := ThemeDB.fallback_font
+	if font == null:
+		return
+	var width := font.get_string_size(player.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+	var at := pos + Vector2(-width * 0.5, -BODY_RADIUS - 8.0)
+	draw_string_outline(font, at, player.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.85))
+	draw_string(font, at, player.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, player.color)
 
 
 func _draw_range(pos: Vector2) -> void:
@@ -128,12 +164,13 @@ func _draw_beam(pos: Vector2) -> void:
 	draw_rect(Rect2(bar.position, Vector2(bar.size.x * fraction, bar.size.y)), UiTheme.YELLOW, true)
 
 
-func _draw_body(pos: Vector2) -> void:
+func _draw_body(pos: Vector2, player: Player) -> void:
 	var def := _drone.def
-	draw_set_transform(pos, _angle, Vector2.ONE)
+	var angle: float = _angles.get(player.id, _drone.facing)
+	draw_set_transform(pos, angle, Vector2.ONE)
 	if def.sprite != null:
 		var size := def.sprite.get_size()
-		draw_texture(def.sprite, -size * 0.5)
+		draw_texture(def.sprite, -size * 0.5, player.color)
 	else:
 		var r := BODY_RADIUS
 		var moving := _drone.move_input != Vector2.ZERO
@@ -145,11 +182,11 @@ func _draw_body(pos: Vector2) -> void:
 			Vector2(r * 1.15, 0), Vector2(-r * 0.7, r * 0.85), Vector2(-r * 0.35, 0), Vector2(-r * 0.7, -r * 0.85)])
 		var shadow := PackedVector2Array()
 		for p in hull:
-			shadow.append(p + Vector2(3, 3).rotated(-_angle))
+			shadow.append(p + Vector2(3, 3).rotated(-angle))
 		draw_colored_polygon(shadow, Color(0, 0, 0, 0.35))
-		draw_colored_polygon(hull, def.color.darkened(0.15))
+		draw_colored_polygon(hull, player.color.darkened(0.15))
 		var outline := hull.duplicate()
 		outline.append(hull[0])
-		draw_polyline(outline, def.color.lightened(0.35), 2.0)
+		draw_polyline(outline, player.color.lightened(0.35), 2.0)
 		draw_circle(Vector2(r * 0.15, 0), 3.5, Color(0.2, 0.9, 1.0))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

@@ -154,8 +154,10 @@ func _on_building_input(event: InputEvent, def: BuildingDef, button: Button) -> 
 	var count := 5 if mb.shift_pressed else 1
 	if _world.creative:
 		_world.drone.inventory.add(def.item.index, recipe.amount * count)
-	elif _world.drone.crafting.enqueue(recipe, count) == 0:
+	elif _world.drone.crafting.max_craftable(recipe, count) == 0:
 		Events.toast(tr("TOAST_CANNOT_CRAFT") % tr(def.name_key), Events.ToastKind.WARNING)
+	else:
+		_world.submit(Command.Kind.CRAFT, {"item": recipe.output.index, "count": count})
 
 
 func _sync_with_tool() -> void:

@@ -338,8 +338,12 @@ func update(tick: int) -> void:
 	var gate := world.gateway
 	var has_gate := gate != null and gate.world != null
 	var gate_center := gate.get_world_center() if has_gate else Vector2.ZERO
-	var drone := world.drone
-	var drone_ok := drone != null and drone.world == world and drone.is_targetable(tick)
+	# Живые дроны этого мира: враг целится в ближайшего из них.
+	var live: Array[Drone] = []
+	for d in world.drones:
+		if d.world == world and d.is_targetable(tick):
+			live.append(d)
+	var drone_ok := not live.is_empty()
 
 	for i in count:
 		var type := types[i]
@@ -414,6 +418,8 @@ func update(tick: int) -> void:
 
 		# 2. Цель.
 		var tg := target[i]
+		# Ближайший к врагу дрон — и цель поиска, и жертва атаки.
+		var drone := _nearest_drone(live, x, y)
 		if block != 0:
 			tg = block
 		elif (i + tick) % RETARGET_TICKS == 0 or (tg > 0 and manager.get_by_id(tg) == null) or (tg == TARGET_DRONE and not drone_ok):
@@ -431,8 +437,10 @@ func update(tick: int) -> void:
 			if drone_ok and ddx * ddx + ddy * ddy <= drone_reach * drone_reach:
 				next_attack[i] = tick + _interval[type]
 				_push_event(x, y, drone.position.x, drone.position.y, tick, type)
-				world.damage_drone(_damage[type], tick)
-				drone_ok = drone.is_targetable(tick)
+				world.damage_drone(drone, _damage[type], tick)
+				if not drone.is_targetable(tick):
+					live.erase(drone)
+					drone_ok = not live.is_empty()
 			else:
 				target[i] = TARGET_NONE
 			continue
@@ -465,6 +473,22 @@ func _tile_at(px: float, py: float, w: int, h: int, inv_t: float) -> int:
 
 
 ## Ближайшая цель в радиусе атаки: дрон в приоритете, затем постройка.
+## Ближайший к точке дрон из списка живых (null — список пуст).
+static func _nearest_drone(live: Array[Drone], x: float, y: float) -> Drone:
+	if live.is_empty():
+		return null
+	if live.size() == 1:
+		return live[0]
+	var best: Drone = live[0]
+	var best_distance := INF
+	for d in live:
+		var dd := (d.position.x - x) * (d.position.x - x) + (d.position.y - y) * (d.position.y - y)
+		if dd < best_distance:
+			best_distance = dd
+			best = d
+	return best
+
+
 func _find_target(x: float, y: float, type: int, drone_ok: bool, drone: Drone, grid: WorldGrid, manager: BuildingManager) -> int:
 	var reach := _reach[type]
 	if drone_ok:

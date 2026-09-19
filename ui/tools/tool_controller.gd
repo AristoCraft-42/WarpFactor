@@ -89,8 +89,6 @@ var _over_ui: bool = false
 var _inventory_revision: int = -1
 ## Тайл дрона на момент последнего расчёта превью (радиус зависит от позиции).
 var _drone_key: Vector2i = Vector2i(-999999, -999999)
-## Последний построенный мост — новый мост в линию с ним связывается автоматически.
-var _last_bridge: BridgeConveyor
 
 
 func setup(world: GameWorld, camera: CameraController, preview: PlacementPreview) -> void:
@@ -124,7 +122,6 @@ func set_world(world: GameWorld) -> void:
 	hover_in_bounds = false
 	hover_tile = Vector2i(-1, -1)
 	_last_key = Vector2i(-999999, -999999)
-	_last_bridge = null
 	if _preview != null:
 		_preview.clear()
 		_preview.set_hover(null)
@@ -191,23 +188,14 @@ func is_dragging() -> bool:
 
 ## Сносит здания и сообщает, если что-то не удалось (далеко, инвентарь полон) или потерялось.
 func remove_buildings(targets: Array[Building]) -> void:
-	var out_of_range := 0
-	var inventory_full := 0
-	var lost := 0
+	var ids := PackedInt32Array()
 	for b in targets:
-		if _world.demolish(b):
-			lost += _world.last_lost_items
-		elif _world.last_error == GameWorld.ActionError.OUT_OF_RANGE:
-			out_of_range += 1
-		elif _world.last_error == GameWorld.ActionError.INVENTORY_FULL:
-			inventory_full += 1
+		if b != null and b.id != 0:
+			ids.append(b.id)
+	if ids.is_empty():
+		return
+	_world.submit(Command.Kind.REMOVE, {"ids": ids})
 	_dirty = true
-	if inventory_full > 0:
-		Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
-	elif out_of_range > 0:
-		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
-	if lost > 0:
-		Events.toast(tr("TOAST_ITEMS_LOST") % lost, Events.ToastKind.WARNING)
 
 
 ## Снести выделенное (с подтверждением при большом количестве).
@@ -378,7 +366,7 @@ func _process(_delta: float) -> void:
 	match _drag:
 		Drag.MINE:
 			if _world.drone.get_mineable_ore(tile) != null:
-				_world.drone.set_mine_target(tile)
+				_world.submit(Command.Kind.MINE, {"tile": tile})
 			_set_ghosts([])
 			return
 		Drag.SELECT:
@@ -420,7 +408,7 @@ func _begin_place_drag() -> void:
 func _begin_mine_drag() -> void:
 	_drag = Drag.MINE
 	select(null)
-	_world.drone.set_mine_target(hover_tile)
+	_world.submit(Command.Kind.MINE, {"tile": hover_tile})
 	_dirty = true
 
 
@@ -439,7 +427,7 @@ func _finish_drag() -> void:
 	_dirty = true
 	match kind:
 		Drag.MINE:
-			_world.drone.stop_mining()
+			_world.submit(Command.Kind.MINE, {"tile": Drone.NO_TILE})
 		Drag.PLACE:
 			_build_ghosts()
 		Drag.SELECT:
@@ -459,7 +447,7 @@ func _cancel_drag() -> void:
 	if _drag == Drag.NONE:
 		return
 	if _drag == Drag.MINE and _world != null and _world.drone != null:
-		_world.drone.stop_mining()
+		_world.submit(Command.Kind.MINE, {"tile": Drone.NO_TILE})
 	_drag = Drag.NONE
 	_ghosts = []
 	_dirty = true
@@ -479,33 +467,24 @@ func _right_click() -> void:
 		set_area(hover_building.get_rect())
 
 
+## Одно действие игрока (клик или протягивание) — одна команда со списком мест.
+## Сама постройка, связывание мостов и подсказки происходят при выполнении команды.
 func _build_ghosts() -> void:
 	var last_rotation := rotation
-	var no_item: BuildingDef = null
-	var out_of_range := false
-	var built: Array[Building] = []
+	var places := []
 	for g in _ghosts:
 		if g.check == BuildingManager.Check.OK or g.check == BuildingManager.Check.REPLACE:
 			# Свою настройку несут вставляемый план и постройки, подставленные при протягивании (мосты).
 			var config: Variant = g.config if (mode == Mode.PASTE or g.def != place_def) else place_config
-			var b := _world.build(g.def, g.origin, g.rotation, config)
-			if b != null:
-				built.append(b)
-			elif _world.last_error == GameWorld.ActionError.INVENTORY_FULL:
-				Events.toast(tr("TOAST_INVENTORY_FULL"), Events.ToastKind.WARNING)
-		elif g.check == BuildingManager.Check.NO_ITEM:
-			no_item = g.def
-		elif g.check == BuildingManager.Check.OUT_OF_RANGE:
-			out_of_range = true
+			places.append({"def": String(g.def.id), "origin": g.origin, "rotation": g.rotation, "config": config})
+		elif g.check == BuildingManager.Check.NO_ITEM or g.check == BuildingManager.Check.OUT_OF_RANGE:
+			places.append({"def": String(g.def.id), "origin": g.origin, "rotation": g.rotation, "config": null})
 		last_rotation = g.rotation
-	if mode == Mode.PLACE and place_def is LogisticDef and (place_def as LogisticDef).link_range > 0:
-		_link_new_bridges(built)
-		if place_def != null and place_def.line_placement and _ghosts.size() > 1:
-			rotation = last_rotation
-	if no_item != null:
-		Events.toast(tr("TOAST_NO_ITEM") % tr(no_item.name_key), Events.ToastKind.WARNING)
-	elif out_of_range and built.is_empty():
-		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
+	var link := mode == Mode.PLACE and place_def is LogisticDef and (place_def as LogisticDef).link_range > 0
+	if not places.is_empty():
+		_world.submit(Command.Kind.BUILD, {"places": places, "link_bridges": link, "config": place_config})
+	if link and place_def != null and place_def.line_placement and _ghosts.size() > 1:
+		rotation = last_rotation
 
 
 func _paste() -> void:
@@ -536,7 +515,8 @@ func _rotate() -> void:
 				return
 			if not _world.can_interact(hover_building):
 				Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
-			elif _world.rotate_building(hover_building, 1):
+			elif _world.can_interact(hover_building) and hover_building.def.rotatable:
+				_world.submit(Command.Kind.ROTATE, {"id": hover_building.id, "delta": 1})
 				_dirty = true
 
 
@@ -583,13 +563,7 @@ func _quick_transfer(take: bool) -> bool:
 	if not _world.can_interact(building):
 		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
 		return true
-	var moved := _world.player_take_output(building) if take else _world.player_fill(building)
-	if moved > 0:
-		Events.toast(tr("TOAST_QUICK_TAKE" if take else "TOAST_QUICK_PUT") % moved, Events.ToastKind.SUCCESS)
-	elif take:
-		Events.toast(tr("TOAST_QUICK_EMPTY"), Events.ToastKind.INFO)
-	else:
-		Events.toast(tr("TOAST_QUICK_NOTHING"), Events.ToastKind.INFO)
+	_world.submit(Command.Kind.TAKE_OUTPUT if take else Command.Kind.FILL, {"id": building.id})
 	return true
 
 
@@ -602,7 +576,7 @@ func _click_select() -> void:
 		var bridge := selected as BridgeConveyor
 		if bridge.can_link_to(clicked):
 			var offset := clicked.origin - bridge.origin
-			_world.configure(bridge, null if bridge.link == offset else offset)
+			_world.submit(Command.Kind.CONFIGURE, {"id": bridge.id, "value": null if bridge.link == offset else offset})
 			select(clicked)
 			return
 	if clicked != null and clicked.has_player_window() and clicked != selected:
@@ -686,23 +660,6 @@ func _refresh_area_buildings() -> void:
 # --- Мосты ---
 
 ## Связывает только что построенные мосты цепочкой, а первый — с предыдущим построенным мостом.
-func _link_new_bridges(built: Array[Building]) -> void:
-	var bridges: Array[BridgeConveyor] = []
-	for b in built:
-		if b is BridgeConveyor:
-			bridges.append(b)
-	if bridges.is_empty():
-		return
-	if place_config == null:
-		var last := _last_bridge
-		if last != null and last.world != null and last.link == Vector2i.ZERO and last.can_link_to(bridges[0]):
-			_world.configure(last, bridges[0].origin - last.origin)
-		for i in bridges.size() - 1:
-			if bridges[i].can_link_to(bridges[i + 1]):
-				_world.configure(bridges[i], bridges[i + 1].origin - bridges[i].origin)
-	_last_bridge = bridges[bridges.size() - 1]
-
-
 func _on_world_changed(_building: Building) -> void:
 	_dirty = true
 
@@ -710,7 +667,5 @@ func _on_world_changed(_building: Building) -> void:
 func _on_building_removed(building: Building) -> void:
 	if building == selected:
 		select(null)
-	if building == _last_bridge:
-		_last_bridge = null
 	if has_area():
 		_refresh_area_buildings()

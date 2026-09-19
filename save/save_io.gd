@@ -13,7 +13,7 @@ extends RefCounted
 ## индексами вместе с таблицами id: при изменении контента индексы переносятся (SaveContext).
 
 const MAGIC := "FWSV"
-const VERSION := 4
+const VERSION := 5
 const DIR := "user://saves/"
 ## Автопрогон пишет в отдельную папку, чтобы не трогать сохранения игрока.
 const AUTOSHOT_DIR := "user://saves_autoshot/"
@@ -173,10 +173,11 @@ static func run_to_dict(run: Run) -> Dictionary:
 			"star_map": run.star_map.save_data(),
 			"charge_target": run.charge_target, "charge_left": run.charge_ticks_left, "charge_total": run.charge_ticks_total,
 			"arrival_tick": run.planet_arrival_tick, "drone_in_base": run.drone.world == run.base,
+			"local_player": run.local_player, "next_player": run.next_player_id,
 		},
 		"research": run.research.save_data(),
 		"link": run.link.save_data(),
-		"drone": run.drone.save_data(),
+		"players": _players_to_array(run),
 		"planet": world_to_dict(run.planet),
 		"base": world_to_dict(run.base),
 	}
@@ -197,14 +198,14 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.run_def = Registry.run_def
 	run.star_map = StarMap.new(run.run_seed, run.run_def, Registry.planet_types)
 	run.star_map.load_data(run_data.get("star_map", {}))
-	run.drone = Drone.new(Registry.drone_def, null, Vector2.ZERO)
-	run.planet = world_from_dict(data.get("planet", {}), run.drone)
-	run.base = world_from_dict(data.get("base", {}), run.drone)
-	run.drone.world = run.base if bool(run_data.get("drone_in_base", false)) else run.planet
-	run.drone.load_data(data.get("drone", {}))
+	run.planet = world_from_dict(data.get("planet", {}), null)
+	run.base = world_from_dict(data.get("base", {}), null)
+	_players_from_array(run, data.get("players", []))
+	run.next_player_id = maxi(int(run_data.get("next_player", 1)), run.next_player_id)
 	var research := ResearchState.new()
 	research.load_data(data.get("research", {}))
 	run.setup_research(research)
+	run.set_local_player(int(run_data.get("local_player", 1)))
 
 	var link_data: Dictionary = data.get("link", {})
 	run.link = GatewayLink.new()
@@ -282,6 +283,27 @@ static func world_to_dict(world: GameWorld) -> Dictionary:
 	return result
 
 
+## Игроки забега: имя, на каком этаже и всё состояние дрона.
+static func _players_to_array(run: Run) -> Array:
+	var out := []
+	for p in run.players:
+		out.append(p.save_data(run.base))
+	return out
+
+
+static func _players_from_array(run: Run, entries: Array) -> void:
+	for entry in entries:
+		var data: Dictionary = entry
+		var world := run.base if bool(data.get("in_base", false)) else run.planet
+		var drone := Drone.new(Registry.drone_def, world, Vector2.ZERO)
+		drone.load_data(data.get("drone", {}))
+		run._register_player(String(data.get("name", "")), drone, int(data.get("id", 0)))
+	if run.players.is_empty():
+		# Сохранение без игроков (не должно случаться) — заводим одного, чтобы забег был играбелен.
+		var fallback := Drone.new(Registry.drone_def, run.planet, Vector2.ZERO)
+		run._register_player("", fallback)
+
+
 static func world_from_dict(d: Dictionary, drone: Drone) -> GameWorld:
 	var w := int(d.get("width", GameConst.MIN_LEVEL_SIZE))
 	var h := int(d.get("height", GameConst.MIN_LEVEL_SIZE))
@@ -289,7 +311,7 @@ static func world_from_dict(d: Dictionary, drone: Drone) -> GameWorld:
 	map.floors = _remap_layer(d.get("floors", PackedByteArray()), _floor_map, w * h, 0)
 	map.ores = _remap_layer(d.get("ores", PackedByteArray()), _ore_map, w * h, 1)
 	var level := Registry.get_level(StringName(d.get("level", ""))) if String(d.get("level", "")) != "" else null
-	var world := GameWorld.create(level, map, bool(d.get("creative", false)), drone)
+	var world := GameWorld.create(level, map, bool(d.get("creative", false)), drone, false)
 	world.is_base = bool(d.get("is_base", false))
 	world.pad_rect = d.get("pad", Rect2i())
 	world.play_rect = d.get("play", Rect2i())
