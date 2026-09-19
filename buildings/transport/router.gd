@@ -1,9 +1,9 @@
 class_name Router
 extends Building
-## Маршрутизатор (как в Mindustry): принимает предметы со всех сторон и отдаёт по кругу во все стороны,
-## в том числе обратно источнику, если тот принимает (цепочки маршрутизаторов гоняют предметы туда-сюда).
-## Исключение — мгновенные здания (сортировщик): им назад не отдаёт, иначе предмет метался бы
-## между ними без задержки.
+## Маршрутизатор (как в Mindustry): принимает предметы со всех сторон и отдаёт по кругу во все стороны.
+## Источнику предмет возвращается только если остальные выходы не принимают — иначе цепочка
+## маршрутизатор+перекрёсток разворачивает поток (перекрёсток шлёт на противоположную сторону).
+## Мгновенным зданиям (сортировщик) назад не отдаёт никогда: предмет метался бы без задержки.
 ## Предмет выходит через get_ticks_per_item() − 1 тиков после входа: источник, разбуженный в тике
 ## отдачи, приносит следующий ровно через get_ticks_per_item() — это и есть пропускная способность.
 ##
@@ -17,7 +17,7 @@ var item: int = -1
 ## Приоритетные стороны относительно поворота (NO_SIDE — нет).
 var priority_in: int = NO_SIDE
 var priority_out: int = NO_SIDE
-## Источник-мгновенное здание, которому предмет назад не отдаётся (0 — такого нет).
+## Откуда пришёл текущий предмет (0 — неизвестно). Ему отдаём в последнюю очередь.
 var _from_id: int = 0
 var _ready_tick: int = 0
 
@@ -40,7 +40,7 @@ func accept_item(source: Building, _item: int) -> bool:
 
 func handle_item(source: Building, new_item: int) -> void:
 	item = new_item
-	_from_id = source.id if source is PassThroughBuilding else 0
+	_from_id = source.id if source != null else 0
 	_ready_tick = world.simulation.tick + maxi((def as LogisticDef).get_ticks_per_item() - 1, 1)
 	wake()
 
@@ -74,9 +74,16 @@ func update_tick(tick: int) -> bool:
 			_dump_index = (_dump_index + k + 1) % n
 			_give(target)
 			return false
+	# Другие выходы заняты — вернуть источнику (тупик). Перекрёстку это нельзя делать первым:
+	# он отправит предмет на противоположную сторону и поток развернётся.
+	var src := _source_building()
+	if src != null and not (src is PassThroughBuilding) and src.accept_item(self, item):
+		_give(src)
+		return false
 	for target in proximity:
-		if target.id != _from_id:
-			wait_for(target)
+		if target.id == _from_id and target is PassThroughBuilding:
+			continue
+		wait_for(target)
 	return false
 
 
@@ -85,6 +92,10 @@ func _give(target: Building) -> void:
 	item = -1
 	target.handle_item(self, passed)
 	notify_space()
+
+
+func _source_building() -> Building:
+	return world.buildings.get_by_id(_from_id) if _from_id != 0 else null
 
 
 func save_state() -> Dictionary:

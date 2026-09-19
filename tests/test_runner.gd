@@ -52,6 +52,7 @@ func _ready() -> void:
 	_test_inversion_config()
 	_test_run_gateway()
 	_test_router_returns_items()
+	_test_router_junction_chain()
 	_test_unloader_balancing()
 	_test_gateway_rotation()
 	_test_star_map()
@@ -1328,6 +1329,30 @@ func _test_router_returns_items() -> void:
 	Worlds.run_ticks(world, 900)
 	_check(sink.received == 20, "все предметы дошли: тупиковый маршрутизатор вернул свой (%d из 20)" % sink.received)
 	_check(dead_end.get("item") == -1, "тупиковый маршрутизатор пуст")
+	world.dispose()
+
+
+## Чередование маршрутизатор+перекрёсток не душит поток (предмет не разворачивается на каждом хопе).
+func _test_router_junction_chain() -> void:
+	var belt_rate: float = (Registry.get_building(&"conveyor") as ConveyorDef).get_items_per_second()
+	var pairs := 15
+	var world := Worlds.empty_world(48, 12)
+	var y := 5
+	_source(world, Vector2i(2, y), [_item(&"hematite")])
+	Worlds.conveyor_line(world, Vector2i(3, y), 1, GameConst.Dir.RIGHT)
+	var x := 4
+	for i in pairs:
+		_place(world, &"router", Vector2i(x, y))
+		x += 1
+		_place(world, &"junction", Vector2i(x, y))
+		x += 1
+	Worlds.conveyor_line(world, Vector2i(x, y), 2, GameConst.Dir.RIGHT)
+	var sink := _sink(world, Vector2i(x + 2, y))
+	Worlds.run_ticks(world, 400)
+	var before: int = sink.received
+	Worlds.run_ticks(world, 600)
+	var rate: float = (sink.received - before) / 20.0
+	_check(absf(rate - belt_rate) <= 0.5, "цепочка маршрутизатор+перекрёсток ×%d: %.2f предм./с (ожидалось %.1f)" % [pairs, rate, belt_rate])
 	world.dispose()
 
 
