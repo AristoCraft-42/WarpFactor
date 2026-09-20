@@ -46,6 +46,11 @@ func _process(delta: float) -> void:
 	lines.append("tick: %d   x%d   ticks/frame: %d   tick time: %.3f ms (avg %.3f)" % [
 		sim.tick, _game.clock.get_speed(), _game.clock.ticks_last_frame,
 		sim.last_tick_usec / 1000.0, sim.avg_tick_usec / 1000.0])
+	if Session.net.is_networked():
+		# Сеть: запас подтверждённых тиков и темп времени — по ним видно, догоняет ли клиент.
+		lines.append("net: %s   запас %d из %.1f тиков   темп x%.2f   задержка ввода %d" % [
+			"хост" if Session.net.is_host() else "клиент", Session.net.ready_ticks(),
+			Session.net.buffer_target(), _game.clock.get_time_scale(), Session.net.predicted_delay()])
 	lines.append("conveyors: %d (awake %d)   items on belts: %d   drawn: %d" % [
 		sim.conveyors.count, sim.conveyors.last_updated, sim.conveyors.get_item_count(), _game.item_renderer.drawn_count])
 	lines.append("awake buildings: %d" % sim.last_awake_buildings)

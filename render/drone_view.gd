@@ -15,8 +15,9 @@ const RANGE_COLOR := Color(0.98, 0.74, 0.18, 0.35)
 const MINED_TICKS := 45
 const BEAM_COLOR := Color(0.99, 0.5, 0.1, 0.9)
 const TURN_SPEED := 14.0
-## Насколько быстро упреждение догоняет нужное смещение (1/с).
-const PREDICT_SPEED := 18.0
+## Насколько быстро сглаживается оценка задержки в тиках (1/с): сама она скачет на тик
+## туда-сюда вместе с сетью, и без сглаживания упреждение дёргалось бы вместе с ней.
+const DELAY_SMOOTH := 4.0
 
 var _run: Run
 var _world: GameWorld
@@ -27,6 +28,8 @@ var _angles: Dictionary[int, float] = {}
 var _time: float = 0.0
 ## Текущее смещение упреждения для своего дрона.
 var _predict: Vector2 = Vector2.ZERO
+## Сглаженная оценка задержки в тиках.
+var _delay_ticks: float = 0.0
 ## Дрон, который рисуется прямо сейчас (у отрисовки много мелких шагов, чтобы не таскать его всюду).
 var _drone: Drone
 
@@ -58,17 +61,30 @@ func _process(delta: float) -> void:
 
 
 ## Сколько пикселей своего дрона «дорисовать» вперёд: столько, сколько он пролетит за время,
-## пока команда движения ждёт своего тика. Плавно сходится к нулю, когда команда применилась
-## или игрок отпустил клавиши, поэтому рывков нет.
+## пока команда движения ждёт своего тика.
+##
+## Упреждение растёт и тает ровно со скоростью самого дрона — это важно. Тогда в момент нажатия
+## клавиши дрон на экране трогается сразу и ровно с настоящей скоростью, а к тому времени,
+## когда команда применится, упреждение уже набрано целиком и стыка не видно. При отпускании
+## наоборот: на экране дрон встаёт сразу, а упреждение тает ровно настолько, насколько
+## настоящий дрон ещё пролетает по инерции очереди команд. Любое другое сглаживание даёт рывок
+## в первый миг движения — дрон сначала обгоняет сам себя, потом притормаживает.
 func _update_prediction(delta: float) -> void:
 	var target := Vector2.ZERO
+	var speed := 0.0
 	var local := _run.get_local_player()
 	if local != null and local.drone != null and Session.net.is_networked():
 		var drone := local.drone
+		speed = drone.get_speed_per_tick() * float(GameConst.TICK_RATE)
+		_delay_ticks = lerpf(_delay_ticks, float(Session.net.predicted_delay()),
+			1.0 - exp(-delta * DELAY_SMOOTH))
 		if not drone.dead and drone.local_input != Vector2.ZERO:
-			var pending := maxi(Session.net.input_delay, 0)
-			target = drone.local_input.limit_length(1.0) * drone.get_speed_per_tick() * float(pending)
-	_predict = _predict.lerp(target, 1.0 - exp(-delta * PREDICT_SPEED))
+			target = drone.local_input.limit_length(1.0) * drone.get_speed_per_tick() * _delay_ticks
+	if speed <= 0.0:
+		_predict = Vector2.ZERO
+		_delay_ticks = 0.0
+		return
+	_predict = _predict.move_toward(target, speed * delta)
 
 
 ## Текущее упреждение своего дрона: на столько же смещается камера, чтобы дрон не уезжал от центра.

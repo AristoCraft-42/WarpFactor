@@ -101,10 +101,69 @@ func _run() -> void:
 	_expect(compared > 10, "есть общие тики для сверки (%d)" % compared)
 	_expect(compared > 0 and same == compared, "состояния совпадают на всех общих тиках (%d из %d)" % [same, compared])
 
+	await _check_catch_up(host, host_run, client)
+
 	host.close()
 	client.close()
 	host_run.dispose()
 	_finish()
+
+
+## Провал кадров у клиента и догон настоящими часами — то, из-за чего сетевая игра
+## раньше становилась неиграбельной: часы списывали время на пропущенных тиках, отставание
+## копилось и команды игрока применялись всё позже, пока он не «застревал» совсем.
+##
+## Кадр здесь равен одному тику хоста, поэтому часам клиента отдаём ровно TICK_DT.
+func _check_catch_up(host: NetSession, host_run: Run, client: NetSession) -> void:
+	var clock := SimClock.new()
+	add_child(clock)
+	clock.set_process(false)
+	clock.setup(
+		func() -> void:
+			client.run.step()
+			client.after_step(),
+		func() -> bool:
+			client.poll()
+			return client.can_step(),
+		client.time_scale)
+	# Сто двадцать тиков хост считает, а у клиента кадров нет вовсе.
+	for i in 120:
+		host.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+		await get_tree().process_frame
+	for i in 5:
+		client.poll()
+		await get_tree().process_frame
+	var behind := client.ready_ticks()
+	_expect(behind > 40, "после провала кадров клиент отстал на %d тиков" % behind)
+
+	# Кадры вернулись: часы должны догнать хоста, а не остаться позади навсегда.
+	for i in 200:
+		host.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+		clock._process(GameConst.TICK_DT)
+		await get_tree().process_frame
+	var gap := host_run.get_tick() - client.run.get_tick()
+	_expect(gap <= NetProtocol.CLIENT_BUFFER + 2, "клиент догнал хоста (отставание %d тиков)" % gap)
+
+	# И его собственные команды по-прежнему доходят.
+	var mate_id := client.run.local_player
+	client.run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT})
+	for i in 120:
+		host.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+		clock._process(GameConst.TICK_DT)
+		await get_tree().process_frame
+	var mate := host_run.get_player(mate_id)
+	_expect(mate != null and mate.drone.move_input == Vector2.RIGHT,
+		"команда клиента дошла до хоста после догона")
+	clock.queue_free()
 
 
 ## Покрутить обе стороны; host_steps = false — хост стоит, клиент догоняет.

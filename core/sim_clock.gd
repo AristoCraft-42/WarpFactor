@@ -26,13 +26,22 @@ var _step: Callable
 ## Можно ли сейчас считать тик: в сетевой игре клиент ждёт команды хоста.
 ## Пусто — считаем всегда (одиночная игра).
 var _can_step: Callable
+## Во сколько раз быстрее идёт время. Клиент сетевой игры так подстраивается под темп хоста:
+## чуть быстрее, когда отстал, чуть медленнее, когда подобрался вплотную. Пусто — ровно 1.0.
+var _scale: Callable
 var _accumulator: float = 0.0
 
 
-func setup(step: Callable, can_step: Callable = Callable()) -> void:
+func setup(step: Callable, can_step: Callable = Callable(), scale: Callable = Callable()) -> void:
 	_step = step
 	_can_step = can_step
+	_scale = scale
 	process_priority = -100
+
+
+## Текущий множитель хода времени (для отладки и тестов).
+func get_time_scale() -> float:
+	return float(_scale.call()) if _scale.is_valid() else 1.0
 
 
 func get_speed() -> int:
@@ -58,7 +67,7 @@ func _process(delta: float) -> void:
 	ticks_last_frame = 0
 	if not _step.is_valid() or not is_running():
 		return
-	_accumulator += minf(delta, MAX_FRAME_DELTA) * get_speed()
+	_accumulator += minf(delta, MAX_FRAME_DELTA) * get_speed() * get_time_scale()
 	var waiting := false
 	while _accumulator >= GameConst.TICK_DT and ticks_last_frame < MAX_TICKS_PER_FRAME:
 		if _can_step.is_valid() and not _can_step.call():

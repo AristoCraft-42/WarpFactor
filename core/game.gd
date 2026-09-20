@@ -175,7 +175,7 @@ func _build_scene() -> void:
 	clock = SimClock.new()
 	clock.name = "SimClock"
 	add_child(clock)
-	clock.setup(_net_step, _net_can_step)
+	clock.setup(_net_step, _net_can_step, _net_time_scale)
 	Session.net.run_replaced.connect(_on_run_replaced)
 	Session.net.time_state.connect(_on_net_time)
 	clock.state_changed.connect(_on_clock_changed)
@@ -251,6 +251,13 @@ func _net_can_step() -> bool:
 	return Session.net.can_step()
 
 
+## Темп времени: хост идёт ровно 1.0, клиент подстраивается под него, чтобы держать
+## небольшой запас подтверждённых тиков (иначе сеть видна как рывки, а просадки кадров
+## превращаются в невосполнимое отставание).
+func _net_time_scale() -> float:
+	return Session.net.time_scale()
+
+
 func _net_step() -> void:
 	run.step()
 	Session.net.after_step()
@@ -293,7 +300,7 @@ func _rebuild_for_new_run() -> void:
 		remove_child(child)
 		child.queue_free()
 	_build_scene()
-	clock.setup(_net_step, _net_can_step)
+	clock.setup(_net_step, _net_can_step, _net_time_scale)
 	run.drone_changed_world.connect(_on_drone_changed_world)
 	run.planet_changed.connect(_on_planet_changed)
 	Session.net.set_run(run)

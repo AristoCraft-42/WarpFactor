@@ -13,6 +13,12 @@ extends RefCounted
 ##
 ## Вход в игру: хост шлёт снимок забега (то же сохранение) и все уже запланированные тики после него.
 ## Расхождение ловится контрольными суммами состояния; хост чинит его свежим снимком.
+##
+## Ход времени у клиента. Темп задаёт хост, поэтому часы клиента подстраиваются под него:
+## клиент держит небольшой запас подтверждённых тиков (CLIENT_BUFFER) и слегка ускоряет или
+## замедляет своё время, чтобы запас держался около этого значения (time_scale). Без этого клиент
+## считает тик ровно в момент прихода пакета — и любая неровность сети видна как рывок, а каждая
+## просадка кадров теряется навсегда, потому что часы идут по настоящему времени.
 
 enum Role { OFFLINE, HOST, CLIENT }
 
@@ -52,6 +58,11 @@ var _own_checksums: Dictionary[int, int] = {}
 ## Клиент: id игрока, за которого играем, и ожидание снимка.
 var _local_player: int = 0
 var _waiting_snapshot: bool = false
+## Клиент: на каком тике последний раз просили снимок (чтобы не просить его каждый кадр).
+var _resync_asked: int = -1000000
+## Клиент: целевой запас тиков. Растёт, когда клиент упирается в ожидание (связь неровная),
+## и медленно оседает обратно — так игра сама подстраивается под качество канала.
+var _buffer_target: float = float(NetProtocol.CLIENT_BUFFER)
 
 
 func is_networked() -> bool:
@@ -164,6 +175,51 @@ func can_step() -> bool:
 	return run.get_tick() <= confirmed_tick
 
 
+## Сколько тиков клиент может посчитать прямо сейчас: это и есть его запас.
+## Ноль — запас проеден и клиент будет ждать пакета; большое число — клиент отстал.
+func ready_ticks() -> int:
+	if role != Role.CLIENT or run == null or _waiting_snapshot:
+		return 0
+	return confirmed_tick - run.get_tick() + 1
+
+
+## Во сколько раз быстрее идти времени клиента, чтобы запас держался около CLIENT_BUFFER.
+## Хост всегда 1.0 — он задаёт темп. Подстройка мягкая (несколько процентов на тик запаса),
+## поэтому в обычной игре скорость на глаз не меняется; большие значения включаются только
+## когда клиент сильно отстал и его надо догнать.
+func time_scale() -> float:
+	if role != Role.CLIENT or run == null or _waiting_snapshot:
+		return 1.0
+	# Зовётся раз в кадр из часов — здесь же подстраивается и сам запас.
+	var ready := ready_ticks()
+	if ready <= 0:
+		_buffer_target = minf(_buffer_target + NetProtocol.BUFFER_GROW, NetProtocol.CLIENT_BUFFER_MAX)
+	else:
+		_buffer_target = maxf(_buffer_target - NetProtocol.BUFFER_DECAY, float(NetProtocol.CLIENT_BUFFER))
+	var slack := float(ready) - _buffer_target
+	return clampf(1.0 + slack * NetProtocol.SCALE_PER_TICK,
+		NetProtocol.MIN_TIME_SCALE, NetProtocol.MAX_TIME_SCALE)
+
+
+## Текущий целевой запас тиков (для отладки).
+func buffer_target() -> float:
+	return _buffer_target
+
+
+## Через сколько тиков применится команда, отданная прямо сейчас. Нужно только отрисовке:
+## свой дрон рисуется с упреждением ровно на это время.
+func predicted_delay() -> int:
+	if role != Role.CLIENT:
+		return input_delay
+	return input_delay + maxi(ready_ticks(), 0)
+
+
+## Клиент «застрял»: команды уже не успевают применяться, потому что он далеко позади.
+## Нужно только отладке и сообщению игроку.
+func behind_ticks() -> int:
+	return maxi(ready_ticks() - NetProtocol.CLIENT_BUFFER, 0)
+
+
 ## Зовётся каждый кадр до шагов симуляции: приём пакетов и планирование тиков хостом.
 func poll() -> void:
 	if transport == null:
@@ -171,8 +227,22 @@ func poll() -> void:
 	transport.poll()
 	if role == Role.CLIENT:
 		_ensure_local_player()
+		_ask_resync_if_lost()
 	elif role == Role.HOST and run != null:
 		_plan_ticks()
+
+
+## Клиент отстал так, что догонять ускорением пришлось бы минуту (свернули окно, просадка кадров,
+## долгая загрузка). Снимок мира дешевле: просим его и продолжаем с настоящего момента.
+func _ask_resync_if_lost() -> void:
+	if run == null or _waiting_snapshot or transport == null:
+		return
+	if ready_ticks() <= NetProtocol.RESYNC_BEHIND:
+		return
+	if run.get_tick() - _resync_asked < NetProtocol.RESYNC_BEHIND:
+		return
+	_resync_asked = run.get_tick()
+	transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.RESYNC_REQUEST))
 
 
 ## Игрок клиента появляется в мире командой уже после снимка — как только он есть, играем за него.
@@ -290,6 +360,9 @@ func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 			_handle_checksum(peer_id, message)
 		NetProtocol.Kind.RESYNC:
 			_handle_resync(message)
+		NetProtocol.Kind.RESYNC_REQUEST:
+			if role == Role.HOST and _peers.has(peer_id):
+				_send_full_state(peer_id, NetProtocol.Kind.RESYNC)
 		NetProtocol.Kind.TIME:
 			var paused := bool(message.get("p", false))
 			var speed := int(message.get("s", 0))
@@ -323,15 +396,7 @@ func _handle_hello(peer_id: int, message: Dictionary) -> void:
 		_next_player_id += 1
 		_pending.append(_make_command(Command.Kind.PLAYER_ADD, 1, {"name": name, "id": player_id}))
 	_peers[peer_id] = {"player": player_id, "name": name}
-	var snapshot := NetProtocol.pack_snapshot(run)
-	transport.send(peer_id, NetProtocol.pack(NetProtocol.Kind.WELCOME, {
-		"p": player_id, "t": run.get_tick(), "d": input_delay,
-		"s": snapshot, "n": var_to_bytes(SaveIO.run_to_dict(run)).size(),
-	}))
-	# Всё, что уже запланировано после снимка, клиент должен получить.
-	for tick in range(run.get_tick() + 1, _next_plan_tick):
-		if _planned.has(tick):
-			transport.send(peer_id, NetProtocol.pack(NetProtocol.Kind.TICK, {"t": tick, "c": _planned[tick]}))
+	_send_full_state(peer_id, NetProtocol.Kind.WELCOME, {"p": player_id, "d": input_delay})
 	notice.emit(tr("NET_PLAYER_JOINED") % name)
 	state_changed.emit()
 
@@ -393,13 +458,27 @@ func _handle_checksum(peer_id: int, message: Dictionary) -> void:
 		return
 	var name := String((_peers.get(peer_id, {}) as Dictionary).get("name", ""))
 	notice.emit(tr("NET_DESYNC") % name)
-	var snapshot := NetProtocol.pack_snapshot(run)
-	transport.send(peer_id, NetProtocol.pack(NetProtocol.Kind.RESYNC, {
-		"t": run.get_tick(), "s": snapshot, "n": var_to_bytes(SaveIO.run_to_dict(run)).size(),
-	}))
-	for t in range(run.get_tick() + 1, _next_plan_tick):
-		if _planned.has(t):
-			transport.send(peer_id, NetProtocol.pack(NetProtocol.Kind.TICK, {"t": t, "c": _planned[t]}))
+	_send_full_state(peer_id, NetProtocol.Kind.RESYNC)
+
+
+## Отправить участнику полное состояние: снимок мира и все окончательные списки команд,
+## начиная с того тика, на котором стоит снимок.
+##
+## Тик снимка тоже отправляется: очередь команд в сохранение не входит, поэтому без его списка
+## участник посчитал бы этот тик пустым и разошёлся бы с хостом на ровном месте. И подтверждаем
+## ровно то, что запланировано (_next_plan_tick - 1), а не текущий тик хоста, — иначе участник
+## считал бы подтверждённым тик, списка команд для которого ему никто не присылал.
+func _send_full_state(peer_id: int, kind: NetProtocol.Kind, extra: Dictionary = {}) -> void:
+	if run == null or transport == null:
+		return
+	var body := extra.duplicate()
+	body["t"] = _next_plan_tick - 1
+	body["s"] = NetProtocol.pack_snapshot(run)
+	body["n"] = var_to_bytes(SaveIO.run_to_dict(run)).size()
+	transport.send(peer_id, NetProtocol.pack(kind, body))
+	for tick in range(run.get_tick(), _next_plan_tick):
+		if _planned.has(tick):
+			transport.send(peer_id, NetProtocol.pack(NetProtocol.Kind.TICK, {"t": tick, "c": _planned[tick]}))
 
 
 ## Клиент: расхождение — берём мир хоста и продолжаем с него.

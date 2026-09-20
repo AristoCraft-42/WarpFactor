@@ -113,6 +113,10 @@ func _ready() -> void:
 	_test_steam_transport()
 	_test_steam_session()
 	_test_clock_waiting()
+	_test_clock_scale()
+	_test_net_join_pending_tick()
+	_test_net_catch_up()
+	_test_net_lost_client()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -2691,6 +2695,180 @@ func _test_clock_waiting() -> void:
 	_check(steps[0] - before <= SimClock.MAX_TICKS_PER_FRAME + 3,
 		"после долгого ожидания игра не рвётся вперёд (%d тиков)" % (steps[0] - before))
 	clock.queue_free()
+
+## Часы умеют идти быстрее и медленнее: на этом клиент сетевой игры догоняет хоста.
+func _test_clock_scale() -> void:
+	var clock := SimClock.new()
+	add_child(clock)
+	clock.set_process(false)
+	var steps := [0]
+	var scale := [1.0]
+	clock.setup(func() -> void: steps[0] += 1, Callable(), func() -> float: return scale[0])
+	for i in 60:
+		clock._process(1.0 / 60.0)
+	_check(steps[0] == GameConst.TICK_RATE, "при обычном ходе за секунду ровно тик-рейт (%d)" % steps[0])
+	steps[0] = 0
+	scale[0] = 2.0
+	for i in 60:
+		clock._process(1.0 / 60.0)
+	_check(steps[0] == GameConst.TICK_RATE * 2, "с двойным темпом тиков вдвое больше (%d)" % steps[0])
+	clock.queue_free()
+
+
+## Один тик хоста в тестах.
+func _host_step(host: NetSession, host_run: Run) -> void:
+	host.poll()
+	if host.can_step():
+		host_run.step()
+		host.after_step()
+
+
+## Один «кадр» сетевой игры: хост считает тики по настоящему времени, клиент — своими часами.
+## client_runs = false — у клиента кадров нет вовсе (окно свёрнуто, долгая загрузка).
+func _net_frame(host: NetSession, host_run: Run, clock: SimClock, host_time: Array, dt: float,
+		client_runs: bool) -> void:
+	host_time[0] += dt
+	while host_time[0] >= GameConst.TICK_DT:
+		host_time[0] -= GameConst.TICK_DT
+		_host_step(host, host_run)
+	if client_runs:
+		clock._process(dt)
+
+
+## Часы клиента, живущие как в игре: шаг, разрешение и подстройка темпа берутся из сессии.
+func _client_clock(client: NetSession) -> SimClock:
+	var clock := SimClock.new()
+	add_child(clock)
+	clock.set_process(false)
+	clock.setup(
+		func() -> void:
+			client.run.step()
+			client.after_step(),
+		func() -> bool:
+			client.poll()
+			return client.can_step(),
+		client.time_scale)
+	return clock
+
+
+## Вход в игру: команда, запланированная ровно на тик снимка, не должна потеряться.
+## Очередь команд в сохранение не входит, поэтому хост обязан прислать список этого тика отдельно —
+## иначе новичок посчитает его пустым и разойдётся с хостом на ровном месте.
+func _test_net_join_pending_tick() -> void:
+	var conveyor := Registry.get_building(&"conveyor")
+	var found_pending := false
+	for offset in 4:
+		var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+		var host_transport := LoopbackTransport.make_host()
+		var host := NetSession.new()
+		host.host_run(host_run, 0, host_transport)
+		for i in 10:
+			_host_step(host, host_run)
+		var player: Player = host_run.players[0]
+		player.drone.inventory.add(conveyor.item.index, 10)
+		player.drone.position = host_run.get_gateway(host_run.planet).get_world_center()
+		var tile := player.drone.get_tile() + Vector2i(4, 0)
+		host_run.submit(Command.Kind.BUILD,
+			{"places": [{"def": "conveyor", "origin": tile, "rotation": 0, "config": null}]})
+		# Сдвигаем момент входа так, чтобы хотя бы раз он совпал с тиком, куда легла команда.
+		for i in offset:
+			_host_step(host, host_run)
+		var planned: Dictionary = host.get("_planned")
+		if not (planned.get(host_run.get_tick(), []) as Array).is_empty():
+			found_pending = true
+		var client := _join_client(host, host_transport, 2, "Напарник")
+		if client.run != null:
+			_net_run(host, host_run, client, 30)
+			_check(client.run.planet.buildings.get_at(tile) != null,
+				"вход на сдвиге %d: лента из очереди дошла до новичка" % offset)
+			_check(client.run.state_hash() == host_run.state_hash(),
+				"вход на сдвиге %d: состояния совпали" % offset)
+			client.close()
+		host.close()
+		host_run.dispose()
+	_check(found_pending, "проверен и тот вход, где команда лежит ровно на тике снимка")
+
+
+## Клиент, у которого пропали кадры (свернули окно), должен догнать хоста, а не отстать навсегда.
+## Раньше часы списывали время даже на пропущенных тиках, и отставание копилось до полной
+## невозможности играть: дрон дёргался на месте, потому что команды применялись минутами позже.
+func _test_net_catch_up() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	var clock := _client_clock(client)
+	var host_time := [0.0]
+	var dt := 1.0 / 60.0
+	for i in 120:
+		_net_frame(host, host_run, clock, host_time, dt, true)
+	var gap := host_run.get_tick() - client.run.get_tick()
+	_check(gap >= 0 and gap <= NetProtocol.CLIENT_BUFFER + 2,
+		"в обычной игре клиент держится рядом с хостом (отставание %d тиков)" % gap)
+	_check(client.buffer_target() <= NetProtocol.CLIENT_BUFFER + 0.5,
+		"на ровной связи запас не растёт (%.1f тика)" % client.buffer_target())
+	_check(absf(clock.get_time_scale() - 1.0) < 0.2,
+		"и время у него идёт почти ровно (темп %.2f)" % clock.get_time_scale())
+
+	# Две секунды без единого кадра у клиента.
+	for i in 120:
+		_net_frame(host, host_run, clock, host_time, dt, false)
+	client.poll()
+	var behind := client.ready_ticks()
+	_check(behind > 50, "после провала клиент отстал на %d тиков" % behind)
+	_check(client.time_scale() > 1.5, "время клиента ускорилось, чтобы догнать (%.2f)" % client.time_scale())
+
+	# Две секунды обычной игры — этого должно хватить, чтобы догнать.
+	for i in 120:
+		_net_frame(host, host_run, clock, host_time, dt, true)
+	gap = host_run.get_tick() - client.run.get_tick()
+	_check(gap >= 0 and gap <= NetProtocol.CLIENT_BUFFER + 2, "клиент догнал хоста (отставание %d тиков)" % gap)
+	_check(client.run.state_hash() == host_run.state_hash() or gap > 0, "мир клиента не сломался догоном")
+	clock.queue_free()
+	client.close()
+	host.close()
+	host_run.dispose()
+
+
+## Если клиент отстал безнадёжно (минута без кадров), догонять ускорением бессмысленно:
+## он просит снимок и продолжает с настоящего момента.
+func _test_net_lost_client() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	var resynced := [false]
+	client.run_replaced.connect(func(_fresh: Run) -> void: resynced[0] = true)
+	var clock := _client_clock(client)
+	var host_time := [0.0]
+	var dt := 1.0 / 60.0
+	for i in 60:
+		_net_frame(host, host_run, clock, host_time, dt, true)
+	# Клиента нет на связи столько, что отставание переваливает за RESYNC_BEHIND.
+	# Кадр — 1/60 с, хост за него успевает полтика, поэтому кадров надо вдвое больше, чем тиков.
+	for i in int(NetProtocol.RESYNC_BEHIND * 2.4):
+		_net_frame(host, host_run, clock, host_time, dt, false)
+	for i in 120:
+		_net_frame(host, host_run, clock, host_time, dt, true)
+	_check(resynced[0], "хост прислал снимок безнадёжно отставшему клиенту")
+	var gap := host_run.get_tick() - client.run.get_tick()
+	_check(gap >= 0 and gap <= NetProtocol.CLIENT_BUFFER + 2,
+		"после снимка клиент снова рядом с хостом (отставание %d тиков)" % gap)
+	_check(client.run.state_hash() == host_run.state_hash() or gap > 0, "мир клиента цел после снимка")
+	clock.queue_free()
+	client.close()
+	host.close()
+	host_run.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:
