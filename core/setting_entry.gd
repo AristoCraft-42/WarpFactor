@@ -3,13 +3,15 @@ extends RefCounted
 ## Описание одной настройки. По этим описаниям строится меню настроек
 ## и выполняется сохранение/загрузка.
 
-enum Kind { BOOL, CHOICE, RANGE }
+enum Kind { BOOL, CHOICE, RANGE, TEXT }
 
 ## Ключ вида "раздел/имя", например "graphics/vsync".
 var key: StringName
 ## Вкладка меню: graphics, game, audio.
 var tab: StringName
 var kind: Kind = Kind.BOOL
+## Наибольшая длина строчной настройки.
+var max_length: int = 24
 var default_value: Variant
 var label_key: String
 var hint_key: String = ""
@@ -51,6 +53,20 @@ static func make_choice(p_key: StringName, p_tab: StringName, p_default: Variant
 	return e
 
 
+## Строчная настройка (имя игрока): длиннее max_length не принимается.
+static func make_text(p_key: StringName, p_tab: StringName, p_default: String, p_label: String,
+		p_max_length: int = 24, p_hint: String = "") -> SettingEntry:
+	var e := SettingEntry.new()
+	e.kind = Kind.TEXT
+	e.key = p_key
+	e.tab = p_tab
+	e.default_value = p_default
+	e.label_key = p_label
+	e.hint_key = p_hint
+	e.max_length = p_max_length
+	return e
+
+
 static func make_range(p_key: StringName, p_tab: StringName, p_default: float, p_label: String, p_min: float, p_max: float, p_step: float, p_percent: bool = false, p_hint: String = "") -> SettingEntry:
 	var e := SettingEntry.new()
 	e.key = p_key
@@ -71,6 +87,8 @@ func sanitize(value: Variant) -> Variant:
 	match kind:
 		Kind.BOOL:
 			return bool(value) if (value is bool or value is int) else default_value
+		Kind.TEXT:
+			return str(value).strip_edges().substr(0, max_length)
 		Kind.RANGE:
 			if not (value is float or value is int):
 				return default_value

@@ -121,6 +121,12 @@ func _build_entry_row(entry: SettingEntry) -> Control:
 				option.add_item(tr(str(pair[1])))
 			option.item_selected.connect(func(index: int) -> void: Settings.set_value(entry.key, entry.choices[index][0]))
 			control = option
+		SettingEntry.Kind.TEXT:
+			var edit := LineEdit.new()
+			edit.custom_minimum_size = Vector2(300, 0)
+			edit.max_length = entry.max_length
+			edit.text_changed.connect(func(text: String) -> void: Settings.set_value(entry.key, text))
+			control = edit
 		SettingEntry.Kind.RANGE:
 			var box := UiUtil.hbox(10)
 			var slider := HSlider.new()
@@ -238,6 +244,10 @@ func _sync_entry(entry: SettingEntry) -> void:
 				if SettingEntry.same_value(entry.choices[i][0], value):
 					option.select(i)
 					break
+		SettingEntry.Kind.TEXT:
+			var edit := control as LineEdit
+			if edit.text != str(value):
+				edit.text = str(value)
 		SettingEntry.Kind.RANGE:
 			(control as HSlider).set_value_no_signal(float(value))
 			_range_labels[entry.key].text = _format_range(entry, float(value))

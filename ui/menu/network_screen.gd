@@ -124,7 +124,7 @@ func _join() -> void:
 		_status.text = tr("NET_NEED_ADDRESS")
 		return
 	Session.player_name = _name_edit.text.strip_edges()
-	Settings.set_value(&"net/player_name", Session.player_name)
+	Settings.set_value(&"game/player_name", Session.player_name)
 	var port := _port_edit.text.to_int()
 	if port <= 0:
 		port = NetProtocol.DEFAULT_PORT

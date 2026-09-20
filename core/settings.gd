@@ -49,6 +49,14 @@ func _notification(what: int) -> void:
 			save_now()
 
 
+## Имя игрока по умолчанию — имя пользователя системы.
+static func _default_player_name() -> String:
+	var user := OS.get_environment("USERNAME")
+	if user.is_empty():
+		user = OS.get_environment("USER")
+	return user if not user.is_empty() else "Player"
+
+
 # --- Доступ к значениям ---
 
 func get_value(key: StringName) -> Variant:
@@ -230,6 +238,9 @@ func _ensure_audio_buses() -> void:
 # --- Описание настроек ---
 
 func _build_entries() -> void:
+	# Игра
+	_add(SettingEntry.make_text(&"game/player_name", TAB_GAME, _default_player_name(), "SET_PLAYER_NAME",
+		24, "SET_PLAYER_NAME_HINT"))
 	# Графика
 	_add(SettingEntry.make_choice(&"graphics/window_mode", TAB_GRAPHICS, 0, "SET_WINDOW_MODE",
 		[[0, "SET_WINDOW_WINDOWED"], [1, "SET_WINDOW_BORDERLESS"], [2, "SET_WINDOW_EXCLUSIVE"]]))

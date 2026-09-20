@@ -403,6 +403,8 @@ rows = [
 ("NET_JOIN_TITLE","Co-op game","Совместная игра"),
 ("NET_JOIN_HINT","Join a game on the local network or by address. The world comes from the host, you do not need your own run.","Подключитесь к игре в локальной сети или по адресу. Мир придёт от хоста — свой забег для этого не нужен."),
 ("NET_PLAYER_NAME","Your name","Ваше имя"),
+("SET_PLAYER_NAME","Player name","Имя игрока"),
+("SET_PLAYER_NAME_HINT","How other players see you in a co-op game.","Как вас видят другие в совместной игре."),
 ("NET_FOUND","Games on the local network","Игры в локальной сети"),
 ("NET_SEARCHING","Looking for games nearby...","Ищем игры рядом…"),
 ("NET_ADDRESS","Address and port","Адрес и порт"),

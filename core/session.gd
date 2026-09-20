@@ -28,14 +28,12 @@ func _process(_delta: float) -> void:
 		discovery.poll()
 
 
-## Имя игрока: из настроек, иначе имя компьютера.
+## Имя игрока: из настроек (там оно и правится), иначе имя пользователя системы.
 func get_player_name() -> String:
 	if not player_name.is_empty():
 		return player_name
-	var saved := String(Settings.get_value(&"net/player_name"))
-	if not saved.is_empty():
-		return saved
-	return OS.get_environment("USERNAME") if not OS.get_environment("USERNAME").is_empty() else "Игрок"
+	var saved := Settings.get_string(&"game/player_name").strip_edges()
+	return saved if not saved.is_empty() else "Player"
 
 
 ## Загрузить сохранение: игровая сцена перезапускается и берёт забег из файла.
