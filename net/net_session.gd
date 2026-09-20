@@ -69,6 +69,15 @@ var _local_player: int = 0
 var _waiting_snapshot: bool = false
 ## Клиент: на каком тике последний раз просили снимок (чтобы не просить его каждый кадр).
 var _resync_asked: int = -1000000
+## Клиент: пришедшие списки команд, которые ещё нельзя подтвердить — ждут предыдущих тиков.
+var _received_ticks: Dictionary[int, bool] = {}
+## Клиент: сколько опросов сети держится дырка в подтверждении (0 — дырки нет).
+var _gap_polls: int = 0
+## Клиент: сколько опросов сети своего игрока всё ещё нет в забеге (0 — всё в порядке).
+var _no_self_polls: int = 0
+## Клиент: списки команд, пришедшие раньше снимка мира. Порядок доставки транспорты
+## не гарантируют, а выбросить их нельзя — без них в подтверждении будет дырка.
+var _early_ticks: Array[Dictionary] = []
 ## Клиент: целевой запас тиков. Растёт, когда клиент упирается в ожидание (связь неровная),
 ## и медленно оседает обратно — так игра сама подстраивается под качество канала.
 var _buffer_target: float = float(NetProtocol.CLIENT_BUFFER)
@@ -145,6 +154,10 @@ func close() -> void:
 		run.command_router = Callable()
 	run = null
 	_pending.clear()
+	_received_ticks.clear()
+	_early_ticks.clear()
+	_gap_polls = 0
+	_no_self_polls = 0
 	_peers.clear()
 	_planned.clear()
 	_own_checksums.clear()
@@ -224,6 +237,12 @@ func predicted_delay() -> int:
 	return input_delay + maxi(ready_ticks(), 0)
 
 
+## За какого игрока мы должны играть (у клиента — выданный хостом id, у хоста — 1).
+## Если в забеге local_player другой, интерфейс смотрит на чужого дрона и играть нельзя.
+func local_player_id() -> int:
+	return _local_player if role == Role.CLIENT else 1
+
+
 ## Клиент «застрял»: команды уже не успевают применяться, потому что он далеко позади.
 ## Нужно только отладке и сообщению игроку.
 func behind_ticks() -> int:
@@ -247,7 +266,25 @@ func poll() -> void:
 func _ask_resync_if_lost() -> void:
 	if run == null or _waiting_snapshot or transport == null:
 		return
+	# Дырка в списках команд: пропущенный тик уже не придёт, а без него дальше идти нельзя.
+	if not _received_ticks.is_empty():
+		_gap_polls += 1
+		if _gap_polls > NetProtocol.GAP_TIMEOUT_POLLS:
+			_gap_polls = 0
+			notice.emit(tr("NET_LOST_TICK"))
+			_request_resync()
+			return
+	else:
+		_gap_polls = 0
 	if ready_ticks() <= NetProtocol.RESYNC_BEHIND:
+		return
+	_request_resync()
+
+
+## Попросить у хоста свежий снимок мира. Чаще, чем раз в RESYNC_BEHIND тиков, не просим:
+## снимок дорогой, а пока он идёт, забег продолжает считаться.
+func _request_resync() -> void:
+	if transport == null or run == null:
 		return
 	if run.get_tick() - _resync_asked < NetProtocol.RESYNC_BEHIND:
 		return
@@ -257,10 +294,20 @@ func _ask_resync_if_lost() -> void:
 
 ## Игрок клиента появляется в мире командой уже после снимка — как только он есть, играем за него.
 func _ensure_local_player() -> void:
-	if run == null or _local_player <= 0 or run.local_player == _local_player:
+	if run == null or _local_player <= 0:
 		return
 	if run.get_player(_local_player) != null:
-		run.set_local_player(_local_player)
+		_no_self_polls = 0
+		if run.local_player != _local_player:
+			run.set_local_player(_local_player)
+		return
+	# Своего игрока в забеге нет: команда PLAYER_ADD не дошла. Играть в таком виде нельзя —
+	# интерфейс показывает чужого дрона, а команды хост отвергает (они не от нашего игрока).
+	# Ждать бесполезно, команда уже не придёт: просим свежий снимок, в нём игрок будет.
+	_no_self_polls += 1
+	if _no_self_polls > NetProtocol.SELF_TIMEOUT_POLLS:
+		_no_self_polls = 0
+		_request_resync()
 
 
 ## Хост планирует тики вперёд: собирает накопленные команды и рассылает окончательный список.
@@ -437,9 +484,13 @@ func _handle_welcome(message: Dictionary) -> void:
 		return
 	_local_player = int(message.get("p", 0))
 	input_delay = int(message.get("d", NetProtocol.INPUT_DELAY))
-	confirmed_tick = int(message.get("t", 0))
+	_reset_confirmation(int(message.get("t", 0)))
 	_waiting_snapshot = false
 	_adopt_run(fresh)
+	var early := _early_ticks
+	_early_ticks = []
+	for saved in early:
+		_handle_tick(saved)
 	run_replaced.emit(fresh)
 	notice.emit(tr("NET_JOINED"))
 	state_changed.emit()
@@ -447,14 +498,26 @@ func _handle_welcome(message: Dictionary) -> void:
 
 ## Окончательный список команд на тик: складываем в очередь забега как есть.
 func _handle_tick(message: Dictionary) -> void:
-	if role != Role.CLIENT or run == null:
+	if role != Role.CLIENT:
+		return
+	if run == null:
+		# Список команд обогнал снимок мира. Выбросить его нельзя: без него в подтверждении
+		# будет дырка, и клиент встанет, ожидая пакет, который уже приходил.
+		if _waiting_snapshot and _early_ticks.size() < 256:
+			_early_ticks.append(message)
 		return
 	var tick := int(message.get("t", -1))
-	if tick < 0 or tick <= confirmed_tick and tick < run.get_tick():
+	if tick <= confirmed_tick or _received_ticks.has(tick):
 		return
 	for cmd in NetProtocol.commands_from_array(message.get("c", [])):
 		run.commands.submit_at(cmd as Command, tick)
-	confirmed_tick = maxi(confirmed_tick, tick)
+	_received_ticks[tick] = true
+	# Подтверждаем только подряд идущие тики. Перепрыгнуть пропущенный список нельзя:
+	# тик посчитался бы пустым, мир разошёлся бы молча и навсегда, а если в пропавшем списке
+	# была команда «добавить игрока» — клиент так и остался бы играть за чужого дрона.
+	while _received_ticks.has(confirmed_tick + 1):
+		_received_ticks.erase(confirmed_tick + 1)
+		confirmed_tick += 1
 
 
 ## Взять забег из снимка хоста и стать в нём собой.
@@ -462,6 +525,15 @@ func _handle_tick(message: Dictionary) -> void:
 ## Важно звать именно set_local_player, а не присваивать поле: в снимке стоит локальный игрок
 ## хоста, и без этого вызова интерфейс клиента остаётся привязанным к дрону хоста — виден чужой
 ## инвентарь, радиус строительства считается от чужого дрона, и играть невозможно.
+## Снимок стоит на тике snapshot_tick, и его список команд ещё не получен — подтверждённым
+## считается предыдущий тик. Всё остальное подтвердят пришедшие следом пакеты TICK.
+func _reset_confirmation(snapshot_tick: int) -> void:
+	confirmed_tick = snapshot_tick - 1
+	_received_ticks.clear()
+	_gap_polls = 0
+	_no_self_polls = 0
+
+
 func _adopt_run(fresh: Run) -> void:
 	set_run(fresh)
 	var mine := _local_player if fresh.get_player(_local_player) != null else fresh.players[0].id
@@ -535,14 +607,14 @@ func _part_name(index: int) -> String:
 ## начиная с того тика, на котором стоит снимок.
 ##
 ## Тик снимка тоже отправляется: очередь команд в сохранение не входит, поэтому без его списка
-## участник посчитал бы этот тик пустым и разошёлся бы с хостом на ровном месте. И подтверждаем
-## ровно то, что запланировано (_next_plan_tick - 1), а не текущий тик хоста, — иначе участник
-## считал бы подтверждённым тик, списка команд для которого ему никто не присылал.
+## участник посчитал бы этот тик пустым и разошёлся бы с хостом на ровном месте. В пакете едет
+## тик самого снимка, а не то, что запланировано: подтверждать тики участник будет сам, по мере
+## прихода их списков, и только подряд.
 func _send_full_state(peer_id: int, kind: NetProtocol.Kind, extra: Dictionary = {}) -> void:
 	if run == null or transport == null:
 		return
 	var body := extra.duplicate()
-	body["t"] = _next_plan_tick - 1
+	body["t"] = run.get_tick()
 	body["s"] = NetProtocol.pack_snapshot(run)
 	body["n"] = var_to_bytes(SaveIO.run_to_dict(run)).size()
 	transport.send(peer_id, NetProtocol.pack(kind, body))
@@ -558,7 +630,7 @@ func _handle_resync(message: Dictionary) -> void:
 	var fresh := NetProtocol.unpack_snapshot(message.get("s", PackedByteArray()), int(message.get("n", 0)))
 	if fresh == null:
 		return
-	confirmed_tick = int(message.get("t", 0))
+	_reset_confirmation(int(message.get("t", 0)))
 	repairs += 1
 	_adopt_run(fresh)
 	run_replaced.emit(fresh)

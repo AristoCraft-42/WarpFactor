@@ -12,7 +12,7 @@ import re
 import sys
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-CODE_DIRS = ["core", "ui", "buildings", "player", "world", "items", "render", "enemies", "research", "save",
+CODE_DIRS = ["net", "core", "ui", "buildings", "player", "world", "items", "render", "enemies", "research", "save",
              "fluids", "combat", "tools"]
 
 rows = {}

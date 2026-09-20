@@ -9,6 +9,12 @@ extends NetTransport
 
 ## Канал Steam, по которому идёт игра.
 const CHANNEL := 0
+## Служебный пакет: кусок большого сообщения (второй байт отличает его от ID_MARK).
+const CHUNK_MARK := "\u0002WFCH"
+## Сколько байт влезает в один пакет Steam. У старого P2P жёсткий предел в мегабайт на сообщение,
+## а снимок мира растёт вместе с фабрикой: без нарезки он в какой-то момент просто перестаёт
+## доходить, и починка мира молча ломается — снаружи это выглядит как «клиент застрял».
+const MAX_PACKET := 400000
 ## Надёжная доставка с гарантией порядка (P2PSend.P2P_SEND_RELIABLE).
 const SEND_RELIABLE := 2
 ## Служебный пакет: «твой номер участника такой-то».
@@ -24,6 +30,9 @@ var _by_steam: Dictionary[int, int] = {}
 var _next_peer: int = 2
 ## SteamID хоста (у клиента).
 var _host_steam: int = 0
+## Сборка больших сообщений: "steam_id:номер" → {"n": сколько кусков, "parts": куски по индексу}.
+var _assembly: Dictionary = {}
+var _next_message: int = 1
 
 
 func _init() -> void:
@@ -103,10 +112,37 @@ func _handle(from_steam: int, data: PackedByteArray) -> void:
 	if data.size() >= mark.size() and data.slice(0, mark.size()) == mark:
 		_handle_service(from_steam, data, mark.size())
 		return
+	var chunk_mark := CHUNK_MARK.to_utf8_buffer()
+	if data.size() >= chunk_mark.size() and data.slice(0, chunk_mark.size()) == chunk_mark:
+		_handle_chunk(from_steam, data, chunk_mark.size())
+		return
 	var peer := int(_by_steam.get(from_steam, 0))
 	if peer == 0:
 		return
 	packet_received.emit(peer, data)
+
+
+## Пришёл кусок большого сообщения: складываем и, когда соберётся целиком, отдаём как обычный пакет.
+func _handle_chunk(from_steam: int, data: PackedByteArray, offset: int) -> void:
+	var value: Variant = bytes_to_var(data.slice(offset, data.size()))
+	if not (value is Array) or (value as Array).size() != 4:
+		return
+	var head: Array = value
+	var key := "%d:%d" % [from_steam, int(head[0])]
+	var total := int(head[2])
+	var entry: Dictionary = _assembly.get(key, {"n": total, "parts": {}})
+	var parts: Dictionary = entry["parts"]
+	parts[int(head[1])] = head[3]
+	_assembly[key] = entry
+	if parts.size() < total:
+		return
+	_assembly.erase(key)
+	var whole := PackedByteArray()
+	for i in total:
+		whole.append_array(parts[i] as PackedByteArray)
+	var peer := int(_by_steam.get(from_steam, 0))
+	if peer != 0:
+		packet_received.emit(peer, whole)
 
 
 ## Служебный обмен номерами участников.
@@ -151,7 +187,24 @@ func broadcast(data: PackedByteArray) -> void:
 func _send_raw(steam_id: int, data: PackedByteArray) -> void:
 	if _steam == null or steam_id == 0 or not _steam.has_method("sendP2PPacket"):
 		return
+	if data.size() > MAX_PACKET:
+		_send_chunked(steam_id, data)
+		return
 	_steam.call("sendP2PPacket", steam_id, data, SEND_RELIABLE, CHANNEL)
+
+
+## Большое сообщение уходит кусками с общим номером; собеседник соберёт его обратно.
+func _send_chunked(steam_id: int, data: PackedByteArray) -> void:
+	var message_id := _next_message
+	_next_message += 1
+	var total := int(ceil(float(data.size()) / float(MAX_PACKET)))
+	var head := CHUNK_MARK.to_utf8_buffer()
+	for i in total:
+		var from := i * MAX_PACKET
+		var packet := head.duplicate()
+		packet.append_array(var_to_bytes([message_id, i, total,
+			data.slice(from, mini(from + MAX_PACKET, data.size()))]))
+		_steam.call("sendP2PPacket", steam_id, packet, SEND_RELIABLE, CHANNEL)
 
 
 func _forget(peer_id: int) -> void:
@@ -169,6 +222,7 @@ func close() -> void:
 		_steam.call("closeP2PSessionWithUser", _host_steam)
 	_by_peer.clear()
 	_by_steam.clear()
+	_assembly.clear()
 	_active = false
 	_local_id = 0
 	_host_steam = 0

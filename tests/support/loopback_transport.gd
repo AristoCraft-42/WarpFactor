@@ -14,6 +14,9 @@ var links: Dictionary[int, LoopbackTransport] = {}
 ## Пакеты в пути: [срок доставки, от кого, данные].
 var inbox: Array = []
 var lag: int = 0
+## Тесты: вернуть true, чтобы пакет «потерялся». Так проверяется устойчивость к потерям
+## и перестановкам, которые у настоящих транспортов случаются, а у этого — нет.
+var drop_filter: Callable
 var _polls: int = 0
 var _active: bool = false
 
@@ -81,6 +84,8 @@ func poll() -> void:
 func send(peer_id: int, data: PackedByteArray) -> void:
 	var target: LoopbackTransport = links.get(peer_id)
 	if target == null:
+		return
+	if drop_filter.is_valid() and bool(drop_filter.call(data)):
 		return
 	target.inbox.append([target._polls + 1 + lag, id, data.duplicate()])
 

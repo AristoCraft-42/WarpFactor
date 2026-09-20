@@ -111,6 +111,7 @@ func _ready() -> void:
 	_test_net_desync_repair()
 	_test_net_leave()
 	_test_steam_transport()
+	_test_steam_big_packet()
 	_test_steam_session()
 	_test_clock_waiting()
 	_test_clock_scale()
@@ -118,6 +119,8 @@ func _ready() -> void:
 	_test_net_catch_up()
 	_test_net_lost_client()
 	_test_snapshot_determinism()
+	_test_net_lost_tick()
+	_test_net_lost_player_add()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -2922,6 +2925,136 @@ func _test_snapshot_determinism() -> void:
 		else " — разошлось на тике %d: %s" % [broke_at, String(Run.STATE_PART_NAMES[broke_part])]))
 	run.dispose()
 	copy.dispose()
+
+## Потерянный пакет с командами тика. Настоящие транспорты (особенно Steam P2P) теряют
+## и переставляют пакеты, а раньше клиент молча перепрыгивал пропущенный тик: считал его пустым
+## и расходился с хостом навсегда, ничем это не показывая.
+func _test_net_lost_tick() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 20)
+	var dropped := [0]
+	host_transport.drop_filter = func(data: PackedByteArray) -> bool:
+		if dropped[0] > 0:
+			return false
+		var message := NetProtocol.unpack(data)
+		if NetProtocol.kind_of(message) != NetProtocol.Kind.TICK:
+			return false
+		dropped[0] = int(message.get("t", 0))
+		return true
+	_net_run(host, host_run, client, 10)
+	_check(dropped[0] > 0, "пакет с командами тика потерян (тик %d)" % dropped[0])
+	_check(client.run.get_tick() <= dropped[0], "клиент не перепрыгнул потерянный тик (%d при потере %d)"
+		% [client.run.get_tick(), dropped[0]])
+	var repaired := [false]
+	client.run_replaced.connect(func(_fresh: Run) -> void: repaired[0] = true)
+	_net_run(host, host_run, client, NetProtocol.GAP_TIMEOUT_POLLS + 200)
+	_check(repaired[0], "клиент заметил дырку и получил свежий мир")
+	_check(client.run.get_tick() > dropped[0], "после починки клиент пошёл дальше (тик %d)"
+		% client.run.get_tick())
+	_check(client.run.state_hash() == host_run.state_hash() or client.run.get_tick() != host_run.get_tick(),
+		"мир клиента не сломан")
+	host.close()
+	client.close()
+	host_run.dispose()
+
+
+## Потерялся пакет, в котором ехало добавление игрока. Без починки клиент навсегда остаётся
+## играть за дрона хоста: видит чужой инвентарь, а его команды хост отвергает — играть нельзя,
+## хотя мир при этом живёт и обновляется.
+func _test_net_lost_player_add() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	host_transport.drop_filter = func(data: PackedByteArray) -> bool:
+		var message := NetProtocol.unpack(data)
+		if NetProtocol.kind_of(message) != NetProtocol.Kind.TICK:
+			return false
+		for entry in (message.get("c", []) as Array):
+			if int((entry as Dictionary).get("k", -1)) == int(Command.Kind.PLAYER_ADD):
+				return true
+		return false
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, NetProtocol.SELF_TIMEOUT_POLLS + 300)
+	_check(client.run.local_player != 1, "клиент не остался играть за дрона хоста (игрок %d)"
+		% client.run.local_player)
+	var mine := client.run.get_player(client.run.local_player)
+	_check(mine != null and mine.drone != null, "у клиента есть свой дрон")
+	if mine != null:
+		_check(mine.drone.world != null and mine.drone.world.drone == mine.drone,
+			"интерфейс клиента смотрит на его собственного дрона")
+		# И его команды снова доходят до хоста.
+		client.run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT})
+		_net_run(host, host_run, client, 40)
+		var at_host := host_run.get_player(mine.id)
+		_check(at_host != null and at_host.drone.move_input == Vector2.RIGHT,
+			"команды клиента снова доходят до хоста")
+	host.close()
+	client.close()
+	host_run.dispose()
+
+## Большое сообщение через Steam. У старого P2P жёсткий предел в мегабайт на пакет, а снимок мира
+## растёт вместе с фабрикой: без нарезки он в какой-то момент просто перестаёт доходить,
+## и починка мира ломается молча — снаружи это выглядит как «клиент застрял».
+func _test_steam_big_packet() -> void:
+	var fake := FakeSteam.new()
+	SteamService.override_api(fake, true)
+	var host_id := 76561190000000001
+	var mate_id := 76561190000000002
+
+	fake.active = host_id
+	var host := SteamTransport.new()
+	host.host(0)
+	fake.active = mate_id
+	var client := SteamTransport.new()
+	client.join(str(host_id), 0)
+	fake.active = host_id
+	host.poll()
+	fake.active = mate_id
+	client.poll()
+
+	var got: Array[PackedByteArray] = [PackedByteArray()]
+	client.packet_received.connect(func(_peer: int, data: PackedByteArray) -> void: got[0] = data)
+	# Узор, а не нули: так видно и потерю куска, и перепутанный порядок.
+	var pattern := PackedByteArray()
+	pattern.resize(1000)
+	for i in 1000:
+		pattern[i] = (i * 7 + 3) % 251
+	var big := PackedByteArray()
+	while big.size() < SteamTransport.MAX_PACKET * 2 + 777:
+		big.append_array(pattern)
+
+	fake.active = host_id
+	host.broadcast(big)
+	fake.active = mate_id
+	client.poll()
+	_check(got[0].size() == big.size(), "большое сообщение собралось целиком (%d из %d байт)"
+		% [got[0].size(), big.size()])
+	_check(got[0] == big, "большое сообщение не побилось при нарезке")
+	_check(fake.too_big == 0, "ни один пакет не упёрся в предел Steam (%d)" % fake.too_big)
+
+	# Маленькие при этом ходят как раньше, без лишней обёртки.
+	got[0] = PackedByteArray()
+	fake.active = host_id
+	host.broadcast(pattern)
+	fake.active = mate_id
+	client.poll()
+	_check(got[0] == pattern, "обычные пакеты ходят как раньше")
+	host.close()
+	client.close()
+	SteamService.override_api(null, false)
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:
