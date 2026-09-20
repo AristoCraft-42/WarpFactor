@@ -327,37 +327,64 @@ func submit_for(player_id: int, kind: Command.Kind, args: Dictionary = {}) -> vo
 		commands.submit(cmd, get_tick())
 
 
+## Названия частей отпечатка состояния — по ним сообщается, что именно разошлось.
+const STATE_PART_NAMES := [
+	"тик", "исследования",
+	"постройки планеты", "предметы на лентах планеты", "враги планеты",
+	"постройки базы", "предметы на лентах базы", "враги базы",
+	"игроки"]
+
+
 ## Отпечаток состояния забега для сверки между участниками сетевой игры.
 ## Считается быстро (без сериализации) и по всему, что влияет на ход игры: тик, постройки
 ## и их состояние, предметы на лентах, дроны с инвентарями, исследования.
 ## Расходится — значит симуляции разъехались.
 func state_hash() -> int:
+	return hash(state_parts())
+
+
+## Отпечаток по частям: если участники разошлись, по индексу разной части сразу видно, где именно.
+## Порядок частей зафиксирован STATE_PART_NAMES — менять их можно только вместе.
+func state_parts() -> PackedInt64Array:
 	var parts := PackedInt64Array()
 	parts.append(get_tick())
 	parts.append(research.done.size() * 1000 + research.manual_queue)
 	for world in [planet, base]:
 		if world == null or world.buildings == null:
+			parts.append(0)
+			parts.append(0)
+			parts.append(0)
 			continue
-		parts.append(world.buildings.get_count())
-		parts.append(world.simulation.conveyors.get_item_count())
-		parts.append(world.enemies.count * 31 + world.enemies.killed)
 		var acc := 0
 		for b in world.buildings.get_all():
 			acc = (acc * 31 + b.id) & 0x3FFFFFFF
 			acc = (acc * 31 + b.origin.x * 1013 + b.origin.y * 7919 + b.rotation) & 0x3FFFFFFF
 			acc = (acc * 31 + roundi(b.health)) & 0x3FFFFFFF
-		parts.append(acc)
+		parts.append(world.buildings.get_count() * 1000003 + acc)
+		parts.append(world.simulation.conveyors.get_item_count())
+		# Врагов мало и они быстро меняются, поэтому считаем их подробно: по одному лишь
+		# числу живых расхождение в их движении не видно, а дроны от него страдают сразу.
+		var foes: int = world.enemies.count * 1000003 + world.enemies.killed
+		for i in world.enemies.count:
+			foes = (foes * 31 + world.enemies.uid[i]) & 0x3FFFFFFF
+			foes = (foes * 31 + roundi(world.enemies.pos_x[i] * 8.0)) & 0x3FFFFFFF
+			foes = (foes * 31 + roundi(world.enemies.pos_y[i] * 8.0)) & 0x3FFFFFFF
+			foes = (foes * 31 + roundi(world.enemies.health[i])) & 0x3FFFFFFF
+			foes = (foes * 31 + world.enemies.target[i]) & 0x3FFFFFFF
+		parts.append(foes)
+	var people := 0
 	for p in players:
 		var d := p.drone
-		parts.append(p.id)
-		parts.append(roundi(d.position.x * 8.0))
-		parts.append(roundi(d.position.y * 8.0))
-		parts.append(roundi(d.health))
 		var items := 0
 		for i in d.inventory.totals.size():
 			items = (items * 17 + d.inventory.totals[i] * (i + 1)) & 0x3FFFFFFF
-		parts.append(items)
-	return hash(parts)
+		people = (people * 31 + p.id) & 0x3FFFFFFF
+		people = (people * 31 + roundi(d.position.x * 8.0)) & 0x3FFFFFFF
+		people = (people * 31 + roundi(d.position.y * 8.0)) & 0x3FFFFFFF
+		people = (people * 31 + roundi(d.health)) & 0x3FFFFFFF
+		people = (people * 31 + items) & 0x3FFFFFFF
+	parts.append(people)
+	return parts
 
 
 ## Текущий тик забега (оба мира тикают вместе).

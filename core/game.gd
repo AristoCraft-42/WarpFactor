@@ -115,10 +115,20 @@ func _ready() -> void:
 func _start() -> void:
 	world = run.drone.world
 	_build_scene()
+	_connect_run_signals()
+	_last_autosave_tick = run.base.simulation.tick
+
+
+## Подписки на сам забег. Забег заменяется целиком (вход в сеть, починка снимком),
+## поэтому подписки живут отдельно от построения сцены и ставятся заново на новый забег.
+func _connect_run_signals() -> void:
 	run.drone_changed_world.connect(_on_drone_changed_world)
 	run.planet_changed.connect(_on_planet_changed)
-	run.teleport_starting.connect(func() -> void: save_named(TELEPORT_AUTOSAVE_FILE, tr("SAVE_NAME_BEFORE_TELEPORT"), false))
-	_last_autosave_tick = run.base.simulation.tick
+	run.teleport_starting.connect(_on_teleport_starting)
+
+
+func _on_teleport_starting() -> void:
+	save_named(TELEPORT_AUTOSAVE_FILE, tr("SAVE_NAME_BEFORE_TELEPORT"), false)
 
 	camera.focus_on(run.drone.position, 1.0)
 	_on_view_changed()
@@ -176,10 +186,13 @@ func _build_scene() -> void:
 	clock.name = "SimClock"
 	add_child(clock)
 	clock.setup(_net_step, _net_can_step, _net_time_scale)
-	Session.net.run_replaced.connect(_on_run_replaced)
-	Session.net.time_state.connect(_on_net_time)
 	clock.state_changed.connect(_on_clock_changed)
-	Session.net.notice.connect(func(text: String) -> void: Events.toast(text, Events.ToastKind.INFO))
+	# Сессия и настройки живут дольше сцены, поэтому подписываемся один раз:
+	# при пересборке (починка снимком) эти же сигналы иначе подключились бы повторно.
+	_connect_once(Session.net.run_replaced, _on_run_replaced)
+	_connect_once(Session.net.time_state, _on_net_time)
+	_connect_once(Session.net.notice, _on_net_notice)
+	_connect_once(Settings.changed, _on_setting_changed)
 	if Session.net.is_networked():
 		Session.net.set_run(run)
 
@@ -239,7 +252,15 @@ func _build_scene() -> void:
 	pause_menu.run = run
 	pause_menu.closed.connect(_update_input_enabled)
 
-	Settings.changed.connect(_on_setting_changed)
+
+## Подписка, которая переживает пересборку сцены.
+func _connect_once(sig: Signal, handler: Callable) -> void:
+	if not sig.is_connected(handler):
+		sig.connect(handler)
+
+
+func _on_net_notice(text: String) -> void:
+	Events.toast(text, Events.ToastKind.INFO)
 
 
 ## Можно ли считать очередной тик: в сетевой игре клиент ждёт список команд от хоста.
@@ -247,7 +268,11 @@ func _build_scene() -> void:
 func _net_can_step() -> bool:
 	if not Session.net.is_networked():
 		return true
+	_rebuilt_now = false
 	Session.net.poll()
+	if _rebuilt_now:
+		# Пока опрашивали сеть, пришёл снимок и сцена собрана заново — эти часы уже не у дел.
+		return false
 	return Session.net.can_step()
 
 
@@ -265,6 +290,8 @@ func _net_step() -> void:
 
 ## Время общее: свою паузу и скорость отправляем всем, чужие принимаем молча.
 var _applying_net_time: bool = false
+## Сцену пересобрали прямо сейчас (внутри опроса сети).
+var _rebuilt_now: bool = false
 
 
 func _on_clock_changed() -> void:
@@ -288,21 +315,30 @@ func _on_run_replaced(fresh: Run) -> void:
 	var old := run
 	run = fresh
 	world = run.drone.world
+	# Сцену могут пересобрать прямо посреди цикла тиков (снимок приходит из poll внутри часов),
+	# поэтому текущему кадру шагать больше нечем.
+	_rebuilt_now = true
 	_rebuild_for_new_run()
 	if old != null:
 		old.dispose()
 
 
+## Пересборка сцены под новый забег.
+##
+## Сносятся ВСЕ дети, включая часы: _build_scene() заводит часы сам, и оставленные старые
+## стали бы вторым двигателем симуляции — мир шагал бы дважды, интерполяция считалась бы
+## по чужому alpha, и каждая следующая починка добавляла бы ещё одни часы. Выбор скорости
+## и паузу переносим руками, они к узлу не привязаны.
 func _rebuild_for_new_run() -> void:
+	var speed_index := clock.speed_index if clock != null else 0
+	var paused := clock.paused if clock != null else false
 	for child in get_children():
-		if child == clock:
-			continue
 		remove_child(child)
 		child.queue_free()
 	_build_scene()
-	clock.setup(_net_step, _net_can_step, _net_time_scale)
-	run.drone_changed_world.connect(_on_drone_changed_world)
-	run.planet_changed.connect(_on_planet_changed)
+	clock.speed_index = speed_index
+	clock.paused = paused
+	_connect_run_signals()
 	Session.net.set_run(run)
 	camera.focus_on(run.drone.position, 1.0)
 	_on_view_changed()

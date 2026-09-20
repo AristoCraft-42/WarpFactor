@@ -143,8 +143,13 @@ func _join_lobby(index: int) -> void:
 func _on_lobby_entered(_lobby_id: int, host_steam_id: int) -> void:
 	if host_steam_id == 0 or host_steam_id == SteamService.self_id():
 		return
+	# Своя игра уже идёт (мы хост или уже подключились) — входить второй раз нельзя:
+	# join_run закрыл бы текущую сессию, а повторный вход просто дублировал бы подписку.
+	if Session.net.is_networked():
+		return
 	if Session.net.join_run(str(host_steam_id), 0, Session.get_player_name(), SteamTransport.new()):
-		Session.net.run_replaced.connect(_on_run_ready, CONNECT_ONE_SHOT)
+		if not Session.net.run_replaced.is_connected(_on_run_ready):
+			Session.net.run_replaced.connect(_on_run_ready, CONNECT_ONE_SHOT)
 	else:
 		_status.text = tr("NET_CONNECT_FAILED")
 

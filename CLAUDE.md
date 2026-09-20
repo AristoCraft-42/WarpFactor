@@ -43,6 +43,9 @@ python tools/data/check_strings.py
 # Сетевой прогон через настоящий ENet на 127.0.0.1
 & $g --headless --path D:\Mind res://tests/net_check.tscn
 
+# Настоящая игровая сцена в роли клиента: снимок, починка, сверка состояний
+& $g --headless --path D:\Mind res://tests/net_scene_check.tscn
+
 # Логические тесты (сейчас 1376 проверок)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 

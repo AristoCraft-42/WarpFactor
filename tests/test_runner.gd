@@ -117,6 +117,7 @@ func _ready() -> void:
 	_test_net_join_pending_tick()
 	_test_net_catch_up()
 	_test_net_lost_client()
+	_test_snapshot_determinism()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -2490,6 +2491,15 @@ func _test_net_desync_repair() -> void:
 	_check(repaired[0], "клиент получил снимок для починки")
 	_check(client.run.state_hash() == host_run.state_hash(), "после починки состояния снова совпадают")
 	_check(notices.size() > 0, "хост сообщил о расхождении")
+	_check(host.last_desync.begins_with("игроки"), "хост назвал разошедшуюся часть: %s" % host.last_desync)
+	# После починки клиент должен остаться собой: в снимке стоит локальный игрок хоста,
+	# и без set_local_player интерфейс клиента показывал бы чужой инвентарь и чужой радиус.
+	var mine := client.run.get_player(client.run.local_player)
+	_check(mine != null and mine.id != 1, "после починки клиент играет за себя (%d)" % client.run.local_player)
+	if mine != null:
+		_check(client.run.drone == mine.drone, "забег отдаёт дрона клиента")
+		_check(mine.drone.world != null and mine.drone.world.drone == mine.drone,
+			"мир показывает дрона клиента, а не хоста")
 	host.close()
 	client.close()
 	host_run.dispose()
@@ -2808,8 +2818,8 @@ func _test_net_catch_up() -> void:
 	for i in 120:
 		_net_frame(host, host_run, clock, host_time, dt, true)
 	var gap := host_run.get_tick() - client.run.get_tick()
-	_check(gap >= 0 and gap <= NetProtocol.CLIENT_BUFFER + 2,
-		"в обычной игре клиент держится рядом с хостом (отставание %d тиков)" % gap)
+	_check(absi(gap) <= NetProtocol.CLIENT_BUFFER + 2,
+		"в обычной игре клиент держится рядом с хостом (разрыв %d тиков)" % gap)
 	_check(client.buffer_target() <= NetProtocol.CLIENT_BUFFER + 0.5,
 		"на ровной связи запас не растёт (%.1f тика)" % client.buffer_target())
 	_check(absf(clock.get_time_scale() - 1.0) < 0.2,
@@ -2827,7 +2837,7 @@ func _test_net_catch_up() -> void:
 	for i in 120:
 		_net_frame(host, host_run, clock, host_time, dt, true)
 	gap = host_run.get_tick() - client.run.get_tick()
-	_check(gap >= 0 and gap <= NetProtocol.CLIENT_BUFFER + 2, "клиент догнал хоста (отставание %d тиков)" % gap)
+	_check(absi(gap) <= NetProtocol.CLIENT_BUFFER + 2, "клиент догнал хоста (разрыв %d тиков)" % gap)
 	_check(client.run.state_hash() == host_run.state_hash() or gap > 0, "мир клиента не сломался догоном")
 	clock.queue_free()
 	client.close()
@@ -2862,13 +2872,56 @@ func _test_net_lost_client() -> void:
 		_net_frame(host, host_run, clock, host_time, dt, true)
 	_check(resynced[0], "хост прислал снимок безнадёжно отставшему клиенту")
 	var gap := host_run.get_tick() - client.run.get_tick()
-	_check(gap >= 0 and gap <= NetProtocol.CLIENT_BUFFER + 2,
-		"после снимка клиент снова рядом с хостом (отставание %d тиков)" % gap)
+	_check(absi(gap) <= NetProtocol.CLIENT_BUFFER + 2,
+		"после снимка клиент снова рядом с хостом (разрыв %d тиков)" % gap)
 	_check(client.run.state_hash() == host_run.state_hash() or gap > 0, "мир клиента цел после снимка")
 	clock.queue_free()
 	client.close()
 	host.close()
 	host_run.dispose()
+
+## Снимок мира обязан быть детерминированным: забег и его копия из снимка, шагая рядом
+## без команд, должны идти тик в тик одинаково.
+##
+## Это основа входа в сетевую игру и починки после расхождения: если копия хоть в чём-то
+## отличается, клиент разойдётся сразу после получения снимка — и будет расходиться снова
+## после каждой починки. Планета берётся настоящая, с волнами и врагами: самое сложное место.
+func _test_snapshot_determinism() -> void:
+	var run := Run.create_new(2024, true)
+	run.set_creative_threat(true)
+	# Дадим врагам появиться и разойтись по карте.
+	for wave in 3:
+		run.call_creative_wave()
+		for i in 120:
+			run.step()
+	_check(run.planet.enemies.count > 0, "перед снимком на планете есть враги (%d)" % run.planet.enemies.count)
+	_check(run.planet.flow != null, "перед снимком есть поле потоков")
+
+	var copy := SaveIO.run_from_dict(SaveIO.run_to_dict(run))
+	if copy == null:
+		_check(false, "снимок читается обратно")
+		run.dispose()
+		return
+	_check(copy.state_parts() == run.state_parts(), "сразу после снимка состояния совпадают")
+
+	var broke_at := -1
+	var broke_part := -1
+	for i in 600:
+		run.step()
+		copy.step()
+		var mine := run.state_parts()
+		var theirs := copy.state_parts()
+		if mine != theirs:
+			broke_at = run.get_tick()
+			for k in mini(mine.size(), theirs.size()):
+				if mine[k] != theirs[k]:
+					broke_part = k
+					break
+			break
+	_check(broke_at < 0, "копия из снимка идёт вровень 600 тиков%s" % ("" if broke_at < 0
+		else " — разошлось на тике %d: %s" % [broke_at, String(Run.STATE_PART_NAMES[broke_part])]))
+	run.dispose()
+	copy.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:

@@ -412,6 +412,8 @@ rows = [
 ("NET_STEAM_EMPTY","No open Steam games found","Открытых игр в Steam не нашлось"),
 ("PAUSE_HOST_STEAM","Open through Steam","Открыть через Steam"),
 ("PAUSE_STEAM_INVITE","Invite friends","Пригласить друзей"),
+("NET_DESYNC_PART","Diverged: %s","Разошлось: %s"),
+("NET_CAUGHT_UP","You fell behind — the host sent a fresh world","Вы отстали — хост прислал свежий мир"),
 ("NET_STEAM_NO_LOBBY","Open the game through Steam first","Сначала откройте игру через Steam"),
 ("NET_STEAM_NO_OVERLAY","The Steam overlay is not available: the game must be launched by Steam. Your Steam ID is copied — a friend can join by it","Оверлей Steam недоступен: игру должен запускать сам Steam. Ваш Steam ID скопирован — друг может подключиться по нему"),
 ("SET_PLAYER_NAME_HINT","How other players see you in a co-op game.","Как вас видят другие в совместной игре."),

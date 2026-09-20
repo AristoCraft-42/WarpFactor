@@ -231,6 +231,11 @@ static func run_from_dict(data: Dictionary) -> Run:
 	# Угроза планеты: расписание, поле потоков — как в сохранении (старые сохранения начинают угрозу заново).
 	var planet_data: Dictionary = data.get("planet", {})
 	run._setup_threat(run.planet, run.star_map.get_current(), run.planet_arrival_tick, false)
+	# Творческий забег с волнами, включёнными вручную: _setup_threat в творческом режиме угрозу
+	# не заводит, а в сохранении она есть. Без этого волны пропадали бы при загрузке — и, что хуже,
+	# у клиента сетевой игры после снимка, из-за чего враги расходились и мир чинился снова и снова.
+	if run.planet.threat == null and planet_data.has("threat"):
+		run.set_creative_threat(true)
 	if run.planet.threat != null and planet_data.has("threat"):
 		run.planet.threat.load_data(planet_data["threat"], _enemy_map)
 	if run.planet.flow == null and run.planet.enemies.count > 0:

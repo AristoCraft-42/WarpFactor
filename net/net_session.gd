@@ -52,8 +52,17 @@ var _peers: Dictionary[int, Dictionary] = {}
 var _planned: Dictionary[int, Array] = {}
 var _next_plan_tick: int = 0
 var _next_player_id: int = 1
-## Хост: свои контрольные суммы по тикам, чтобы сверять с клиентскими.
-var _own_checksums: Dictionary[int, int] = {}
+## Хост: свои отпечатки состояния по тикам, чтобы сверять с клиентскими.
+var _own_checksums: Dictionary[int, PackedInt64Array] = {}
+## Сколько раз мир чинился снимком и что разошлось в последний раз (для отладки и отчёта игрока).
+var repairs: int = 0
+var last_desync: String = ""
+## Сколько сверок отпечатков состояния хост успел сделать (0 при игре — сверка не работает).
+var checksums_compared: int = 0
+## Хост: суммы клиентов, пришедшие раньше, чем хост сам дошёл до этого тика.
+## Клиент считает уже запланированные тики и потому идёт впереди исполнения хоста — без этой
+## очереди сверка почти никогда не срабатывала бы, и расхождения оставались бы незамеченными.
+var _late_checksums: Array[Dictionary] = []
 
 ## Клиент: id игрока, за которого играем, и ожидание снимка.
 var _local_player: int = 0
@@ -139,6 +148,7 @@ func close() -> void:
 	_peers.clear()
 	_planned.clear()
 	_own_checksums.clear()
+	_late_checksums.clear()
 	confirmed_tick = -1
 	_local_player = 0
 	_waiting_snapshot = false
@@ -277,13 +287,14 @@ func after_step() -> void:
 	var tick := run.get_tick()
 	if tick % NetProtocol.CHECKSUM_EVERY != 0:
 		return
-	var hash_value := run.state_hash()
+	var parts := run.state_parts()
 	if role == Role.HOST:
-		_own_checksums[tick] = hash_value
+		_own_checksums[tick] = parts
 		_own_checksums.erase(tick - NetProtocol.CHECKSUM_EVERY * 8)
+		_flush_late_checksums(tick)
 	else:
 		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.CHECKSUM,
-			{"t": tick, "h": hash_value}))
+			{"t": tick, "p": parts}))
 
 
 # --- Команды ---
@@ -362,7 +373,7 @@ func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 			_handle_resync(message)
 		NetProtocol.Kind.RESYNC_REQUEST:
 			if role == Role.HOST and _peers.has(peer_id):
-				_send_full_state(peer_id, NetProtocol.Kind.RESYNC)
+				_send_full_state(peer_id, NetProtocol.Kind.RESYNC, {"r": "behind"})
 		NetProtocol.Kind.TIME:
 			var paused := bool(message.get("p", false))
 			var speed := int(message.get("s", 0))
@@ -428,8 +439,7 @@ func _handle_welcome(message: Dictionary) -> void:
 	input_delay = int(message.get("d", NetProtocol.INPUT_DELAY))
 	confirmed_tick = int(message.get("t", 0))
 	_waiting_snapshot = false
-	fresh.local_player = _local_player if fresh.get_player(_local_player) != null else fresh.players[0].id
-	set_run(fresh)
+	_adopt_run(fresh)
 	run_replaced.emit(fresh)
 	notice.emit(tr("NET_JOINED"))
 	state_changed.emit()
@@ -447,18 +457,78 @@ func _handle_tick(message: Dictionary) -> void:
 	confirmed_tick = maxi(confirmed_tick, tick)
 
 
+## Взять забег из снимка хоста и стать в нём собой.
+##
+## Важно звать именно set_local_player, а не присваивать поле: в снимке стоит локальный игрок
+## хоста, и без этого вызова интерфейс клиента остаётся привязанным к дрону хоста — виден чужой
+## инвентарь, радиус строительства считается от чужого дрона, и играть невозможно.
+func _adopt_run(fresh: Run) -> void:
+	set_run(fresh)
+	var mine := _local_player if fresh.get_player(_local_player) != null else fresh.players[0].id
+	fresh.set_local_player(mine)
+
+
 ## Хост: сверяем контрольную сумму клиента со своей и чиним расхождение снимком.
 func _handle_checksum(peer_id: int, message: Dictionary) -> void:
 	if role != Role.HOST:
 		return
 	var tick := int(message.get("t", -1))
+	var theirs: PackedInt64Array = message.get("p", PackedInt64Array())
+	if not _own_checksums.has(tick):
+		# Хост ещё не дошёл до этого тика — отложим сверку. Слишком старые суммы (хост уже
+		# прошёл этот тик и забыл его) молча отбрасываем: сверять нечем.
+		if run != null and tick > run.get_tick() and _late_checksums.size() < 64:
+			_late_checksums.append({"peer": peer_id, "t": tick, "p": theirs})
+		return
+	_compare_checksum(peer_id, tick, theirs)
+
+
+## Сверить отложенные суммы клиентов, дождавшиеся своего тика.
+func _flush_late_checksums(tick: int) -> void:
+	if _late_checksums.is_empty():
+		return
+	var rest: Array[Dictionary] = []
+	for entry in _late_checksums:
+		var at := int(entry.get("t", -1))
+		if at == tick:
+			_compare_checksum(int(entry.get("peer", 0)), at, entry.get("p", PackedInt64Array()))
+		elif at > tick:
+			rest.append(entry)
+	_late_checksums = rest
+
+
+func _compare_checksum(peer_id: int, tick: int, theirs: PackedInt64Array) -> void:
 	if not _own_checksums.has(tick):
 		return
-	if int(message.get("h", 0)) == _own_checksums[tick]:
+	checksums_compared += 1
+	var mine: PackedInt64Array = _own_checksums[tick]
+	var differs := _first_difference(mine, theirs)
+	if differs < 0:
 		return
-	var name := String((_peers.get(peer_id, {}) as Dictionary).get("name", ""))
-	notice.emit(tr("NET_DESYNC") % name)
-	_send_full_state(peer_id, NetProtocol.Kind.RESYNC)
+	var who := String((_peers.get(peer_id, {}) as Dictionary).get("name", ""))
+	last_desync = "%s (тик %d)" % [_part_name(differs), tick]
+	push_warning("Сеть: расхождение с «%s» на тике %d — %s (у хоста %d, у клиента %d)" % [
+		who, tick, _part_name(differs), mine[differs] if differs < mine.size() else 0,
+		theirs[differs] if differs < theirs.size() else 0])
+	notice.emit(tr("NET_DESYNC") % who)
+	notice.emit(tr("NET_DESYNC_PART") % _part_name(differs))
+	_send_full_state(peer_id, NetProtocol.Kind.RESYNC, {"r": "desync"})
+
+
+## Индекс первой разошедшейся части отпечатка (-1 — всё совпало).
+func _first_difference(mine: PackedInt64Array, theirs: PackedInt64Array) -> int:
+	if mine.size() != theirs.size():
+		return 0
+	for i in mine.size():
+		if mine[i] != theirs[i]:
+			return i
+	return -1
+
+
+func _part_name(index: int) -> String:
+	if index >= 0 and index < Run.STATE_PART_NAMES.size():
+		return String(Run.STATE_PART_NAMES[index])
+	return "часть %d" % index
 
 
 ## Отправить участнику полное состояние: снимок мира и все окончательные списки команд,
@@ -489,10 +559,10 @@ func _handle_resync(message: Dictionary) -> void:
 	if fresh == null:
 		return
 	confirmed_tick = int(message.get("t", 0))
-	fresh.local_player = _local_player if fresh.get_player(_local_player) != null else fresh.players[0].id
-	set_run(fresh)
+	repairs += 1
+	_adopt_run(fresh)
 	run_replaced.emit(fresh)
-	notice.emit(tr("NET_RESYNCED"))
+	notice.emit(tr("NET_RESYNCED") if String(message.get("r", "")) != "behind" else tr("NET_CAUGHT_UP"))
 
 
 func _make_command(kind: Command.Kind, player: int, args: Dictionary) -> Command:

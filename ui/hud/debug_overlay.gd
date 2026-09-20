@@ -51,6 +51,9 @@ func _process(delta: float) -> void:
 		lines.append("net: %s   запас %d из %.1f тиков   темп x%.2f   задержка ввода %d" % [
 			"хост" if Session.net.is_host() else "клиент", Session.net.ready_ticks(),
 			Session.net.buffer_target(), _game.clock.get_time_scale(), Session.net.predicted_delay()])
+		lines.append("net: починок снимком %d   последнее расхождение: %s   часов в сцене %d" % [
+			Session.net.repairs, Session.net.last_desync if not Session.net.last_desync.is_empty() else "нет",
+			_count_clocks()])
 	lines.append("conveyors: %d (awake %d)   items on belts: %d   drawn: %d" % [
 		sim.conveyors.count, sim.conveyors.last_updated, sim.conveyors.get_item_count(), _game.item_renderer.drawn_count])
 	lines.append("awake buildings: %d" % sim.last_awake_buildings)
@@ -70,3 +73,13 @@ func _process(delta: float) -> void:
 			planet.threat.wave, planet.threat.get_ticks_to_next_wave(planet.simulation.tick), planet.threat.last_budget,
 			planet.threat.get_pending_spawns()])
 	_label.text = "\n".join(lines)
+
+
+## Сколько узлов часов живёт в сцене: их всегда должно быть ровно одни.
+## Вторые часы означали бы, что мир шагает дважды (так ломалась пересборка после починки).
+func _count_clocks() -> int:
+	var found := 0
+	for child in _game.get_children():
+		if child is SimClock:
+			found += 1
+	return found

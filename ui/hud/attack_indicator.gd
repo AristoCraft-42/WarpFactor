@@ -57,6 +57,9 @@ func _draw() -> void:
 	var viewport_size := get_viewport_rect().size
 	var screen := (planet.last_attack_position - camera.position) * camera.zoom + viewport_size * 0.5
 	var inner := Rect2(Vector2.ZERO, viewport_size).grow(-MARGIN)
+	# Окно меньше полей (headless, свёрнутое окно) — рисовать не по чему.
+	if inner.size.x <= 0.0 or inner.size.y <= 0.0:
+		return
 	if inner.has_point(screen):
 		return
 	var center := viewport_size * 0.5
@@ -85,6 +88,9 @@ func _draw_enemy_arrows(planet: GameWorld) -> void:
 	var viewport_size := get_viewport_rect().size
 	var center := viewport_size * 0.5
 	var inner := Rect2(Vector2.ZERO, viewport_size).grow(-MARGIN)
+	# Окно меньше полей (headless, свёрнутое окно) — рисовать не по чему.
+	if inner.size.x <= 0.0 or inner.size.y <= 0.0:
+		return
 	var origin := planet.drone.position if planet.drone != null else camera.position
 	var max_distance := ENEMY_RANGE_TILES * GameConst.TILE_SIZE
 	var counts := PackedInt32Array()
