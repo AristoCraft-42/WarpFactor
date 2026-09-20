@@ -13,6 +13,10 @@ const KEY_PLAYERS := "players"
 const GAME_TAG := "warpfactor"
 ## Тип лобби: 2 — публичное (ELobbyType.LOBBY_TYPE_PUBLIC).
 const LOBBY_PUBLIC := 2
+## Искать по всему миру (LOBBY_DISTANCE_FILTER_WORLDWIDE): иначе Steam покажет только свой регион.
+const DISTANCE_WORLDWIDE := 3
+## Сравнение «равно» в фильтре лобби (LOBBY_COMPARISON_EQUAL).
+const COMPARE_EQUAL := 0
 
 ## Лобби создано: игра открыта, id лобби внутри.
 signal hosted(lobby_id: int)
@@ -81,9 +85,10 @@ func refresh() -> void:
 	if not available():
 		return
 	_connect_signals()
+	if _steam.has_method("addRequestLobbyListDistanceFilter"):
+		_steam.call("addRequestLobbyListDistanceFilter", DISTANCE_WORLDWIDE)
 	if _steam.has_method("addRequestLobbyListStringFilter"):
-		# 0 — сравнение на равенство (ELobbyComparison.LOBBY_COMPARISON_EQUAL).
-		_steam.call("addRequestLobbyListStringFilter", KEY_GAME, GAME_TAG, 0)
+		_steam.call("addRequestLobbyListStringFilter", KEY_GAME, GAME_TAG, COMPARE_EQUAL)
 	if _steam.has_method("requestLobbyList"):
 		_steam.call("requestLobbyList")
 

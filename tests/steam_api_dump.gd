@@ -29,4 +29,14 @@ func _ready() -> void:
 		if n.begins_with("p2p") or n.begins_with("lobby") or n.begins_with("join"):
 			signals.append(n)
 	print("сигналы: ", ", ".join(signals))
+	for sig in steam.get_signal_list():
+		if String(sig["name"]) in ["lobby_match_list", "lobby_created", "lobby_joined"]:
+			var args := PackedStringArray()
+			for a in (sig["args"] as Array):
+				args.append("%s: %s" % [a["name"], type_string(int(a["type"]))])
+			print("сигнал %s(%s)" % [sig["name"], ", ".join(args)])
+	for name in ClassDB.class_get_integer_constant_list("Steam"):
+		var text := String(name)
+		if text.begins_with("LOBBY_COMPARISON") or text.begins_with("LOBBY_DISTANCE") or text.begins_with("LOBBY_TYPE"):
+			print("%s = %d" % [text, ClassDB.class_get_integer_constant("Steam", name)])
 	get_tree().quit(0)
