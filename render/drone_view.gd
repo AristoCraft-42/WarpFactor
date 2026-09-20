@@ -5,6 +5,8 @@ extends Node2D
 ## полоска прочности при уроне. Сбитый дрон не рисуется; после появления мигает, пока неуязвим.
 ## Зелёный луч — ремонт постройки, вспышка у корпуса — выстрел автопушки.
 ## Чужие дроны рисуются цветом своего игрока и подписаны именем.
+## В сетевой игре свой дрон рисуется с упреждением: команда движения применится через задержку
+## ввода, а показать отклик надо сразу. Упреждение только в отрисовке — симуляция не трогается.
 ## Плейсхолдер рисуется примитивами; спрайт из DroneDef.sprite подменяет его без правки логики.
 
 const BODY_RADIUS := 13.0
@@ -13,6 +15,8 @@ const RANGE_COLOR := Color(0.98, 0.74, 0.18, 0.35)
 const MINED_TICKS := 45
 const BEAM_COLOR := Color(0.99, 0.5, 0.1, 0.9)
 const TURN_SPEED := 14.0
+## Насколько быстро упреждение догоняет нужное смещение (1/с).
+const PREDICT_SPEED := 18.0
 
 var _run: Run
 var _world: GameWorld
@@ -21,6 +25,8 @@ var _tools: ToolController
 ## Сглаженный угол корпуса по id игрока.
 var _angles: Dictionary[int, float] = {}
 var _time: float = 0.0
+## Текущее смещение упреждения для своего дрона.
+var _predict: Vector2 = Vector2.ZERO
 ## Дрон, который рисуется прямо сейчас (у отрисовки много мелких шагов, чтобы не таскать его всюду).
 var _drone: Drone
 
@@ -47,7 +53,27 @@ func _process(delta: float) -> void:
 			continue
 		var angle: float = _angles.get(player.id, drone.facing)
 		_angles[player.id] = lerp_angle(angle, drone.facing, 1.0 - exp(-delta * TURN_SPEED))
+	_update_prediction(delta)
 	queue_redraw()
+
+
+## Сколько пикселей своего дрона «дорисовать» вперёд: столько, сколько он пролетит за время,
+## пока команда движения ждёт своего тика. Плавно сходится к нулю, когда команда применилась
+## или игрок отпустил клавиши, поэтому рывков нет.
+func _update_prediction(delta: float) -> void:
+	var target := Vector2.ZERO
+	var local := _run.get_local_player()
+	if local != null and local.drone != null and Session.net.is_networked():
+		var drone := local.drone
+		if not drone.dead and drone.local_input != Vector2.ZERO:
+			var pending := maxi(Session.net.input_delay, 0)
+			target = drone.local_input.limit_length(1.0) * drone.get_speed_per_tick() * float(pending)
+	_predict = _predict.lerp(target, 1.0 - exp(-delta * PREDICT_SPEED))
+
+
+## Текущее упреждение своего дрона: на столько же смещается камера, чтобы дрон не уезжал от центра.
+func local_offset() -> Vector2:
+	return _predict
 
 
 func _draw() -> void:
@@ -64,6 +90,8 @@ func _draw_drone(player: Player) -> void:
 	if _drone.dead or _drone.world == null:
 		return
 	var pos := _drone.get_draw_position(_clock.alpha)
+	if local:
+		pos += _predict
 	var tick := _drone.world.simulation.tick
 	if tick < _drone.invulnerable_until and fmod(_time, 0.24) < 0.12:
 		return

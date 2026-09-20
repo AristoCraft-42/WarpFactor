@@ -112,6 +112,7 @@ func _ready() -> void:
 	_test_net_leave()
 	_test_steam_transport()
 	_test_steam_session()
+	_test_clock_waiting()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -2661,6 +2662,35 @@ func _test_steam_session() -> void:
 	host_run.dispose()
 	SteamService.override_api(null, false)
 
+
+## Часы симуляции в сетевой игре: пока ждём команды хоста, накопленное время не пропадает,
+## а потом тики отыгрываются. Без этого клиент отставал бы всё сильнее.
+func _test_clock_waiting() -> void:
+	var clock := SimClock.new()
+	add_child(clock)
+	var steps := [0]
+	var allowed := [false]
+	clock.setup(func() -> void: steps[0] += 1, func() -> bool: return allowed[0])
+	# Полсекунды «в ожидании»: ни одного тика.
+	for i in 30:
+		clock._process(1.0 / 60.0)
+	_check(steps[0] == 0, "пока хост не прислал команды, тики не считаются (%d)" % steps[0])
+	# Разрешаем — накопленное время должно отыграться, а не пропасть.
+	allowed[0] = true
+	clock._process(1.0 / 60.0)
+	_check(steps[0] > 1, "после разрешения клиент догоняет пачкой тиков (%d)" % steps[0])
+	_check(steps[0] <= SimClock.MAX_TICKS_PER_FRAME, "но не больше MAX_TICKS_PER_FRAME за кадр (%d)" % steps[0])
+	# Долгое ожидание не копит время бесконечно: после него не больше одной пачки.
+	allowed[0] = false
+	for i in 300:
+		clock._process(1.0 / 60.0)
+	allowed[0] = true
+	var before: int = steps[0]
+	for i in 3:
+		clock._process(1.0 / 60.0)
+	_check(steps[0] - before <= SimClock.MAX_TICKS_PER_FRAME + 3,
+		"после долгого ожидания игра не рвётся вперёд (%d тиков)" % (steps[0] - before))
+	clock.queue_free()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:

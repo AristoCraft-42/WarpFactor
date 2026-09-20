@@ -23,11 +23,15 @@ var ticks_last_frame: int = 0
 
 ## Один логический шаг (тик забега: обе симуляции).
 var _step: Callable
+## Можно ли сейчас считать тик: в сетевой игре клиент ждёт команды хоста.
+## Пусто — считаем всегда (одиночная игра).
+var _can_step: Callable
 var _accumulator: float = 0.0
 
 
-func setup(step: Callable) -> void:
+func setup(step: Callable, can_step: Callable = Callable()) -> void:
 	_step = step
+	_can_step = can_step
 	process_priority = -100
 
 
@@ -55,10 +59,18 @@ func _process(delta: float) -> void:
 	if not _step.is_valid() or not is_running():
 		return
 	_accumulator += minf(delta, MAX_FRAME_DELTA) * get_speed()
+	var waiting := false
 	while _accumulator >= GameConst.TICK_DT and ticks_last_frame < MAX_TICKS_PER_FRAME:
+		if _can_step.is_valid() and not _can_step.call():
+			waiting = true
+			break
 		_step.call()
 		_accumulator -= GameConst.TICK_DT
 		ticks_last_frame += 1
-	if ticks_last_frame >= MAX_TICKS_PER_FRAME:
+	if waiting:
+		# Ждём команды хоста. Накопленное время не выбрасываем — иначе отставание только растёт
+		# и уже не отыгрывается; но и копить бесконечно нельзя, иначе после задержки игра рванёт.
+		_accumulator = minf(_accumulator, GameConst.TICK_DT * float(MAX_TICKS_PER_FRAME))
+	elif ticks_last_frame >= MAX_TICKS_PER_FRAME:
 		_accumulator = minf(_accumulator, GameConst.TICK_DT)
 	alpha = clampf(_accumulator / GameConst.TICK_DT, 0.0, 1.0)

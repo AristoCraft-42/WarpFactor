@@ -135,10 +135,24 @@ func leave() -> void:
 	current_lobby = 0
 
 
-## Позвать друзей через оверлей Steam.
-func invite_overlay() -> void:
-	if current_lobby != 0 and _steam != null and _steam.has_method("activateGameOverlayInviteDialog"):
-		_steam.call("activateGameOverlayInviteDialog", current_lobby)
+## Доступен ли оверлей Steam. Он появляется только в игре, запущенной самим Steam:
+## из редактора и по двойному клику по exe оверлея нет, значит нет и окна приглашения.
+func overlay_available() -> bool:
+	if _steam == null or not SteamService.is_ready():
+		return false
+	if not _steam.has_method("isOverlayEnabled"):
+		return false
+	return bool(_steam.call("isOverlayEnabled"))
+
+
+## Позвать друзей через оверлей Steam. false — оверлея нет или игра ещё не открыта.
+func invite_overlay() -> bool:
+	if current_lobby == 0 or not overlay_available():
+		return false
+	if not _steam.has_method("activateGameOverlayInviteDialog"):
+		return false
+	_steam.call("activateGameOverlayInviteDialog", current_lobby)
+	return true
 
 
 func _lobby_data(lobby_id: int, key: String) -> String:

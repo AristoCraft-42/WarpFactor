@@ -40,7 +40,11 @@ func _process(_delta: float) -> void:
 
 ## Отправить направление, если оно изменилось. Без забега (тесты, уровни) ставится напрямую.
 func _send(dir: Vector2) -> void:
-	if _drone == null or dir.is_equal_approx(_sent):
+	if _drone == null:
+		return
+	# Отрисовка своего дрона берёт направление отсюда, чтобы не ждать применения команды.
+	_drone.local_input = dir
+	if dir.is_equal_approx(_sent):
 		return
 	_sent = dir
 	if _world != null and _world.run != null:

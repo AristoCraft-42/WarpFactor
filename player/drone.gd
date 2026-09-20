@@ -31,6 +31,9 @@ var last_mined_item: int = -1
 var last_mined_count: int = 0
 var last_mined_tile: Vector2i = NO_TILE
 var last_mined_tick: int = -100000
+## Направление, которое игрок держит прямо сейчас (только для отрисовки своего дрона с упреждением:
+## в сетевой игре команда применится через несколько тиков, а показать движение надо сразу).
+var local_input: Vector2 = Vector2.ZERO
 var health: float = 0.0
 ## Дрон сбит и ждёт появления у шлюза (respawn_tick).
 var dead: bool = false

@@ -4,7 +4,7 @@ extends Node
 const WANTED := ["steamInitEx", "steamInit", "run_callbacks", "steamShutdown", "getSteamID", "getPersonaName",
 	"sendP2PPacket", "readP2PPacket", "getAvailableP2PPacketSize", "acceptP2PSessionWithUser",
 	"closeP2PSessionWithUser", "createLobby", "joinLobby", "leaveLobby", "setLobbyData", "getLobbyData",
-	"getLobbyOwner", "requestLobbyList", "addRequestLobbyListStringFilter", "activateGameOverlayInviteDialog"]
+	"getLobbyOwner", "requestLobbyList", "addRequestLobbyListStringFilter", "activateGameOverlayInviteDialog", "isOverlayEnabled", "activateGameOverlay", "isSteamRunning", "getLobbyMemberLimit"]
 
 func _ready() -> void:
 	if not Engine.has_singleton("Steam"):

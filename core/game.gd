@@ -175,7 +175,7 @@ func _build_scene() -> void:
 	clock = SimClock.new()
 	clock.name = "SimClock"
 	add_child(clock)
-	clock.setup(_net_step)
+	clock.setup(_net_step, _net_can_step)
 	Session.net.run_replaced.connect(_on_run_replaced)
 	Session.net.time_state.connect(_on_net_time)
 	clock.state_changed.connect(_on_clock_changed)
@@ -188,7 +188,9 @@ func _build_scene() -> void:
 	add_child(camera)
 	camera.make_current()
 	camera.setup(world.get_play_rect_px())
-	camera.follow_source = func() -> Vector2: return run.drone.get_draw_position(clock.alpha)
+	camera.follow_source = func() -> Vector2:
+		var at := run.drone.get_draw_position(clock.alpha)
+		return at + drone_view.local_offset() if drone_view != null else at
 	camera.view_changed.connect(_on_view_changed)
 
 	planet_view = WorldView.new()
@@ -240,12 +242,16 @@ func _build_scene() -> void:
 	Settings.changed.connect(_on_setting_changed)
 
 
-## Шаг симуляции с оглядкой на сеть: клиент считает тик, только когда получил его команды.
+## Можно ли считать очередной тик: в сетевой игре клиент ждёт список команд от хоста.
+## Заодно забираем пришедшие пакеты — так ожидание короче ровно на один кадр.
+func _net_can_step() -> bool:
+	if not Session.net.is_networked():
+		return true
+	Session.net.poll()
+	return Session.net.can_step()
+
+
 func _net_step() -> void:
-	if Session.net.is_networked():
-		Session.net.poll()
-		if not Session.net.can_step():
-			return
 	run.step()
 	Session.net.after_step()
 
@@ -287,7 +293,7 @@ func _rebuild_for_new_run() -> void:
 		remove_child(child)
 		child.queue_free()
 	_build_scene()
-	clock.setup(_net_step)
+	clock.setup(_net_step, _net_can_step)
 	run.drone_changed_world.connect(_on_drone_changed_world)
 	run.planet_changed.connect(_on_planet_changed)
 	Session.net.set_run(run)

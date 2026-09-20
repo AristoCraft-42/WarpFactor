@@ -48,10 +48,7 @@ func _ready() -> void:
 	column.add_child(_net_button)
 	_steam_button = UiUtil.button("PAUSE_HOST_STEAM", _toggle_steam_host)
 	column.add_child(_steam_button)
-	_invite_button = UiUtil.button("PAUSE_STEAM_INVITE", func() -> void:
-		var lobbies := Session.get_lobbies()
-		if lobbies != null:
-			lobbies.invite_overlay())
+	_invite_button = UiUtil.button("PAUSE_STEAM_INVITE", _invite_friends)
 	column.add_child(_invite_button)
 	_net_status = Label.new()
 	_net_status.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
@@ -103,6 +100,19 @@ func _host_or_close(use_steam: bool) -> void:
 		return
 	Session.host_run(run, use_steam)
 	_refresh_net()
+
+
+## Приглашение через оверлей Steam; если оверлея нет — объясняем, почему, и даём код лобби,
+## по которому друг сможет подключиться вручную.
+func _invite_friends() -> void:
+	var lobbies := Session.get_lobbies()
+	if lobbies == null or lobbies.current_lobby == 0:
+		Events.toast(tr("NET_STEAM_NO_LOBBY"), Events.ToastKind.WARNING)
+		return
+	if lobbies.invite_overlay():
+		return
+	DisplayServer.clipboard_set(str(SteamService.self_id()))
+	Events.toast(tr("NET_STEAM_NO_OVERLAY"), Events.ToastKind.WARNING)
 
 
 func _refresh_net() -> void:
