@@ -110,6 +110,8 @@ func _ready() -> void:
 	_test_net_play()
 	_test_net_desync_repair()
 	_test_net_leave()
+	_test_steam_transport()
+	_test_steam_session()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -2560,6 +2562,104 @@ func _net_run(host: NetSession, host_run: Run, client: NetSession, ticks: int) -
 		if client.run != null and client.can_step() and client.run.get_tick() < host_run.get_tick():
 			client.run.step()
 			client.after_step()
+
+
+## Транспорт Steam: рукопожатие, свои номера участников, доставка и разрыв.
+func _test_steam_transport() -> void:
+	var fake := FakeSteam.new()
+	SteamService.override_api(fake, true)
+	var host_id := 76561190000000001
+	var mate_id := 76561190000000002
+
+	fake.active = host_id
+	var host := SteamTransport.new()
+	_check(host.host(0), "хост поднялся на Steam")
+	_check(host.host_steam_id() == host_id, "хост знает свой SteamID")
+
+	fake.active = mate_id
+	var client := SteamTransport.new()
+	_check(client.join(str(host_id), 0), "клиент начал подключение по SteamID")
+	_check(client.is_connecting(), "пока номер не выдан — подключение не завершено")
+
+	var host_peers := PackedInt32Array()
+	host.peer_connected.connect(func(id: int) -> void: host_peers.append(id))
+	var client_peers := PackedInt32Array()
+	client.peer_connected.connect(func(id: int) -> void: client_peers.append(id))
+
+	# Хост читает служебный пакет и выдаёт номер.
+	fake.active = host_id
+	host.poll()
+	_check(host_peers.size() == 1 and host_peers[0] == 2, "хост выдал номер участника (%s)" % str(host_peers))
+	fake.active = mate_id
+	client.poll()
+	_check(client_peers.size() == 1 and client_peers[0] == NetTransport.HOST_ID, "клиент считает хоста участником 1")
+	_check(client.get_local_id() == 2 and not client.is_connecting(), "клиент узнал свой номер (%d)" % client.get_local_id())
+
+	# Обычные пакеты ходят в обе стороны.
+	var got_on_host := []
+	host.packet_received.connect(func(from: int, data: PackedByteArray) -> void: got_on_host.append([from, data]))
+	var got_on_client := []
+	client.packet_received.connect(func(from: int, data: PackedByteArray) -> void: got_on_client.append([from, data]))
+	fake.active = mate_id
+	client.send(NetTransport.HOST_ID, "привет".to_utf8_buffer())
+	fake.active = host_id
+	host.poll()
+	_check(got_on_host.size() == 1 and int(got_on_host[0][0]) == 2
+		and (got_on_host[0][1] as PackedByteArray).get_string_from_utf8() == "привет", "пакет клиента дошёл до хоста")
+	host.broadcast("всем".to_utf8_buffer())
+	fake.active = mate_id
+	client.poll()
+	_check(got_on_client.size() == 1 and int(got_on_client[0][0]) == NetTransport.HOST_ID, "рассылка хоста дошла до клиента")
+
+	# Запрос сессии принимается, разрыв доходит как отключение.
+	fake.active = host_id
+	fake.request_session(mate_id)
+	_check(fake.accepted.has(mate_id), "хост разрешает сессию своему участнику")
+	var gone := PackedInt32Array()
+	host.peer_disconnected.connect(func(id: int) -> void: gone.append(id))
+	fake.fail_session(mate_id)
+	_check(gone.size() == 1 and gone[0] == 2, "обрыв сессии виден как выход участника")
+	host.close()
+	client.close()
+	SteamService.override_api(null, false)
+
+
+## Сетевая сессия поверх Steam-транспорта: вход в игру и совместная постройка.
+func _test_steam_session() -> void:
+	var fake := FakeSteam.new()
+	SteamService.override_api(fake, true)
+	var host_id := 76561190000000011
+	var mate_id := 76561190000000012
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+
+	fake.active = host_id
+	var host := NetSession.new()
+	_check(host.host_run(host_run, 0, SteamTransport.new()), "забег открыт через Steam")
+	fake.active = mate_id
+	var client := NetSession.new()
+	_check(client.join_run(str(host_id), 0, "Напарник", SteamTransport.new()), "клиент подключается через Steam")
+
+	# Пакеты ходят по очереди: перед каждым poll переключаем «кто сейчас».
+	for i in 40:
+		fake.active = host_id
+		host.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+		fake.active = mate_id
+		client.poll()
+		if client.run != null and client.can_step():
+			client.run.step()
+			client.after_step()
+	_check(client.run != null, "клиент получил мир через Steam")
+	if client.run != null:
+		_check(client.run.players.size() == 2 and host_run.players.size() == 2,
+			"игроки сошлись (%d и %d)" % [client.run.players.size(), host_run.players.size()])
+		_check(client.run.state_hash() != 0 and client.run.get_tick() > 0, "клиент считает свой забег")
+	host.close()
+	client.close()
+	host_run.dispose()
+	SteamService.override_api(null, false)
 
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).

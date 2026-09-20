@@ -18,10 +18,13 @@ var net := NetSession.new()
 var player_name: String = ""
 ## Поиск игр в локальной сети (создаётся по требованию).
 var discovery: LanDiscovery
+## Лобби Steam (создаются по требованию, только если установлен аддон GodotSteam).
+var lobbies: SteamLobbies
 
 
 func _process(_delta: float) -> void:
 	# Транспорт опрашивается и в меню: так работает подключение до загрузки игровой сцены.
+	SteamService.poll()
 	if net.is_networked():
 		net.poll()
 	if discovery != null:
@@ -64,8 +67,37 @@ func start_level(level_def: LevelDef, p_creative: bool) -> void:
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 
+## Лобби Steam: создаются при первом обращении, если аддон установлен.
+func get_lobbies() -> SteamLobbies:
+	if lobbies == null and SteamService.has_addon():
+		lobbies = SteamLobbies.new()
+	return lobbies
+
+
+## Открыть текущий забег для сети: через Steam, если он готов, иначе по ENet.
+func host_run(run: Run, use_steam: bool) -> bool:
+	if use_steam:
+		if not SteamService.start():
+			return false
+		if not net.host_run(run, 0, SteamTransport.new()):
+			return false
+		var steam_lobbies := get_lobbies()
+		if steam_lobbies != null:
+			steam_lobbies.host(get_player_name(), run.players.size())
+		return true
+	if not net.host_run(run, NetProtocol.DEFAULT_PORT):
+		return false
+	if discovery == null:
+		discovery = LanDiscovery.new()
+	discovery.serve(get_player_name(), NetProtocol.DEFAULT_PORT)
+	discovery.set_players(run.players.size())
+	return true
+
+
 func exit_to_menu() -> void:
 	net.close()
+	if lobbies != null:
+		lobbies.leave()
 	if discovery != null:
 		discovery.stop()
 		discovery = null

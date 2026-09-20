@@ -4,3 +4,9 @@
 
 # Сборки
 /builds/
+
+# Аддон GodotSteam ставится отдельно (см. docs/STEAM.md): сторонние бинарники,
+# включая библиотеки Steamworks SDK от Valve, в репозиторий не кладём.
+/addons/godotsteam/
+# App ID для запуска не из Steam — у каждого свой.
+/steam_appid.txt

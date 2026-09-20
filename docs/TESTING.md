@@ -36,7 +36,7 @@ godot --headless --path D:\Mind res://tests/test_runner.tscn
 ```
 
 `tests/test_runner.gd` — плоский список функций `_test_*`, каждая печатает свои проверки.
-В конце — счётчик (сейчас **1376 проверок**) и ненулевой код возврата при провале.
+В конце — счётчик (сейчас **1406 проверок**) и ненулевой код возврата при провале.
 
 Что покрыто, по группам:
 
@@ -52,6 +52,7 @@ godot --headless --path D:\Mind res://tests/test_runner.tscn
 | Сохранения | `_test_save_roundtrip_and_determinism`, `_test_save_remap`, `_test_save_files`, `_test_building_state_roundtrip`, `_test_determinism`, `_test_enemy_save_determinism` |
 | Игроки и команды | `_test_players`, `_test_commands`, `_test_command_order`, `_test_command_determinism` |
 | Сеть | `_test_net_join`, `_test_net_play`, `_test_net_desync_repair`, `_test_net_leave` (протокол на транспорте в памяти) |
+| Steam | `_test_steam_transport`, `_test_steam_session` (подделка синглтона, `tests/support/fake_steam.gd`) |
 | Бой и оборона | `_test_enemy_attack`, `_test_flow_field`, `_test_threat_schedule`, `_test_spawn_points`, `_test_turret_*`, `_test_walls_route`, `_test_drone_gun_and_repair`, `_test_artillery` |
 | Интерфейс (логика) | `_test_building_windows`, `_test_pole_drag_and_camera`, `_test_belt_drag_obstacles`, `_test_line_planner`, `_test_quick_transfer`, `_test_settings_entries`, `_test_input_codes` |
 

@@ -241,6 +241,8 @@ func _build_entries() -> void:
 	# Игра
 	_add(SettingEntry.make_text(&"game/player_name", TAB_GAME, _default_player_name(), "SET_PLAYER_NAME",
 		24, "SET_PLAYER_NAME_HINT"))
+	_add(SettingEntry.make_text(&"game/steam_app_id", TAB_GAME, str(SteamService.DEV_APP_ID), "SET_STEAM_APP_ID",
+		10, "SET_STEAM_APP_ID_HINT"))
 	# Графика
 	_add(SettingEntry.make_choice(&"graphics/window_mode", TAB_GRAPHICS, 0, "SET_WINDOW_MODE",
 		[[0, "SET_WINDOW_WINDOWED"], [1, "SET_WINDOW_BORDERLESS"], [2, "SET_WINDOW_EXCLUSIVE"]]))

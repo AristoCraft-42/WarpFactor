@@ -15,6 +15,9 @@ var _status: Label
 var _join_button: Button
 var _timer: float = 0.0
 var _addresses: PackedStringArray = PackedStringArray()
+var _steam_box: VBoxContainer
+var _steam_list: ItemList
+var _lobbies: Array = []
 
 
 func _ready() -> void:
@@ -34,6 +37,27 @@ func _ready() -> void:
 	_name_edit.text = Session.get_player_name()
 	_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_row.add_child(_name_edit)
+
+	# Лобби Steam — только если установлен аддон GodotSteam.
+	_steam_box = UiUtil.vbox(6)
+	root.add_child(_steam_box)
+	_steam_box.add_child(UiUtil.label("NET_STEAM_LOBBIES", &"DimLabel"))
+	_steam_list = ItemList.new()
+	_steam_list.custom_minimum_size = Vector2(0, 120)
+	_steam_list.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_steam_list.item_activated.connect(func(index: int) -> void: _join_lobby(index))
+	_steam_box.add_child(_steam_list)
+	var steam_row := UiUtil.hbox(8)
+	_steam_box.add_child(steam_row)
+	steam_row.add_child(UiUtil.button("NET_STEAM_JOIN", func() -> void:
+		var selected := _steam_list.get_selected_items()
+		if not selected.is_empty():
+			_join_lobby(selected[0])))
+	steam_row.add_child(UiUtil.button("NET_STEAM_REFRESH", func() -> void:
+		var lobbies := Session.get_lobbies()
+		if lobbies != null:
+			lobbies.refresh()))
+	_steam_box.visible = false
 
 	root.add_child(UiUtil.label("NET_FOUND", &"DimLabel"))
 	_list = ItemList.new()
@@ -74,6 +98,55 @@ func _ready() -> void:
 	Session.discovery.listen()
 	Session.discovery.refresh()
 	Session.net.notice.connect(_on_notice)
+	_setup_steam()
+
+
+## Steam: поднимаем API и подписываемся на список лобби, если аддон установлен.
+func _setup_steam() -> void:
+	if not SteamService.has_addon() or not SteamService.start():
+		return
+	var lobbies := Session.get_lobbies()
+	if lobbies == null:
+		return
+	_steam_box.visible = true
+	if not lobbies.listed.is_connected(_on_lobbies):
+		lobbies.listed.connect(_on_lobbies)
+	if not lobbies.entered.is_connected(_on_lobby_entered):
+		lobbies.entered.connect(_on_lobby_entered)
+	if not SteamService.self_name().is_empty():
+		_name_edit.text = SteamService.self_name()
+	lobbies.refresh()
+
+
+func _on_lobbies(list: Array) -> void:
+	_lobbies = list
+	_steam_list.clear()
+	for entry in list:
+		var lobby: Dictionary = entry
+		_steam_list.add_item("%s (%d)" % [String(lobby.get("name", "?")), int(lobby.get("players", 1))])
+	if list.is_empty():
+		_status.text = tr("NET_STEAM_EMPTY")
+
+
+func _join_lobby(index: int) -> void:
+	if index < 0 or index >= _lobbies.size():
+		return
+	var lobbies := Session.get_lobbies()
+	if lobbies == null:
+		return
+	Session.player_name = _name_edit.text.strip_edges()
+	_status.text = tr("NET_CONNECTING") % String((_lobbies[index] as Dictionary).get("name", "?"))
+	lobbies.join(int((_lobbies[index] as Dictionary).get("id", 0)))
+
+
+## Вошли в лобби: хост известен, дальше — обычное подключение, но транспортом Steam.
+func _on_lobby_entered(_lobby_id: int, host_steam_id: int) -> void:
+	if host_steam_id == 0 or host_steam_id == SteamService.self_id():
+		return
+	if Session.net.join_run(str(host_steam_id), 0, Session.get_player_name(), SteamTransport.new()):
+		Session.net.run_replaced.connect(_on_run_ready, CONNECT_ONE_SHOT)
+	else:
+		_status.text = tr("NET_CONNECT_FAILED")
 
 
 func _exit_tree() -> void:

@@ -13,6 +13,8 @@ var _saves: SavesScreen
 ## Текущий забег (для сохранения).
 var run: Run
 var _net_button: Button
+var _steam_button: Button
+var _invite_button: Button
 var _net_status: Label
 
 
@@ -44,6 +46,13 @@ func _ready() -> void:
 	column.add_child(UiUtil.button("MENU_SETTINGS", _open_settings))
 	_net_button = UiUtil.button("PAUSE_HOST", _toggle_host)
 	column.add_child(_net_button)
+	_steam_button = UiUtil.button("PAUSE_HOST_STEAM", _toggle_steam_host)
+	column.add_child(_steam_button)
+	_invite_button = UiUtil.button("PAUSE_STEAM_INVITE", func() -> void:
+		var lobbies := Session.get_lobbies()
+		if lobbies != null:
+			lobbies.invite_overlay())
+	column.add_child(_invite_button)
 	_net_status = Label.new()
 	_net_status.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	_net_status.theme_type_variation = &"DimLabel"
@@ -71,21 +80,28 @@ func _ready() -> void:
 	_saves_holder.add_child(_saves)
 
 
-## Открыть текущий забег для сети или закрыть его.
+## Открыть текущий забег по локальной сети (или закрыть сетевую игру).
 func _toggle_host() -> void:
+	_host_or_close(false)
+
+
+## Открыть текущий забег через Steam: друзья увидят лобби и смогут зайти по приглашению.
+func _toggle_steam_host() -> void:
+	_host_or_close(true)
+
+
+func _host_or_close(use_steam: bool) -> void:
 	if Session.net.is_networked():
 		Session.net.close()
 		if Session.discovery != null:
 			Session.discovery.stop()
+		if Session.lobbies != null:
+			Session.lobbies.leave()
 		_refresh_net()
 		return
 	if run == null:
 		return
-	if Session.net.host_run(run, NetProtocol.DEFAULT_PORT):
-		if Session.discovery == null:
-			Session.discovery = LanDiscovery.new()
-		Session.discovery.serve(Session.get_player_name(), NetProtocol.DEFAULT_PORT)
-		Session.discovery.set_players(run.players.size())
+	Session.host_run(run, use_steam)
 	_refresh_net()
 
 
@@ -94,6 +110,9 @@ func _refresh_net() -> void:
 		return
 	var net := Session.net
 	_net_button.text = "PAUSE_NET_CLOSE" if net.is_networked() else "PAUSE_HOST"
+	_steam_button.visible = SteamService.has_addon() and not net.is_networked()
+	_invite_button.visible = SteamService.has_addon() and net.role == NetSession.Role.HOST \
+		and Session.lobbies != null and Session.lobbies.current_lobby != 0
 	if net.role == NetSession.Role.HOST:
 		_net_status.text = tr("NET_HOSTING") % NetProtocol.DEFAULT_PORT
 	elif net.role == NetSession.Role.CLIENT:
