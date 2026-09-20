@@ -61,11 +61,13 @@ static func start() -> bool:
 		_status = "no_addon"
 		return false
 	# steam_appid.txt рядом с игрой нужен, когда игра запущена не из Steam.
+	# В GodotSteam 4.22 — steamInitEx(app_id, embed_callbacks); embed_callbacks = true просит
+	# аддон самому крутить обратные вызовы Steam.
 	var result: Variant = null
 	if steam.has_method("steamInitEx"):
-		result = steam.call("steamInitEx", true, app_id(), true)
+		result = steam.call("steamInitEx", app_id(), true)
 	elif steam.has_method("steamInit"):
-		result = steam.call("steamInit", true, app_id(), true)
+		result = steam.call("steamInit", app_id(), true)
 	else:
 		_status = "no_init"
 		return false
