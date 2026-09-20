@@ -237,6 +237,9 @@ func _build_scene() -> void:
 
 	drone_controller = DroneController.new()
 	drone_controller.name = "DroneController"
+	# Раньше часов (у них -100): иначе нажатие, сделанное в этом кадре, попадёт в симуляцию
+	# только со следующего — лишний тик задержки на ровном месте.
+	drone_controller.process_priority = -200
 	add_child(drone_controller)
 	drone_controller.setup(run.drone, world)
 	run.players_changed.connect(_on_players_changed)

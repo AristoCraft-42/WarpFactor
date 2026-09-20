@@ -78,6 +78,15 @@ var _no_self_polls: int = 0
 ## Клиент: списки команд, пришедшие раньше снимка мира. Порядок доставки транспорты
 ## не гарантируют, а выбросить их нельзя — без них в подтверждении будет дырка.
 var _early_ticks: Array[Dictionary] = []
+## Сколько тиков на самом деле проходит от отдачи команды до её применения.
+##
+## Мерится по своим же командам, а не считается по формуле: в задержку входит и планирование
+## хоста (команда попадает в первый ещё не разосланный тик, а это input_delay + 1), и дорога
+## по сети, и собственное отставание клиента. Упреждение отрисовки обязано знать её точно —
+## иначе дрон на экране трогается, упирается в край упреждения и ждёт, а это и есть рывок.
+var _measured_delay: float = float(NetProtocol.INPUT_DELAY) + 1.0
+## Свои отданные команды: номер → тик, в котором их отдали.
+var _sent_at: Dictionary[int, int] = {}
 ## Клиент: целевой запас тиков. Растёт, когда клиент упирается в ожидание (связь неровная),
 ## и медленно оседает обратно — так игра сама подстраивается под качество канала.
 var _buffer_target: float = float(NetProtocol.CLIENT_BUFFER)
@@ -156,6 +165,8 @@ func close() -> void:
 	_pending.clear()
 	_received_ticks.clear()
 	_early_ticks.clear()
+	_sent_at.clear()
+	_measured_delay = float(NetProtocol.INPUT_DELAY) + 1.0
 	_gap_polls = 0
 	_no_self_polls = 0
 	_peers.clear()
@@ -232,9 +243,18 @@ func buffer_target() -> float:
 ## Через сколько тиков применится команда, отданная прямо сейчас. Нужно только отрисовке:
 ## свой дрон рисуется с упреждением ровно на это время.
 func predicted_delay() -> int:
-	if role != Role.CLIENT:
-		return input_delay
-	return input_delay + maxi(ready_ticks(), 0)
+	return maxi(int(round(_measured_delay)), 1)
+
+
+## Заметить, за сколько тиков наша команда дошла до применения.
+func _note_delay(cmd: Command, at_tick: int) -> void:
+	if run == null or cmd.player != run.local_player or not _sent_at.has(cmd.seq):
+		return
+	var measured := float(at_tick - _sent_at[cmd.seq])
+	_sent_at.erase(cmd.seq)
+	if measured < 0.0 or measured > 120.0:
+		return
+	_measured_delay = lerpf(_measured_delay, measured, 0.3)
 
 
 ## За какого игрока мы должны играть (у клиента — выданный хостом id, у хоста — 1).
@@ -321,6 +341,7 @@ func _plan_ticks() -> void:
 		_planned.erase(_next_plan_tick - HISTORY)
 		if not batch.is_empty():
 			for cmd in batch:
+				_note_delay(cmd, _next_plan_tick)
 				run.commands.submit_at(cmd, _next_plan_tick)
 		transport.broadcast(NetProtocol.pack(NetProtocol.Kind.TICK, {"t": _next_plan_tick, "c": raw}))
 		confirmed_tick = _next_plan_tick
@@ -348,6 +369,12 @@ func after_step() -> void:
 
 ## Куда уходит команда игрока вместо прямой очереди забега.
 func _route_command(cmd: Command) -> void:
+	# Сравниваем с забегом, а не с выданным id: в творческом режиме хост может играть
+	# за любого из своих игроков.
+	if run != null and cmd.player == run.local_player:
+		if _sent_at.size() > 64:
+			_sent_at.clear()
+		_sent_at[cmd.seq] = run.get_tick()
 	if role == Role.HOST:
 		_pending.append(cmd)
 	elif role == Role.CLIENT:
@@ -510,6 +537,7 @@ func _handle_tick(message: Dictionary) -> void:
 	if tick <= confirmed_tick or _received_ticks.has(tick):
 		return
 	for cmd in NetProtocol.commands_from_array(message.get("c", [])):
+		_note_delay(cmd as Command, tick)
 		run.commands.submit_at(cmd as Command, tick)
 	_received_ticks[tick] = true
 	# Подтверждаем только подряд идущие тики. Перепрыгнуть пропущенный список нельзя:

@@ -17,7 +17,13 @@ const BEAM_COLOR := Color(0.99, 0.5, 0.1, 0.9)
 const TURN_SPEED := 14.0
 ## Насколько быстро сглаживается оценка задержки в тиках (1/с): сама она скачет на тик
 ## туда-сюда вместе с сетью, и без сглаживания упреждение дёргалось бы вместе с ней.
-const DELAY_SMOOTH := 4.0
+## Медленно нарочно: пока упреждение подстраивается, дрон на экране идёт быстрее настоящего,
+## и чем дольше размазана подстройка, тем меньше это заметно.
+const DELAY_SMOOTH := 1.5
+## Дальше этого упреждение не растёт. Оно живёт, только пока держишь клавишу, и на стоящем дроне
+## сходит в ноль, — но на совсем плохой связи рисовать дрона в трёх тайлах от настоящего места
+## уже вредно: у края радиуса строительства клик не пройдёт там, где его ждут.
+const PREDICT_MAX_TICKS := 10.0
 
 var _run: Run
 var _world: GameWorld
@@ -76,7 +82,12 @@ func _update_prediction(delta: float) -> void:
 	if local != null and local.drone != null and Session.net.is_networked():
 		var drone := local.drone
 		speed = drone.get_speed_per_tick() * float(GameConst.TICK_RATE)
-		_delay_ticks = lerpf(_delay_ticks, float(Session.net.predicted_delay()),
+		var want := float(Session.net.predicted_delay())
+		# В первый раз берём значение сразу: плавный разгон с нуля означал бы, что первые
+		# полсекунды в сетевой игре упреждения почти нет — то есть ровно тот рывок, от которого
+		# оно и спасает.
+		want = minf(want, PREDICT_MAX_TICKS)
+		_delay_ticks = want if _delay_ticks <= 0.0 else lerpf(_delay_ticks, want,
 			1.0 - exp(-delta * DELAY_SMOOTH))
 		if not drone.dead and drone.local_input != Vector2.ZERO:
 			target = drone.local_input.limit_length(1.0) * drone.get_speed_per_tick() * _delay_ticks

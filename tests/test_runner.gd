@@ -121,6 +121,7 @@ func _ready() -> void:
 	_test_snapshot_determinism()
 	_test_net_lost_tick()
 	_test_net_lost_player_add()
+	_test_net_input_delay()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -3055,6 +3056,81 @@ func _test_steam_big_packet() -> void:
 	host.close()
 	client.close()
 	SteamService.override_api(null, false)
+
+## Упреждение отрисовки обязано знать настоящую задержку ввода, а не константу из протокола.
+##
+## Команда попадает не в тик «сейчас + input_delay», а в первый ещё не разосланный тик —
+## это на единицу больше; у клиента к этому добавляется дорога по сети и его собственное
+## отставание. Если упреждение короче настоящей задержки, дрон на экране трогается, упирается
+## в край упреждения и ждёт — это и есть рывок в начале движения.
+func _test_net_input_delay() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 30)
+
+	# Хост: сколько тиков на самом деле проходит от команды до её применения.
+	var host_player: Player = host_run.players[0]
+	var sent := host_run.get_tick()
+	host_run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT})
+	var applied := -1
+	for i in 30:
+		host.poll()
+		client.poll()
+		if host.can_step():
+			var before := host_run.get_tick()
+			host_run.step()
+			host.after_step()
+			if applied < 0 and host_player.drone.move_input == Vector2.RIGHT:
+				applied = before
+		if client.can_step():
+			client.run.step()
+			client.after_step()
+	_check(applied > 0, "команда хоста применилась")
+	_check(applied - sent > NetProtocol.INPUT_DELAY,
+		"настоящая задержка больше константы протокола (%d против %d)" % [applied - sent, NetProtocol.INPUT_DELAY])
+	_check(host.predicted_delay() == applied - sent,
+		"хост предсказывает свою задержку точно (%d при настоящей %d)" % [host.predicted_delay(), applied - sent])
+	print("tests ..   задержка ввода: хост %d тиков" % (applied - sent))
+
+	# Клиент: то же самое, но через сеть — у него задержка своя и больше.
+	var mate_id := client.run.local_player
+	var mate := client.run.get_player(mate_id)
+	if mate == null:
+		host.close()
+		client.close()
+		host_run.dispose()
+		return
+	var sent_client := client.run.get_tick()
+	client.run.submit(Command.Kind.MOVE, {"dir": Vector2.LEFT})
+	var applied_client := -1
+	for i in 40:
+		host.poll()
+		client.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+		client.poll()
+		if client.can_step():
+			var before := client.run.get_tick()
+			client.run.step()
+			client.after_step()
+			if applied_client < 0 and mate.drone.move_input == Vector2.LEFT:
+				applied_client = before
+	_check(applied_client > 0, "команда клиента применилась у него же")
+	_check(absi(client.predicted_delay() - (applied_client - sent_client)) <= 1,
+		"клиент предсказывает свою задержку точно (%d при настоящей %d)"
+		% [client.predicted_delay(), applied_client - sent_client])
+	print("tests ..   задержка ввода: клиент %d тиков" % (applied_client - sent_client))
+	host.close()
+	client.close()
+	host_run.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:
