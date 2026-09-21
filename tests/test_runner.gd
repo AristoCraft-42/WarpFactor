@@ -134,6 +134,7 @@ func _ready() -> void:
 	_test_net_lost_tick()
 	_test_net_lost_player_add()
 	_test_net_input_delay()
+	_test_prediction_follows_input()
 	_test_net_creative_give()
 	_test_ui_does_not_touch_world()
 	_test_net_pending_join_dropped()
@@ -3440,6 +3441,29 @@ func _test_steam_mixed_guests() -> void:
 	near.close()
 	far.close()
 	SteamService.override_api(null, false)
+
+## Упреждение своего дрона: нарисованное положение (настоящее + упреждение) в любой тик совпадает
+## с тем, где дрон был бы без задержки ввода, — и на старте, и на развороте, и на остановке.
+## Прежнее упреждение на развороте при задержке 10 тиков стояло ~330 мс, а потом мчалось вдвое.
+func _test_prediction_follows_input() -> void:
+	var delay := 10
+	var speed := 5.0
+	var inputs: Array[Vector2] = []
+	for t in 80:
+		inputs.append(Vector2.RIGHT if t < 20 else (Vector2.LEFT if t < 45 else (Vector2.UP if t < 50 else Vector2.ZERO)))
+	var history: Array = []
+	var ideal := Vector2.ZERO
+	var real := Vector2.ZERO
+	var worst := 0.0
+	for t in 80:
+		# Нажатие в тик t: для отрисовки — сразу, для симуляции — через задержку.
+		if history.is_empty() or not (history.back()[1] as Vector2).is_equal_approx(inputs[t]):
+			history.append([float(t), inputs[t]])
+		var drawn := real + DroneView.prediction_offset(history, float(t), float(delay), speed)
+		worst = maxf(worst, drawn.distance_to(ideal))
+		ideal += inputs[t] * speed
+		real += (inputs[t - delay] if t >= delay else Vector2.ZERO) * speed
+	_check(worst < 0.001, "упреждение ведёт дрона ровно по нажатиям (расхождение %.2f px)" % worst)
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:

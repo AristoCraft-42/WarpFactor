@@ -483,6 +483,14 @@ func _build_ghosts() -> void:
 	var link := mode == Mode.PLACE and place_def is LogisticDef and (place_def as LogisticDef).link_range > 0
 	if not places.is_empty():
 		_world.submit(Command.Kind.BUILD, {"places": places, "link_bridges": link, "config": place_config})
+		# В сетевой игре здание встанет, только когда команда вернётся от хоста: до тех пор
+		# на его месте висит отметка, чтобы было видно, что клик принят.
+		if Session.net.is_networked() and _preview != null:
+			var sent: Array[PlacementPreview.Ghost] = []
+			for g in _ghosts:
+				if g.check == BuildingManager.Check.OK or g.check == BuildingManager.Check.REPLACE:
+					sent.append(g)
+			_preview.add_pending(sent, _world)
 	if link and place_def != null and place_def.line_placement and _ghosts.size() > 1:
 		rotation = last_rotation
 

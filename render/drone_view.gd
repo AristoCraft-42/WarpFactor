@@ -23,7 +23,7 @@ const DELAY_SMOOTH := 1.5
 ## Дальше этого упреждение не растёт. Оно живёт, только пока держишь клавишу, и на стоящем дроне
 ## сходит в ноль, — но на совсем плохой связи рисовать дрона в трёх тайлах от настоящего места
 ## уже вредно: у края радиуса строительства клик не пройдёт там, где его ждут.
-const PREDICT_MAX_TICKS := 10.0
+const PREDICT_MAX_TICKS := 16.0
 
 var _run: Run
 var _world: GameWorld
@@ -34,6 +34,8 @@ var _angles: Dictionary[int, float] = {}
 var _time: float = 0.0
 ## Текущее смещение упреждения для своего дрона.
 var _predict: Vector2 = Vector2.ZERO
+## Нажатия своего дрона: [момент в тиках симуляции, направление], по возрастанию момента.
+var _inputs: Array = []
 ## Сглаженная оценка задержки в тиках.
 var _delay_ticks: float = 0.0
 ## Дрон, который рисуется прямо сейчас (у отрисовки много мелких шагов, чтобы не таскать его всюду).
@@ -66,36 +68,62 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-## Сколько пикселей своего дрона «дорисовать» вперёд: столько, сколько он пролетит за время,
-## пока команда движения ждёт своего тика.
+## Сколько пикселей своего дрона «дорисовать» вперёд: туда, где он окажется, когда применятся
+## все уже отданные команды движения.
 ##
-## Упреждение растёт и тает ровно со скоростью самого дрона — это важно. Тогда в момент нажатия
-## клавиши дрон на экране трогается сразу и ровно с настоящей скоростью, а к тому времени,
-## когда команда применится, упреждение уже набрано целиком и стыка не видно. При отпускании
-## наоборот: на экране дрон встаёт сразу, а упреждение тает ровно настолько, насколько
-## настоящий дрон ещё пролетает по инерции очереди команд. Любое другое сглаживание даёт рывок
-## в первый миг движения — дрон сначала обгоняет сам себя, потом притормаживает.
+## Команда, отданная сейчас, применится через задержку ввода D тиков, а всё, что было нажато
+## за последние D тиков, настоящий дрон ещё только пролетит. Поэтому упреждение — это сумма
+## нажатий за последние D тиков, умноженная на скорость. Так дрон на экране в любой момент
+## летит ровно туда, куда нажато, и ровно с настоящей скоростью — и при старте, и при развороте,
+## и при остановке.
+##
+## Прежнее упреждение («направление × скорость × D», доводимое с постоянной скоростью) верно
+## только для старта и остановки с места. На развороте при задержке 10 тиков дрон на экране
+## стоял ~330 мс, а потом столько же мчался с двойной скоростью — на каждой смене направления.
+##
+## Время считается в тиках симуляции (тик + доля до следующего): пауза, скорость игры и
+## подстройка темпа клиента учитываются сами.
 func _update_prediction(delta: float) -> void:
-	var target := Vector2.ZERO
-	var speed := 0.0
 	var local := _run.get_local_player()
-	if local != null and local.drone != null and Session.net.is_networked():
-		var drone := local.drone
-		speed = drone.get_speed_per_tick() * float(GameConst.TICK_RATE)
-		var want := float(Session.net.predicted_delay())
-		# В первый раз берём значение сразу: плавный разгон с нуля означал бы, что первые
-		# полсекунды в сетевой игре упреждения почти нет — то есть ровно тот рывок, от которого
-		# оно и спасает.
-		want = minf(want, PREDICT_MAX_TICKS)
-		_delay_ticks = want if _delay_ticks <= 0.0 else lerpf(_delay_ticks, want,
-			1.0 - exp(-delta * DELAY_SMOOTH))
-		if not drone.dead and drone.local_input != Vector2.ZERO:
-			target = drone.local_input.limit_length(1.0) * drone.get_speed_per_tick() * _delay_ticks
-	if speed <= 0.0:
+	if local == null or local.drone == null or local.drone.dead or local.drone.world == null 			or not Session.net.is_networked():
 		_predict = Vector2.ZERO
 		_delay_ticks = 0.0
+		_inputs.clear()
 		return
-	_predict = _predict.move_toward(target, speed * delta)
+	var drone := local.drone
+	var want := minf(float(Session.net.predicted_delay()), PREDICT_MAX_TICKS)
+	# В первый раз берём значение сразу: плавный разгон с нуля означал бы, что первые
+	# полсекунды в сетевой игре упреждения почти нет.
+	_delay_ticks = want if _delay_ticks <= 0.0 else lerpf(_delay_ticks, want,
+		1.0 - exp(-delta * DELAY_SMOOTH))
+	var now := float(_run.get_tick()) + _clock.alpha
+	# Мир заменили снимком (починка) — старая история к нему не относится.
+	if not _inputs.is_empty() and float(_inputs.back()[0]) > now:
+		_inputs.clear()
+	var dir := drone.local_input.limit_length(1.0)
+	if _inputs.is_empty() or not (_inputs.back()[1] as Vector2).is_equal_approx(dir):
+		_inputs.append([now, dir])
+	_predict = prediction_offset(_inputs, now, _delay_ticks, drone.get_speed_per_tick())
+	# Дрон не вылетает за открытую часть мира — и упреждение тоже.
+	var base := drone.get_draw_position(_clock.alpha)
+	var bounds := drone.world.get_play_rect_px()
+	_predict = (base + _predict).clamp(bounds.position, bounds.end) - base
+
+
+## Сумма нажатий за окно [now − window, now], умноженная на скорость в пикселях за тик.
+## history — [момент, направление] по возрастанию; всё, что целиком старше окна, выбрасывается
+## (последнее нажатие до начала окна остаётся — оно действует в его начале).
+static func prediction_offset(history: Array, now: float, window: float, speed_per_tick: float) -> Vector2:
+	var start := now - window
+	while history.size() > 1 and float(history[1][0]) <= start:
+		history.pop_front()
+	var sum := Vector2.ZERO
+	for i in history.size():
+		var from := maxf(float(history[i][0]), start)
+		var to := float(history[i + 1][0]) if i + 1 < history.size() else now
+		if to > from:
+			sum += (history[i][1] as Vector2) * (to - from)
+	return sum * speed_per_tick
 
 
 ## Текущее упреждение своего дрона: на столько же смещается камера, чтобы дрон не уезжал от центра.

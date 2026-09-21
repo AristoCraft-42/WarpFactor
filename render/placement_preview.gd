@@ -33,6 +33,35 @@ var _area_rect: Rect2i = Rect2i()
 var _area_targets: Array[Building] = []
 var _hover: Building
 var _selected: Building
+## Сетевая игра: поставленное, но ещё не построенное — команда идёт до хоста и обратно
+## сотни миллисекунд, и без отметки клик выглядит так, будто не сработал.
+## Каждый элемент: {"ghost": Ghost, "world": GameWorld, "until": мс}.
+var _pending: Array = []
+## Сколько ждать постройку, прежде чем убрать отметку (не хватило предметов, место заняли).
+const PENDING_MSEC := 3000
+
+
+func add_pending(ghosts: Array[Ghost], world: GameWorld) -> void:
+	var until := Time.get_ticks_msec() + PENDING_MSEC
+	for g in ghosts:
+		_pending.append({"ghost": g, "world": world, "until": until})
+	queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	if _pending.is_empty():
+		return
+	var now := Time.get_ticks_msec()
+	var before := _pending.size()
+	_pending = _pending.filter(func(entry: Dictionary) -> bool:
+		var g: Ghost = entry["ghost"]
+		var world: GameWorld = entry["world"]
+		if now > int(entry["until"]) or world == null or world.buildings == null:
+			return false
+		var built := world.buildings.get_at(g.origin)
+		return built == null or built.def != g.def)
+	if _pending.size() != before or not _pending.is_empty():
+		queue_redraw()
 
 
 func set_ghosts(ghosts: Array[Ghost]) -> void:
@@ -124,6 +153,11 @@ func _draw() -> void:
 				BuildingLayer.draw_building(self, g.def, g.origin, g.rotation, Color(1.0, 0.45, 0.4, 0.45))
 				draw_rect(rect, Color(COLOR_INVALID, 0.18), true)
 				draw_rect(rect.grow(-1.0), COLOR_INVALID, false, 2.0)
+
+	for entry in _pending:
+		var g: Ghost = entry["ghost"]
+		BuildingLayer.draw_building(self, g.def, g.origin, g.rotation, Color(1, 1, 1, 0.35))
+		draw_rect(Rect2(Vector2(g.origin) * t, g.def.get_pixel_size()).grow(-1.0), Color(COLOR_VALID, 0.5), false, 1.0)
 
 	if _area_rect.size != Vector2i.ZERO:
 		var r := Rect2(Vector2(_area_rect.position) * t, Vector2(_area_rect.size) * t)
