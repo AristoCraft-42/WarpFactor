@@ -837,6 +837,11 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 	_setup_threat(fresh, node, fresh.simulation.tick)
 	old.dispose()
 	planet = fresh
+	# Новая планета должна знать, чей дрон «свой»: иначе интерфейс покажет дрона по умолчанию —
+	# первого игрока. У клиента это был хост: инвентарь на экране чужой, а тратится свой.
+	var me := get_player(local_player)
+	if me != null:
+		fresh.view_drone = me.drone
 	_pairing_suspended = false
 	relink_lifts()
 	# Лифты этажа, чья пара не переехала (не поместилась на площадке), убираются.

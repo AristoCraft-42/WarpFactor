@@ -297,6 +297,8 @@ func _net_time_scale() -> float:
 func _net_step() -> void:
 	run.step()
 	Session.net.after_step()
+	if drone_view != null:
+		drone_view.after_tick()
 
 
 ## Время общее: свою паузу и скорость отправляем всем, чужие принимаем молча.

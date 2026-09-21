@@ -96,6 +96,25 @@ var _early_ticks: Array[Dictionary] = []
 var _measured_delay: float = float(NetProtocol.INPUT_DELAY) + 1.0
 ## Свои отданные команды: номер → тик, в котором их отдали.
 var _sent_at: Dictionary[int, int] = {}
+## Свои команды движения, ещё не применённые: номер → тик применения (−1 — ещё не известен).
+var _move_pending: Dictionary[int, int] = {}
+## Хост: команды гостей, назначенные на будущие тики (тик → команды).
+var _scheduled: Dictionary[int, Array] = {}
+## Хост: на какой тик легла последняя команда игрока — следующая не может лечь раньше,
+## иначе порядок его команд переставится.
+var _last_tick_of: Dictionary[int, int] = {}
+## Гость: запас в тиках, с которым он назначает свои команды («применить на тике сейчас + K»).
+##
+## Зачем. Раньше команды гостя шли «как можно скорее», и каждая доходила со своей задержкой:
+## старт — за 8 тиков, стоп — за 12, и дрон в симуляции пролетал на 4 тика дальше, чем была нажата
+## клавиша. Никакая отрисовка этого не скроет — мир действительно сдвинул дрона дальше, и
+## нарисованный дрон в конце движения откидывало вперёд, в начале — назад. С одинаковым запасом
+## для всех команд длительность движения в симуляции в точности равна длительности нажатия.
+var _lead_k: int = 0
+## Гость: как рано хост мог бы применить его команды (среднее и разброс, в тиках от отдачи).
+var _asap_mean: float = -1.0
+var _asap_dev: float = 0.0
+var _lead_lowered_msec: int = 0
 ## Клиент: целевой запас тиков. Растёт, когда клиент упирается в ожидание (связь неровная),
 ## и медленно оседает обратно — так игра сама подстраивается под качество канала.
 var _buffer_target: float = float(NetProtocol.CLIENT_BUFFER)
@@ -182,6 +201,12 @@ func close() -> void:
 	_received_ticks.clear()
 	_early_ticks.clear()
 	_sent_at.clear()
+	_move_pending.clear()
+	_scheduled.clear()
+	_last_tick_of.clear()
+	_lead_k = 0
+	_asap_mean = -1.0
+	_asap_dev = 0.0
 	_measured_delay = float(NetProtocol.INPUT_DELAY) + 1.0
 	_gap_polls = 0
 	_no_self_polls = 0
@@ -259,18 +284,67 @@ func buffer_target() -> float:
 ## Через сколько тиков применится команда, отданная прямо сейчас. Нужно только отрисовке:
 ## свой дрон рисуется с упреждением ровно на это время.
 func predicted_delay() -> int:
+	if role == Role.CLIENT and _lead_k > 0:
+		return _lead_k
 	return maxi(int(round(_measured_delay)), 1)
+
+
+## Есть ли свои команды движения, которые ещё не применились (в пути к хосту или ждут тика).
+## Отрисовке: пока такие есть, разница между нажатым и сделанным — законная, гасить её нельзя.
+func has_pending_moves() -> bool:
+	if run == null or _move_pending.is_empty():
+		return false
+	var now := run.get_tick()
+	for seq in _move_pending.keys():
+		var at := int(_move_pending[seq])
+		if at >= 0 and at < now:
+			_move_pending.erase(seq)
+	return not _move_pending.is_empty()
 
 
 ## Заметить, за сколько тиков наша команда дошла до применения.
 func _note_delay(cmd: Command, at_tick: int) -> void:
+	if run != null and cmd.player == run.local_player and _move_pending.has(cmd.seq):
+		_move_pending[cmd.seq] = at_tick
 	if run == null or cmd.player != run.local_player or not _sent_at.has(cmd.seq):
 		return
-	var measured := float(at_tick - _sent_at[cmd.seq])
+	var sent: int = _sent_at[cmd.seq]
+	var measured := float(at_tick - sent)
 	_sent_at.erase(cmd.seq)
 	if measured < 0.0 or measured > 120.0:
 		return
 	_measured_delay = lerpf(_measured_delay, measured, 0.3)
+	if role == Role.CLIENT and cmd.earliest >= 0:
+		_update_lead(cmd.earliest - sent)
+
+
+## Гость подбирает запас по тому, как рано хост мог бы применить его команду: среднее плюс
+## два разброса и тик сверху. Поднимается сразу (опоздавшая команда — это рывок), опускается
+## по тику раз в 5 секунд: каждая смена запаса между стартом и стопом — лишний тик полёта.
+func _update_lead(asap: int) -> void:
+	var a := float(asap)
+	if _asap_mean < 0.0:
+		_asap_mean = a
+		_asap_dev = 1.0
+	else:
+		var diff := a - _asap_mean
+		_asap_mean += diff * 0.15
+		_asap_dev = lerpf(_asap_dev, absf(diff), 0.15)
+	var want := clampi(ceili(_asap_mean + 2.0 * _asap_dev + 1.0), NetProtocol.INPUT_DELAY + 1, NetProtocol.MAX_LEAD_TICKS)
+	if _lead_k > 0 and asap > _lead_k:
+		want = clampi(asap + 1, want, NetProtocol.MAX_LEAD_TICKS)
+	if want > _lead_k:
+		NetLog.write("сессия", "запас команд: %d → %d тик. (хост мог бы за %d, среднее %.1f ± %.1f)" % [_lead_k, want, asap, _asap_mean, _asap_dev])
+		_lead_k = want
+	elif want < _lead_k and Time.get_ticks_msec() - _lead_lowered_msec > 5000:
+		_lead_lowered_msec = Time.get_ticks_msec()
+		NetLog.write("сессия", "запас команд: %d → %d тик." % [_lead_k, _lead_k - 1])
+		_lead_k -= 1
+
+
+## Запас, с которым гость назначает свои команды (0 — ещё не подобран, команды идут как можно скорее).
+func command_lead() -> int:
+	return _lead_k
 
 
 ## За какого игрока мы должны играть (у клиента — выданный хостом id, у хоста — 1).
@@ -396,12 +470,32 @@ func _ensure_local_player() -> void:
 		_request_resync()
 
 
+## Хост: команда гостя легла в план. target — тик, на который гость её назначил (−1 — как можно
+## скорее). Раньше ближайшего незапланированного тика и раньше прошлой команды этого же игрока
+## положить нельзя; опоздавшая команда идёт как можно скорее — гость по earliest поднимет запас.
+func _accept_command(cmd: Command, target: int) -> void:
+	cmd.earliest = _next_plan_tick
+	var at := maxi(maxi(target, _next_plan_tick), int(_last_tick_of.get(cmd.player, 0)))
+	_last_tick_of[cmd.player] = at
+	if target >= 0 and target < _next_plan_tick:
+		NetLog.write("сессия", "команда игрока %d опоздала на %d тик. — применю как можно скорее" % [cmd.player, _next_plan_tick - target])
+	if at <= _next_plan_tick:
+		_pending.append(cmd)
+	else:
+		var list: Array = _scheduled.get(at, [])
+		list.append(cmd)
+		_scheduled[at] = list
+
+
 ## Хост планирует тики вперёд: собирает накопленные команды и рассылает окончательный список.
 func _plan_ticks() -> void:
 	var horizon := run.get_tick() + input_delay
 	while _next_plan_tick <= horizon:
 		var batch := _pending
 		_pending = []
+		if _scheduled.has(_next_plan_tick):
+			batch.append_array(_scheduled[_next_plan_tick])
+			_scheduled.erase(_next_plan_tick)
 		var raw := NetProtocol.commands_to_array(batch)
 		_planned[_next_plan_tick] = raw
 		_planned.erase(_next_plan_tick - HISTORY)
@@ -441,14 +535,20 @@ func _route_command(cmd: Command) -> void:
 		if _sent_at.size() > 64:
 			_sent_at.clear()
 		_sent_at[cmd.seq] = run.get_tick()
+		if cmd.kind == Command.Kind.MOVE:
+			if _move_pending.size() > 64:
+				_move_pending.clear()
+			_move_pending[cmd.seq] = -1
 	_log_sent += 1
 	if cmd.kind != Command.Kind.MOVE or role == Role.CLIENT:
 		NetLog.write("сессия", "моя команда %s #%d игрока %d на тике %d%s" % [NetLog.kind_name(cmd.kind), cmd.seq, cmd.player, run.get_tick() if run != null else -1, _args_brief(cmd)])
 	if role == Role.HOST:
 		_pending.append(cmd)
 	elif role == Role.CLIENT:
-		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.COMMANDS,
-			{"c": NetProtocol.commands_to_array([cmd])}))
+		var body := {"c": NetProtocol.commands_to_array([cmd])}
+		if run != null and _lead_k > 0:
+			body["t"] = run.get_tick() + _lead_k
+		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.COMMANDS, body))
 
 
 ## Коротко об аргументах команды для журнала.
@@ -532,7 +632,7 @@ func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 					var expected := int((_peers.get(peer_id, {}) as Dictionary).get("player", -1))
 					# Игрок может отдавать команды только за себя.
 					if command.player == expected:
-						_pending.append(command)
+						_accept_command(command, int(message.get("t", -1)))
 						_log_accepted += 1
 						NetLog.write("сессия", "команда участника %d: %s #%d игрока %d, пойдёт на тик %d%s" % [peer_id, NetLog.kind_name(command.kind), command.seq, command.player, _next_plan_tick, _args_brief(command)])
 					else:
@@ -670,6 +770,7 @@ func _handle_tick(message: Dictionary) -> void:
 ## считается предыдущий тик. Всё остальное подтвердят пришедшие следом пакеты TICK.
 func _reset_confirmation(snapshot_tick: int) -> void:
 	confirmed_tick = snapshot_tick - 1
+	_move_pending.clear()
 	_received_ticks.clear()
 	_gap_polls = 0
 	_no_self_polls = 0

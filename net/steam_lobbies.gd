@@ -12,6 +12,9 @@ const KEY_NAME := "name"
 const KEY_PLAYERS := "players"
 ## Доступны ли хосту ретрансляторы Valve: "1" или "0". Нет ключа — старая сборка, считаем «да».
 const KEY_RELAY := "relay"
+## SteamID хоста строкой. getLobbyOwner отвечает только участникам лобби, а в списке мы ещё
+## не участники — там он всегда 0, поэтому хозяина хост пишет в данные лобби сам.
+const KEY_HOST := "host"
 const GAME_TAG := "warpfactor"
 ## Тип лобби: 2 — публичное (ELobbyType.LOBBY_TYPE_PUBLIC).
 const LOBBY_PUBLIC := 2
@@ -91,6 +94,7 @@ func _on_lobby_created(status: int, lobby_id: int) -> void:
 		_steam.call("setLobbyData", lobby_id, KEY_GAME, GAME_TAG)
 		_steam.call("setLobbyData", lobby_id, KEY_NAME, _pending_title)
 		_steam.call("setLobbyData", lobby_id, KEY_PLAYERS, str(_pending_players))
+		_steam.call("setLobbyData", lobby_id, KEY_HOST, str(SteamService.self_id()))
 		set_relay(SteamService.relay_status() == 100)
 	hosted.emit(lobby_id)
 
@@ -117,10 +121,8 @@ func _on_lobby_list(lobbies: Array) -> void:
 			"id": lobby_id,
 			"name": _lobby_data(lobby_id, KEY_NAME),
 			"players": _lobby_data(lobby_id, KEY_PLAYERS).to_int(),
-			"host": _lobby_owner(lobby_id),
+			"host": _lobby_data(lobby_id, KEY_HOST).to_int(),
 		})
-	# Лобби без хозяина (он только что ушёл, Steam ещё не убрал его из списка) — войти некуда.
-	out = out.filter(func(entry: Dictionary) -> bool: return int(entry["host"]) != 0)
 	for entry in out:
 		NetLog.write("лобби", "  лобби %d «%s», хозяин %d, игроков %d" % [int(entry["id"]), String(entry["name"]), int(entry["host"]), int(entry["players"])])
 	listed.emit(out)

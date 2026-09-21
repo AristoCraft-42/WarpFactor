@@ -60,6 +60,7 @@ func _ready() -> void:
 	_test_planet_generator()
 	_test_building_state_roundtrip()
 	_test_teleport()
+	_test_teleport_keeps_own_drone()
 	_test_save_roundtrip_and_determinism()
 	_test_save_remap()
 	_test_save_files()
@@ -135,6 +136,7 @@ func _ready() -> void:
 	_test_net_lost_player_add()
 	_test_net_input_delay()
 	_test_prediction_follows_input()
+	_test_net_command_lead()
 	_test_net_creative_give()
 	_test_ui_does_not_touch_world()
 	_test_net_pending_join_dropped()
@@ -3141,7 +3143,12 @@ func _test_net_input_delay() -> void:
 		client.close()
 		host_run.dispose()
 		return
+	# Первая команда гостя идёт «как можно скорее» и по ней он подбирает запас; дальше его
+	# команды ложатся ровно через этот запас — его и должно показывать упреждение.
+	client.run.submit(Command.Kind.MINE, {"tile": Drone.NO_TILE})
+	_net_run(host, host_run, client, 12)
 	var sent_client := client.run.get_tick()
+	var lead_used := client.command_lead()
 	client.run.submit(Command.Kind.MOVE, {"dir": Vector2.LEFT})
 	var applied_client := -1
 	for i in 40:
@@ -3158,9 +3165,9 @@ func _test_net_input_delay() -> void:
 			if applied_client < 0 and mate.drone.move_input == Vector2.LEFT:
 				applied_client = before
 	_check(applied_client > 0, "команда клиента применилась у него же")
-	_check(absi(client.predicted_delay() - (applied_client - sent_client)) <= 1,
-		"клиент предсказывает свою задержку точно (%d при настоящей %d)"
-		% [client.predicted_delay(), applied_client - sent_client])
+	_check(lead_used > 0 and applied_client - sent_client == lead_used,
+		"команда клиента легла ровно через его запас (%d при запасе %d)"
+		% [applied_client - sent_client, lead_used])
 	print("tests ..   задержка ввода: клиент %d тиков" % (applied_client - sent_client))
 	host.close()
 	client.close()
@@ -3443,27 +3450,136 @@ func _test_steam_mixed_guests() -> void:
 	SteamService.override_api(null, false)
 
 ## Упреждение своего дрона: нарисованное положение (настоящее + упреждение) в любой тик совпадает
-## с тем, где дрон был бы без задержки ввода, — и на старте, и на развороте, и на остановке.
-## Прежнее упреждение на развороте при задержке 10 тиков стояло ~330 мс, а потом мчалось вдвое.
+## с тем, где дрон был бы без задержки, — на старте, развороте, короткой «тычке» и остановке.
+## Если же команда легла не через обычный запас (запас сменился, команда опоздала), дрон в мире
+## и правда пролетел иначе — тогда нарисованный плавно, без скачков, сходится к настоящему.
 func _test_prediction_follows_input() -> void:
-	var delay := 10
 	var speed := 5.0
-	var inputs: Array[Vector2] = []
-	for t in 80:
-		inputs.append(Vector2.RIGHT if t < 20 else (Vector2.LEFT if t < 45 else (Vector2.UP if t < 50 else Vector2.ZERO)))
-	var history: Array = []
+	var pressed: Array[Vector2] = []
+	for t in 120:
+		pressed.append(Vector2.RIGHT if t < 20 else (Vector2.LEFT if t < 45 else (Vector2.UP if t < 50
+			else (Vector2.ZERO if t < 70 else (Vector2.DOWN if t < 72 else Vector2.ZERO)))))
+	var exact := _drive_prediction(pressed, [10], speed)
+	_check(exact[0] < 0.001, "при постоянном запасе упреждение ведёт дрона ровно по нажатиям (расхождение %.2f px)" % exact[0])
+	_check(exact[2] == Vector2.ZERO, "в покое упреждение гаснет до нуля")
+	var uneven := _drive_prediction(pressed, [10, 11, 10, 13, 10, 10, 12], speed)
+	_check(uneven[2] == Vector2.ZERO, "при сбитом запасе упреждение всё равно гаснет в покое")
+	_check(uneven[1] <= speed * 1.6, "и сходится к настоящему дрону без скачков (шаг %.1f px при скорости %.1f)" % [uneven[1], speed])
+	# Между тиками: в начале отрезка — положение прошлого тика, в конце — этого.
+	_check(DroneView.lead_at(Vector2(10, 0), Vector2(5, 0), 0.0) == Vector2(5, 0)
+		and DroneView.lead_at(Vector2(10, 0), Vector2(5, 0), 1.0) == Vector2(10, 0), "плавно между тиками")
+
+
+## Прогон упреждения: каждое изменение нажатия доходит до мира со своей задержкой (по кругу из
+## delays), по порядку и каждое в свой тик. Возвращает [худшее расхождение с игрой без задержки,
+## самый большой шаг нарисованного дрона за тик, упреждение в конце].
+func _drive_prediction(pressed: Array[Vector2], delays: Array, speed: float) -> Array:
+	var changes: Array = []
+	var ready := 0
+	for t in pressed.size():
+		if t == 0 or not pressed[t].is_equal_approx(pressed[t - 1]):
+			ready = maxi(ready + 1, t + int(delays[changes.size() % delays.size()]))
+			changes.append([ready, pressed[t]])
+	var lead := Vector2.ZERO
 	var ideal := Vector2.ZERO
 	var real := Vector2.ZERO
+	var applied := Vector2.ZERO
 	var worst := 0.0
-	for t in 80:
-		# Нажатие в тик t: для отрисовки — сразу, для симуляции — через задержку.
-		if history.is_empty() or not (history.back()[1] as Vector2).is_equal_approx(inputs[t]):
-			history.append([float(t), inputs[t]])
-		var drawn := real + DroneView.prediction_offset(history, float(t), float(delay), speed)
+	var step := 0.0
+	var drawn_before := Vector2.ZERO
+	for t in pressed.size():
+		var pending := false
+		for change in changes:
+			if int(change[0]) == t:
+				applied = change[1]
+			elif int(change[0]) > t:
+				pending = true
+		var moved := applied * speed
+		real += moved
+		ideal += pressed[t] * speed
+		lead = DroneView.advance_lead(lead, pressed[t] * speed, moved,
+			pressed[t] == Vector2.ZERO and applied == Vector2.ZERO and not pending)
+		var drawn := real + lead
 		worst = maxf(worst, drawn.distance_to(ideal))
-		ideal += inputs[t] * speed
-		real += (inputs[t - delay] if t >= delay else Vector2.ZERO) * speed
-	_check(worst < 0.001, "упреждение ведёт дрона ровно по нажатиям (расхождение %.2f px)" % worst)
+		step = maxf(step, drawn.distance_to(drawn_before))
+		drawn_before = drawn
+	return [worst, step, lead]
+
+## Гость назначает команды на тик «сейчас + запас»: старт и стоп ложатся ровно через одинаковый
+## запас, и дрон в симуляции летит ровно столько тиков, сколько была нажата клавиша. Раньше
+## каждая команда шла «как можно скорее» со своей задержкой, и дрон пролетал лишнее.
+func _test_net_command_lead() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 20)
+	# Разогрев: несколько команд, по которым гость подберёт запас.
+	for i in 6:
+		client.run.submit(Command.Kind.MINE, {"tile": Drone.NO_TILE})
+		_net_run(host, host_run, client, 6)
+	var lead := client.command_lead()
+	_check(lead > NetProtocol.INPUT_DELAY, "гость подобрал запас команд (%d тик.)" % lead)
+	var mate_id := client.run.local_player
+	var at_host := host_run.get_player(mate_id)
+	var changes: Array[int] = []
+	var last := Vector2.ZERO
+	var start_tick := -1
+	var stop_tick := -1
+	for i in 120:
+		if i == 5:
+			start_tick = client.run.get_tick()
+			client.run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT})
+		if i == 35:
+			stop_tick = client.run.get_tick()
+			client.run.submit(Command.Kind.MOVE, {"dir": Vector2.ZERO})
+		host.poll()
+		client.poll()
+		if host.can_step():
+			var before := host_run.get_tick()
+			host_run.step()
+			host.after_step()
+			if at_host.drone.move_input != last:
+				last = at_host.drone.move_input
+				changes.append(before)
+		client.poll()
+		if client.can_step():
+			client.run.step()
+			client.after_step()
+	_check(changes.size() == 2, "у хоста дрон гостя тронулся и встал (%s)" % str(changes))
+	if changes.size() == 2:
+		_check(changes[1] - changes[0] == stop_tick - start_tick,
+			"летел ровно столько, сколько нажато (%d тиков из %d)" % [changes[1] - changes[0], stop_tick - start_tick])
+		_check(changes[0] - start_tick == client.command_lead(), "команда легла ровно через запас (%d из %d)"
+			% [changes[0] - start_tick, client.command_lead()])
+	host.close()
+	client.close()
+	host_run.dispose()
+
+
+
+
+## После телепорта интерфейс по-прежнему смотрит на своего дрона. Новая планета создаётся заново,
+## и без этого мир показывал дрона по умолчанию — первого игрока: у гостя на экране был инвентарь
+## хоста, хотя тратил он из своего.
+func _test_teleport_keeps_own_drone() -> void:
+	var run := Run.create_new(4242, false)
+	run.execute(Command.make(Command.Kind.PLAYER_ADD, 1, {"name": "Гость", "id": 2}))
+	run.set_local_player(2)
+	var guest := run.get_player(2)
+	_check(guest != null and run.planet.drone == guest.drone, "до телепорта мир смотрит на дрона гостя")
+	var next := run.star_map.get_next()
+	run.start_teleport(next[0].id)
+	for i in run.run_def.get_charge_ticks():
+		run.step()
+	_check(guest != null and guest.drone.world == run.planet, "гость переехал на новую планету")
+	_check(guest != null and run.planet.drone == guest.drone, "после телепорта мир смотрит на дрона гостя, а не хоста")
+	run.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:

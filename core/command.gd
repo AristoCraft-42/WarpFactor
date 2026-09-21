@@ -41,6 +41,9 @@ var player: int = 0
 ## Номер команды игрока: вместе с player задаёт порядок применения.
 var seq: int = 0
 var args: Dictionary = {}
+## Сетевая игра: самый ранний тик, на который хост мог бы положить команду гостя в момент её прихода
+## (−1 — не сетевая). Гость по нему подбирает запас, с которым назначает свои команды.
+var earliest: int = -1
 
 
 static func make(p_kind: Kind, p_player: int, p_args: Dictionary = {}) -> Command:
@@ -59,7 +62,10 @@ static func before(a: Command, b: Command) -> bool:
 
 
 func to_dict() -> Dictionary:
-	return {"k": int(kind), "p": player, "s": seq, "a": args}
+	var d := {"k": int(kind), "p": player, "s": seq, "a": args}
+	if earliest >= 0:
+		d["e"] = earliest
+	return d
 
 
 static func from_dict(d: Dictionary) -> Command:
@@ -68,6 +74,7 @@ static func from_dict(d: Dictionary) -> Command:
 	cmd.player = int(d.get("p", 0))
 	cmd.seq = int(d.get("s", 0))
 	cmd.args = d.get("a", {})
+	cmd.earliest = int(d.get("e", -1))
 	return cmd
 
 
