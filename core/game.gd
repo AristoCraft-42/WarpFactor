@@ -62,6 +62,12 @@ func _ready() -> void:
 		run = Session.net.run
 		_start()
 		return
+	# Дальше — только своя игра (новая, загрузка, уровень). Клиентская сессия, если она ещё
+	# висит, к ней отношения не имеет: оставить её — и все команды новой игры уйдут чужому хосту.
+	if Session.net.role == NetSession.Role.CLIENT:
+		Session.net.close()
+		if Session.lobbies != null:
+			Session.lobbies.leave()
 	var args := OS.get_cmdline_user_args()
 	for arg in args:
 		if arg.begins_with("--load="):

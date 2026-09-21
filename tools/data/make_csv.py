@@ -412,6 +412,7 @@ rows = [
 ("NET_STEAM_EMPTY","No open Steam games found","Открытых игр в Steam не нашлось"),
 ("PAUSE_HOST_STEAM","Open through Steam","Открыть через Steam"),
 ("PAUSE_STEAM_INVITE","Invite friends","Пригласить друзей"),
+("NET_JOIN_TIMEOUT","The host's world never arrived — connection closed. Try again","Мир хоста так и не пришёл — подключение закрыто. Попробуйте ещё раз"),
 ("NET_LOST_TICK","A command packet was lost — asking the host for a fresh world","Потерялся пакет с командами — запрашиваем свежий мир у хоста"),
 ("NET_DESYNC_PART","Diverged: %s","Разошлось: %s"),
 ("NET_CAUGHT_UP","You fell behind — the host sent a fresh world","Вы отстали — хост прислал свежий мир"),

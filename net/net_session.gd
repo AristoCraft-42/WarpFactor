@@ -67,6 +67,8 @@ var _late_checksums: Array[Dictionary] = []
 ## Клиент: id игрока, за которого играем, и ожидание снимка.
 var _local_player: int = 0
 var _waiting_snapshot: bool = false
+## Клиент: когда началось подключение (мс) — чтобы не ждать мир хоста вечно.
+var _join_started_msec: int = 0
 ## Клиент: на каком тике последний раз просили снимок (чтобы не просить его каждый кадр).
 var _resync_asked: int = -1000000
 ## Клиент: пришедшие списки команд, которые ещё нельзя подтвердить — ждут предыдущих тиков.
@@ -144,6 +146,7 @@ func join_run(address: String, port: int, name: String, p_transport: NetTranspor
 		return false
 	role = Role.CLIENT
 	_waiting_snapshot = true
+	_join_started_msec = Time.get_ticks_msec()
 	_connect_transport()
 	state_changed.emit()
 	return true
@@ -274,6 +277,14 @@ func poll() -> void:
 	if transport == null:
 		return
 	transport.poll()
+	if role == Role.CLIENT and run == null:
+		# Вход так и не завершился. Висящая попытка хуже закрытой: она считается «сетевой игрой»,
+		# и следующая своя игра подключилась бы к чужому хосту вместо того, чтобы идти самой.
+		if transport != null and Time.get_ticks_msec() - _join_started_msec > NetProtocol.JOIN_TIMEOUT_MS:
+			last_error = "timeout"
+			close()
+			notice.emit(tr("NET_JOIN_TIMEOUT"))
+		return
 	if role == Role.CLIENT:
 		_ensure_local_player()
 		_ask_resync_if_lost()

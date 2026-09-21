@@ -32,6 +32,7 @@ enum Kind {
 	CREATIVE_THREAT,   ## творческий режим: включить или выключить волны (args.on)
 	RESEARCH_RESET,    ## творческий режим: пройти дерево заново
 	RESEARCH_UNLOCK,   ## творческий режим: открыть всё
+	CREATIVE_GIVE,     ## творческий режим: взять предметы из ничего (args.item, args.count)
 }
 
 var kind: Kind = Kind.MOVE

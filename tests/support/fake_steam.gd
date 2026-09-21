@@ -20,6 +20,8 @@ var closed: PackedInt64Array = PackedInt64Array()
 var sent: int = 0
 ## Сколько сообщений не ушло из-за предела в мегабайт.
 var too_big: int = 0
+## Сколько следующих отправок отвергнуть, как настоящий Steam при полном буфере.
+var refuse_next: int = 0
 
 
 func getSteamID() -> int:
@@ -45,6 +47,9 @@ const MAX_MESSAGE := 1048576
 func sendP2PPacket(steam_id: int, data: PackedByteArray, _send_type: int, _channel: int) -> bool:
 	if data.size() > MAX_MESSAGE:
 		too_big += 1
+		return false
+	if refuse_next > 0:
+		refuse_next -= 1
 		return false
 	var box: Array = mail.get(steam_id, [])
 	box.append({"remote_steam_id": active, "data": data.duplicate()})

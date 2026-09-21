@@ -122,6 +122,9 @@ func _ready() -> void:
 	_test_net_lost_tick()
 	_test_net_lost_player_add()
 	_test_net_input_delay()
+	_test_net_creative_give()
+	_test_ui_does_not_touch_world()
+	_test_net_pending_join_dropped()
 	_test_power_window()
 	print("=== Проверок: %d, провалов: %d ===" % [_checks, _failures])
 	get_tree().quit(1 if _failures > 0 else 0)
@@ -3053,6 +3056,24 @@ func _test_steam_big_packet() -> void:
 	fake.active = mate_id
 	client.poll()
 	_check(got[0] == pattern, "обычные пакеты ходят как раньше")
+
+	# Steam отказался принять часть кусков (полный буфер отправки). Раньше они терялись навсегда:
+	# снимок не собирался, и клиент вечно ждал мир хоста.
+	var order: Array[int] = []
+	client.packet_received.connect(func(_peer: int, data: PackedByteArray) -> void: order.append(data.size()))
+	fake.refuse_next = 3
+	fake.active = host_id
+	host.broadcast(big)
+	host.broadcast(pattern)
+	_check(host.pending_packets() > 0, "отвергнутые пакеты ждут в очереди (%d)" % host.pending_packets())
+	for i in 20:
+		fake.active = host_id
+		host.poll()
+		fake.active = mate_id
+		client.poll()
+	_check(host.pending_packets() == 0, "очередь отправки опустела")
+	_check(order.size() == 2 and order[0] == big.size() and order[1] == pattern.size(),
+		"после отказа Steam всё дошло и по порядку (%s)" % str(order))
 	host.close()
 	client.close()
 	SteamService.override_api(null, false)
@@ -3130,6 +3151,105 @@ func _test_net_input_delay() -> void:
 	print("tests ..   задержка ввода: клиент %d тиков" % (applied_client - sent_client))
 	host.close()
 	client.close()
+	host_run.dispose()
+
+## Творческий режим: взять предметы «из ничего» — это команда, а не правка своего инвентаря.
+## Раньше клиент клал их себе напрямую: у хоста их не было, отпечаток «игроки» расходился,
+## и каждые пять секунд хост присылал свой мир — предметы пропадали, сцена пересобиралась.
+func _test_net_creative_give() -> void:
+	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
+	var host_run := Run.create(null, map, true)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 20)
+	var belt := Registry.get_building(&"conveyor").item.index
+	var mine := client.run.get_player(client.run.local_player)
+	var before := mine.drone.inventory.count(belt)
+	client.run.submit(Command.Kind.CREATIVE_GIVE, {"item": belt, "count": 50})
+	_net_run(host, host_run, client, 20)
+	var at_host := host_run.get_player(mine.id)
+	_check(mine.drone.inventory.count(belt) == before + 50, "клиент получил предметы (%d)"
+		% mine.drone.inventory.count(belt))
+	_check(at_host != null and at_host.drone.inventory.count(belt) == before + 50,
+		"и хост видит у клиента те же предметы")
+	_check(host_run.players[0].drone.inventory.count(belt) == 0, "хосту чужие предметы не достались")
+	_check(host.last_desync.is_empty(), "расхождения нет (%s)" % host.last_desync)
+	# Не в творческом режиме команда ничего не даёт.
+	var plain := Run.create(null, map, false)
+	plain.execute(Command.make(Command.Kind.CREATIVE_GIVE, plain.local_player, {"item": belt, "count": 5}))
+	_check(plain.drone.inventory.count(belt) == 0, "вне творческого режима предметы из ничего не берутся")
+	plain.dispose()
+	host.close()
+	client.close()
+	host_run.dispose()
+
+
+## Интерфейс не имеет права менять мир мимо команд: в сетевой игре такая правка случится только
+## у себя, и мир разойдётся. Проверяем исходники: так ловится весь класс ошибок, а не один случай.
+func _test_ui_does_not_touch_world() -> void:
+	var forbidden := [".inventory.add(", ".inventory.remove(", ".inventory.clear(", ".move_input = "]
+	var found := PackedStringArray()
+	for dir_path in ["res://ui", "res://render"]:
+		for path in _gd_files(dir_path):
+			var text := FileAccess.get_file_as_string(path)
+			var lines := text.split("\n")
+			for i in lines.size():
+				var line := lines[i].strip_edges()
+				if line.begins_with("#"):
+					continue
+				for bad in forbidden:
+					if line.contains(bad) and not line.contains("_drone.move_input = dir"):
+						found.append("%s:%d" % [path.get_file(), i + 1])
+	_check(found.is_empty(), "интерфейс не меняет инвентарь и движение напрямую (%s)" % ", ".join(found))
+
+
+func _gd_files(dir_path: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	var dir := DirAccess.open(dir_path)
+	if dir == null:
+		return out
+	for sub in dir.get_directories():
+		out.append_array(_gd_files(dir_path.path_join(sub)))
+	for file in dir.get_files():
+		if file.ends_with(".gd"):
+			out.append(dir_path.path_join(file))
+	return out
+
+
+## Попытка входа, которая не получила мир хоста, не должна пережить уход с экрана подключения.
+## Раньше она оставалась «сетевой игрой», и следующая своя игра цеплялась к ней: двигаться было
+## нельзя, а смена скорости уходила чужому хосту.
+func _test_net_pending_join_dropped() -> void:
+	var host_transport := LoopbackTransport.make_host()
+	var client_transport := LoopbackTransport.connect_client(host_transport, 2)
+	_check(Session.net.join_run("", 0, "Гость", client_transport), "подключение началось")
+	# Хост молчит — мир не приходит.
+	for i in 10:
+		Session.net.poll()
+	_check(Session.net.role == NetSession.Role.CLIENT and Session.net.run == null, "вход висит без мира")
+	Session.drop_pending_join()
+	_check(not Session.net.is_networked(), "висящая попытка закрыта")
+	# А настоящую сетевую игру (мир уже пришёл) эта же функция не трогает.
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host := NetSession.new()
+	var h2 := LoopbackTransport.make_host()
+	host.host_run(host_run, 0, h2)
+	_check(Session.net.join_run("", 0, "Гость", LoopbackTransport.connect_client(h2, 2)), "второе подключение")
+	for i in 40:
+		host.poll()
+		Session.net.poll()
+		if Session.net.run != null:
+			break
+	Session.drop_pending_join()
+	_check(Session.net.is_networked() and Session.net.run != null, "вошедшего клиента не выкидывает")
+	Session.net.close()
+	host.close()
 	host_run.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).

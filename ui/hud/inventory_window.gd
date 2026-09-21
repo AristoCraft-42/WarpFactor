@@ -345,7 +345,7 @@ func _on_recipe_clicked(button: MouseButton, shift: bool, recipe: HandRecipe) ->
 		Events.toast(tr("TOAST_LOCKED") % _research_name(recipe), Events.ToastKind.WARNING)
 		return
 	if _world.creative:
-		_drone.inventory.add(recipe.output.index, recipe.amount * count)
+		_world.submit(Command.Kind.CREATIVE_GIVE, {"item": recipe.output.index, "count": recipe.amount * count})
 		return
 	if _drone.crafting.max_craftable(recipe, count) == 0:
 		Events.toast(tr("TOAST_CANNOT_CRAFT") % tr(recipe.output.name_key), Events.ToastKind.WARNING)

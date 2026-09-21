@@ -494,6 +494,10 @@ func _run_command(cmd: Command, player: Player, actor: Drone, world: GameWorld) 
 		Command.Kind.RESEARCH_UNLOCK:
 			research.unlock_everything()
 			apply_research_effects()
+		Command.Kind.CREATIVE_GIVE:
+			var item := int(args.get("item", -1))
+			if world.creative and item >= 0 and item < Registry.stack_sizes.size():
+				actor.inventory.add(item, clampi(int(args.get("count", 1)), 1, 1000))
 
 
 ## Постройка списком: одно действие игрока (клик или протягивание) — одна команда.

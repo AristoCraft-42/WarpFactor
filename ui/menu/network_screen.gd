@@ -143,9 +143,9 @@ func _join_lobby(index: int) -> void:
 func _on_lobby_entered(_lobby_id: int, host_steam_id: int) -> void:
 	if host_steam_id == 0 or host_steam_id == SteamService.self_id():
 		return
-	# Своя игра уже идёт (мы хост или уже подключились) — входить второй раз нельзя:
-	# join_run закрыл бы текущую сессию, а повторный вход просто дублировал бы подписку.
-	if Session.net.is_networked():
+	# Своя игра уже идёт (мы хост или уже в чужом мире) — входить второй раз нельзя.
+	# А незавершённую попытку, наоборот, надо дать повторить: join_run сам её закроет.
+	if Session.net.is_host() or Session.net.run != null:
 		return
 	if Session.net.join_run(str(host_steam_id), 0, Session.get_player_name(), SteamTransport.new()):
 		if not Session.net.run_replaced.is_connected(_on_run_ready):
@@ -157,6 +157,8 @@ func _on_lobby_entered(_lobby_id: int, host_steam_id: int) -> void:
 func _exit_tree() -> void:
 	if Session.discovery != null:
 		Session.discovery.stop()
+	# Ушли с экрана, так и не войдя: попытку закрываем, чтобы она не прицепилась к своей игре.
+	Session.drop_pending_join()
 
 
 func _process(delta: float) -> void:

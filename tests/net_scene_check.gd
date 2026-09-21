@@ -144,6 +144,8 @@ func _soak() -> void:
 			waves += 1
 			_host_run.submit(Command.Kind.CREATIVE_WAVE)
 			_game.run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT if waves % 2 == 0 else Vector2.LEFT})
+			# Творческая выдача предметов клиентом — раньше именно она ломала игру каждые 5 секунд.
+			_game.run.submit(Command.Kind.CREATIVE_GIVE, {"item": Registry.get_building(&"conveyor").item.index, "count": 10})
 	_expect(waves >= 3, "за прогон позвано волн: %d" % waves)
 	_expect(_host_run.planet.enemies.spawned > 0, "враги появились (%d)" % _host_run.planet.enemies.spawned)
 	_expect(Session.net.repairs == 0, "за %.0f с игры ни одной починки снимком (%d)"

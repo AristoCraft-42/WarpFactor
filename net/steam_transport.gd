@@ -14,7 +14,10 @@ const CHUNK_MARK := "\u0002WFCH"
 ## Сколько байт влезает в один пакет Steam. У старого P2P жёсткий предел в мегабайт на сообщение,
 ## а снимок мира растёт вместе с фабрикой: без нарезки он в какой-то момент просто перестаёт
 ## доходить, и починка мира молча ломается — снаружи это выглядит как «клиент застрял».
-const MAX_PACKET := 400000
+const MAX_PACKET := 100000
+## Сколько байт отдавать Steam за один опрос. Буфер отправки у него ограничен: если вывалить
+## снимок мира целиком, часть кусков будет отвергнута. Остальное ждёт в очереди следующего опроса.
+const SEND_PER_POLL := 400000
 ## Надёжная доставка с гарантией порядка (P2PSend.P2P_SEND_RELIABLE).
 const SEND_RELIABLE := 2
 ## Служебный пакет: «твой номер участника такой-то».
@@ -33,6 +36,13 @@ var _host_steam: int = 0
 ## Сборка больших сообщений: "steam_id:номер" → {"n": сколько кусков, "parts": куски по индексу}.
 var _assembly: Dictionary = {}
 var _next_message: int = 1
+## Очередь исходящих на каждого собеседника: SteamID → пакеты по порядку.
+##
+## Steam может отказаться принять пакет (буфер отправки полон — так бывает, когда снимок мира
+## идёт кусками). Раньше отказ не проверялся, и кусок терялся навсегда: снимок не собирался,
+## клиент вечно ждал мир хоста. Отвергнутый пакет и всё, что после него, ждут следующего опроса;
+## обгонять его нельзя — порядок у протокола важен.
+var _outbox: Dictionary = {}
 
 
 func _init() -> void:
@@ -95,6 +105,7 @@ func poll() -> void:
 	if not _active or _steam == null:
 		return
 	SteamService.poll()
+	_flush_all()
 	while true:
 		var size := int(_steam.call("getAvailableP2PPacketSize", CHANNEL)) if _steam.has_method("getAvailableP2PPacketSize") else 0
 		if size <= 0:
@@ -187,30 +198,63 @@ func broadcast(data: PackedByteArray) -> void:
 func _send_raw(steam_id: int, data: PackedByteArray) -> void:
 	if _steam == null or steam_id == 0 or not _steam.has_method("sendP2PPacket"):
 		return
+	var queue: Array = _outbox.get(steam_id, [])
 	if data.size() > MAX_PACKET:
-		_send_chunked(steam_id, data)
-		return
-	_steam.call("sendP2PPacket", steam_id, data, SEND_RELIABLE, CHANNEL)
+		queue.append_array(_chunks_of(data))
+	else:
+		queue.append(data)
+	_outbox[steam_id] = queue
+	_flush(steam_id)
 
 
-## Большое сообщение уходит кусками с общим номером; собеседник соберёт его обратно.
-func _send_chunked(steam_id: int, data: PackedByteArray) -> void:
+## Большое сообщение — кусками с общим номером; собеседник соберёт его обратно.
+func _chunks_of(data: PackedByteArray) -> Array:
 	var message_id := _next_message
 	_next_message += 1
 	var total := int(ceil(float(data.size()) / float(MAX_PACKET)))
 	var head := CHUNK_MARK.to_utf8_buffer()
+	var out: Array = []
 	for i in total:
 		var from := i * MAX_PACKET
 		var packet := head.duplicate()
 		packet.append_array(var_to_bytes([message_id, i, total,
 			data.slice(from, mini(from + MAX_PACKET, data.size()))]))
-		_steam.call("sendP2PPacket", steam_id, packet, SEND_RELIABLE, CHANNEL)
+		out.append(packet)
+	return out
+
+
+## Отдать Steam пакеты из очереди по порядку, пока он их принимает и пока не исчерпан объём опроса.
+func _flush(steam_id: int) -> void:
+	var queue: Array = _outbox.get(steam_id, [])
+	var budget := SEND_PER_POLL
+	while not queue.is_empty() and budget > 0:
+		var packet: PackedByteArray = queue[0]
+		if not bool(_steam.call("sendP2PPacket", steam_id, packet, SEND_RELIABLE, CHANNEL)):
+			break
+		queue.pop_front()
+		budget -= packet.size()
+	if queue.is_empty():
+		_outbox.erase(steam_id)
+
+
+func _flush_all() -> void:
+	for steam_id in _outbox.keys():
+		_flush(int(steam_id))
+
+
+## Сколько пакетов ещё ждут отправки (для отладки и тестов).
+func pending_packets() -> int:
+	var total := 0
+	for steam_id in _outbox:
+		total += (_outbox[steam_id] as Array).size()
+	return total
 
 
 func _forget(peer_id: int) -> void:
 	var steam_id := int(_by_peer.get(peer_id, 0))
 	_by_peer.erase(peer_id)
 	_by_steam.erase(steam_id)
+	_outbox.erase(steam_id)
 	if _steam != null and _steam.has_method("closeP2PSessionWithUser") and steam_id != 0:
 		_steam.call("closeP2PSessionWithUser", steam_id)
 
@@ -223,6 +267,7 @@ func close() -> void:
 	_by_peer.clear()
 	_by_steam.clear()
 	_assembly.clear()
+	_outbox.clear()
 	_active = false
 	_local_id = 0
 	_host_steam = 0

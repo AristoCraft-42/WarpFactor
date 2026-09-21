@@ -94,6 +94,16 @@ func host_run(run: Run, use_steam: bool) -> bool:
 	return true
 
 
+## Попытка входа, которая так и не получила мир хоста, — закрыть. Иначе она живёт дальше,
+## и следующая своя игра подключилась бы к ней: команды и скорость уходили бы чужому хосту.
+func drop_pending_join() -> void:
+	if net.role != NetSession.Role.CLIENT or net.run != null:
+		return
+	net.close()
+	if lobbies != null:
+		lobbies.leave()
+
+
 func exit_to_menu() -> void:
 	net.close()
 	if lobbies != null:

@@ -153,7 +153,9 @@ func _on_building_input(event: InputEvent, def: BuildingDef, button: Button) -> 
 		return
 	var count := 5 if mb.shift_pressed else 1
 	if _world.creative:
-		_world.drone.inventory.add(def.item.index, recipe.amount * count)
+		# Командой, а не напрямую: в сетевой игре предметы иначе появились бы только у себя,
+		# хост увидел бы расхождение и каждые пять секунд присылал бы свой мир обратно.
+		_world.submit(Command.Kind.CREATIVE_GIVE, {"item": def.item.index, "count": recipe.amount * count})
 	elif _world.drone.crafting.max_craftable(recipe, count) == 0:
 		Events.toast(tr("TOAST_CANNOT_CRAFT") % tr(def.name_key), Events.ToastKind.WARNING)
 	else:
