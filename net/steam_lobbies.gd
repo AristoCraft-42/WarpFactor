@@ -10,6 +10,8 @@ extends RefCounted
 const KEY_GAME := "game"
 const KEY_NAME := "name"
 const KEY_PLAYERS := "players"
+## Доступны ли хосту ретрансляторы Valve: "1" или "0". Нет ключа — старая сборка, считаем «да».
+const KEY_RELAY := "relay"
 const GAME_TAG := "warpfactor"
 ## Тип лобби: 2 — публичное (ELobbyType.LOBBY_TYPE_PUBLIC).
 const LOBBY_PUBLIC := 2
@@ -89,6 +91,7 @@ func _on_lobby_created(status: int, lobby_id: int) -> void:
 		_steam.call("setLobbyData", lobby_id, KEY_GAME, GAME_TAG)
 		_steam.call("setLobbyData", lobby_id, KEY_NAME, _pending_title)
 		_steam.call("setLobbyData", lobby_id, KEY_PLAYERS, str(_pending_players))
+		set_relay(SteamService.relay_status() == 100)
 	hosted.emit(lobby_id)
 
 
@@ -165,6 +168,25 @@ static func lobby_from_args(args: PackedStringArray) -> int:
 	return 0
 
 
+var _published_relay: int = -1
+
+
+## Хост: сообщить гостям через лобби, доступны ли ему ретрансляторы Valve.
+func set_relay(ok: bool) -> void:
+	if current_lobby == 0 or _steam == null or not _steam.has_method("setLobbyData"):
+		return
+	if _published_relay == int(ok):
+		return
+	_published_relay = int(ok)
+	_steam.call("setLobbyData", current_lobby, KEY_RELAY, "1" if ok else "0")
+	NetLog.write("лобби", "сообщаю гостям: ретрансляторы Valve у меня %s" % ("есть" if ok else "НЕДОСТУПНЫ"))
+
+
+## Гость: доступны ли ретрансляторы Valve у хозяина лобби.
+func lobby_relay(lobby_id: int) -> bool:
+	return _lobby_data(lobby_id, KEY_RELAY) != "0"
+
+
 func leave() -> void:
 	if current_lobby != 0 and _steam != null and _steam.has_method("leaveLobby"):
 		NetLog.write("лобби", "выхожу из лобби %d" % current_lobby)
@@ -172,6 +194,7 @@ func leave() -> void:
 	if current_lobby != 0 and _steam != null and _steam.has_method("clearRichPresence"):
 		_steam.call("clearRichPresence")
 	current_lobby = 0
+	_published_relay = -1
 
 
 ## Доступен ли оверлей Steam. Он появляется только в игре, запущенной самим Steam:

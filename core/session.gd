@@ -121,7 +121,11 @@ func _on_lobby_entered(lobby_id: int, host_steam_id: int) -> void:
 		get_tree().paused = false
 		get_tree().change_scene_to_file(MENU_SCENE)
 	join_status.emit(tr("NET_CONNECTING_HOST"))
-	if net.join_run(str(host_steam_id), 0, get_player_name(), SteamTransport.new()):
+	var transport := SteamTransport.new()
+	transport.host_relay_ok = lobbies.lobby_relay(lobby_id)
+	NetLog.write("лобби", "ретрансляторы Valve: у хоста %s, у меня %s" % [
+		"есть" if transport.host_relay_ok else "нет", SteamService.relay_text(SteamService.relay_status())])
+	if net.join_run(str(host_steam_id), 0, get_player_name(), transport):
 		if not net.run_replaced.is_connected(_on_joined_run):
 			net.run_replaced.connect(_on_joined_run, CONNECT_ONE_SHOT)
 	else:
@@ -148,6 +152,10 @@ func _process(_delta: float) -> void:
 	if lobbies != null and lobbies.current_lobby != 0 and not net.is_networked():
 		NetLog.write("лобби", "сессии нет — выхожу из лобби %d" % lobbies.current_lobby)
 		lobbies.leave()
+	# Хост держит в лобби свежее состояние своих ретрансляторов: сразу после запуска Steam
+	# они ещё «подключаются», и гость, пришедший позже, должен видеть настоящий ответ.
+	elif lobbies != null and lobbies.current_lobby != 0 and net.is_host():
+		lobbies.set_relay(SteamService.relay_status() == 100)
 	if discovery != null:
 		discovery.poll()
 

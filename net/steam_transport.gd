@@ -4,10 +4,13 @@ extends NetTransport
 ## без проброса портов. Реализует тот же интерфейс, что и ENet, — игра разницы не видит.
 ##
 ## Два сетевых интерфейса Steam. Основной — Steam Networking Messages: он сам держит надёжную
-## доставку, ходит через ретрансляторы Valve и переживает смену пути. Старый ISteamNetworking
-## (sendP2PPacket) остался запасным для старых сборок аддона. Он и ломал игру: в журналах двух
-## игроков сессия прыгала между прямой связью и ретранслятором, застрявший пакет не восстанавливался,
-## и за ним вставала вся очередь — мир хоста не доходил, команды клиента после постройки тоже.
+## доставку, ходит через ретрансляторы Valve и переживает смену пути. Но ему нужны ретрансляторы
+## Valve, а у части игроков они недоступны (провайдер режет UDP к Valve, VPN в режиме туннеля) —
+## тогда он не может даже договориться о пути. Старый ISteamNetworking (sendP2PPacket) в этом случае
+## всё-таки соединяет, через сам клиент Steam.
+##
+## Поэтому хост слушает оба интерфейса сразу и отвечает каждому гостю тем, каким тот пришёл,
+## а гость выбирает сам: ретрансляторы Valve доступны — новый интерфейс, нет — старый.
 ##
 ## Свои номера участников. В протоколе участники — маленькие числа (хост всегда 1), а в Steam —
 ## 64-битные SteamID. Транспорт держит перевод между ними: хост раздаёт номера по мере того,
@@ -46,6 +49,8 @@ const RESULT_LIMIT_EXCEEDED := 25
 
 ## Только для тестов: работать через старый интерфейс, даже если есть новый.
 static var prefer_legacy: bool = false
+## Гость: по каким собеседникам какой интерфейс (SteamID → true — Networking Messages).
+## У хоста заполняется по мере того, как гости стучатся тем или другим интерфейсом.
 ## Steam не смог договориться о пути между компьютерами (k_ESteamNetConnectionEnd_Misc_P2P_Rendezvous).
 ## Почти всегда это VPN или прокси в режиме туннеля либо брандмауэр, закрывший игре сеть.
 const END_RENDEZVOUS := 5008
@@ -58,6 +63,12 @@ const ID_MARK := "\u0001WFID"
 var _steam: Object
 ## Работаем через Networking Messages (иначе — через старый sendP2PPacket).
 var _messages: bool = false
+## Есть ли в аддоне новый интерфейс (хост слушает его вместе со старым).
+var _has_messages: bool = false
+var _peer_messages: Dictionary[int, bool] = {}
+## Гость: доступны ли ретрансляторы Valve у хоста (из данных лобби). Новый интерфейс годится,
+## только если они есть у обоих: иначе на стороне хоста он не договорится о пути.
+var host_relay_ok: bool = true
 var _active: bool = false
 var _is_host: bool = false
 var _local_id: int = 0
@@ -88,8 +99,9 @@ var _stat_unknown: int = 0
 
 func _init() -> void:
 	_steam = SteamService.api()
-	_messages = _steam != null and not prefer_legacy and _steam.has_method("sendMessageToUser") \
+	_has_messages = _steam != null and _steam.has_method("sendMessageToUser") \
 		and _steam.has_method("receiveMessagesOnChannel")
+	_messages = _has_messages and not prefer_legacy
 
 
 ## Каким интерфейсом Steam идёт игра — для журнала и тестов.
@@ -118,6 +130,14 @@ func join(address: String, _port: int) -> bool:
 	if _host_steam == 0:
 		NetLog.write("steam", "клиент: неверный SteamID хоста «%s»" % address)
 		return false
+	# Новому интерфейсу нужны ретрансляторы Valve у обоих: без них он даже не договорится о пути.
+	if _messages and SteamService.relay_status() != 100:
+		NetLog.write("steam", "клиент: у меня ретрансляторы Valve недоступны (%s) — подключаюсь старым интерфейсом" % SteamService.relay_text(SteamService.relay_status()))
+		_messages = false
+	elif _messages and not host_relay_ok:
+		NetLog.write("steam", "клиент: у хоста ретрансляторы Valve недоступны — подключаюсь старым интерфейсом")
+		_messages = false
+	_peer_messages[_host_steam] = _messages
 	_active = true
 	_is_host = false
 	_local_id = 0
@@ -135,12 +155,14 @@ func _api_name() -> String:
 func _listen() -> void:
 	if _steam == null:
 		return
-	if _messages:
+	# Хост слушает оба интерфейса, гость — только свой.
+	if _messages or (_is_host and _has_messages):
 		if _steam.has_signal("network_messages_session_request") and not _steam.is_connected("network_messages_session_request", _on_message_session_request):
 			_steam.connect("network_messages_session_request", _on_message_session_request)
 		if _steam.has_signal("network_messages_session_failed") and not _steam.is_connected("network_messages_session_failed", _on_message_session_failed):
 			_steam.connect("network_messages_session_failed", _on_message_session_failed)
-		return
+		if not _is_host:
+			return
 	if _steam.has_signal("p2p_session_request") and not _steam.is_connected("p2p_session_request", _on_session_request):
 		_steam.connect("p2p_session_request", _on_session_request)
 	if _steam.has_signal("p2p_session_connect_fail") and not _steam.is_connected("p2p_session_connect_fail", _on_session_failed):
@@ -250,10 +272,11 @@ func poll() -> void:
 		return
 	SteamService.poll()
 	_flush_all()
-	if _messages:
+	if _messages or (_is_host and _has_messages):
 		_receive_messages()
-		return
-	while true:
+		if not _is_host:
+			return
+	while _active:
 		var size := int(_steam.call("getAvailableP2PPacketSize", CHANNEL)) if _steam.has_method("getAvailableP2PPacketSize") else 0
 		if size <= 0:
 			return
@@ -262,6 +285,7 @@ func poll() -> void:
 			return
 		var from := int((packet as Dictionary).get("remote_steam_id", 0))
 		var data: PackedByteArray = (packet as Dictionary).get("data", PackedByteArray())
+		_note_api(from, false)
 		_stat_received += 1
 		_stat_received_bytes += data.size()
 		_handle(from, data)
@@ -278,9 +302,22 @@ func _receive_messages() -> void:
 			var message: Dictionary = entry
 			var data: PackedByteArray = message.get("payload", PackedByteArray())
 			var from := _steam_id_of(message.get("identity", 0))
+			_note_api(from, true)
 			_stat_received += 1
 			_stat_received_bytes += data.size()
 			_handle(from, data)
+
+
+## Хост запоминает, каким интерфейсом пришёл гость, — им же ему и отвечает.
+func _note_api(steam_id: int, messages: bool) -> void:
+	if not _is_host or steam_id == 0 or _peer_messages.get(steam_id, not messages) == messages:
+		return
+	_peer_messages[steam_id] = messages
+	NetLog.write("steam", "хост: %d пришёл через %s" % [steam_id, "Networking Messages" if messages else "старый P2P"])
+
+
+func _uses_messages_with(steam_id: int) -> bool:
+	return bool(_peer_messages.get(steam_id, _messages)) and _has_messages
 
 
 ## Отправитель сообщения: в GodotSteam 4.x это число, в старых сборках — строка «steamid:…».
@@ -384,8 +421,9 @@ func _send_raw(steam_id: int, data: PackedByteArray) -> void:
 	if _steam == null or steam_id == 0:
 		return
 	var queue: Array = _outbox.get(steam_id, [])
-	if data.size() > _max_packet():
-		var chunks := _chunks_of(data)
+	var size := _max_packet(steam_id)
+	if data.size() > size:
+		var chunks := _chunks_of(data, size)
 		NetLog.write("steam", "большое сообщение для %d: %d КБ, режу на %d кусков" % [steam_id, data.size() / 1024, chunks.size()])
 		queue.append_array(chunks)
 	else:
@@ -395,10 +433,9 @@ func _send_raw(steam_id: int, data: PackedByteArray) -> void:
 
 
 ## Большое сообщение — кусками с общим номером; собеседник соберёт его обратно.
-func _chunks_of(data: PackedByteArray) -> Array:
+func _chunks_of(data: PackedByteArray, size: int) -> Array:
 	var message_id := _next_message
 	_next_message += 1
-	var size := _max_packet()
 	var total := int(ceil(float(data.size()) / float(size)))
 	var head := CHUNK_MARK.to_utf8_buffer()
 	var out: Array = []
@@ -431,13 +468,13 @@ func _flush(steam_id: int) -> void:
 		_outbox.erase(steam_id)
 
 
-func _max_packet() -> int:
-	return MESSAGE_PACKET if _messages else MAX_PACKET
+func _max_packet(steam_id: int) -> int:
+	return MESSAGE_PACKET if _uses_messages_with(steam_id) else MAX_PACKET
 
 
 ## Отдать один пакет Steam. Ответ — как у sendMessageToUser: RESULT_OK или код отказа.
 func _send_one(steam_id: int, packet: PackedByteArray) -> int:
-	if _messages:
+	if _uses_messages_with(steam_id):
 		return int(_steam.call("sendMessageToUser", steam_id, packet, MESSAGE_FLAGS, CHANNEL))
 	if not _steam.has_method("sendP2PPacket"):
 		return 0
@@ -468,9 +505,10 @@ func _forget(peer_id: int) -> void:
 func _close_with(steam_id: int) -> void:
 	if _steam == null or steam_id == 0:
 		return
-	var method := "closeSessionWithUser" if _messages else "closeP2PSessionWithUser"
+	var method := "closeSessionWithUser" if _uses_messages_with(steam_id) else "closeP2PSessionWithUser"
 	if _steam.has_method(method):
 		_steam.call(method, steam_id)
+	_peer_messages.erase(steam_id)
 
 
 func close() -> void:
@@ -482,6 +520,7 @@ func close() -> void:
 	_by_steam.clear()
 	_assembly.clear()
 	_outbox.clear()
+	_peer_messages.clear()
 	_active = false
 	_local_id = 0
 	_host_steam = 0

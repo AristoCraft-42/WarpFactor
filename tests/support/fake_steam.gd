@@ -16,6 +16,9 @@ signal network_messages_session_failed(reason: int, remote_steam_id: int, connec
 var active: int = 0
 ## SteamID → очередь пакетов [{"remote_steam_id": int, "data": PackedByteArray}].
 var mail: Dictionary[int, Array] = {}
+## То же для Networking Messages: у настоящего Steam это разные очереди, и хост, слушая оба
+## интерфейса, не должен забирать письма одного через другой.
+var mail_msg: Dictionary[int, Array] = {}
 ## Кому разрешили сессию (проверка, что транспорт принимает запросы).
 var accepted: PackedInt64Array = PackedInt64Array()
 var closed: PackedInt64Array = PackedInt64Array()
@@ -28,6 +31,12 @@ var refuse_next: int = 0
 ## принимает (sendP2PPacket отвечает true), но они так и не доходят (0 — всё доходит).
 var lose_over: int = 0
 var lost: int = 0
+## Что отвечает getRelayNetworkStatus: 100 — ретрансляторы Valve доступны, −102 — нет.
+var relay: int = 100
+
+
+func getRelayNetworkStatus() -> int:
+	return relay
 
 
 func getSteamID() -> int:
@@ -94,17 +103,22 @@ func sendMessageToUser(steam_id: int, data: PackedByteArray, _flags: int, channe
 	if refuse_next > 0:
 		refuse_next -= 1
 		return 25
-	return 1 if sendP2PPacket(steam_id, data, 2, channel) else 2
+	var legacy := mail
+	mail = mail_msg
+	var ok := sendP2PPacket(steam_id, data, 2, channel)
+	mail_msg = mail
+	mail = legacy
+	return 1 if ok else 2
 
 
 func receiveMessagesOnChannel(_channel: int, max_messages: int) -> Array:
 	var out := []
-	var box: Array = mail.get(active, [])
+	var box: Array = mail_msg.get(active, [])
 	while not box.is_empty() and out.size() < max_messages:
 		var packet: Dictionary = box[0]
 		box.remove_at(0)
 		out.append({"payload": packet["data"], "identity": packet["remote_steam_id"], "channel": 0})
-	mail[active] = box
+	mail_msg[active] = box
 	return out
 
 

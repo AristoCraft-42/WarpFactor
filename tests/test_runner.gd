@@ -120,6 +120,7 @@ func _ready() -> void:
 	_test_steam_lossy_path()
 	SteamTransport.prefer_legacy = false
 	_test_steam_messages_api()
+	_test_steam_mixed_guests()
 	_test_snapshot_keeps_flight()
 	_check(SteamLobbies.lobby_from_args(PackedStringArray(["--x", "+connect_lobby", "109775241"])) == 109775241, "номер лобби из +connect_lobby")
 	_check(SteamLobbies.lobby_from_args(PackedStringArray(["+connect_lobby"])) == 0, "без номера лобби — ноль")
@@ -3375,6 +3376,69 @@ func _test_steam_messages_api() -> void:
 	_check(SteamTransport._steam_id_of(mate_id) == mate_id, "отправитель из числа")
 	host.close()
 	client.close()
+	SteamService.override_api(null, false)
+
+## У гостя нет ретрансляторов Valve (провайдер или VPN режет UDP к Valve): новым интерфейсом он
+## даже не договорится о пути, поэтому идёт старым, а хост слушает оба и отвечает тем же.
+func _test_steam_mixed_guests() -> void:
+	var fake := FakeSteam.new()
+	SteamService.override_api(fake, true)
+	var host_id := 76561190000000001
+	var near_id := 76561190000000002
+	var far_id := 76561190000000003
+	fake.active = host_id
+	var host := SteamTransport.new()
+	host.host(0)
+	fake.active = near_id
+	var near := SteamTransport.new()
+	near.join(str(host_id), 0)
+	fake.relay = -102
+	fake.active = far_id
+	var far := SteamTransport.new()
+	far.join(str(host_id), 0)
+	fake.relay = 100
+	_check(near.uses_messages(), "гость с ретрансляторами идёт новым интерфейсом")
+	_check(not far.uses_messages(), "гость без ретрансляторов идёт старым интерфейсом")
+	for i in 3:
+		fake.active = host_id
+		host.poll()
+		fake.active = near_id
+		near.poll()
+		fake.active = far_id
+		far.poll()
+	_check(near.get_local_id() != 0 and far.get_local_id() != 0 and near.get_local_id() != far.get_local_id(),
+		"хост принял обоих (%d и %d)" % [near.get_local_id(), far.get_local_id()])
+	var at_near: Array[int] = []
+	near.packet_received.connect(func(_peer: int, data: PackedByteArray) -> void: at_near.append(data.size()))
+	var at_far: Array[int] = []
+	far.packet_received.connect(func(_peer: int, data: PackedByteArray) -> void: at_far.append(data.size()))
+	var at_host: Array[int] = []
+	host.packet_received.connect(func(_peer: int, data: PackedByteArray) -> void: at_host.append(data.size()))
+	var world := PackedByteArray()
+	world.resize(30 * 1024)
+	fake.active = host_id
+	host.broadcast(world)
+	fake.active = far_id
+	far.send(NetTransport.HOST_ID, PackedByteArray([1, 2, 3]))
+	for i in 10:
+		fake.active = host_id
+		host.poll()
+		fake.active = near_id
+		near.poll()
+		fake.active = far_id
+		far.poll()
+	_check(at_near == [world.size()] and at_far == [world.size()], "мир дошёл до обоих (%s, %s)" % [str(at_near), str(at_far)])
+	_check(at_host == [3], "гость старым интерфейсом докричался до хоста (%s)" % str(at_host))
+	# У самого гостя ретрансляторы есть, а у хоста — нет: новым интерфейсом хост не ответит.
+	fake.active = near_id
+	var picky := SteamTransport.new()
+	picky.host_relay_ok = false
+	picky.join(str(host_id), 0)
+	_check(not picky.uses_messages(), "гость учитывает ретрансляторы хоста")
+	picky.close()
+	host.close()
+	near.close()
+	far.close()
 	SteamService.override_api(null, false)
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
