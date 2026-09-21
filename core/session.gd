@@ -90,6 +90,12 @@ func _process(_delta: float) -> void:
 	SteamService.poll()
 	if net.is_networked():
 		net.poll()
+	# Сессии нет, а мы всё ещё в лобби: вход не удался или игру закрыли. Остаться нельзя —
+	# когда хозяин уйдёт, Steam сделает хозяином нас, и в списке появится лобби-призрак
+	# с чужим именем, в которое никто не сможет войти.
+	if lobbies != null and lobbies.current_lobby != 0 and not net.is_networked():
+		NetLog.write("лобби", "сессии нет — выхожу из лобби %d" % lobbies.current_lobby)
+		lobbies.leave()
 	if discovery != null:
 		discovery.poll()
 

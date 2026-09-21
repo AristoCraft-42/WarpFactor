@@ -116,6 +116,8 @@ func _on_lobby_list(lobbies: Array) -> void:
 			"players": _lobby_data(lobby_id, KEY_PLAYERS).to_int(),
 			"host": _lobby_owner(lobby_id),
 		})
+	# Лобби без хозяина (он только что ушёл, Steam ещё не убрал его из списка) — войти некуда.
+	out = out.filter(func(entry: Dictionary) -> bool: return int(entry["host"]) != 0)
 	for entry in out:
 		NetLog.write("лобби", "  лобби %d «%s», хозяин %d, игроков %d" % [int(entry["id"]), String(entry["name"]), int(entry["host"]), int(entry["players"])])
 	listed.emit(out)

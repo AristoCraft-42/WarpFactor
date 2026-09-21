@@ -22,6 +22,10 @@ var sent: int = 0
 var too_big: int = 0
 ## Сколько следующих отправок отвергнуть, как настоящий Steam при полном буфере.
 var refuse_next: int = 0
+## Путь между двумя домашними сетями из журналов игроков: сообщения крупнее этого Steam
+## принимает (sendP2PPacket отвечает true), но они так и не доходят (0 — всё доходит).
+var lose_over: int = 0
+var lost: int = 0
 
 
 func getSteamID() -> int:
@@ -51,6 +55,10 @@ func sendP2PPacket(steam_id: int, data: PackedByteArray, _send_type: int, _chann
 	if refuse_next > 0:
 		refuse_next -= 1
 		return false
+	if lose_over > 0 and data.size() > lose_over:
+		lost += 1
+		sent += 1
+		return true
 	var box: Array = mail.get(steam_id, [])
 	box.append({"remote_steam_id": active, "data": data.duplicate()})
 	mail[steam_id] = box

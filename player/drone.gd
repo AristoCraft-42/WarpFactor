@@ -186,6 +186,7 @@ func save_data() -> Dictionary:
 	return {"position": position, "prev_position": prev_position, "facing": facing,
 		"mine_tile": mine_tile, "mine_progress": mine_progress,
 		"health": health, "dead": dead, "respawn_tick": respawn_tick, "invulnerable_until": invulnerable_until,
+		"move_input": move_input,
 		"gun_ready": gun_ready_tick, "repair_target": repair_target, "repair_search": repair_search_tick,
 		"inventory": inventory.save_slots(), "crafting": crafting.save_data()}
 
@@ -203,7 +204,10 @@ func load_data(data: Dictionary) -> void:
 	gun_ready_tick = int(data.get("gun_ready", 0))
 	repair_target = int(data.get("repair_target", 0))
 	repair_search_tick = int(data.get("repair_search", 0))
-	move_input = Vector2.ZERO
+	# Направление полёта — часть состояния мира: снимок для сетевой игры обязан его нести.
+	# Без него дрон, летевший у хоста в момент снимка, у клиента стоял бы — и мир расходился
+	# через секунду после входа. Загрузка из файла гасит его отдельно (SaveIO.load_run).
+	move_input = data.get("move_input", Vector2.ZERO)
 	var slots: Dictionary = data.get("inventory", {})
 	inventory.load_slots(slots.get("slot_items", PackedInt32Array()), slots.get("slot_counts", PackedInt32Array()),
 		slots.get("hints", PackedInt32Array()))

@@ -92,7 +92,14 @@ static func load_run(path: String) -> Run:
 	if not (data is Dictionary):
 		push_error("SaveIO: %s повреждён" % path)
 		return null
-	return run_from_dict(data)
+	var run := run_from_dict(data)
+	# Из файла игра начинается с дронами на месте: клавиши при загрузке никто не держит,
+	# а команда «стоп» не придёт — управление шлёт её только при смене направления.
+	if run != null:
+		for player in run.players:
+			if player.drone != null:
+				player.drone.move_input = Vector2.ZERO
+	return run
 
 
 ## Заголовок сохранения (пустой словарь — не сохранение). В заголовок добавляется "path".

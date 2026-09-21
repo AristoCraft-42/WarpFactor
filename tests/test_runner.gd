@@ -113,6 +113,8 @@ func _ready() -> void:
 	_test_net_leave()
 	_test_steam_transport()
 	_test_steam_big_packet()
+	_test_steam_lossy_path()
+	_test_snapshot_keeps_flight()
 	_check(SteamLobbies.lobby_from_args(PackedStringArray(["--x", "+connect_lobby", "109775241"])) == 109775241, "номер лобби из +connect_lobby")
 	_check(SteamLobbies.lobby_from_args(PackedStringArray(["+connect_lobby"])) == 0, "без номера лобби — ноль")
 	_test_steam_session()
@@ -3254,6 +3256,84 @@ func _test_net_pending_join_dropped() -> void:
 	Session.net.close()
 	host.close()
 	host_run.dispose()
+
+## Путь, на котором крупные сообщения не доходят. Журналы двух игроков показали: мир хоста
+## (36 КБ) до клиента не доходил, а после команды постройки (2 КБ) до хоста не доходила ни одна
+## команда клиента — при этом маленькие пакеты шли. Поэтому транспорт отдаёт Steam только куски,
+## которые помещаются в один сетевой пакет.
+func _test_steam_lossy_path() -> void:
+	var fake := FakeSteam.new()
+	SteamService.override_api(fake, true)
+	var host_id := 76561190000000001
+	var mate_id := 76561190000000002
+	fake.lose_over = 1200
+	fake.active = host_id
+	var host := SteamTransport.new()
+	host.host(0)
+	fake.active = mate_id
+	var client := SteamTransport.new()
+	client.join(str(host_id), 0)
+	fake.active = host_id
+	host.poll()
+	fake.active = mate_id
+	client.poll()
+
+	var at_client: Array[int] = []
+	client.packet_received.connect(func(_peer: int, data: PackedByteArray) -> void: at_client.append(data.size()))
+	var at_host: Array[int] = []
+	host.packet_received.connect(func(_peer: int, data: PackedByteArray) -> void: at_host.append(data.size()))
+	var world := PackedByteArray()
+	world.resize(36 * 1024)
+	for i in world.size():
+		world[i] = i % 253
+	var build := PackedByteArray()
+	build.resize(2 * 1024)
+	var move := PackedByteArray()
+	move.resize(60)
+
+	fake.active = host_id
+	host.broadcast(world)
+	host.broadcast(move)
+	fake.active = mate_id
+	client.send(NetTransport.HOST_ID, build)
+	client.send(NetTransport.HOST_ID, move)
+	for i in 10:
+		fake.active = host_id
+		host.poll()
+		fake.active = mate_id
+		client.poll()
+	_check(fake.lost == 0, "ни одно сообщение не превысило один сетевой пакет (потеряно %d)" % fake.lost)
+	_check(at_client == [world.size(), move.size()], "мир хоста дошёл до клиента, и за ним — остальное (%s)" % str(at_client))
+	_check(at_host == [build.size(), move.size()], "постройка клиента дошла до хоста, и за ней — движение (%s)" % str(at_host))
+	host.close()
+	client.close()
+	SteamService.override_api(null, false)
+
+
+## Направление полёта — часть снимка. Иначе дрон, летевший у хоста в момент входа клиента,
+## у клиента стоял бы, и через секунду после входа «игроки» расходились (так и было в журнале).
+func _test_snapshot_keeps_flight() -> void:
+	var run := Run.create(null, LevelMap.new(64, 48, Registry.get_floor(&"stone").index), false)
+	for i in 5:
+		run.step()
+	run.drone.move_input = Vector2.RIGHT
+	var copy := SaveIO.run_from_dict(SaveIO.run_to_dict(run))
+	_check(copy != null and copy.drone.move_input == Vector2.RIGHT, "снимок помнит, куда летит дрон")
+	if copy != null:
+		for i in 60:
+			run.step()
+			copy.step()
+		_check(copy.state_parts() == run.state_parts(), "копия из снимка летит вместе с оригиналом")
+		copy.dispose()
+	# А из файла игра начинается с дронами на месте: команду «стоп» никто не пришлёт.
+	var saved := SaveIO.save_run_as(run, "test_flight", "test")
+	_check(saved == OK, "забег сохранился")
+	var loaded := SaveIO.load_run(SaveIO.slot_path("test_flight"))
+	_check(loaded != null and loaded.drone.move_input == Vector2.ZERO, "из файла дрон начинает стоя")
+	if loaded != null:
+		loaded.dispose()
+	SaveIO.delete_save(SaveIO.slot_path("test_flight"))
+	run.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:
