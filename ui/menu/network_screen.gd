@@ -18,6 +18,8 @@ var _addresses: PackedStringArray = PackedStringArray()
 var _steam_box: VBoxContainer
 var _steam_list: ItemList
 var _lobbies: Array = []
+## До какого момента (мс) показываем в статусе проверку связи со Steam.
+var _probe_until: int = 0
 
 
 func _ready() -> void:
@@ -57,6 +59,9 @@ func _ready() -> void:
 		var lobbies := Session.get_lobbies()
 		if lobbies != null:
 			lobbies.refresh()))
+	steam_row.add_child(UiUtil.button("NET_STEAM_PROBE", func() -> void:
+		_probe_until = Time.get_ticks_msec() + 30000
+		NetLog.write("проверка", "игрок нажал «Проверить связь со Steam»")))
 	_steam_box.visible = false
 
 	root.add_child(UiUtil.label("NET_FOUND", &"DimLabel"))
@@ -154,6 +159,21 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	if Time.get_ticks_msec() < _probe_until:
+		var status := SteamService.relay_status()
+		if status == 100:
+			_status.text = tr("NET_PROBE_OK")
+			_probe_until = 0
+			NetLog.write("проверка", "ретрансляторы Valve доступны")
+			for line in SteamService.nearest_pops():
+				NetLog.write("проверка", "  " + line)
+		elif status <= -100:
+			_status.text = tr("NET_PROBE_FAILED")
+			_probe_until = 0
+			NetLog.write("проверка", "ретрансляторы Valve НЕ доступны (%d)" % status)
+		else:
+			_status.text = tr("NET_PROBE_WAIT")
+		return
 	# Идёт вход: показываем, как он идёт, и не затираем это поиском игр.
 	if Session.net.role == NetSession.Role.CLIENT and Session.net.run == null:
 		_status.text = _join_progress()

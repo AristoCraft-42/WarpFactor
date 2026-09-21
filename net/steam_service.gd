@@ -111,6 +111,63 @@ static func poll() -> void:
 			NetLog.write("steam", "ретрансляторы Valve: %s (%d)" % [_relay_text(status), status])
 
 
+## Состояние ретрансляторов Valve (ESteamNetworkingAvailability; 100 — доступны, отрицательное — беда).
+static func relay_status() -> int:
+	var steam := api()
+	if not _ready or steam == null or not steam.has_method("getRelayNetworkStatus"):
+		return -1000
+	return int(steam.call("getRelayNetworkStatus"))
+
+
+static func relay_text(status: int) -> String:
+	return _relay_text(status)
+
+
+## Ближайшие площадки Valve и пинг до них (для проверки связи): «код площадки: мс».
+static func nearest_pops(limit: int = 4) -> PackedStringArray:
+	var out := PackedStringArray()
+	var steam := api()
+	if not _ready or steam == null or not steam.has_method("getPOPList"):
+		return out
+	var pops: Variant = steam.call("getPOPList")
+	if not (pops is Array):
+		return out
+	var rows: Array = []
+	for pop in pops:
+		var ping := -1
+		if steam.has_method("getDirectPingToPOP"):
+			ping = int(steam.call("getDirectPingToPOP", int(pop)))
+		var via := -1
+		if steam.has_method("getPingToDataCenter"):
+			var answer: Variant = steam.call("getPingToDataCenter", int(pop))
+			if answer is Dictionary:
+				via = int((answer as Dictionary).get("total_ping", -1))
+			elif answer is int:
+				via = int(answer)
+		rows.append([_pop_name(int(pop)), ping, via])
+	rows.sort_custom(func(a: Array, b: Array) -> bool:
+		var pa: int = a[2] if int(a[2]) >= 0 else 99999
+		var pb: int = b[2] if int(b[2]) >= 0 else 99999
+		return pa < pb)
+	for row in rows.slice(0, limit):
+		out.append("%s: напрямую %s мс, через ретранслятор %s мс" % [row[0], _ms(int(row[1])), _ms(int(row[2]))])
+	return out
+
+
+static func _ms(value: int) -> String:
+	return str(value) if value >= 0 else "нет"
+
+
+## Код площадки Valve (SteamNetworkingPOPID — четыре буквы в числе).
+static func _pop_name(pop: int) -> String:
+	var name := ""
+	for shift in [24, 16, 8, 0]:
+		var c: int = (pop >> int(shift)) & 0xFF
+		if c != 0:
+			name += char(c)
+	return name if not name.is_empty() else str(pop)
+
+
 ## ESteamNetworkingAvailability словами.
 static func _relay_text(status: int) -> String:
 	match status:

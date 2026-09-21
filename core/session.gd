@@ -32,6 +32,14 @@ func _ready() -> void:
 	# Steam поднимаем сразу: приглашение из оверлея или «Присоединиться» в списке друзей может
 	# прийти в любой момент — в меню или посреди своей игры, и его должен кто-то принять.
 	# В тестах (headless) Steam поднимают сами проверки.
+	# Проверка связи работает и без окна: её запускают из командной строки.
+	if OS.get_cmdline_user_args().has("--net-probe") or OS.get_cmdline_args().has("--net-probe"):
+		if SteamService.start():
+			_run_net_probe()
+		else:
+			NetLog.write("проверка", "Steam не поднялся: %s" % SteamService.status())
+			get_tree().quit(2)
+		return
 	if DisplayServer.get_name() == "headless" or not SteamService.has_addon() or not SteamService.start():
 		return
 	var steam_lobbies := get_lobbies()
@@ -68,6 +76,28 @@ func _log_network_adapters() -> void:
 	NetLog.write("игра", "сетевые адаптеры: %s" % ", ".join(names))
 	if not suspicious.is_empty():
 		NetLog.write("игра", "ВНИМАНИЕ: VPN/туннели: %s — если сетевая игра не соединяется, отключите их или исключите игру и Steam" % ", ".join(suspicious))
+
+
+## Проверка связи со Steam (запуск с «-- --net-probe»): ждём ответа ретрансляторов Valve, пишем
+## в журнал, что вышло и какой пинг до ближайших площадок, и закрываем игру. Так проверяется
+## именно собранная игра — с её правилами брандмауэра и прокси, а не редактор.
+func _run_net_probe() -> void:
+	NetLog.write("проверка", "начинаю проверку связи со Steam")
+	var started := Time.get_ticks_msec()
+	var status := -1000
+	while Time.get_ticks_msec() - started < 30000:
+		SteamService.poll()
+		status = SteamService.relay_status()
+		if status == 100 or status <= -100:
+			break
+		await get_tree().create_timer(0.25).timeout
+	NetLog.write("проверка", "ретрансляторы Valve: %s (%d) за %.1f с" % [SteamService.relay_text(status), status,
+		float(Time.get_ticks_msec() - started) / 1000.0])
+	for line in SteamService.nearest_pops():
+		NetLog.write("проверка", "  " + line)
+	NetLog.write("проверка", "ИТОГ: %s" % ("связь со Steam в порядке" if status == 100
+		else "ретрансляторы Valve недоступны — мешает VPN/прокси или брандмауэр"))
+	get_tree().quit(0 if status == 100 else 1)
 
 
 ## Мы в чужом лобби — подключаемся к его хозяину. Это может случиться где угодно, поэтому
