@@ -118,6 +118,27 @@ func _run() -> void:
 	session.close()
 	run.dispose()
 
+	# Networking Messages на настоящем Steam: сообщение самому себе доходит целиком, отправитель —
+	# числом. Через этот интерфейс идёт игра; подделка в логических тестах его только изображает.
+	_expect(transport.uses_messages(), "транспорт выбрал Networking Messages")
+	var probe := PackedByteArray()
+	probe.resize(3000)
+	probe[0] = 42
+	_expect(int(steam.call("sendMessageToUser", SteamService.self_id(), probe, SteamTransport.MESSAGE_FLAGS,
+		SteamTransport.CHANNEL + 7)) == SteamTransport.RESULT_OK, "Steam принял сообщение")
+	var received: Array = []
+	var waited_msg := await _wait_for(func() -> bool:
+		SteamService.poll()
+		var batch: Variant = steam.call("receiveMessagesOnChannel", SteamTransport.CHANNEL + 7, 8)
+		if batch is Array:
+			received.append_array(batch)
+		return not received.is_empty())
+	_expect(not received.is_empty(), "сообщение самому себе пришло за %.1f с" % waited_msg)
+	if not received.is_empty():
+		var message: Dictionary = received[0]
+		_expect((message.get("payload", PackedByteArray()) as PackedByteArray) == probe, "сообщение пришло целиком")
+		_expect(SteamTransport._steam_id_of(message.get("identity", 0)) == SteamService.self_id(), "отправитель узнан")
+
 	lobbies.leave()
 	await _frames(5)
 	_finish()

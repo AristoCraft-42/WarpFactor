@@ -9,6 +9,8 @@ extends RefCounted
 
 signal p2p_session_request(steam_id: int)
 signal p2p_session_connect_fail(steam_id: int, session_error: int)
+signal network_messages_session_request(remote_steam_id: int)
+signal network_messages_session_failed(reason: int, remote_steam_id: int, connection_state: int, debug_message: String)
 
 ## Чей сейчас процесс (какому SteamID адресованы чтения).
 var active: int = 0
@@ -83,6 +85,39 @@ func readP2PPacket(_size: int, _channel: int) -> Dictionary:
 	return packet
 
 
+# --- Networking Messages: тот же ящик, те же правила потерь и отказов ---
+
+func sendMessageToUser(steam_id: int, data: PackedByteArray, _flags: int, channel: int) -> int:
+	if data.size() > 512 * 1024:
+		too_big += 1
+		return 2
+	if refuse_next > 0:
+		refuse_next -= 1
+		return 25
+	return 1 if sendP2PPacket(steam_id, data, 2, channel) else 2
+
+
+func receiveMessagesOnChannel(_channel: int, max_messages: int) -> Array:
+	var out := []
+	var box: Array = mail.get(active, [])
+	while not box.is_empty() and out.size() < max_messages:
+		var packet: Dictionary = box[0]
+		box.remove_at(0)
+		out.append({"payload": packet["data"], "identity": packet["remote_steam_id"], "channel": 0})
+	mail[active] = box
+	return out
+
+
+func acceptSessionWithUser(steam_id: int) -> bool:
+	accepted.append(steam_id)
+	return true
+
+
+func closeSessionWithUser(steam_id: int) -> bool:
+	closed.append(steam_id)
+	return true
+
+
 func acceptP2PSessionWithUser(steam_id: int) -> bool:
 	accepted.append(steam_id)
 	return true
@@ -93,10 +128,13 @@ func closeP2PSessionWithUser(steam_id: int) -> bool:
 	return true
 
 
-## Разбудить «запрос сессии» у стороны, которая сейчас активна.
+## Разбудить «запрос сессии» у стороны, которая сейчас активна (оба интерфейса сразу:
+## транспорт слушает только свой).
 func request_session(from_steam: int) -> void:
 	p2p_session_request.emit(from_steam)
+	network_messages_session_request.emit(from_steam)
 
 
 func fail_session(with_steam: int) -> void:
 	p2p_session_connect_fail.emit(with_steam, 1)
+	network_messages_session_failed.emit(4, with_steam, 5, "тест")

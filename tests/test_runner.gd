@@ -112,8 +112,14 @@ func _ready() -> void:
 	_test_net_desync_repair()
 	_test_net_leave()
 	_test_steam_transport()
+	SteamTransport.prefer_legacy = true
+	_test_steam_transport()
+	SteamTransport.prefer_legacy = false
 	_test_steam_big_packet()
+	SteamTransport.prefer_legacy = true
 	_test_steam_lossy_path()
+	SteamTransport.prefer_legacy = false
+	_test_steam_messages_api()
 	_test_snapshot_keeps_flight()
 	_check(SteamLobbies.lobby_from_args(PackedStringArray(["--x", "+connect_lobby", "109775241"])) == 109775241, "номер лобби из +connect_lobby")
 	_check(SteamLobbies.lobby_from_args(PackedStringArray(["+connect_lobby"])) == 0, "без номера лобби — ноль")
@@ -3334,6 +3340,42 @@ func _test_snapshot_keeps_flight() -> void:
 		loaded.dispose()
 	SaveIO.delete_save(SaveIO.slot_path("test_flight"))
 	run.dispose()
+
+## Новый интерфейс Steam выбирается сам, если он есть в аддоне: через него и идёт игра.
+func _test_steam_messages_api() -> void:
+	var fake := FakeSteam.new()
+	SteamService.override_api(fake, true)
+	var host_id := 76561190000000001
+	var mate_id := 76561190000000002
+	fake.active = host_id
+	var host := SteamTransport.new()
+	host.host(0)
+	fake.active = mate_id
+	var client := SteamTransport.new()
+	client.join(str(host_id), 0)
+	_check(host.uses_messages() and client.uses_messages(), "игра идёт через Networking Messages")
+	fake.active = host_id
+	host.poll()
+	fake.active = mate_id
+	client.poll()
+	_check(client.get_local_id() == 2, "рукопожатие через новый интерфейс (номер %d)" % client.get_local_id())
+	var got: Array[int] = []
+	client.packet_received.connect(func(_peer: int, data: PackedByteArray) -> void: got.append(data.size()))
+	var world := PackedByteArray()
+	world.resize(200 * 1024)
+	fake.active = host_id
+	host.broadcast(world)
+	for i in 10:
+		fake.active = host_id
+		host.poll()
+		fake.active = mate_id
+		client.poll()
+	_check(got == [world.size()], "мир 200 КБ дошёл целиком (%s)" % str(got))
+	_check(SteamTransport._steam_id_of("steamid:76561190000000002") == mate_id, "отправитель из строки «steamid:…»")
+	_check(SteamTransport._steam_id_of(mate_id) == mate_id, "отправитель из числа")
+	host.close()
+	client.close()
+	SteamService.override_api(null, false)
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:

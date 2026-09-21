@@ -86,6 +86,8 @@ static func start() -> bool:
 		# не будем.
 		if steam.has_method("allowP2PPacketRelay"):
 			steam.call("allowP2PPacketRelay", true)
+		if steam.has_method("initRelayNetworkAccess"):
+			steam.call("initRelayNetworkAccess")
 		NetLog.write("steam", "Steam поднят: App ID %d, я %d «%s», оверлей %s" % [app_id(), self_id(),
 			self_name(), str(steam.call("isOverlayEnabled")) if steam.has_method("isOverlayEnabled") else "?"])
 	else:
