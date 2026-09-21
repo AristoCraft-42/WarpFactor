@@ -488,6 +488,9 @@ func _on_peer_connected(peer_id: int) -> void:
 
 func _on_peer_disconnected(peer_id: int) -> void:
 	NetLog.write("сессия", "участник %d отключился" % peer_id)
+	var steam := transport as SteamTransport
+	if steam != null and steam.last_end_reason == SteamTransport.END_RENDEZVOUS:
+		notice.emit(tr("NET_RENDEZVOUS_FAILED"))
 	if role == Role.CLIENT:
 		notice.emit(tr("NET_LOST_HOST"))
 		close()

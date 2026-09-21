@@ -46,6 +46,12 @@ const RESULT_LIMIT_EXCEEDED := 25
 
 ## Только для тестов: работать через старый интерфейс, даже если есть новый.
 static var prefer_legacy: bool = false
+## Steam не смог договориться о пути между компьютерами (k_ESteamNetConnectionEnd_Misc_P2P_Rendezvous).
+## Почти всегда это VPN или прокси в режиме туннеля либо брандмауэр, закрывший игре сеть.
+const END_RENDEZVOUS := 5008
+
+## Почему оборвалась последняя сессия (код ESteamNetConnectionEnd, 0 — не обрывалась).
+var last_end_reason: int = 0
 ## Служебный пакет: «твой номер участника такой-то».
 const ID_MARK := "\u0001WFID"
 
@@ -172,6 +178,9 @@ func _on_message_session_request(steam_id: int) -> void:
 ## Это настоящая потеря связи — как и в старом интерфейсе, участник считается вышедшим.
 func _on_message_session_failed(reason: int, steam_id: int, state: int, debug_message: String) -> void:
 	NetLog.write("steam", "ОШИБКА сессии с %d: причина %d, состояние %d, «%s»" % [steam_id, reason, state, debug_message])
+	last_end_reason = reason
+	if reason == END_RENDEZVOUS:
+		NetLog.write("steam", "Steam не смог договориться о пути: проверьте VPN/прокси в режиме туннеля и брандмауэр у ОБОИХ игроков")
 	_on_session_failed(steam_id, 0)
 
 

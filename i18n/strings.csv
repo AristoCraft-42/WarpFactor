@@ -384,6 +384,7 @@ NET_STEAM_REFRESH,Refresh,Обновить
 NET_STEAM_EMPTY,No open Steam games found,Открытых игр в Steam не нашлось
 PAUSE_HOST_STEAM,Open through Steam,Открыть через Steam
 PAUSE_STEAM_INVITE,Invite friends,Пригласить друзей
+NET_RENDEZVOUS_FAILED,Steam could not connect the two computers. Usually a VPN/proxy in tunnel mode or a firewall blocking the game — check both players,"Steam не смог соединить компьютеры. Обычно мешает VPN или прокси в режиме туннеля либо брандмауэр, закрывший игре сеть, — проверьте у обоих"
 NET_LOBBY_FAILED,Steam lobby error: %s,Ошибка лобби Steam: %s
 NET_CLOSE_OWN_FIRST,You are hosting a game — close it before joining another,"Вы сами хост — закройте свою игру, прежде чем входить в чужую"
 NET_CONNECTING_HOST,In the lobby — connecting to the host...,В лобби — подключаемся к хосту...

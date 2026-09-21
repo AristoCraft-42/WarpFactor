@@ -28,6 +28,7 @@ signal join_status(text: String)
 func _ready() -> void:
 	NetLog.write("игра", "запуск, имя игрока «%s»" % get_player_name())
 	NetLog.write("игра", "журнал: %s" % NetLog.path())
+	_log_network_adapters()
 	# Steam поднимаем сразу: приглашение из оверлея или «Присоединиться» в списке друзей может
 	# прийти в любой момент — в меню или посреди своей игры, и его должен кто-то принять.
 	# В тестах (headless) Steam поднимают сами проверки.
@@ -46,6 +47,27 @@ func _ready() -> void:
 	if lobby_id != 0:
 		NetLog.write("лобби", "запущен с +connect_lobby %d" % lobby_id)
 		steam_lobbies.join.call_deferred(lobby_id)
+
+
+## Сетевые адаптеры в журнал. VPN и прокси в режиме туннеля (Throne, v2ray, WireGuard, Hamachi…)
+## пропускают трафик Steam через себя, и связь между игроками ломается самым странным образом —
+## по журналу это видно сразу.
+func _log_network_adapters() -> void:
+	var names := PackedStringArray()
+	var suspicious := PackedStringArray()
+	for entry in IP.get_local_interfaces():
+		var name := String((entry as Dictionary).get("friendly", (entry as Dictionary).get("name", "")))
+		names.append(name)
+		var low := name.to_lower()
+		if low.contains("teredo") or low.contains("loopback"):
+			continue
+		for mark in ["tun", "tap", "vpn", "throne", "wireguard", "wg", "hamachi", "zerotier", "radmin", "tailscale", "outline", "proton", "nord", "v2ray", "clash", "sing"]:
+			if low.contains(mark):
+				suspicious.append(name)
+				break
+	NetLog.write("игра", "сетевые адаптеры: %s" % ", ".join(names))
+	if not suspicious.is_empty():
+		NetLog.write("игра", "ВНИМАНИЕ: VPN/туннели: %s — если сетевая игра не соединяется, отключите их или исключите игру и Steam" % ", ".join(suspicious))
 
 
 ## Мы в чужом лобби — подключаемся к его хозяину. Это может случиться где угодно, поэтому

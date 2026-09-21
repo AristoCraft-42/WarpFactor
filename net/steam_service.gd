@@ -14,6 +14,8 @@ const DEV_APP_ID := 480
 
 static var _steam: Object
 static var _ready: bool = false
+## Последнее записанное в журнал состояние ретрансляторов Valve (ESteamNetworkingAvailability).
+static var _relay_status: int = -1000
 static var _status: String = ""
 
 
@@ -102,6 +104,25 @@ static func poll() -> void:
 	var steam := api()
 	if steam != null and steam.has_method("run_callbacks"):
 		steam.call("run_callbacks")
+	if steam != null and steam.has_method("getRelayNetworkStatus"):
+		var status := int(steam.call("getRelayNetworkStatus"))
+		if status != _relay_status:
+			_relay_status = status
+			NetLog.write("steam", "ретрансляторы Valve: %s (%d)" % [_relay_text(status), status])
+
+
+## ESteamNetworkingAvailability словами.
+static func _relay_text(status: int) -> String:
+	match status:
+		100: return "доступны"
+		3: return "подключаемся"
+		2: return "ждём"
+		1: return "ещё не пробовали"
+		-10: return "повторяем попытку"
+		-100: return "были, но пропали"
+		-101: return "НЕ ДОСТУПНЫ"
+		-102: return "нельзя даже попробовать"
+	return "?"
 
 
 static func stop() -> void:
