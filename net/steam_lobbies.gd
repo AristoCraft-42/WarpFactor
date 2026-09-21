@@ -40,12 +40,18 @@ func available() -> bool:
 	return _steam != null and SteamService.is_ready()
 
 
+## Слушать события Steam с самого запуска: приглашение из оверлея может прийти в любой момент.
+func watch() -> void:
+	_connect_signals()
+
+
 func _connect_signals() -> void:
 	if _connected or _steam == null:
 		return
 	_connected = true
 	for pair in [["lobby_created", _on_lobby_created], ["lobby_match_list", _on_lobby_list],
-			["lobby_joined", _on_lobby_joined], ["join_requested", _on_join_requested]]:
+			["lobby_joined", _on_lobby_joined], ["join_requested", _on_join_requested],
+			["join_game_requested", _on_join_game_requested]]:
 		var name: String = pair[0]
 		var handler: Callable = pair[1]
 		if _steam.has_signal(name) and not _steam.is_connected(name, handler):
@@ -59,6 +65,7 @@ func host(title: String, players: int) -> void:
 		return
 	_connect_signals()
 	if _steam.has_method("createLobby"):
+		NetLog.write("лобби", "создаю лобби «%s»" % title)
 		_steam.call("createLobby", LOBBY_PUBLIC, NetProtocol.MAX_PLAYERS)
 		_pending_title = title
 		_pending_players = players
@@ -69,10 +76,15 @@ var _pending_players: int = 1
 
 
 func _on_lobby_created(status: int, lobby_id: int) -> void:
+	NetLog.write("лобби", "лобби создано: статус %d, id %d" % [status, lobby_id])
 	if status != 1:
 		failed.emit("lobby_create")
 		return
 	current_lobby = lobby_id
+	# «Присоединиться» в списке друзей Steam работает по этой строке: если игра друга запущена,
+	# придёт join_game_requested, если нет — Steam запустит её с этими аргументами.
+	if _steam.has_method("setRichPresence"):
+		_steam.call("setRichPresence", "connect", "+connect_lobby %d" % lobby_id)
 	if _steam.has_method("setLobbyData"):
 		_steam.call("setLobbyData", lobby_id, KEY_GAME, GAME_TAG)
 		_steam.call("setLobbyData", lobby_id, KEY_NAME, _pending_title)
@@ -94,6 +106,7 @@ func refresh() -> void:
 
 
 func _on_lobby_list(lobbies: Array) -> void:
+	NetLog.write("лобби", "список лобби: %d шт." % lobbies.size())
 	var out := []
 	for id in lobbies:
 		var lobby_id := int(id)
@@ -103,6 +116,8 @@ func _on_lobby_list(lobbies: Array) -> void:
 			"players": _lobby_data(lobby_id, KEY_PLAYERS).to_int(),
 			"host": _lobby_owner(lobby_id),
 		})
+	for entry in out:
+		NetLog.write("лобби", "  лобби %d «%s», хозяин %d, игроков %d" % [int(entry["id"]), String(entry["name"]), int(entry["host"]), int(entry["players"])])
 	listed.emit(out)
 
 
@@ -111,12 +126,14 @@ func join(lobby_id: int) -> void:
 		failed.emit("no_steam")
 		return
 	_connect_signals()
+	NetLog.write("лобби", "вхожу в лобби %d" % lobby_id)
 	if _steam.has_method("joinLobby"):
 		_steam.call("joinLobby", lobby_id)
 
 
 func _on_lobby_joined(lobby_id: int, _permissions: int, _locked: bool, response: int) -> void:
 	# 1 — успех (ChatRoomEnterResponse.CHAT_ROOM_ENTER_RESPONSE_SUCCESS).
+	NetLog.write("лобби", "ответ на вход в лобби %d: %d (%s), хозяин %d" % [lobby_id, response, "успех" if response == 1 else "ОТКАЗ", _lobby_owner(lobby_id)])
 	if response != 1:
 		failed.emit("lobby_join")
 		return
@@ -125,13 +142,33 @@ func _on_lobby_joined(lobby_id: int, _permissions: int, _locked: bool, response:
 
 
 ## Друг пригласил из оверлея Steam.
-func _on_join_requested(lobby_id: int, _friend_id: int) -> void:
+func _on_join_requested(lobby_id: int, friend_id: int) -> void:
+	NetLog.write("лобби", "оверлей: присоединиться к лобби %d друга %d" % [lobby_id, friend_id])
 	join(lobby_id)
+
+
+## «Присоединиться» из списка друзей, когда у друга выставлена строка connect.
+func _on_join_game_requested(friend_id: int, connect: String) -> void:
+	var lobby_id := lobby_from_args(connect.split(" ", false))
+	NetLog.write("лобби", "оверлей: присоединиться к игре друга %d («%s») → лобби %d" % [friend_id, connect, lobby_id])
+	if lobby_id != 0:
+		join(lobby_id)
+
+
+## Номер лобби из аргументов вида «+connect_lobby 123» (0 — нет).
+static func lobby_from_args(args: PackedStringArray) -> int:
+	for i in args.size() - 1:
+		if args[i] == "+connect_lobby":
+			return args[i + 1].to_int()
+	return 0
 
 
 func leave() -> void:
 	if current_lobby != 0 and _steam != null and _steam.has_method("leaveLobby"):
+		NetLog.write("лобби", "выхожу из лобби %d" % current_lobby)
 		_steam.call("leaveLobby", current_lobby)
+	if current_lobby != 0 and _steam != null and _steam.has_method("clearRichPresence"):
+		_steam.call("clearRichPresence")
 	current_lobby = 0
 
 

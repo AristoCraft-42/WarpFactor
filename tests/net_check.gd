@@ -20,6 +20,7 @@ func _expect(ok: bool, text: String) -> void:
 
 
 func _ready() -> void:
+	NetLog.echo = false
 	Registry.ensure_loaded()
 	_run()
 

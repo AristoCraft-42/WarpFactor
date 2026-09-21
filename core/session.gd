@@ -21,6 +21,69 @@ var discovery: LanDiscovery
 ## Лобби Steam (создаются по требованию, только если установлен аддон GodotSteam).
 var lobbies: SteamLobbies
 
+## Как идёт вход в чужую игру через Steam — для экрана сети.
+signal join_status(text: String)
+
+
+func _ready() -> void:
+	NetLog.write("игра", "запуск, имя игрока «%s»" % get_player_name())
+	NetLog.write("игра", "журнал: %s" % NetLog.path())
+	# Steam поднимаем сразу: приглашение из оверлея или «Присоединиться» в списке друзей может
+	# прийти в любой момент — в меню или посреди своей игры, и его должен кто-то принять.
+	# В тестах (headless) Steam поднимают сами проверки.
+	if DisplayServer.get_name() == "headless" or not SteamService.has_addon() or not SteamService.start():
+		return
+	var steam_lobbies := get_lobbies()
+	if steam_lobbies == null:
+		return
+	steam_lobbies.watch()
+	steam_lobbies.entered.connect(_on_lobby_entered)
+	steam_lobbies.failed.connect(func(reason: String) -> void:
+		NetLog.write("лобби", "ошибка: %s" % reason)
+		join_status.emit(tr("NET_LOBBY_FAILED") % reason))
+	# Игру запустили кнопкой «Присоединиться»: Steam передал номер лобби в аргументах.
+	var lobby_id := SteamLobbies.lobby_from_args(OS.get_cmdline_args())
+	if lobby_id != 0:
+		NetLog.write("лобби", "запущен с +connect_lobby %d" % lobby_id)
+		steam_lobbies.join.call_deferred(lobby_id)
+
+
+## Мы в чужом лобби — подключаемся к его хозяину. Это может случиться где угодно, поэтому
+## обработка здесь, а не на экране сети.
+func _on_lobby_entered(lobby_id: int, host_steam_id: int) -> void:
+	if host_steam_id == 0:
+		NetLog.write("лобби", "у лобби %d нет хозяина — войти некуда" % lobby_id)
+		join_status.emit(tr("NET_CONNECT_FAILED"))
+		return
+	if host_steam_id == SteamService.self_id():
+		return
+	if net.is_host():
+		NetLog.write("лобби", "приглашение в лобби %d пропущено: я сам хост" % lobby_id)
+		Events.toast(tr("NET_CLOSE_OWN_FIRST"), Events.ToastKind.WARNING)
+		return
+	if net.run != null:
+		NetLog.write("лобби", "приглашение в лобби %d пропущено: я уже в чужой игре" % lobby_id)
+		return
+	# Своя игра на экране: уходим в меню, иначе её сцена подхватила бы чужой мир на полпути.
+	if get_tree().current_scene is Game:
+		get_tree().paused = false
+		get_tree().change_scene_to_file(MENU_SCENE)
+	join_status.emit(tr("NET_CONNECTING_HOST"))
+	if net.join_run(str(host_steam_id), 0, get_player_name(), SteamTransport.new()):
+		if not net.run_replaced.is_connected(_on_joined_run):
+			net.run_replaced.connect(_on_joined_run, CONNECT_ONE_SHOT)
+	else:
+		join_status.emit(tr("NET_CONNECT_FAILED"))
+
+
+func _on_joined_run(_run: Run) -> void:
+	NetLog.write("игра", "вхожу в игровую сцену с миром хоста")
+	load_path = ""
+	run_seed = -1
+	level = null
+	get_tree().paused = false
+	get_tree().change_scene_to_file(GAME_SCENE)
+
 
 func _process(_delta: float) -> void:
 	# Транспорт опрашивается и в меню: так работает подключение до загрузки игровой сцены.

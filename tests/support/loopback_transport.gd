@@ -119,3 +119,7 @@ func is_active() -> bool:
 
 func get_local_id() -> int:
 	return id
+
+
+func kind_name() -> String:
+	return "память"

@@ -43,6 +43,13 @@ var _next_message: int = 1
 ## клиент вечно ждал мир хоста. Отвергнутый пакет и всё, что после него, ждут следующего опроса;
 ## обгонять его нельзя — порядок у протокола важен.
 var _outbox: Dictionary = {}
+## Счётчики для журнала — с прошлой сводки.
+var _stat_sent: int = 0
+var _stat_sent_bytes: int = 0
+var _stat_refused: int = 0
+var _stat_received: int = 0
+var _stat_received_bytes: int = 0
+var _stat_unknown: int = 0
 
 
 func _init() -> void:
@@ -58,6 +65,7 @@ func host(_port: int) -> bool:
 	_local_id = HOST_ID
 	_host_steam = SteamService.self_id()
 	_listen()
+	NetLog.write("steam", "хост: слушаю P2P, мой SteamID %d" % _host_steam)
 	return true
 
 
@@ -67,12 +75,14 @@ func join(address: String, _port: int) -> bool:
 		return false
 	_host_steam = address.to_int()
 	if _host_steam == 0:
+		NetLog.write("steam", "клиент: неверный SteamID хоста «%s»" % address)
 		return false
 	_active = true
 	_is_host = false
 	_local_id = 0
 	_listen()
 	# Первый пакет разбудит сессию у хоста; номер участника он пришлёт в ответ.
+	NetLog.write("steam", "клиент: стучусь к хосту %d (я %d)" % [_host_steam, SteamService.self_id()])
 	_send_raw(_host_steam, ID_MARK.to_utf8_buffer())
 	return true
 
@@ -88,17 +98,72 @@ func _listen() -> void:
 
 ## Steam спрашивает разрешение на сессию: своим участникам всегда разрешаем.
 func _on_session_request(steam_id: int) -> void:
+	var accepted := false
 	if _steam != null and _steam.has_method("acceptP2PSessionWithUser"):
-		_steam.call("acceptP2PSessionWithUser", steam_id)
+		accepted = bool(_steam.call("acceptP2PSessionWithUser", steam_id))
+	NetLog.write("steam", "запрос P2P-сессии от %d — %s" % [steam_id, "принят" if accepted else "НЕ ПРИНЯТ"])
 
 
-func _on_session_failed(steam_id: int, _session_error: int) -> void:
+func _on_session_failed(steam_id: int, session_error: int) -> void:
+	# Коды EP2PSessionError: 1 — игрок не запускал игру, 2 — нет прав на приложение,
+	# 3 — игрок не в сети/не отвечает, 4 — истекло время установки.
+	NetLog.write("steam", "ОШИБКА P2P-сессии с %d: код %d (%s)" % [steam_id, session_error, _session_error_text(session_error)])
 	var peer := int(_by_steam.get(steam_id, 0))
 	if peer != 0:
 		_forget(peer)
 		peer_disconnected.emit(peer)
 	elif steam_id == _host_steam and not _is_host:
 		peer_disconnected.emit(HOST_ID)
+
+
+func _session_error_text(code: int) -> String:
+	match code:
+		1: return "у собеседника не запущена игра"
+		2: return "нет прав на приложение"
+		3: return "собеседник не отвечает"
+		4: return "истекло время установки связи"
+	return "неизвестно"
+
+
+func kind_name() -> String:
+	return "Steam"
+
+
+func debug_stats() -> String:
+	var line := "steam: ушло %d пак. %d КБ, отказов %d, в очереди %d, пришло %d пак. %d КБ" % [
+		_stat_sent, _stat_sent_bytes / 1024, _stat_refused, pending_packets(), _stat_received,
+		_stat_received_bytes / 1024]
+	if _stat_unknown > 0:
+		line += ", от незнакомых %d" % _stat_unknown
+	var progress := incoming_progress()
+	if progress.y > 0:
+		line += ", собираю сообщение %d из %d кусков" % [progress.x, progress.y]
+	if _steam != null and _steam.has_method("getP2PSessionState"):
+		for steam_id in _by_steam:
+			var state: Variant = _steam.call("getP2PSessionState", int(steam_id))
+			if state is Dictionary:
+				var st: Dictionary = state
+				line += ", сессия с %d: активна %s, связь %s, ретранслятор %s, в очереди Steam %s байт" % [
+					int(steam_id), str(st.get("connection_active", "?")), str(st.get("connecting", "?")),
+					str(st.get("using_relay", "?")), str(st.get("bytes_queued_for_send", "?"))]
+	_stat_sent = 0
+	_stat_sent_bytes = 0
+	_stat_refused = 0
+	_stat_received = 0
+	_stat_received_bytes = 0
+	_stat_unknown = 0
+	return line
+
+
+## Сколько кусков самого большого собираемого сообщения уже пришло: (пришло, всего).
+func incoming_progress() -> Vector2i:
+	var best := Vector2i.ZERO
+	for key in _assembly:
+		var entry: Dictionary = _assembly[key]
+		var total := int(entry.get("n", 0))
+		if total > best.y:
+			best = Vector2i((entry["parts"] as Dictionary).size(), total)
+	return best
 
 
 func poll() -> void:
@@ -115,6 +180,8 @@ func poll() -> void:
 			return
 		var from := int((packet as Dictionary).get("remote_steam_id", 0))
 		var data: PackedByteArray = (packet as Dictionary).get("data", PackedByteArray())
+		_stat_received += 1
+		_stat_received_bytes += data.size()
 		_handle(from, data)
 
 
@@ -129,6 +196,9 @@ func _handle(from_steam: int, data: PackedByteArray) -> void:
 		return
 	var peer := int(_by_steam.get(from_steam, 0))
 	if peer == 0:
+		_stat_unknown += 1
+		if _stat_unknown == 1:
+			NetLog.write("steam", "пакет от незнакомого %d (%d байт) — выброшен: номер участника ещё не выдан" % [from_steam, data.size()])
 		return
 	packet_received.emit(peer, data)
 
@@ -141,6 +211,8 @@ func _handle_chunk(from_steam: int, data: PackedByteArray, offset: int) -> void:
 	var head: Array = value
 	var key := "%d:%d" % [from_steam, int(head[0])]
 	var total := int(head[2])
+	if not _assembly.has(key):
+		NetLog.write("steam", "начинаю собирать сообщение от %d: %d кусков" % [from_steam, total])
 	var entry: Dictionary = _assembly.get(key, {"n": total, "parts": {}})
 	var parts: Dictionary = entry["parts"]
 	parts[int(head[1])] = head[3]
@@ -152,6 +224,7 @@ func _handle_chunk(from_steam: int, data: PackedByteArray, offset: int) -> void:
 	for i in total:
 		whole.append_array(parts[i] as PackedByteArray)
 	var peer := int(_by_steam.get(from_steam, 0))
+	NetLog.write("steam", "сообщение от %d собрано: %d КБ%s" % [from_steam, whole.size() / 1024, "" if peer != 0 else " — НО отправитель незнаком, выброшено"])
 	if peer != 0:
 		packet_received.emit(peer, whole)
 
@@ -167,12 +240,14 @@ func _handle_service(from_steam: int, data: PackedByteArray, offset: int) -> voi
 		_by_peer[peer] = from_steam
 		var answer := data.slice(0, offset)
 		answer.append_array(var_to_bytes(peer))
+		NetLog.write("steam", "хост: %d постучался — выдаю номер участника %d" % [from_steam, peer])
 		_send_raw(from_steam, answer)
 		peer_connected.emit(peer)
 		return
 	# Клиент узнал свой номер и считает, что хост на связи.
 	var value: Variant = bytes_to_var(data.slice(offset, data.size()))
 	_local_id = int(value) if value is int else 0
+	NetLog.write("steam", "клиент: хост %d ответил, мой номер участника %d" % [from_steam, _local_id])
 	_by_steam[from_steam] = HOST_ID
 	_by_peer[HOST_ID] = from_steam
 	peer_connected.emit(HOST_ID)
@@ -200,7 +275,9 @@ func _send_raw(steam_id: int, data: PackedByteArray) -> void:
 		return
 	var queue: Array = _outbox.get(steam_id, [])
 	if data.size() > MAX_PACKET:
-		queue.append_array(_chunks_of(data))
+		var chunks := _chunks_of(data)
+		NetLog.write("steam", "большое сообщение для %d: %d КБ, режу на %d кусков" % [steam_id, data.size() / 1024, chunks.size()])
+		queue.append_array(chunks)
 	else:
 		queue.append(data)
 	_outbox[steam_id] = queue
@@ -230,9 +307,14 @@ func _flush(steam_id: int) -> void:
 	while not queue.is_empty() and budget > 0:
 		var packet: PackedByteArray = queue[0]
 		if not bool(_steam.call("sendP2PPacket", steam_id, packet, SEND_RELIABLE, CHANNEL)):
+			_stat_refused += 1
+			if _stat_refused == 1:
+				NetLog.write("steam", "Steam не принял пакет для %d (%d байт), в очереди %d — повторю" % [steam_id, packet.size(), queue.size()])
 			break
 		queue.pop_front()
 		budget -= packet.size()
+		_stat_sent += 1
+		_stat_sent_bytes += packet.size()
 	if queue.is_empty():
 		_outbox.erase(steam_id)
 

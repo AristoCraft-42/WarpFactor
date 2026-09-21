@@ -17,6 +17,8 @@ var drone_view: DroneView
 var camera: CameraController
 var tools: ToolController
 var drone_controller: DroneController
+## Журнал сети: когда последний раз писали сводку игры (мс).
+var _last_log_msec: int = 0
 var hud: Hud
 var pause_menu: PauseMenu
 
@@ -439,6 +441,9 @@ func _process(_delta: float) -> void:
 		Session.net.poll()
 	if tools == null:
 		return
+	if Session.net.is_networked() and Time.get_ticks_msec() - _last_log_msec > 5000:
+		_last_log_msec = Time.get_ticks_msec()
+		_log_state()
 	# Автосохранение по времени игры (тики базы), интервал — из настроек.
 	var interval := Settings.get_int(&"game/autosave") * 60 * GameConst.TICK_RATE
 	if interval > 0 and run.base.simulation.tick - _last_autosave_tick >= interval:
@@ -456,8 +461,22 @@ func _process(_delta: float) -> void:
 		_update_input_enabled()
 
 
+## Сводка того, что видит игрок: почему дрон может не слушаться, если сеть в порядке.
+func _log_state() -> void:
+	var focus := get_viewport().gui_get_focus_owner()
+	NetLog.write("игра", "управление %s (пауза-меню %s, модальное окно %s), инструмент %s%s, часы: пауза %s, стоп %s, скорость %d, фокус ввода: %s, мир на экране: %s" % [
+		"вкл" if drone_controller.input_enabled else "ВЫКЛ", pause_menu.is_open(), hud.is_modal_open(),
+		ToolController.Mode.keys()[tools.mode], (" " + String(tools.place_def.id)) if tools.place_def != null and tools.mode == ToolController.Mode.PLACE else "",
+		clock.paused, clock.blocked, clock.speed_index,
+		("%s (%s)" % [focus.name, focus.get_class()]) if focus != null else "нет",
+		"база" if world == run.base else "планета"])
+
+
 func _update_input_enabled() -> void:
 	var enabled := not pause_menu.is_open() and not hud.is_modal_open()
+	if Session.net.is_networked() and drone_controller != null and enabled != drone_controller.input_enabled:
+		NetLog.write("игра", "управление %s (пауза-меню %s, модальное окно %s)" % [
+			"включено" if enabled else "ВЫКЛЮЧЕНО", pause_menu.is_open(), hud.is_modal_open()])
 	tools.input_enabled = enabled
 	camera.input_enabled = enabled
 	drone_controller.input_enabled = enabled

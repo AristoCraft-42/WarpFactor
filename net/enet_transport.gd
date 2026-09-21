@@ -89,5 +89,9 @@ func is_connecting() -> bool:
 	return _peer != null and _peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTING
 
 
+func kind_name() -> String:
+	return "ENet"
+
+
 func get_local_id() -> int:
 	return _local_id

@@ -527,6 +527,11 @@ func _execute_build(cmd: Command, player: Player, world: GameWorld) -> void:
 			built.append(b)
 		elif world.last_error == GameWorld.ActionError.INVENTORY_FULL:
 			inventory_full = true
+	if command_router.is_valid():
+		NetLog.write("мир", "тик %d: игрок %d строит — поставлено %d из %d%s%s%s" % [get_tick(), cmd.player,
+			built.size(), (cmd.args.get("places", []) as Array).size(),
+			(", нет предмета " + tr(no_item)) if not no_item.is_empty() else "",
+			", далеко" if out_of_range else "", ", инвентарь полон" if inventory_full else ""])
 	if bool(cmd.args.get("link_bridges", false)):
 		_link_bridges(player, built, cmd.args.get("config", null) != null)
 	if not mine:

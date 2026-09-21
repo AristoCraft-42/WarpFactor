@@ -69,6 +69,13 @@ var _local_player: int = 0
 var _waiting_snapshot: bool = false
 ## Клиент: когда началось подключение (мс) — чтобы не ждать мир хоста вечно.
 var _join_started_msec: int = 0
+## Журнал: когда последний раз писали сводку состояния (мс).
+var _last_report_msec: int = 0
+## Журнал: сколько команд отправлено, принято хостом и отвергнуто им — с прошлой сводки.
+var _log_sent: int = 0
+var _log_accepted: int = 0
+var _log_rejected: int = 0
+var _log_ticks_in: int = 0
 ## Клиент: на каком тике последний раз просили снимок (чтобы не просить его каждый кадр).
 var _resync_asked: int = -1000000
 ## Клиент: пришедшие списки команд, которые ещё нельзя подтвердить — ждут предыдущих тиков.
@@ -122,8 +129,10 @@ func host_run(p_run: Run, port: int, p_transport: NetTransport = null) -> bool:
 	transport = p_transport if p_transport != null else EnetTransport.new()
 	if not transport.host(port):
 		last_error = "port"
+		NetLog.write("сессия", "хост: не удалось открыть игру (%s, порт %d)" % [transport.kind_name(), port])
 		transport = null
 		return false
+	NetLog.write("сессия", "хост: игра открыта (%s), тик %d, игроков %d" % [transport.kind_name(), p_run.get_tick(), p_run.players.size()])
 	role = Role.HOST
 	run = p_run
 	_attach_run()
@@ -140,8 +149,10 @@ func join_run(address: String, port: int, name: String, p_transport: NetTranspor
 	close()
 	transport = p_transport if p_transport != null else EnetTransport.new()
 	local_name = name
+	NetLog.write("сессия", "клиент: подключаюсь к %s (%s), имя «%s»" % [address, transport.kind_name(), name])
 	if not transport.join(address, port):
 		last_error = "connect"
+		NetLog.write("сессия", "клиент: транспорт не начал подключение")
 		transport = null
 		return false
 	role = Role.CLIENT
@@ -153,6 +164,8 @@ func join_run(address: String, port: int, name: String, p_transport: NetTranspor
 
 
 func close() -> void:
+	if role != Role.OFFLINE:
+		NetLog.write("сессия", "закрываю сессию (роль %s, мир %s, ошибка «%s»)" % [Role.keys()[role], "есть" if run != null else "нет", last_error])
 	# Сначала гасим роль и ссылку: закрытие может прийти повторно из обработчика отключения.
 	var closing := transport
 	transport = null
@@ -277,11 +290,15 @@ func poll() -> void:
 	if transport == null:
 		return
 	transport.poll()
+	if transport != null and Time.get_ticks_msec() - _last_report_msec > 5000:
+		_last_report_msec = Time.get_ticks_msec()
+		_report()
 	if role == Role.CLIENT and run == null:
 		# Вход так и не завершился. Висящая попытка хуже закрытой: она считается «сетевой игрой»,
 		# и следующая своя игра подключилась бы к чужому хосту вместо того, чтобы идти самой.
 		if transport != null and Time.get_ticks_msec() - _join_started_msec > NetProtocol.JOIN_TIMEOUT_MS:
 			last_error = "timeout"
+			NetLog.write("сессия", "клиент: за %d с мир хоста так и не пришёл, сдаюсь" % (NetProtocol.JOIN_TIMEOUT_MS / 1000))
 			close()
 			notice.emit(tr("NET_JOIN_TIMEOUT"))
 		return
@@ -290,6 +307,40 @@ func poll() -> void:
 		_ask_resync_if_lost()
 	elif role == Role.HOST and run != null:
 		_plan_ticks()
+
+
+## Сводка состояния в журнал: всё, что нужно, чтобы понять «почему стоит» по одной строке.
+func _report() -> void:
+	var line := "сводка: %s" % Role.keys()[role]
+	if run == null:
+		line += ", мира нет (жду снимок %.0f с)" % (float(Time.get_ticks_msec() - _join_started_msec) / 1000.0)
+	else:
+		line += ", тик %d, подтверждён %d, запас %d (цель %.1f), темп x%.2f, задержка %d" % [
+			run.get_tick(), confirmed_tick, ready_ticks(), _buffer_target, time_scale(), predicted_delay()]
+		line += ", я — игрок %d (ожидаю %d), игроков %d" % [run.local_player, local_player_id(), run.players.size()]
+		var me := run.get_player(run.local_player)
+		if me != null and me.drone != null:
+			var d := me.drone
+			line += ", дрон (%.0f, %.0f) %s ход %s ввод %s%s" % [d.position.x, d.position.y,
+				"в базе" if d.world == run.base else "на планете", str(d.move_input), str(d.local_input),
+				" СБИТ" if d.dead else ""]
+		if role == Role.CLIENT:
+			line += ", дырка в тиках: %d, ждут подтверждения %d, получено списков %d" % [
+				_gap_polls, _received_ticks.size(), _log_ticks_in]
+		else:
+			line += ", участников %d, команд принято %d, отвергнуто %d, запланировано до %d" % [
+				_peers.size(), _log_accepted, _log_rejected, _next_plan_tick - 1]
+		line += ", отправлено команд %d, починок %d" % [_log_sent, repairs]
+		if not last_desync.is_empty():
+			line += ", последнее расхождение: " + last_desync
+	var extra := transport.debug_stats() if transport != null else ""
+	if not extra.is_empty():
+		line += " | " + extra
+	NetLog.write("сессия", line)
+	_log_sent = 0
+	_log_accepted = 0
+	_log_rejected = 0
+	_log_ticks_in = 0
 
 
 ## Клиент отстал так, что догонять ускорением пришлось бы минуту (свернули окно, просадка кадров,
@@ -302,6 +353,7 @@ func _ask_resync_if_lost() -> void:
 		_gap_polls += 1
 		if _gap_polls > NetProtocol.GAP_TIMEOUT_POLLS:
 			_gap_polls = 0
+			NetLog.write("сессия", "клиент: дырка в тиках (подтверждён %d, есть %s) — прошу снимок" % [confirmed_tick, str(_received_ticks.keys().slice(0, 6))])
 			notice.emit(tr("NET_LOST_TICK"))
 			_request_resync()
 			return
@@ -320,6 +372,7 @@ func _request_resync() -> void:
 	if run.get_tick() - _resync_asked < NetProtocol.RESYNC_BEHIND:
 		return
 	_resync_asked = run.get_tick()
+	NetLog.write("сессия", "клиент: прошу снимок у хоста (тик %d, запас %d)" % [run.get_tick(), ready_ticks()])
 	transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.RESYNC_REQUEST))
 
 
@@ -330,6 +383,7 @@ func _ensure_local_player() -> void:
 	if run.get_player(_local_player) != null:
 		_no_self_polls = 0
 		if run.local_player != _local_player:
+			NetLog.write("сессия", "клиент: теперь играю за своего игрока %d (был %d)" % [_local_player, run.local_player])
 			run.set_local_player(_local_player)
 		return
 	# Своего игрока в забеге нет: команда PLAYER_ADD не дошла. Играть в таком виде нельзя —
@@ -338,6 +392,7 @@ func _ensure_local_player() -> void:
 	_no_self_polls += 1
 	if _no_self_polls > NetProtocol.SELF_TIMEOUT_POLLS:
 		_no_self_polls = 0
+		NetLog.write("сессия", "клиент: своего игрока %d в мире нет — прошу снимок" % _local_player)
 		_request_resync()
 
 
@@ -386,11 +441,27 @@ func _route_command(cmd: Command) -> void:
 		if _sent_at.size() > 64:
 			_sent_at.clear()
 		_sent_at[cmd.seq] = run.get_tick()
+	_log_sent += 1
+	if cmd.kind != Command.Kind.MOVE or role == Role.CLIENT:
+		NetLog.write("сессия", "моя команда %s #%d игрока %d на тике %d%s" % [NetLog.kind_name(cmd.kind), cmd.seq, cmd.player, run.get_tick() if run != null else -1, _args_brief(cmd)])
 	if role == Role.HOST:
 		_pending.append(cmd)
 	elif role == Role.CLIENT:
 		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.COMMANDS,
 			{"c": NetProtocol.commands_to_array([cmd])}))
+
+
+## Коротко об аргументах команды для журнала.
+func _args_brief(cmd: Command) -> String:
+	match cmd.kind:
+		Command.Kind.MOVE:
+			return " ход %s" % str(cmd.args.get("dir", Vector2.ZERO))
+		Command.Kind.BUILD:
+			var places: Array = cmd.args.get("places", [])
+			return " построек %d (%s)" % [places.size(), String((places[0] as Dictionary).get("def", "")) if not places.is_empty() else ""]
+		Command.Kind.CREATIVE_GIVE:
+			return " предмет %d × %d" % [int(cmd.args.get("item", -1)), int(cmd.args.get("count", 0))]
+	return ""
 
 
 ## Пауза и скорость — общие для всех, но идут мимо тиков: на паузе тики не считаются,
@@ -399,6 +470,7 @@ func send_time(paused: bool, speed_index: int) -> void:
 	if role == Role.OFFLINE or transport == null:
 		return
 	var packet := NetProtocol.pack(NetProtocol.Kind.TIME, {"p": paused, "s": speed_index})
+	NetLog.write("сессия", "время: пауза %s, скорость %d — рассылаю" % [paused, speed_index])
 	if role == Role.HOST:
 		transport.broadcast(packet)
 	else:
@@ -408,12 +480,14 @@ func send_time(paused: bool, speed_index: int) -> void:
 # --- Приём ---
 
 func _on_peer_connected(peer_id: int) -> void:
+	NetLog.write("сессия", "на связи участник %d (%s)" % [peer_id, "хост — шлю HELLO" if role == Role.CLIENT else "жду HELLO"])
 	if role == Role.CLIENT:
 		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.HELLO,
 			{"v": NetProtocol.VERSION, "n": local_name}))
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
+	NetLog.write("сессия", "участник %d отключился" % peer_id)
 	if role == Role.CLIENT:
 		notice.emit(tr("NET_LOST_HOST"))
 		close()
@@ -433,23 +507,34 @@ func _on_peer_disconnected(peer_id: int) -> void:
 func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 	var message := NetProtocol.unpack(data)
 	if message.is_empty():
+		NetLog.write("сессия", "пакет от %d не разобрался (%d байт) — выброшен" % [peer_id, data.size()])
 		return
-	match NetProtocol.kind_of(message):
+	var kind := NetProtocol.kind_of(message)
+	if kind != NetProtocol.Kind.TICK and kind != NetProtocol.Kind.COMMANDS and kind != NetProtocol.Kind.CHECKSUM:
+		NetLog.write("сессия", "пришёл %s от %d, %d байт" % [NetProtocol.Kind.keys()[kind] if kind >= 0 and kind < NetProtocol.Kind.size() else str(kind), peer_id, data.size()])
+	match kind:
 		NetProtocol.Kind.HELLO:
 			_handle_hello(peer_id, message)
 		NetProtocol.Kind.WELCOME:
 			_handle_welcome(message)
 		NetProtocol.Kind.REJECT:
 			last_error = String(message.get("r", ""))
+			NetLog.write("сессия", "хост отказал во входе: %s" % last_error)
 			notice.emit(tr("NET_REJECTED"))
 			close()
 		NetProtocol.Kind.COMMANDS:
 			if role == Role.HOST:
 				for cmd in NetProtocol.commands_from_array(message.get("c", [])):
 					var command := cmd as Command
+					var expected := int((_peers.get(peer_id, {}) as Dictionary).get("player", -1))
 					# Игрок может отдавать команды только за себя.
-					if command.player == int((_peers.get(peer_id, {}) as Dictionary).get("player", -1)):
+					if command.player == expected:
 						_pending.append(command)
+						_log_accepted += 1
+						NetLog.write("сессия", "команда участника %d: %s #%d игрока %d, пойдёт на тик %d%s" % [peer_id, NetLog.kind_name(command.kind), command.seq, command.player, _next_plan_tick, _args_brief(command)])
+					else:
+						_log_rejected += 1
+						NetLog.write("сессия", "ОТВЕРГНУТА команда участника %d: %s от игрока %d, а ему выдан игрок %d" % [peer_id, NetLog.kind_name(command.kind), command.player, expected])
 		NetProtocol.Kind.TICK:
 			_handle_tick(message)
 		NetProtocol.Kind.CHECKSUM:
@@ -458,6 +543,7 @@ func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 			_handle_resync(message)
 		NetProtocol.Kind.RESYNC_REQUEST:
 			if role == Role.HOST and _peers.has(peer_id):
+				NetLog.write("сессия", "участник %d просит снимок" % peer_id)
 				_send_full_state(peer_id, NetProtocol.Kind.RESYNC, {"r": "behind"})
 		NetProtocol.Kind.TIME:
 			var paused := bool(message.get("p", false))
@@ -465,8 +551,10 @@ func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 			if role == Role.HOST:
 				# Хост пересказывает остальным, чтобы время было общим.
 				transport.broadcast(NetProtocol.pack(NetProtocol.Kind.TIME, {"p": paused, "s": speed}))
+			NetLog.write("сессия", "время от участника %d: пауза %s, скорость %d" % [peer_id, paused, speed])
 			time_state.emit(paused, speed)
 		NetProtocol.Kind.BYE:
+			NetLog.write("сессия", "участник %d попрощался" % peer_id)
 			if role == Role.HOST:
 				_on_peer_disconnected(peer_id)
 			else:
@@ -478,7 +566,9 @@ func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 func _handle_hello(peer_id: int, message: Dictionary) -> void:
 	if role != Role.HOST or run == null:
 		return
+	NetLog.write("сессия", "HELLO от участника %d: «%s», версия %d (у меня %d)" % [peer_id, String(message.get("n", "")), int(message.get("v", -1)), NetProtocol.VERSION])
 	if int(message.get("v", -1)) != NetProtocol.VERSION:
+		NetLog.write("сессия", "отказ участнику %d: другая версия" % peer_id)
 		transport.send(peer_id, NetProtocol.pack(NetProtocol.Kind.REJECT, {"r": "version"}))
 		return
 	if _peers.size() + 1 >= NetProtocol.MAX_PLAYERS:
@@ -492,6 +582,7 @@ func _handle_hello(peer_id: int, message: Dictionary) -> void:
 		_next_player_id += 1
 		_pending.append(_make_command(Command.Kind.PLAYER_ADD, 1, {"name": name, "id": player_id}))
 	_peers[peer_id] = {"player": player_id, "name": name}
+	NetLog.write("сессия", "участник %d «%s» получает игрока %d (%s)" % [peer_id, name, player_id, "новый" if run.get_player(player_id) == null else "вернулся в своё тело"])
 	_send_full_state(peer_id, NetProtocol.Kind.WELCOME, {"p": player_id, "d": input_delay})
 	notice.emit(tr("NET_PLAYER_JOINED") % name)
 	state_changed.emit()
@@ -514,12 +605,16 @@ func _find_free_player(name: String) -> int:
 func _handle_welcome(message: Dictionary) -> void:
 	if role != Role.CLIENT:
 		return
-	var fresh := NetProtocol.unpack_snapshot(message.get("s", PackedByteArray()), int(message.get("n", 0)))
+	var packed: PackedByteArray = message.get("s", PackedByteArray())
+	var started := Time.get_ticks_msec()
+	var fresh := NetProtocol.unpack_snapshot(packed, int(message.get("n", 0)))
 	if fresh == null:
 		last_error = "snapshot"
+		NetLog.write("сессия", "клиент: снимок мира не разобрался (%d байт сжатых, %d ожидалось)" % [packed.size(), int(message.get("n", 0))])
 		notice.emit(tr("NET_SNAPSHOT_FAILED"))
 		close()
 		return
+	NetLog.write("сессия", "клиент: мир хоста получен — %d КБ, тик %d, я — игрок %d, игроков в снимке %d, разбор %d мс" % [packed.size() / 1024, int(message.get("t", 0)), int(message.get("p", 0)), fresh.players.size(), Time.get_ticks_msec() - started])
 	_local_player = int(message.get("p", 0))
 	input_delay = int(message.get("d", NetProtocol.INPUT_DELAY))
 	_reset_confirmation(int(message.get("t", 0)))
@@ -547,9 +642,13 @@ func _handle_tick(message: Dictionary) -> void:
 	var tick := int(message.get("t", -1))
 	if tick <= confirmed_tick or _received_ticks.has(tick):
 		return
+	_log_ticks_in += 1
 	for cmd in NetProtocol.commands_from_array(message.get("c", [])):
-		_note_delay(cmd as Command, tick)
-		run.commands.submit_at(cmd as Command, tick)
+		var command := cmd as Command
+		if command.player == run.local_player:
+			NetLog.write("сессия", "моя команда вернулась: %s #%d на тик %d (сейчас %d)" % [NetLog.kind_name(command.kind), command.seq, tick, run.get_tick()])
+		_note_delay(command, tick)
+		run.commands.submit_at(command, tick)
 	_received_ticks[tick] = true
 	# Подтверждаем только подряд идущие тики. Перепрыгнуть пропущенный список нельзя:
 	# тик посчитался бы пустым, мир разошёлся бы молча и навсегда, а если в пропавшем списке
@@ -621,6 +720,8 @@ func _compare_checksum(peer_id: int, tick: int, theirs: PackedInt64Array) -> voi
 	push_warning("Сеть: расхождение с «%s» на тике %d — %s (у хоста %d, у клиента %d)" % [
 		who, tick, _part_name(differs), mine[differs] if differs < mine.size() else 0,
 		theirs[differs] if differs < theirs.size() else 0])
+	NetLog.write("сессия", "РАСХОЖДЕНИЕ с «%s» на тике %d: %s — хост %s, клиент %s" % [who, tick,
+		_part_name(differs), str(mine), str(theirs)])
 	notice.emit(tr("NET_DESYNC") % who)
 	notice.emit(tr("NET_DESYNC_PART") % _part_name(differs))
 	_send_full_state(peer_id, NetProtocol.Kind.RESYNC, {"r": "desync"})
@@ -656,7 +757,9 @@ func _send_full_state(peer_id: int, kind: NetProtocol.Kind, extra: Dictionary = 
 	body["t"] = run.get_tick()
 	body["s"] = NetProtocol.pack_snapshot(run)
 	body["n"] = var_to_bytes(SaveIO.run_to_dict(run)).size()
-	transport.send(peer_id, NetProtocol.pack(kind, body))
+	var packet := NetProtocol.pack(kind, body)
+	NetLog.write("сессия", "шлю %s участнику %d: мир %d КБ (пакет %d КБ), тик %d, следом тиков %d" % [NetProtocol.Kind.keys()[kind], peer_id, (body["s"] as PackedByteArray).size() / 1024, packet.size() / 1024, run.get_tick(), _next_plan_tick - run.get_tick()])
+	transport.send(peer_id, packet)
 	for tick in range(run.get_tick(), _next_plan_tick):
 		if _planned.has(tick):
 			transport.send(peer_id, NetProtocol.pack(NetProtocol.Kind.TICK, {"t": tick, "c": _planned[tick]}))
@@ -668,7 +771,9 @@ func _handle_resync(message: Dictionary) -> void:
 		return
 	var fresh := NetProtocol.unpack_snapshot(message.get("s", PackedByteArray()), int(message.get("n", 0)))
 	if fresh == null:
+		NetLog.write("сессия", "клиент: снимок починки не разобрался")
 		return
+	NetLog.write("сессия", "клиент: починка снимком (%s), тик %d, был на %d" % [String(message.get("r", "")), int(message.get("t", 0)), run.get_tick() if run != null else -1])
 	_reset_confirmation(int(message.get("t", 0)))
 	repairs += 1
 	_adopt_run(fresh)

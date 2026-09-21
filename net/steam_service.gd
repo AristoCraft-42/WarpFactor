@@ -80,6 +80,16 @@ static func start() -> bool:
 	_ready = code == 0
 	if not _ready and _status.is_empty():
 		_status = "init_failed_%d" % code
+	if _ready:
+		# Ретрансляция через серверы Steam: без неё связь между двумя домашними роутерами
+		# может работать только в одну сторону. По умолчанию она включена, но полагаться на это
+		# не будем.
+		if steam.has_method("allowP2PPacketRelay"):
+			steam.call("allowP2PPacketRelay", true)
+		NetLog.write("steam", "Steam поднят: App ID %d, я %d «%s», оверлей %s" % [app_id(), self_id(),
+			self_name(), str(steam.call("isOverlayEnabled")) if steam.has_method("isOverlayEnabled") else "?"])
+	else:
+		NetLog.write("steam", "Steam НЕ поднялся: код %d, «%s»" % [code, _status])
 	return _ready
 
 

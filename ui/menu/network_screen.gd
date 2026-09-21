@@ -90,6 +90,9 @@ func _ready() -> void:
 	root.add_child(buttons)
 	_join_button = UiUtil.button("NET_CONNECT", _join, &"AccentButton")
 	buttons.add_child(_join_button)
+	buttons.add_child(UiUtil.button("NET_OPEN_LOG", func() -> void:
+		DirAccess.make_dir_recursive_absolute(NetLog.DIR)
+		OS.shell_open(NetLog.folder())))
 	buttons.add_child(UiUtil.spacer(true))
 	buttons.add_child(UiUtil.button("BACK", func() -> void: back_requested.emit()))
 
@@ -111,8 +114,8 @@ func _setup_steam() -> void:
 	_steam_box.visible = true
 	if not lobbies.listed.is_connected(_on_lobbies):
 		lobbies.listed.connect(_on_lobbies)
-	if not lobbies.entered.is_connected(_on_lobby_entered):
-		lobbies.entered.connect(_on_lobby_entered)
+	if not Session.join_status.is_connected(_on_join_status):
+		Session.join_status.connect(_on_join_status)
 	if not SteamService.self_name().is_empty():
 		_name_edit.text = SteamService.self_name()
 	lobbies.refresh()
@@ -124,7 +127,7 @@ func _on_lobbies(list: Array) -> void:
 	for entry in list:
 		var lobby: Dictionary = entry
 		_steam_list.add_item("%s (%d)" % [String(lobby.get("name", "?")), int(lobby.get("players", 1))])
-	if list.is_empty():
+	if list.is_empty() and not Session.net.is_networked():
 		_status.text = tr("NET_STEAM_EMPTY")
 
 
@@ -139,19 +142,8 @@ func _join_lobby(index: int) -> void:
 	lobbies.join(int((_lobbies[index] as Dictionary).get("id", 0)))
 
 
-## Вошли в лобби: хост известен, дальше — обычное подключение, но транспортом Steam.
-func _on_lobby_entered(_lobby_id: int, host_steam_id: int) -> void:
-	if host_steam_id == 0 or host_steam_id == SteamService.self_id():
-		return
-	# Своя игра уже идёт (мы хост или уже в чужом мире) — входить второй раз нельзя.
-	# А незавершённую попытку, наоборот, надо дать повторить: join_run сам её закроет.
-	if Session.net.is_host() or Session.net.run != null:
-		return
-	if Session.net.join_run(str(host_steam_id), 0, Session.get_player_name(), SteamTransport.new()):
-		if not Session.net.run_replaced.is_connected(_on_run_ready):
-			Session.net.run_replaced.connect(_on_run_ready, CONNECT_ONE_SHOT)
-	else:
-		_status.text = tr("NET_CONNECT_FAILED")
+func _on_join_status(text: String) -> void:
+	_status.text = text
 
 
 func _exit_tree() -> void:
@@ -162,6 +154,10 @@ func _exit_tree() -> void:
 
 
 func _process(delta: float) -> void:
+	# Идёт вход: показываем, как он идёт, и не затираем это поиском игр.
+	if Session.net.role == NetSession.Role.CLIENT and Session.net.run == null:
+		_status.text = _join_progress()
+		return
 	_timer -= delta
 	if _timer > 0.0:
 		return
@@ -169,6 +165,17 @@ func _process(delta: float) -> void:
 	if Session.discovery != null:
 		Session.discovery.refresh()
 	_refresh_list()
+
+
+func _join_progress() -> String:
+	var steam := Session.net.transport as SteamTransport
+	if steam != null:
+		var progress := steam.incoming_progress()
+		if progress.y > 0:
+			return tr("NET_RECEIVING_WORLD") % [progress.x, progress.y]
+		if steam.is_connecting():
+			return tr("NET_KNOCKING")
+	return tr("NET_WAITING_WORLD")
 
 
 func _refresh_list() -> void:
@@ -182,7 +189,7 @@ func _refresh_list() -> void:
 		_list.add_item("%s — %s:%d (%d)" % [String(info.get("name", address)), address,
 			int(info.get("port", NetProtocol.DEFAULT_PORT)), int(info.get("players", 1))])
 		_addresses.append(address)
-	if _list.item_count == 0:
+	if _list.item_count == 0 and _status.text.is_empty():
 		_status.text = tr("NET_SEARCHING")
 	for i in _addresses.size():
 		if _addresses[i] == keep:

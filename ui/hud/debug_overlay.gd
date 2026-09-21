@@ -51,6 +51,7 @@ func _process(delta: float) -> void:
 		lines.append("net: %s   запас %d из %.1f тиков   темп x%.2f   задержка ввода %d" % [
 			"хост" if Session.net.is_host() else "клиент", Session.net.ready_ticks(),
 			Session.net.buffer_target(), _game.clock.get_time_scale(), Session.net.predicted_delay()])
+		lines.append("net: журнал %s" % NetLog.path())
 		lines.append("net: задержка ввода %d тиков (%.0f мс) — измерена по своим командам" % [
 			Session.net.predicted_delay(), Session.net.predicted_delay() * GameConst.TICK_DT * 1000.0])
 		lines.append("net: я — игрок %d%s   игроков %d" % [_game.run.local_player,

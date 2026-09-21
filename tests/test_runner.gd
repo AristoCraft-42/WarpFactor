@@ -12,6 +12,7 @@ var _checks: int = 0
 
 
 func _ready() -> void:
+	NetLog.enabled = false
 	_compile_all()
 	_test_registry()
 	_test_line_planner()
@@ -112,6 +113,8 @@ func _ready() -> void:
 	_test_net_leave()
 	_test_steam_transport()
 	_test_steam_big_packet()
+	_check(SteamLobbies.lobby_from_args(PackedStringArray(["--x", "+connect_lobby", "109775241"])) == 109775241, "номер лобби из +connect_lobby")
+	_check(SteamLobbies.lobby_from_args(PackedStringArray(["+connect_lobby"])) == 0, "без номера лобби — ноль")
 	_test_steam_session()
 	_test_clock_waiting()
 	_test_clock_scale()

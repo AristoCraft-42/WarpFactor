@@ -55,3 +55,13 @@ func is_connecting() -> bool:
 ## Наш собственный id (у хоста — HOST_ID).
 func get_local_id() -> int:
 	return 0
+
+
+## Как транспорт называется в журнале.
+func kind_name() -> String:
+	return "?"
+
+
+## Счётчики для сводки в журнале (пусто — рассказать нечего).
+func debug_stats() -> String:
+	return ""
