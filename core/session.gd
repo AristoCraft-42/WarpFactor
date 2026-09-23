@@ -14,6 +14,8 @@ var load_path: String = ""
 var creative: bool = false
 ## Совместная игра: одна на всё приложение, переживает смену сцен.
 var net := NetSession.new()
+## Показ своих действий до их применения (см. NetPredict): интерфейс читает его вместо мира.
+var predict := NetPredict.new()
 ## Имя игрока в сети.
 var player_name: String = ""
 ## Поиск игр в локальной сети (создаётся по требованию).

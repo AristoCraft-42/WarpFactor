@@ -179,7 +179,7 @@ func _refresh_pressed() -> void:
 
 
 func _update_counts() -> void:
-	var inventory := _world.drone.inventory
+	var inventory := Session.predict.inventory_of(_world.drone)
 	for id in _building_buttons:
 		var def := Registry.get_building(id)
 		var owned := inventory.count(def.item.index) if def.item != null else 0
@@ -201,7 +201,7 @@ func _tooltip_for(def: BuildingDef, owned: int) -> String:
 	if not def.solid:
 		lines.append(tr("STAT_WALKABLE"))
 	if not def.cost.is_empty():
-		var inventory := _world.drone.inventory
+		var inventory := Session.predict.inventory_of(_world.drone)
 		var parts := PackedStringArray()
 		for stack in def.cost:
 			parts.append("%s %d/%d" % [tr(stack.item.name_key), inventory.count(stack.item.index), stack.amount])

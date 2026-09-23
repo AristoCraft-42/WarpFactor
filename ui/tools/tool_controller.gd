@@ -320,6 +320,8 @@ func _process(_delta: float) -> void:
 	elif _drag == Drag.SELECT and not Input.is_action_pressed("select_area"):
 		_finish_drag()
 
+	if _preview != null:
+		_preview.set_pending_removals(Session.predict.removing_buildings())
 	var over_ui := get_viewport().gui_get_hovered_control() != null and _drag == Drag.NONE
 	if over_ui != _over_ui:
 		_over_ui = over_ui
@@ -327,8 +329,8 @@ func _process(_delta: float) -> void:
 	# Инвентарь и позиция дрона влияют на доступность построек в превью.
 	var drone := _world.drone
 	if mode != Mode.NONE:
-		if drone.inventory.revision != _inventory_revision:
-			_inventory_revision = drone.inventory.revision
+		if drone.inventory.revision + Session.predict.revision != _inventory_revision:
+			_inventory_revision = drone.inventory.revision + Session.predict.revision
 			_dirty = true
 		var drone_key := Vector2i((drone.position / (GameConst.TILE_SIZE * 0.5)).floor())
 		if drone_key != _drone_key:
@@ -597,7 +599,7 @@ func _click_select() -> void:
 
 func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 	var def := place_def
-	var budget := _world.drone.inventory.make_budget()
+	var budget := Session.predict.inventory_of(_world.drone).make_budget()
 	var ghosts: Array[PlacementPreview.Ghost] = []
 	if _drag == Drag.PLACE and def.line_placement:
 		var delta := tile - _drag_start
@@ -632,7 +634,7 @@ func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 
 
 func _update_paste_ghosts(tile: Vector2i) -> void:
-	var budget := _world.drone.inventory.make_budget()
+	var budget := Session.predict.inventory_of(_world.drone).make_budget()
 	var corner := tile - plan_size / 2
 	var ghosts: Array[PlacementPreview.Ghost] = []
 	for entry in plan:

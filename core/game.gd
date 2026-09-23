@@ -203,6 +203,7 @@ func _build_scene() -> void:
 	_connect_once(Settings.changed, _on_setting_changed)
 	if Session.net.is_networked():
 		Session.net.set_run(run)
+	Session.predict.setup(run)
 
 	camera = CameraController.new()
 	camera.name = "Camera"

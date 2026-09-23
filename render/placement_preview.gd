@@ -48,6 +48,17 @@ func add_pending(ghosts: Array[Ghost], world: GameWorld) -> void:
 	queue_redraw()
 
 
+## Здания, которые уже отмечены к сносу (команда в пути).
+var _pending_removals: Array[Building] = []
+
+
+func set_pending_removals(buildings: Array[Building]) -> void:
+	if buildings == _pending_removals:
+		return
+	_pending_removals = buildings
+	queue_redraw()
+
+
 func _process(_delta: float) -> void:
 	if _pending.is_empty():
 		return
@@ -153,6 +164,15 @@ func _draw() -> void:
 				BuildingLayer.draw_building(self, g.def, g.origin, g.rotation, Color(1.0, 0.45, 0.4, 0.45))
 				draw_rect(rect, Color(COLOR_INVALID, 0.18), true)
 				draw_rect(rect.grow(-1.0), COLOR_INVALID, false, 2.0)
+
+	# Отданный снос виден сразу: здание перечёркнуто, пока команда идёт до хоста.
+	for entry in _pending_removals:
+		var b: Building = entry
+		if b != null and b.id != 0:
+			var r := b.get_world_rect()
+			draw_rect(r.grow(-1.0), Color(COLOR_INVALID, 0.5), false, 2.0)
+			draw_line(r.position, r.end, Color(COLOR_INVALID, 0.6), 2.0)
+			draw_line(Vector2(r.position.x, r.end.y), Vector2(r.end.x, r.position.y), Color(COLOR_INVALID, 0.6), 2.0)
 
 	for entry in _pending:
 		var g: Ghost = entry["ghost"]

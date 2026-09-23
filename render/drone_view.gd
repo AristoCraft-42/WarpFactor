@@ -174,8 +174,15 @@ func _draw_drone(player: Player) -> void:
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * fraction, bar.size.y)), CombatOverlay.bar_color(fraction), true)
 	if local and _tools != null and _tools.mode != ToolController.Mode.NONE and not _drone.world.creative:
 		_draw_range(pos)
-	if _drone.is_mining():
-		_draw_beam(pos)
+	# Луч включается сразу по клику: команда добычи применится только через задержку ввода,
+	# а без луча клик выглядит несработавшим.
+	var mine_tile := _drone.mine_tile
+	if local and Session.net.is_networked():
+		var wanted := Session.predict.mining_tile()
+		if wanted != Drone.NO_TILE:
+			mine_tile = wanted
+	if mine_tile != Drone.NO_TILE:
+		_draw_beam(pos, mine_tile)
 	if local:
 		_draw_mined_label()
 	if _drone.is_repairing():
@@ -245,11 +252,11 @@ func _draw_mined_label() -> void:
 	draw_string(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.98, 0.94, 0.78, fade))
 
 
-func _draw_beam(pos: Vector2) -> void:
+func _draw_beam(pos: Vector2, mine_tile: Vector2i) -> void:
 	var t := float(GameConst.TILE_SIZE)
-	var target := Vector2(_drone.mine_tile) * t + Vector2(t, t) * 0.5
-	var tile_rect := Rect2(Vector2(_drone.mine_tile) * t, Vector2(t, t))
-	if _drone.mine_blocked:
+	var target := Vector2(mine_tile) * t + Vector2(t, t) * 0.5
+	var tile_rect := Rect2(Vector2(mine_tile) * t, Vector2(t, t))
+	if _drone.mine_blocked and mine_tile == _drone.mine_tile:
 		draw_line(pos, target, Color(UiTheme.GRAY, 0.5), 1.5)
 		draw_rect(tile_rect.grow(-2.0), Color(UiTheme.RED, 0.8), false, 2.0)
 		return

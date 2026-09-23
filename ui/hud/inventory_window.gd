@@ -220,8 +220,8 @@ func _unhandled_input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	if not visible:
 		return
-	if _drone.inventory.revision != _inventory_revision:
-		_inventory_revision = _drone.inventory.revision
+	if _shown_revision() != _inventory_revision:
+		_inventory_revision = _shown_revision()
 		_refresh_inventory()
 		if mode == Mode.CRAFT:
 			_refresh_recipes()
@@ -260,7 +260,7 @@ func _apply_mode() -> void:
 
 
 func _refresh_all() -> void:
-	_inventory_revision = _drone.inventory.revision
+	_inventory_revision = _shown_revision()
 	_refresh_inventory()
 	if mode == Mode.CRAFT:
 		_refresh_recipes()
@@ -270,15 +270,20 @@ func _refresh_all() -> void:
 
 # --- Инвентарь дрона ---
 
+## Что показано сейчас: и настоящий инвентарь, и предсказание своих команд.
+func _shown_revision() -> int:
+	return _drone.inventory.revision + Session.predict.revision
+
+
 func _refresh_inventory() -> void:
-	var inventory := _drone.inventory
+	var inventory := Session.predict.inventory_of(_drone)
 	for i in _inventory_slots.size():
 		_inventory_slots[i].set_stack(inventory.slot_items[i], inventory.slot_counts[i])
 	_slots_label.text = tr("INVENTORY_SLOTS") % [inventory.used_slots(), inventory.size()]
 
 
 func _on_inventory_slot_clicked(button: MouseButton, shift: bool, slot: int) -> void:
-	var inventory := _drone.inventory
+	var inventory := Session.predict.inventory_of(_drone)
 	var item := inventory.slot_items[slot]
 	if item < 0:
 		return
@@ -364,10 +369,11 @@ func _recipe_tooltip(recipe: HandRecipe, craftable: int) -> String:
 		lines.append(tr("CRAFT_LOCKED") % _research_name(recipe))
 	var parts := PackedStringArray()
 	for stack in recipe.ingredients:
-		parts.append("%s %d/%d" % [tr(stack.item.name_key), _drone.inventory.count(stack.item.index), stack.amount])
+		parts.append("%s %d/%d" % [tr(stack.item.name_key),
+			Session.predict.inventory_of(_drone).count(stack.item.index), stack.amount])
 	lines.append(tr("CRAFT_INGREDIENTS") % ", ".join(parts))
 	lines.append(tr("CRAFT_TIME") % recipe.get_seconds())
-	lines.append(tr("CRAFT_IN_INVENTORY") % _drone.inventory.count(recipe.output.index))
+	lines.append(tr("CRAFT_IN_INVENTORY") % Session.predict.inventory_of(_drone).count(recipe.output.index))
 	lines.append(tr("CRAFT_AVAILABLE") % craftable)
 	return "\n".join(lines)
 
@@ -401,7 +407,7 @@ func _rebuild_building_slots() -> void:
 func _refresh_building() -> void:
 	if _building == null or _building.world == null:
 		return
-	var inventory := _building.get_inventory()
+	var inventory := Session.predict.inventory_of_building(_building)
 	if inventory != null:
 		for i in _building_slots.size():
 			_building_slots[i].set_stack(inventory.slot_items[i], inventory.slot_counts[i])

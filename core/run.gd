@@ -17,6 +17,12 @@ extends RefCounted
 ## шлюз на новой планете пересобирается с полной прочностью.
 
 ## Дрон перешёл в другой мир.
+## Своя команда ушла в сеть и ждёт своего тика (в одиночной игре не зовётся).
+signal command_sent(cmd: Command)
+## Команда применена к миру — её предсказание больше не нужно.
+signal command_applied(cmd: Command)
+
+
 signal drone_changed_world
 ## Состав игроков или локальный игрок изменились.
 signal players_changed
@@ -323,6 +329,9 @@ func submit_for(player_id: int, kind: Command.Kind, args: Dictionary = {}) -> vo
 	player.next_seq += 1
 	if command_router.is_valid():
 		command_router.call(cmd)
+		# В сетевой игре команда применится через задержку: интерфейс покажет её результат сразу
+		# (NetPredict), а сам мир останется нетронутым.
+		command_sent.emit(cmd)
 	else:
 		commands.submit(cmd, get_tick())
 
@@ -416,6 +425,7 @@ func execute(cmd: Command) -> void:
 	world.actor = actor
 	_run_command(cmd, player, actor, world)
 	world.actor = null
+	command_applied.emit(cmd)
 
 
 func _run_command(cmd: Command, player: Player, actor: Drone, world: GameWorld) -> void:

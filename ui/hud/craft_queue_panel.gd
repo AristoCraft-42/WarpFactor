@@ -43,19 +43,26 @@ func setup(drone: Drone, world: GameWorld = null) -> void:
 func _process(_delta: float) -> void:
 	if _queue == null:
 		return
-	if _queue.revision != _revision:
-		_revision = _queue.revision
+	if _queue.revision + Session.predict.revision != _revision:
+		_revision = _queue.revision + Session.predict.revision
 		_rebuild()
 	if visible:
 		_progress.value = _queue.get_progress()
 
 
 func _rebuild() -> void:
-	visible = not _queue.is_empty()
+	# Отданный крафт виден в очереди сразу, ещё до того, как его применит хост.
+	var groups := _queue.get_groups()
+	for entry in Session.predict.pending_crafts():
+		var recipe: HandRecipe = entry[0]
+		if not groups.is_empty() and groups[groups.size() - 1][0] == recipe:
+			groups[groups.size() - 1][1] += int(entry[1])
+		else:
+			groups.append([recipe, int(entry[1])])
+	visible = not groups.is_empty()
 	for child in _row.get_children():
 		_row.remove_child(child)
 		child.queue_free()
-	var groups := _queue.get_groups()
 	for i in mini(groups.size(), MAX_GROUPS):
 		var recipe: HandRecipe = groups[i][0]
 		var slot := ItemSlot.new()

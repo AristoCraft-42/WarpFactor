@@ -137,6 +137,7 @@ func _ready() -> void:
 	_test_net_input_delay()
 	_test_prediction_follows_input()
 	_test_net_command_lead()
+	_test_net_predict()
 	_test_net_creative_give()
 	_test_ui_does_not_touch_world()
 	_test_net_pending_join_dropped()
@@ -3580,6 +3581,88 @@ func _test_teleport_keeps_own_drone() -> void:
 	_check(guest != null and guest.drone.world == run.planet, "гость переехал на новую планету")
 	_check(guest != null and run.planet.drone == guest.drone, "после телепорта мир смотрит на дрона гостя, а не хоста")
 	run.dispose()
+
+## Предсказание своих действий: клик отзывается сразу, мир при этом не трогается, а когда команда
+## применяется по-настоящему, показ возвращается к настоящему состоянию.
+func _test_net_predict() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var spawn := host_run.drone.get_tile()
+	var box := host_run.planet.buildings.place(Registry.get_building(&"container"),
+		spawn + Vector2i(2, 0), 0, true) as StorageBuilding
+	var ore := _item(&"hematite")
+	var belt := Registry.get_building(&"conveyor")
+	box.inventory.add(ore, 50)
+	box.inventory.add(belt.item.index, 10)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 20)
+	Session.predict.setup(client.run)
+	var mine := client.run.get_player(client.run.local_player)
+	var my_box := client.run.planet.buildings.get_by_id(box.id) as StorageBuilding
+	if mine == null or my_box == null:
+		Session.predict.setup(null)
+		host.close()
+		client.close()
+		host_run.dispose()
+		return
+
+	# Забрать из сундука: на экране предмет уже у гостя, в мире — ещё нет.
+	client.run.submit(Command.Kind.TAKE, {"id": my_box.id, "item": ore, "amount": 20})
+	_check(Session.predict.inventory_of(mine.drone).count(ore) == 20, "забранное видно сразу (%d)"
+		% Session.predict.inventory_of(mine.drone).count(ore))
+	_check(Session.predict.inventory_of_building(my_box).count(ore) == 30, "в сундуке сразу меньше (%d)"
+		% Session.predict.inventory_of_building(my_box).count(ore))
+	_check(mine.drone.inventory.count(ore) == 0 and my_box.inventory.count(ore) == 50,
+		"сам мир при этом не тронут")
+	_net_run(host, host_run, client, 40)
+	_check(mine.drone.inventory.count(ore) == 20, "команда применилась по-настоящему (%d)"
+		% mine.drone.inventory.count(ore))
+	_check(not Session.predict.is_active(), "предсказание снялось после применения")
+	_check(Session.predict.inventory_of(mine.drone).count(ore) == 20, "показ совпал с миром")
+	var at_host := host_run.get_player(mine.id)
+	_check(at_host != null and at_host.drone.inventory.count(ore) == 20, "у хоста то же самое")
+
+	# Постройка: лента уходит из показа сразу, мир — прежний.
+	client.run.submit(Command.Kind.TAKE, {"id": my_box.id, "item": belt.item.index, "amount": 5})
+	_net_run(host, host_run, client, 40)
+	var have := mine.drone.inventory.count(belt.item.index)
+	_check(have == 5, "ленты забраны (%d)" % have)
+	var spot := spawn + Vector2i(0, 2)
+	client.run.submit(Command.Kind.BUILD, {"places": [{"def": String(belt.id), "origin": spot, "rotation": 0, "config": null}]})
+	_check(Session.predict.inventory_of(mine.drone).count(belt.item.index) == have - 1,
+		"поставленное списывается сразу (%d из %d)" % [Session.predict.inventory_of(mine.drone).count(belt.item.index), have])
+	_check(mine.drone.inventory.count(belt.item.index) == have, "и снова мир не тронут")
+	_net_run(host, host_run, client, 40)
+	_check(mine.drone.inventory.count(belt.item.index) == have - 1, "постройка встала (%d)"
+		% mine.drone.inventory.count(belt.item.index))
+
+	# Снос: здание помечено сразу, лента возвращается в показ.
+	var built := client.run.planet.buildings.get_at(spot)
+	_check(built != null, "лента стоит на месте")
+	if built != null:
+		client.run.submit(Command.Kind.REMOVE, {"ids": PackedInt32Array([built.id])})
+		_check(Session.predict.is_removing(built), "снос виден сразу")
+		_check(Session.predict.inventory_of(mine.drone).count(belt.item.index) == have,
+			"возврат постройки виден сразу (%d)" % Session.predict.inventory_of(mine.drone).count(belt.item.index))
+		_net_run(host, host_run, client, 40)
+		_check(client.run.planet.buildings.get_at(spot) == null, "здание снесено по-настоящему")
+
+	# Добыча: цель известна сразу, до применения команды — луч включается по клику.
+	client.run.submit(Command.Kind.MINE, {"tile": spawn + Vector2i(1, 1)})
+	_check(Session.predict.mining_tile() == spawn + Vector2i(1, 1), "цель добычи видна сразу")
+	_net_run(host, host_run, client, 40)
+	_check(Session.predict.mining_tile() == Drone.NO_TILE, "после применения показ снимается")
+	_check(host.last_desync.is_empty(), "расхождений за весь прогон нет (%s)" % host.last_desync)
+	Session.predict.setup(null)
+	host.close()
+	client.close()
+	host_run.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:

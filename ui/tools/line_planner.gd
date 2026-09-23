@@ -256,7 +256,7 @@ static func _available(world: GameWorld, def: BuildingDef) -> int:
 		return 1 << 30
 	if world.drone == null or def.item == null:
 		return 0
-	return world.drone.inventory.count(def.item.index)
+	return Session.predict.inventory_of(world.drone).count(def.item.index)
 
 
 ## Добавляет тайлы от a (не включая) до b (включая) по одной оси.
