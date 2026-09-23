@@ -30,6 +30,11 @@ var nodes: Array[StarNode] = []
 var current_id: int = 0
 var run_seed: int = 0
 
+## Сколько шагов карты открыли исследования сверх базовой дальности (ставит забег).
+var bonus_depth: int = 0
+## Что открыла разведка (ставит забег): 0 — ничего, 1 — тип планеты и выбор цели, 2 — ещё и ресурсы.
+var scan_level: int = 0
+
 var _run_def: RunDef
 var _types: Array[PlanetTypeDef] = []
 var _steps: Array[PackedInt32Array] = []
@@ -43,7 +48,24 @@ func _init(p_run_seed: int, run_def: RunDef, types: Array[PlanetTypeDef]) -> voi
 	var start := _make_node(0, 0, 1, first_type)
 	start.visited = true
 	_steps.append(PackedInt32Array([start.id]))
-	ensure_depth(run_def.visible_depth)
+	ensure_depth(get_visible_depth())
+
+
+## На сколько шагов вперёд видна карта: из данных забега плюс исследования «Дальний обзор».
+func get_visible_depth() -> int:
+	# Без разведки видно только следующий шаг: куда несёт, то и есть.
+	return (_run_def.visible_depth + bonus_depth) if scan_level > 0 else 1
+
+
+## Можно ли выбирать, куда лететь. До разведки выбора нет — цель одна.
+func can_choose() -> bool:
+	return scan_level > 0
+
+
+## Цель по умолчанию, когда выбора ещё нет (первый сосед по порядку — одинаково у всех игроков).
+func get_default_next() -> int:
+	var next := get_next()
+	return next[0].id if not next.is_empty() else -1
 
 
 func get_current() -> StarNode:
@@ -63,13 +85,16 @@ func get_next() -> Array[StarNode]:
 
 
 func can_travel_to(id: int) -> bool:
+	# Без разведки лететь можно только к цели по умолчанию: выбирать ещё нечем.
+	if not can_choose() and id != get_default_next():
+		return false
 	return get_current().links.has(id)
 
 
 ## Узлы, видимые игроку: от текущего шага на visible_depth вперёд.
 func get_visible_nodes() -> Array[StarNode]:
 	var result: Array[StarNode] = []
-	var max_depth := get_current().depth + _run_def.visible_depth
+	var max_depth := get_current().depth + get_visible_depth()
 	for node in nodes:
 		if node.depth <= max_depth:
 			result.append(node)
@@ -84,7 +109,7 @@ func get_step_count() -> int:
 func move_to(id: int) -> void:
 	current_id = id
 	nodes[id].visited = true
-	ensure_depth(nodes[id].depth + _run_def.visible_depth)
+	ensure_depth(nodes[id].depth + get_visible_depth())
 
 
 func save_data() -> Dictionary:
@@ -105,7 +130,7 @@ func load_data(data: Dictionary) -> void:
 			nodes[id].visited = true
 	current_id = clampi(int(data.get("current", 0)), 0, nodes.size() - 1)
 	nodes[current_id].visited = true
-	ensure_depth(nodes[current_id].depth + _run_def.visible_depth)
+	ensure_depth(nodes[current_id].depth + get_visible_depth())
 
 
 ## Достроить шаги до depth включительно.

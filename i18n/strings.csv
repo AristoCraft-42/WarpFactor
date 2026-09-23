@@ -612,6 +612,31 @@ RESEARCH_GATEWAY_FLUIDS,Fluid transfer,Передача жидкостей
 RESEARCH_GATEWAY_FLUIDS_DESC,Pipes connect to the free sides of the gateway and to lifts: fluids flow between floors.,Трубы подключаются к свободным сторонам шлюза и к лифтам: жидкости перетекают между этажами.
 RESEARCH_LIFT,Lift,Лифт
 RESEARCH_LIFT_DESC,"Lifts connect the pad and the underground floor anywhere: items, power, fluids and the drone.","Лифты соединяют площадку и подземный этаж в любом месте: предметы, энергия, жидкости и дрон."
+STARMAP_UNKNOWN,Unknown planet,Неизвестная планета
+STARMAP_UNKNOWN_HINT,Nothing is known about it yet: the survey branch of the warp platform opens the view.,О ней пока ничего не известно: обзор открывает ветка разведки варп-платформы.
+STARMAP_ORES_UNKNOWN,Resources unknown,Ресурсы неизвестны
+RESEARCH_SCIENCE_SPEED_1,Research methods I,Методика исследований I
+RESEARCH_SCIENCE_SPEED_1_DESC,Research goes a quarter faster: both the workshop and hand-fed kits.,"Исследования идут на четверть быстрее — и в цехе, и при сдаче наборов руками."
+RESEARCH_SCIENCE_SPEED_2,Research methods II,Методика исследований II
+RESEARCH_SCIENCE_SPEED_2_DESC,Research goes a quarter faster: both the workshop and hand-fed kits.,"Исследования идут на четверть быстрее — и в цехе, и при сдаче наборов руками."
+RESEARCH_SCIENCE_SPEED_3,Research methods III,Методика исследований III
+RESEARCH_SCIENCE_SPEED_3_DESC,Research goes a quarter faster: both the workshop and hand-fed kits.,"Исследования идут на четверть быстрее — и в цехе, и при сдаче наборов руками."
+RESEARCH_SCIENCE_SPEED_4,Research methods IV,Методика исследований IV
+RESEARCH_SCIENCE_SPEED_4_DESC,Research goes a quarter faster: both the workshop and hand-fed kits.,"Исследования идут на четверть быстрее — и в цехе, и при сдаче наборов руками."
+RESEARCH_GATEWAY_SPEED_1,Gateway boost I,Разгон шлюза I
+RESEARCH_GATEWAY_SPEED_1_DESC,The gateway and the lifts pass items half again as fast.,Шлюз и лифты пропускают предметы в полтора раза быстрее.
+RESEARCH_GATEWAY_SPEED_2,Gateway boost II,Разгон шлюза II
+RESEARCH_GATEWAY_SPEED_2_DESC,The gateway and the lifts pass items half again as fast.,Шлюз и лифты пропускают предметы в полтора раза быстрее.
+RESEARCH_GATEWAY_SPEED_3,Gateway boost III,Разгон шлюза III
+RESEARCH_GATEWAY_SPEED_3_DESC,The gateway and the lifts pass items half again as fast.,Шлюз и лифты пропускают предметы в полтора раза быстрее.
+RESEARCH_STAR_SCAN_1,Survey I,Разведка I
+RESEARCH_STAR_SCAN_1_DESC,The warp platform reads the type of the neighbouring planets — and lets you choose where to jump.,"Варп-платформа определяет тип соседних планет — и появляется выбор, куда прыгать."
+RESEARCH_STAR_SCAN_2,Survey II,Разведка II
+RESEARCH_STAR_SCAN_2_DESC,The survey also shows which resources a planet holds.,"Разведка показывает ещё и то, какие ресурсы есть на планете."
+RESEARCH_STAR_DEPTH_1,Long-range survey I,Дальний обзор I
+RESEARCH_STAR_DEPTH_1_DESC,The star map shows one more step ahead: what lies beyond the next planet.,"Звёздная карта показывает ещё один шаг вперёд: видно, что будет за следующей планетой."
+RESEARCH_STAR_DEPTH_2,Long-range survey II,Дальний обзор II
+RESEARCH_STAR_DEPTH_2_DESC,The star map shows one more step ahead: what lies beyond the next planet.,"Звёздная карта показывает ещё один шаг вперёд: видно, что будет за следующей планетой."
 RESEARCH_WARP_TIME_1,Flight reserve I,Запас хода I
 RESEARCH_WARP_TIME_1_DESC,The warp platform holds the planet link 2 minutes longer before the forced jump.,Варп-платформа держит связь с планетой на 2 минуты дольше до принудительного прыжка.
 RESEARCH_WARP_CHARGE_1,Teleport boost I,Разгон телепорта I

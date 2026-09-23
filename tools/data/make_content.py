@@ -266,6 +266,17 @@ RESEARCH = [
     # Полигон: бесконечное исследование для замеров скорости науки, видно только в творческом режиме.
     ("sandbox", 300, 1000000, [], [], [], []),
 ] + [("pad_%d" % i, 100 + i, 10 + 10 * i, ["pad_%d" % (i - 1)] if i > 1 else ["mining"], [], [], ["pad_size"]) for i in range(1, 6)] \
+  + [("science_speed_%d" % i, 81 + i, 20 + 20 * i,
+      ["science_speed_%d" % (i - 1)] if i > 1 else ["science_automation"], [], [], ["science_speed"])
+     for i in range(1, 5)] \
+  + [("gateway_speed_%d" % i, 123 + i, 20 + 20 * i,
+      ["gateway_speed_%d" % (i - 1)] if i > 1 else ["gateway_items"], [], [], ["gateway_speed"])
+     for i in range(1, 4)] \
+  + [("star_scan_%d" % i, 111 + i, 20 + 20 * i,
+      ["star_scan_%d" % (i - 1)] if i > 1 else ["pad_1"], [], [], ["star_scan"])
+     for i in range(1, 3)]   + [("star_depth_%d" % i, 114 + i, 30 + 30 * i,
+      ["star_depth_%d" % (i - 1)] if i > 1 else ["star_scan_2"], [], [], ["star_depth"])
+     for i in range(1, 3)] \
   + [("warp_time_%d" % i, 105 + i, 15 + 15 * i, ["warp_time_%d" % (i - 1)] if i > 1 else ["pad_1"], [], [], ["planet_time"])
      for i in range(1, 4)] \
   + [("warp_charge_%d" % i, 108 + i, 15 + 15 * i, ["warp_charge_%d" % (i - 1)] if i > 1 else ["pad_1"], [], [], ["teleport_charge"])

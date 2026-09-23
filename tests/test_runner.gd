@@ -62,6 +62,8 @@ func _ready() -> void:
 	_test_teleport()
 	_test_teleport_keeps_own_drone()
 	_test_teleport_timers()
+	_test_survey_steps()
+	_test_science_and_gateway_speed()
 	_test_pad_is_paved()
 	_test_power_wires_cache()
 	_test_shift_take_all()
@@ -196,8 +198,8 @@ func _test_registry() -> void:
 	_check(Registry.floors.size() >= 4, "мало типов пола")
 	_check(Registry.buildings.size() == 30, "ожидалось 30 зданий (24 обычных, 4 творческих, шлюз и пара), есть %d" % Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
-	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 48,
-		"13 рецептов и 48 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 59,
+		"13 рецептов и 59 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16 and Registry.base_def.size_step == 6,
 		"параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
@@ -1455,7 +1457,11 @@ func _test_star_map() -> void:
 		var start := StarMap.new(seed_value, Registry.run_def, Registry.planet_types).get_current()
 		all_ores = all_ores and start.ores.size() == start.type.ore_ids.size()
 	_check(all_ores, "на стартовой планете есть все руды её типа (40 сидов)")
-	_check(a.get_step_count() == Registry.run_def.visible_depth + 1, "карта построена на %d шагов вперёд" % Registry.run_def.visible_depth)
+	_check(a.get_step_count() == 2, "без разведки карта построена на один шаг вперёд (%d)" % a.get_step_count())
+	a.scan_level = 1
+	a.ensure_depth(a.get_visible_depth())
+	_check(a.get_step_count() == Registry.run_def.visible_depth + 1,
+		"с разведкой карта построена на %d шагов вперёд" % Registry.run_def.visible_depth)
 	var next := a.get_next()
 	_check(not next.is_empty(), "из стартовой планеты есть куда лететь")
 	var ok := true
@@ -1483,6 +1489,8 @@ func _test_star_map() -> void:
 	var wasteland_seen := false
 	for run_seed in 40:
 		var m := StarMap.new(run_seed, Registry.run_def, Registry.planet_types)
+		m.scan_level = 1
+		m.ensure_depth(m.get_visible_depth())
 		for node in m.nodes:
 			if node.type.safe:
 				wasteland_seen = true
@@ -3829,6 +3837,76 @@ func _test_power_wires_cache() -> void:
 	view.free()
 	world.dispose()
 
+## Разведка открывается ступенями: сначала игрок летит вслепую и без выбора, потом видит тип
+## планеты и выбирает цель, потом её ресурсы, и только затем прокачивает дальность обзора.
+func _test_survey_steps() -> void:
+	var run := Run.create_new(31337, false)
+	var map := run.star_map
+	var next := map.get_next()
+	_check(next.size() > 1, "у текущей планеты есть несколько соседей (%d)" % next.size())
+	_check(not map.can_choose() and map.get_visible_depth() == 1, "в начале забега выбора нет и видно на шаг")
+	_check(map.can_travel_to(map.get_default_next()), "лететь можно к цели по умолчанию")
+	var others := 0
+	for node in next:
+		if node.id != map.get_default_next() and not map.can_travel_to(node.id):
+			others += 1
+	_check(others == next.size() - 1, "к остальным соседям без разведки нельзя (%d из %d)" % [others, next.size() - 1])
+	var blind := StarMapView.describe_node(next[0], true, map.scan_level)
+	_check(blind.contains(tr("STARMAP_UNKNOWN")) and not blind.contains(tr(next[0].type.name_key)),
+		"о планете ничего не известно, кроме её кода")
+
+	run.research.done[&"star_scan_1"] = true
+	run.apply_research_effects()
+	_check(map.can_choose() and map.get_visible_depth() == run.run_def.visible_depth,
+		"«Разведка I» даёт выбор цели и обычный обзор (%d)" % map.get_visible_depth())
+	var typed := StarMapView.describe_node(next[0], true, map.scan_level)
+	_check(typed.contains(tr(next[0].type.name_key)) and typed.contains(tr("STARMAP_ORES_UNKNOWN")),
+		"виден тип планеты, но ещё не ресурсы")
+	var reachable := 0
+	for node in map.get_next():
+		if map.can_travel_to(node.id):
+			reachable += 1
+	_check(reachable == map.get_next().size(), "теперь доступны все соседи (%d)" % reachable)
+
+	run.research.done[&"star_scan_2"] = true
+	run.apply_research_effects()
+	var scouted := StarMapView.describe_node(next[0], true, map.scan_level)
+	_check(not scouted.contains(tr("STARMAP_ORES_UNKNOWN")), "«Разведка II» показывает ресурсы")
+
+	var depth := map.get_visible_depth()
+	run.research.done[&"star_depth_1"] = true
+	run.apply_research_effects()
+	_check(map.get_visible_depth() == depth + 1, "«Дальний обзор» добавляет шаг (%d из %d)"
+		% [map.get_visible_depth(), depth + 1])
+	run.dispose()
+
+
+## Ветка «Методика исследований» ускоряет научный цех, но не ручную сдачу: она задумана как
+## медленный запасной путь. «Разгон шлюза» ускоряет шлюз и лифты.
+func _test_science_and_gateway_speed() -> void:
+	var run := Run.create_new(4242, false)
+	var state := run.research
+	_check(is_equal_approx(state.speed_factor(), 1.0), "без исследований цех работает как в данных")
+	var gate := run.get_gateway(run.planet)
+	var base_ticks := gate.get_throughput_ticks()
+	var manual := roundi(ResearchState.MANUAL_SECONDS * GameConst.TICK_RATE)
+	state.done[&"science_speed_1"] = true
+	state.done[&"science_speed_2"] = true
+	run.apply_research_effects()
+	_check(is_equal_approx(state.speed_factor(), 1.5), "две ступени методики — цех в полтора раза быстрее (%.2f)"
+		% state.speed_factor())
+	state.manual_ticks = 1
+	_check(is_equal_approx(state.get_manual_fraction(), 1.0 / manual),
+		"ручная сдача идёт прежним темпом (%.4f из %.4f)" % [state.get_manual_fraction(), 1.0 / manual])
+	state.manual_ticks = 0
+	state.done[&"gateway_speed_1"] = true
+	run.apply_research_effects()
+	_check(gate.get_throughput_ticks() < base_ticks, "«Разгон шлюза» ускоряет пропуск предметов (%d из %d)"
+		% [gate.get_throughput_ticks(), base_ticks])
+	_check(GatewayBuilding.throughput_ticks(10, run.planet) == 7, "полторы скорости из десяти тиков — семь (%d)"
+		% GatewayBuilding.throughput_ticks(10, run.planet))
+	run.dispose()
+
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:
 	for research in Registry.researches:
@@ -3963,6 +4041,9 @@ func _test_threat_schedule() -> void:
 
 func _test_spawn_points() -> void:
 	var star_map := StarMap.new(31337, Registry.run_def, Registry.planet_types)
+	# Проверяем сами планеты, а не разведку: строим карту на всю глубину.
+	star_map.scan_level = 1
+	star_map.ensure_depth(star_map.get_visible_depth())
 	var checked := 0
 	for node in star_map.nodes:
 		if node.type.safe or checked >= 3:

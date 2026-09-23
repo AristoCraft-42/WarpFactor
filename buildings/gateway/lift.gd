@@ -56,7 +56,7 @@ func update_tick(tick: int) -> bool:
 		return false
 	pair.buffer.remove_at(0)
 	pair.notify_space()
-	_next_out = tick + get_lift_def().get_ticks_per_item()
+	_next_out = tick + GatewayBuilding.throughput_ticks(get_lift_def().get_ticks_per_item(), world)
 	if not pair.buffer.is_empty():
 		sleep_until(_next_out)
 	return false

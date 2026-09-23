@@ -289,6 +289,9 @@ func is_underground_open() -> bool:
 ## (состояние симуляции должно совпасть с сохранённым).
 func apply_research_effects(notify: bool = true) -> void:
 	_grow_gateways()
+	if star_map != null:
+		star_map.bonus_depth = research.count_effect(&"star_depth")
+		star_map.scan_level = research.count_effect(&"star_scan")
 	if planet != null and link != null and link.planet_gateway != null:
 		planet.resize_pad(_pad_around(link.planet_gateway))
 	if base != null:

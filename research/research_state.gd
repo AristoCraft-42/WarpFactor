@@ -198,6 +198,12 @@ func is_hand_recipe_unlocked(hand: HandRecipe) -> bool:
 
 
 ## Сколько наборов ещё нужно выбранному исследованию (с учётом ручной очереди).
+## Во сколько раз быстрее работает научный цех (ветка «Методика исследований»). Ручная сдача
+## идёт своим темпом: она задумана как медленный запасной путь без автоматики.
+func speed_factor() -> float:
+	return 1.0 + 0.25 * count_effect(&"science_speed")
+
+
 func get_needed(research: ResearchDef) -> int:
 	return maxi(research.cost_amount - get_progress(research), 0)
 

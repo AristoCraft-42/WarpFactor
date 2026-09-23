@@ -155,7 +155,7 @@ func _refresh() -> void:
 	if charging:
 		_map_view.selected_id = _run.charge_target
 	var node := _run.star_map.get_node(_map_view.selected_id)
-	_info.text = StarMapView.describe_node(node, true) if node != null else tr("TELEPORT_NO_TARGET")
+	_info.text = StarMapView.describe_node(node, true, _run.star_map.scan_level) if node != null else tr("TELEPORT_NO_TARGET")
 	var ready_in := _run.get_teleport_ready_seconds()
 	_start_button.visible = not charging
 	_start_button.disabled = node == null or ready_in > 0.0

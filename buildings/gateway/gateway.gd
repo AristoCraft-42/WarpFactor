@@ -14,6 +14,16 @@ var link: GatewayLink
 var _next_out := PackedInt32Array()
 
 
+## Через сколько тиков шлюз (или лифт) выпускает следующий предмет с учётом ветки «Разгон шлюза».
+static func throughput_ticks(base: int, world: GameWorld) -> int:
+	var steps := world.research.count_effect(&"gateway_speed") if world != null and world.research != null else 0
+	return maxi(1, roundi(float(base) / (1.0 + 0.5 * steps)))
+
+
+func get_throughput_ticks() -> int:
+	return throughput_ticks(get_gateway_def().get_ticks_per_item(), world)
+
+
 func get_gateway_def() -> GatewayDef:
 	return def as GatewayDef
 
@@ -172,7 +182,7 @@ func update_tick(tick: int) -> bool:
 			continue
 		link.pop(to_base)
 		target.handle_item(self, item)
-		_next_out[k] = tick + get_gateway_def().get_ticks_per_item()
+		_next_out[k] = tick + get_throughput_ticks()
 		soonest = mini(soonest, _next_out[k])
 		gave = true
 	if gave:

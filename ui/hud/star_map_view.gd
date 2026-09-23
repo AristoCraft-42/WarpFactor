@@ -97,16 +97,26 @@ func _get_tooltip(at_position: Vector2) -> String:
 	var id := _node_at(at_position)
 	if id < 0:
 		return ""
-	return describe_node(_run.star_map.get_node(id), _run.star_map.can_travel_to(id))
+	return describe_node(_run.star_map.get_node(id), _run.star_map.can_travel_to(id), _run.star_map.scan_level)
 
 
 ## Текст описания планеты для подсказок и панели выбора.
-static func describe_node(node: StarMap.StarNode, reachable: bool) -> String:
+## scan — что открыла разведка: 0 — ничего, кроме кода планеты; 1 — тип, размер и опасность;
+## 2 — ещё и ресурсы. Без разведки игрок летит вслепую, это и есть начало забега.
+static func describe_node(node: StarMap.StarNode, reachable: bool, scan: int = 2) -> String:
 	var lines := PackedStringArray()
+	if scan <= 0:
+		lines.append("%s %s" % [TranslationServer.translate("STARMAP_UNKNOWN"), node.code])
+		lines.append(TranslationServer.translate("STARMAP_UNKNOWN_HINT"))
+		if not reachable:
+			lines.append(TranslationServer.translate("STARMAP_UNREACHABLE"))
+		return "\n".join(lines)
 	lines.append("%s %s" % [TranslationServer.translate(node.type.name_key), node.code])
 	lines.append(TranslationServer.translate(node.type.description_key))
 	lines.append(TranslationServer.translate("STARMAP_SIZE") % [node.size.x, node.size.y])
-	if node.ores.is_empty():
+	if scan < 2:
+		lines.append(TranslationServer.translate("STARMAP_ORES_UNKNOWN"))
+	elif node.ores.is_empty():
 		lines.append(TranslationServer.translate("STARMAP_NO_ORES"))
 	else:
 		var names := PackedStringArray()
@@ -120,7 +130,7 @@ static func describe_node(node: StarMap.StarNode, reachable: bool) -> String:
 
 
 func _visible_depth() -> int:
-	return _run.run_def.visible_depth
+	return _run.star_map.get_visible_depth()
 
 
 func _node_pos(node: StarMap.StarNode) -> Vector2:

@@ -58,7 +58,7 @@ func update_tick(_tick: int) -> bool:
 		return false
 	var rate := get_power_satisfaction()
 	power_request = def.power_use
-	progress += rate / maxf(get_workshop_def().seconds_per_kit * GameConst.TICK_RATE, 1.0)
+	progress += rate * research.speed_factor() / maxf(get_workshop_def().seconds_per_kit * GameConst.TICK_RATE, 1.0)
 	status = Status.WORKING if rate > 0.0 else Status.NO_POWER
 	if progress >= 1.0:
 		if research.add_kit(working_item):
