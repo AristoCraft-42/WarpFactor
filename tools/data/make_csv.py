@@ -189,6 +189,8 @@ rows = [
 # Выделение и копирование
 ("ACTION_SELECT_AREA","Select area (hold)","Выделение области (с зажатием)"),
 ("ACTION_DELETE_SELECTION","Demolish selection / hovered","Снести выделенное / под курсором"),
+("ACTION_TAKE_BLUEPRINT","Take last blueprint","Взять последний чертёж"),
+("TOAST_NO_BLUEPRINT","No blueprint copied yet","Чертёж ещё не скопирован"),
 ("ACTION_COPY_SELECTION","Copy selection","Копировать выделенное"),
 ("HINT_AREA","Selected buildings: %d  ·  %s — demolish  ·  %s — copy  ·  %s or %s — clear selection","Выделено построек: %d  ·  %s — снести  ·  %s — копировать  ·  %s или %s — снять выделение"),
 ("HINT_PASTE","Paste (%d buildings)  ·  %s — place  ·  %s — rotate  ·  %s or %s — cancel","Вставка (%d построек)  ·  %s — поставить  ·  %s — повернуть  ·  %s или %s — отмена"),

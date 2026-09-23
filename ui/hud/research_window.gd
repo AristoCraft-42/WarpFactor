@@ -28,6 +28,8 @@ var _tree: ResearchTreeView
 var _tree_wrap: Control
 var _tree_size: Vector2 = Vector2.ZERO
 var _tree_zoom: float = 1.0
+## Дерево тащат средней кнопкой мыши.
+var _tree_panning: bool = false
 var _timer: float = 0.0
 
 
@@ -111,8 +113,24 @@ func setup(game: Game) -> void:
 
 
 ## Колесо над деревом меняет масштаб, а не прокручивает список.
+## Колесо приближает, перетаскивание средней кнопкой двигает — как камера в мире.
 func _on_tree_scroll(event: InputEvent, scroll: ScrollContainer) -> void:
 	var click := event as InputEventMouseButton
+	if click != null and click.button_index == MOUSE_BUTTON_MIDDLE:
+		_tree_panning = click.pressed
+		scroll.accept_event()
+		return
+	var motion := event as InputEventMouseMotion
+	if motion != null:
+		if not _tree_panning:
+			return
+		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+			_tree_panning = false
+			return
+		scroll.scroll_horizontal = maxi(scroll.scroll_horizontal - roundi(motion.relative.x), 0)
+		scroll.scroll_vertical = maxi(scroll.scroll_vertical - roundi(motion.relative.y), 0)
+		scroll.accept_event()
+		return
 	if click == null or not click.pressed:
 		return
 	var factor := 0.0

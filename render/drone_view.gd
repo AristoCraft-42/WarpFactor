@@ -182,6 +182,7 @@ func _draw_drone(player: Player) -> void:
 		_draw_beam(pos, mine_tile)
 	if local:
 		_draw_mined_label()
+		_draw_move_label()
 	if _drone.is_repairing():
 		_draw_repair(pos)
 	_draw_body(pos, player)
@@ -229,6 +230,18 @@ func _draw_repair(pos: Vector2) -> void:
 	draw_rect(rect.grow(1.0), Color(0.56, 0.75, 0.49, 0.6), false, 2.0)
 
 
+## Надпись «Камень +20» над зданием, из которого забрали (или в которое положили) предметы.
+## Без неё быстрые перекладывания выглядят так, будто ничего не произошло.
+func _draw_move_label() -> void:
+	if _drone.last_move_item < 0 or _drone.world == null:
+		return
+	var age := _drone.world.simulation.tick - _drone.last_move_tick
+	if age < 0 or age >= MINED_TICKS:
+		return
+	var text := "%s %+d" % [tr(Registry.items[_drone.last_move_item].name_key), _drone.last_move_count]
+	_draw_float_label(text, _drone.last_move_tile, 1.0 - float(age) / MINED_TICKS)
+
+
 ## Надпись «Камень ×11» над последним добытым тайлом: всплывает и гаснет за MINED_TICKS тиков.
 func _draw_mined_label() -> void:
 	if _drone.last_mined_item < 0 or _drone.world == null:
@@ -236,13 +249,17 @@ func _draw_mined_label() -> void:
 	var age := _drone.world.simulation.tick - _drone.last_mined_tick
 	if age < 0 or age >= MINED_TICKS:
 		return
+	var text := "%s ×%d" % [tr(Registry.items[_drone.last_mined_item].name_key), _drone.last_mined_count]
+	_draw_float_label(text, _drone.last_mined_tile, 1.0 - float(age) / MINED_TICKS)
+
+
+## Всплывающая надпись над тайлом: поднимается и гаснет вместе с fade (1 — только появилась).
+func _draw_float_label(text: String, tile: Vector2i, fade: float) -> void:
 	var font := ThemeDB.fallback_font
 	if font == null:
 		return
-	var fade := 1.0 - float(age) / MINED_TICKS
 	var t := float(GameConst.TILE_SIZE)
-	var pos := Vector2(_drone.last_mined_tile) * t + Vector2(t * 0.5, -10.0 - 14.0 * (1.0 - fade))
-	var text := "%s ×%d" % [tr(Registry.items[_drone.last_mined_item].name_key), _drone.last_mined_count]
+	var pos := Vector2(tile) * t + Vector2(t * 0.5, -10.0 - 14.0 * (1.0 - fade))
 	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 	var at := pos - Vector2(width * 0.5, 0.0)
 	draw_string_outline(font, at, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, 4, Color(0, 0, 0, 0.85 * fade))

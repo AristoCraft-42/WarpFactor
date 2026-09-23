@@ -129,7 +129,9 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	link.capacity = planet_gate.get_gateway_def().buffer_capacity
 	planet_gate.link = link
 	base_gate.link = link
-	planet.pad_rect = _pad_around(planet_gate)
+	# Через resize_pad, а не присваиванием: площадка может быть больше стартовой (исследования,
+	# творческий режим), и её расширенную часть нужно вымостить, иначе там остаётся голая земля.
+	planet.resize_pad(_pad_around(planet_gate))
 	set_local_player(local_player)
 	apply_research_effects()
 	_setup_threat(planet, star_map.get_current(), 0)
@@ -809,7 +811,7 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 	var fresh_def := Registry.get_building(&"central_gateway") as GatewayDef
 	var new_gate := fresh.place_gateway(fresh_def,
 		GameWorld.gateway_origin(fresh_def, center, _gateway_size()), gate_rotation)
-	fresh.pad_rect = _pad_around(new_gate)
+	fresh.resize_pad(_pad_around(new_gate))
 	for e in entries:
 		var b := fresh.buildings.place(e["def"], fresh.pad_rect.position + (e["offset"] as Vector2i), e["rotation"], true)
 		if b == null:

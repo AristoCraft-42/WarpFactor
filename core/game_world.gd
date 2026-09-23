@@ -184,7 +184,6 @@ func resize_pad(rect: Rect2i) -> void:
 					continue
 				var i := grid.index_of(x, y)
 				grid.floors[i] = platform.index
-				grid.ores[i] = 0
 	pad_rect = rect
 	terrain_changed.emit(rect)
 	bounds_changed.emit()
@@ -541,6 +540,7 @@ func player_take(building: Building, item: int, amount: int) -> int:
 	var taken := building.take_player_items(item, mini(amount, room))
 	if taken > 0:
 		who.inventory.add(item, taken)
+		who.note_move(item, taken, building.origin)
 	return taken
 
 
@@ -577,6 +577,7 @@ func player_put(building: Building, item: int, amount: int) -> int:
 		put += 1
 	if put > 0:
 		who.inventory.remove(item, put)
+		who.note_move(item, -put, building.origin)
 	return put
 
 

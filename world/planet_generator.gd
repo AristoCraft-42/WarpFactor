@@ -36,7 +36,10 @@ static func generate(node: StarMap.StarNode, pad_size: int, clear_size: int = 0)
 	rocks.fractal_octaves = 2
 
 	var center := Vector2i(w / 2, h / 2)
-	var clear_radius := maxi(pad_size, clear_size) * 0.5 + LANDING_MARGIN
+	# Расчищаем квадрат под самую большую площадку, а не круг: площадка квадратная, и при круглой
+	# расчистке её углы оставались скалой — плитка туда не ложилась, и площадка выглядела кривой.
+	var clear_half := maxi(pad_size, clear_size) / 2 + LANDING_MARGIN
+	var clear_radius := float(clear_half)
 	# Порог скал подбирается так, чтобы доля скал была примерно rock_density.
 	var rock_threshold := lerpf(0.55, -0.1, clampf(type.rock_density / 0.6, 0.0, 1.0))
 	for y in h:
@@ -48,7 +51,7 @@ static func generate(node: StarMap.StarNode, pad_size: int, clear_size: int = 0)
 					var pick := int((v - 0.28) * 10.0) % type.patch_floors.size()
 					floor_index = _floor_index(type.patch_floors[pick], type.base_floor)
 			var at_edge := x < EDGE or y < EDGE or x >= w - EDGE or y >= h - EDGE
-			var near_landing := Vector2(x - center.x, y - center.y).length() < clear_radius
+			var near_landing := absi(x - center.x) <= clear_half and absi(y - center.y) <= clear_half
 			if at_edge or (not near_landing and rocks.get_noise_2d(x, y) > rock_threshold):
 				floor_index = rock
 			map.set_floor(x, y, floor_index)

@@ -58,6 +58,9 @@ var area_buildings: Array[Building] = []
 ## Скопированный план для вставки.
 var plan: Array[PlanEntry] = []
 var plan_size: Vector2i = Vector2i.ZERO
+## Последний скопированный чертёж: его возвращает в руку take_blueprint (V) после отмены.
+var _last_plan: Array[PlanEntry] = []
+var _last_plan_size: Vector2i = Vector2i.ZERO
 
 var input_enabled: bool = true:
 	set(value):
@@ -234,10 +237,29 @@ func copy_area() -> void:
 	place_config = null
 	plan = entries
 	plan_size = bounds.size
+	_last_plan = entries.duplicate()
+	_last_plan_size = bounds.size
 	mode = Mode.PASTE
 	_dirty = true
 	mode_changed.emit()
 	Events.toast(tr("TOAST_COPIED") % entries.size())
+
+
+## Взять в руку последний скопированный чертёж (V): копировать заново не нужно.
+func take_last_blueprint() -> void:
+	if _last_plan.is_empty():
+		Events.toast(tr("TOAST_NO_BLUEPRINT"), Events.ToastKind.WARNING)
+		return
+	_cancel_drag()
+	select(null)
+	clear_area()
+	place_def = null
+	place_config = null
+	plan = _last_plan.duplicate()
+	plan_size = _last_plan_size
+	mode = Mode.PASTE
+	_dirty = true
+	mode_changed.emit()
 
 
 # --- Ввод ---
@@ -286,6 +308,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			var single: Array[Building] = [hover_building]
 			remove_buildings(single)
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("take_blueprint"):
+		take_last_blueprint()
 	elif event.is_action_pressed("copy_selection"):
 		if has_area():
 			copy_area()

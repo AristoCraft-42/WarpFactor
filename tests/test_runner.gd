@@ -61,6 +61,9 @@ func _ready() -> void:
 	_test_building_state_roundtrip()
 	_test_teleport()
 	_test_teleport_keeps_own_drone()
+	_test_pad_is_paved()
+	_test_shift_take_all()
+	_test_transfer_label()
 	_test_save_roundtrip_and_determinism()
 	_test_save_remap()
 	_test_save_files()
@@ -3663,6 +3666,70 @@ func _test_net_predict() -> void:
 	host.close()
 	client.close()
 	host_run.dispose()
+
+## Площадка шлюза вымощена целиком. Генератор расчищал от скал круг, а площадка квадратная:
+## её углы оставались скалой, плитка туда не ложилась, и площадка выглядела кривой — особенно
+## в творческом режиме, где она сразу самого большого размера.
+func _test_pad_is_paved() -> void:
+	var plates := Registry.get_floor(&"metal_plates")
+	for creative in [false, true]:
+		var run := Run.create_new(2024, creative)
+		var pad := run.planet.pad_rect
+		var bad := 0
+		for y in range(pad.position.y, pad.end.y):
+			for x in range(pad.position.x, pad.end.x):
+				if run.planet.grid.get_floor(x, y) != plates.index:
+					bad += 1
+		_check(bad == 0, "площадка %d×%d вымощена целиком%s (не мощёных тайлов: %d)"
+			% [pad.size.x, pad.size.y, " (творческий)" if creative else "", bad])
+		var gate := run.get_gateway(run.planet)
+		var rect := gate.get_rect()
+		_check(rect.position.x - pad.position.x == pad.end.x - rect.end.x
+			and rect.position.y - pad.position.y == pad.end.y - rect.end.y,
+			"шлюз ровно посередине площадки (поля %d/%d и %d/%d)" % [rect.position.x - pad.position.x,
+			pad.end.x - rect.end.x, rect.position.y - pad.position.y, pad.end.y - rect.end.y])
+		run.dispose()
+
+
+## Shift+ЛКМ по сундуку забирает всё содержимое. Раньше склад не сообщал, что из него можно
+## забрать, и быстрый клик не давал ничего.
+func _test_shift_take_all() -> void:
+	var run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var spawn := run.drone.get_tile()
+	var box := run.planet.buildings.place(Registry.get_building(&"container"),
+		spawn + Vector2i(2, 0), 0, true) as StorageBuilding
+	var ore := _item(&"hematite")
+	var coal := _item(&"coal")
+	box.inventory.add(ore, 40)
+	box.inventory.add(coal, 7)
+	_check(box.get_player_stacks().size() == 2, "склад сообщает, что из него можно забрать (%d вида)"
+		% box.get_player_stacks().size())
+	var taken := run.planet.player_take_output(box)
+	_check(taken == 47, "забрано всё содержимое (%d из 47)" % taken)
+	_check(run.drone.inventory.count(ore) == 40 and run.drone.inventory.count(coal) == 7,
+		"предметы у дрона (%d и %d)" % [run.drone.inventory.count(ore), run.drone.inventory.count(coal)])
+	_check(box.inventory.is_empty(), "сундук опустел")
+	run.dispose()
+
+## Перенос предметов руками пишет, что и сколько: надпись над зданием, как при ручной добыче.
+## Подряд идущие переносы одного предмета складываются в одну надпись.
+func _test_transfer_label() -> void:
+	var run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var spawn := run.drone.get_tile()
+	var box := run.planet.buildings.place(Registry.get_building(&"container"),
+		spawn + Vector2i(2, 0), 0, true) as StorageBuilding
+	var ore := _item(&"hematite")
+	box.inventory.add(ore, 50)
+	run.planet.player_take(box, ore, 10)
+	_check(run.drone.last_move_item == ore and run.drone.last_move_count == 10,
+		"забрал 10 — так и написано (%d)" % run.drone.last_move_count)
+	run.planet.player_take(box, ore, 5)
+	_check(run.drone.last_move_count == 15, "второй заход подряд сложился с первым (%d)"
+		% run.drone.last_move_count)
+	run.planet.player_put(box, ore, 4)
+	_check(run.drone.last_move_count == -4, "положил 4 — надпись со знаком минус (%d)"
+		% run.drone.last_move_count)
+	run.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:

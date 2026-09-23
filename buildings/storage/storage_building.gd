@@ -53,6 +53,19 @@ func accepts_player_items() -> bool:
 	return true
 
 
+## Что игрок может забрать из склада: всё, что в нём лежит. Без этого Shift+ЛКМ по сундуку
+## (быстрое «забрать всё») не забирал ничего — список забираемого был пуст.
+func get_player_stacks() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if inventory == null:
+		return out
+	for item in inventory.totals.size():
+		var have := inventory.count(item)
+		if have > 0:
+			out.append(Vector2i(item, have))
+	return out
+
+
 func take_player_items(item: int, amount: int) -> int:
 	if inventory == null:
 		return 0

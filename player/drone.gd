@@ -31,6 +31,12 @@ var last_mined_item: int = -1
 var last_mined_count: int = 0
 var last_mined_tile: Vector2i = NO_TILE
 var last_mined_tick: int = -100000
+## Последний перенос предметов руками: что, сколько (+ взял, − положил), у какого тайла и когда.
+## Надпись над зданием — такая же, как при ручной добыче.
+var last_move_item: int = -1
+var last_move_count: int = 0
+var last_move_tile: Vector2i = NO_TILE
+var last_move_tick: int = -100000
 ## Направление, которое игрок держит прямо сейчас (только для отрисовки своего дрона с упреждением:
 ## в сетевой игре команда применится через несколько тиков, а показать движение надо сразу).
 var local_input: Vector2 = Vector2.ZERO
@@ -212,6 +218,20 @@ func load_data(data: Dictionary) -> void:
 	inventory.load_slots(slots.get("slot_items", PackedInt32Array()), slots.get("slot_counts", PackedInt32Array()),
 		slots.get("hints", PackedInt32Array()))
 	crafting.load_data(data.get("crafting", {}))
+
+
+## Заметить перенос предметов: подряд идущие переносы одного предмета в одном месте
+## складываются в одну надпись (Shift-загрузка кладёт по одному виду за раз).
+func note_move(item: int, delta: int, tile: Vector2i) -> void:
+	if delta == 0 or world == null:
+		return
+	var tick := world.simulation.tick
+	var same := item == last_move_item and tile == last_move_tile and tick - last_move_tick < 30 \
+		and signi(delta) == signi(last_move_count)
+	last_move_count = last_move_count + delta if same else delta
+	last_move_item = item
+	last_move_tile = tile
+	last_move_tick = tick
 
 
 func get_draw_position(alpha: float) -> Vector2:
