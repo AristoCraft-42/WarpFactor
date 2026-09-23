@@ -137,8 +137,15 @@ func _soak() -> void:
 	_host_run.submit(Command.Kind.CREATIVE_THREAT, {"on": true})
 	var waves := 0
 	var next_wave := 4.0
+	# Камера и дрон обязаны брать одно и то же упреждение в одном кадре: иначе дрон дрожит
+	# относительно мира там, где упреждение меняется, — в начале и конце движения.
+	var camera_gap := 0.0
 	while Time.get_ticks_msec() - started < SOAK_SECONDS * 1000.0:
 		await _frame()
+		var drone := _game.run.drone
+		if drone != null and not drone.dead:
+			var drawn := drone.get_draw_position(_game.clock.alpha) + _game.drone_view.local_offset()
+			camera_gap = maxf(camera_gap, _game.camera.position.distance_to(drawn))
 		var elapsed := float(Time.get_ticks_msec() - started) / 1000.0
 		if elapsed >= next_wave:
 			next_wave += 5.0
@@ -147,6 +154,7 @@ func _soak() -> void:
 			_game.run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT if waves % 2 == 0 else Vector2.LEFT})
 			# Творческая выдача предметов клиентом — раньше именно она ломала игру каждые 5 секунд.
 			_game.run.submit(Command.Kind.CREATIVE_GIVE, {"item": Registry.get_building(&"conveyor").item.index, "count": 10})
+	_expect(camera_gap < 0.01, "камера всегда там же, где нарисован дрон (расхождение %.2f px)" % camera_gap)
 	_expect(waves >= 3, "за прогон позвано волн: %d" % waves)
 	_expect(_host_run.planet.enemies.spawned > 0, "враги появились (%d)" % _host_run.planet.enemies.spawned)
 	_expect(Session.net.repairs == 0, "за %.0f с игры ни одной починки снимком (%d)"

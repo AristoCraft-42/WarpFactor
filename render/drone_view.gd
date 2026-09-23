@@ -34,8 +34,6 @@ var _last_gap: Vector2 = Vector2.ZERO
 ## Чьё и в каком мире упреждение: сменился дрон или мир — копить заново.
 var _lead_drone: Drone
 var _lead_world: GameWorld
-## Текущее смещение упреждения (с долей тика) — его же берёт камера.
-var _predict: Vector2 = Vector2.ZERO
 ## Дрон, который рисуется прямо сейчас (у отрисовки много мелких шагов, чтобы не таскать его всюду).
 var _drone: Drone
 
@@ -67,7 +65,6 @@ func _process(delta: float) -> void:
 		if player.id == _run.local_player and Session.net.is_networked() and drone.local_input != Vector2.ZERO:
 			facing = drone.local_input.angle()
 		_angles[player.id] = lerp_angle(angle, facing, 1.0 - exp(-delta * TURN_SPEED))
-	_update_prediction(delta)
 	queue_redraw()
 
 
@@ -131,21 +128,21 @@ static func lead_at(lead: Vector2, last_gap: Vector2, alpha: float) -> Vector2:
 	return lead - (1.0 - alpha) * last_gap
 
 
-func _update_prediction(_delta: float) -> void:
-	var local := _run.get_local_player()
-	if local == null or local.drone == null or local.drone != _lead_drone or not Session.net.is_networked():
-		_predict = Vector2.ZERO
-		return
-	var drone := local.drone
-	_predict = lead_at(_lead, _last_gap, _clock.alpha)
+## Текущее упреждение своего дрона: на столько же смещается камера, чтобы дрон не уезжал от центра.
+##
+## Считается по запросу, а не хранится с прошлого кадра. Камера обновляется раньше отрисовки дрона,
+## и с запасённым значением она брала бы упреждение прошлого кадра, а дрон рисовался бы с новым:
+## дрон дрожал бы относительно мира ровно тогда, когда упреждение меняется, — в начале и конце
+## движения. Теперь оба берут одно и то же число.
+func local_offset() -> Vector2:
+	var local := _run.get_local_player() if _run != null else null
+	var drone: Drone = local.drone if local != null else null
+	if drone == null or drone != _lead_drone or drone.world == null or not Session.net.is_networked():
+		return Vector2.ZERO
+	var offset := lead_at(_lead, _last_gap, _clock.alpha)
 	var base := drone.get_draw_position(_clock.alpha)
 	var bounds := drone.world.get_play_rect_px()
-	_predict = (base + _predict).clamp(bounds.position, bounds.end) - base
-
-
-## Текущее упреждение своего дрона: на столько же смещается камера, чтобы дрон не уезжал от центра.
-func local_offset() -> Vector2:
-	return _predict
+	return (base + offset).clamp(bounds.position, bounds.end) - base
 
 
 func _draw() -> void:
@@ -163,7 +160,7 @@ func _draw_drone(player: Player) -> void:
 		return
 	var pos := _drone.get_draw_position(_clock.alpha)
 	if local:
-		pos += _predict
+		pos += local_offset()
 	var tick := _drone.world.simulation.tick
 	if tick < _drone.invulnerable_until and fmod(_time, 0.24) < 0.12:
 		return
