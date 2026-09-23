@@ -75,6 +75,8 @@ func _ready() -> void:
 	_test_building_damage()
 	_test_flow_field()
 	_test_enemy_attack()
+	_test_enemy_pack()
+	_test_enemy_hunt()
 	_test_threat_schedule()
 	_test_spawn_points()
 	_test_drone_death_and_crate()
@@ -145,6 +147,7 @@ func _ready() -> void:
 	_test_prediction_follows_input()
 	_test_net_command_lead()
 	_test_net_predict()
+	_test_net_long_soak()
 	_test_net_cursors()
 	_test_net_creative_give()
 	_test_ui_does_not_touch_world()
@@ -3907,6 +3910,156 @@ func _test_science_and_gateway_speed() -> void:
 		% GatewayBuilding.throughput_ticks(10, run.planet))
 	run.dispose()
 
+## Стая идёт вместе: пока цель далеко, быстрый враг придерживает шаг и ждёт медленных,
+## а у самой цели пускает свою скорость в ход. И идут они не по одному следу — каждый виляет.
+func _test_enemy_pack() -> void:
+	var fast := Registry.get_enemy(&"crawler")
+	var slow := Registry.get_enemy(&"brute")
+	_check(fast.speed > slow.speed, "ползун быстрее громилы (%.1f и %.1f)" % [fast.speed, slow.speed])
+	# Одна и та же пара: в общей стае и порознь. Разрыв меряем на марше, вдали от шлюза.
+	var together := _pack_gap(fast, slow, true, 150)
+	var apart := _pack_gap(fast, slow, false, 150)
+	_check(together <= EnemySystem.PACK_LEASH + 2.0, "в стае вырвавшийся не отрывается дальше поводка (%.1f при поводке %.0f)"
+		% [together, EnemySystem.PACK_LEASH])
+	_check(apart > together + 2.0, "порознь те же враги расходятся сильнее (%.1f против %.1f тайла)"
+		% [apart, together])
+
+	# Рывок у цели: на марше быстрый идёт со скоростью стаи, у шлюза — со своей.
+	var run := _enemy_run(160, 32)
+	run.drone.position = Vector2(2, 2) * GameConst.TILE_SIZE
+	var gate := run.planet.gateway
+	var far := gate.get_world_center() + Vector2(-60, 0) * GameConst.TILE_SIZE
+	run.planet.enemies.spawn(fast, far, 0, 7, EnemySystem.Mood.GATE)
+	run.planet.enemies.spawn(slow, far + Vector2(0, 24), 0, 7, EnemySystem.Mood.GATE)
+	for i in 150:
+		run.step()
+	var march_from := run.planet.enemies.get_position(0).x
+	for i in 30:
+		run.step()
+	var march_speed := (run.planet.enemies.get_position(0).x - march_from) / 30.0
+	# Доводим стаю до шлюза (пока не начался рывок) и меряем скорость снова.
+	var charging := false
+	for i in 3000:
+		run.step()
+		if run.planet.enemies.count < 2:
+			break
+		var slot := int(run.planet.enemies._squad_slot.get(7, -1))
+		if slot >= 0 and run.planet.enemies._sq_min_dist[slot] <= EnemySystem.CHARGE_TILES:
+			charging = true
+			break
+	_check(charging, "стая дошла до броска")
+	var charge_from := run.planet.enemies.get_position(0).x
+	for i in 20:
+		run.step()
+	var charge_speed := (run.planet.enemies.get_position(0).x - charge_from) / 20.0
+	_check(charge_speed > march_speed * 1.3, "у цели быстрый идёт быстрее, чем на марше (%.2f против %.2f px за тик)"
+		% [charge_speed, march_speed])
+	run.dispose()
+
+	# Виляние у каждого своё: два врага одной породы из одной точки расходятся в стороны.
+	var twins := _enemy_run()
+	twins.drone.position = Vector2(2, 2) * GameConst.TILE_SIZE
+	var spot := twins.planet.gateway.get_world_center() + Vector2(-30, 0) * GameConst.TILE_SIZE
+	twins.planet.enemies.spawn(fast, spot, 0, 3, EnemySystem.Mood.GATE)
+	twins.planet.enemies.spawn(fast, spot, 0, 3, EnemySystem.Mood.GATE)
+	for i in 120:
+		twins.step()
+	var side_by_side := twins.planet.enemies.get_position(0).distance_to(twins.planet.enemies.get_position(1))
+	_check(side_by_side > 1.0, "одинаковые враги не идут след в след (разошлись на %.1f px)" % side_by_side)
+	twins.dispose()
+
+
+## Разрыв между быстрым и медленным врагом через ticks тиков, в тайлах. same_squad — рождены
+## одной стаей (тогда быстрый ждёт) или порознь (каждый сам по себе).
+func _pack_gap(fast: EnemyDef, slow: EnemyDef, same_squad: bool, ticks: int) -> float:
+	var run := _enemy_run(160, 32)
+	run.drone.position = Vector2(2, 2) * GameConst.TILE_SIZE
+	var far := run.planet.gateway.get_world_center() + Vector2(-120, 0) * GameConst.TILE_SIZE
+	run.planet.enemies.spawn(fast, far, 0, 7, EnemySystem.Mood.GATE)
+	run.planet.enemies.spawn(slow, far + Vector2(0, 24), 0, 7 if same_squad else 8, EnemySystem.Mood.GATE)
+	for i in ticks:
+		run.step()
+	var gap := absf(run.planet.enemies.get_position(0).x - run.planet.enemies.get_position(1).x) / GameConst.TILE_SIZE
+	run.dispose()
+	return gap
+
+
+## Охотник идёт за дроном, а не к шлюзу; если догнать не выходит, бросает погоню и уходит к шлюзу.
+func _test_enemy_hunt() -> void:
+	var run := _enemy_run()
+	var planet := run.planet
+	var gate := planet.gateway
+	var crawler := Registry.get_enemy(&"crawler")
+	var start := gate.get_world_center() + Vector2(-20, 0) * GameConst.TILE_SIZE
+	# Дрон стоит в стороне от шлюза: к нему и к шлюзу — разные направления.
+	run.drone.position = start + Vector2(0, 18) * GameConst.TILE_SIZE
+	planet.enemies.spawn(crawler, start, 0, 5, EnemySystem.Mood.HUNT)
+	var to_drone := planet.enemies.get_position(0).distance_to(run.drone.position)
+	for i in 60:
+		run.step()
+	var enemies := planet.enemies
+	_check(enemies.get_position(0).distance_to(run.drone.position) < to_drone - GameConst.TILE_SIZE,
+		"охотник сближается с дроном")
+	_check(enemies.mood[0] == EnemySystem.Mood.HUNT, "и всё ещё охотится")
+	# Дрон улетает за пределы видимости — охота прекращается, враг идёт к шлюзу.
+	run.drone.position = gate.get_world_center() + Vector2(0, 120) * GameConst.TILE_SIZE
+	var to_gate := enemies.get_position(0).distance_to(gate.get_world_center())
+	for i in 90:
+		run.step()
+	_check(enemies.mood[0] == EnemySystem.Mood.GATE, "недосягаемую жертву враг бросает")
+	_check(enemies.get_position(0).distance_to(gate.get_world_center()) < to_gate, "и идёт к шлюзу")
+	run.dispose()
+
+## Долгий прогон сетевой игры: хост и гость шагают 1200 тиков, гость всё это время действует.
+## Состояния сверяются на каждом тике — так виден ПЕРВЫЙ разошедшийся тик и часть, а не поздний
+## симптом. Этот тест и нашёл расхождение по части «игроки».
+func _test_net_long_soak() -> void:
+	var host_run := Run.create(null, LevelMap.new(64, 48, Registry.get_floor(&"stone").index), true)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 20)
+	var belt := Registry.get_building(&"conveyor").item.index
+	var host_parts: Dictionary[int, PackedInt64Array] = {}
+	var first_bad := -1
+	var bad_part := -1
+	for step in 1200:
+		var tick := host_run.get_tick()
+		if step % 150 == 0:
+			client.run.submit(Command.Kind.MOVE, {"dir": Vector2.RIGHT if step % 300 == 0 else Vector2.LEFT})
+			client.run.submit(Command.Kind.CREATIVE_GIVE, {"item": belt, "count": 10})
+			host_run.submit(Command.Kind.MOVE, {"dir": Vector2.UP if step % 300 == 0 else Vector2.DOWN})
+		host.poll()
+		client.poll()
+		if host.can_step():
+			host_run.step()
+			host.after_step()
+			host_parts[host_run.get_tick()] = host_run.state_parts()
+		client.poll()
+		if client.can_step():
+			client.run.step()
+			client.after_step()
+			var at := client.run.get_tick()
+			if first_bad < 0 and host_parts.has(at):
+				var mine := client.run.state_parts()
+				var theirs: PackedInt64Array = host_parts[at]
+				for k in mini(mine.size(), theirs.size()):
+					if mine[k] != theirs[k]:
+						first_bad = at
+						bad_part = k
+						break
+	_check(first_bad < 0, "за 1200 тиков миры не разошлись%s" % ("" if first_bad < 0
+		else " (первым разошёлся тик %d, часть «%s»)" % [first_bad, Run.STATE_PART_NAMES[bad_part]]))
+	_check(host.last_desync.is_empty(), "и хост расхождений не заметил (%s)" % host.last_desync)
+	host.close()
+	client.close()
+	host_run.dispose()
+
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:
 	for research in Registry.researches:
@@ -3914,8 +4067,8 @@ func _unlock_all(run: Run) -> void:
 	run.apply_research_effects()
 
 
-func _enemy_run() -> Run:
-	var map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
+func _enemy_run(width: int = 48, height: int = 32) -> Run:
+	var map := LevelMap.new(width, height, Registry.get_floor(&"stone").index)
 	var run := Run.create(null, map, false)
 	run.planet.threat.delay_next_wave(1000000)
 	return run

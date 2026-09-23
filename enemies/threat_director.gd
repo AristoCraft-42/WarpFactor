@@ -25,6 +25,9 @@ var _weights := PackedFloat32Array()
 var _queue_ticks := PackedInt32Array()
 var _queue_types := PackedInt32Array()
 var _queue_points := PackedInt32Array()
+## Стая и её намерение для каждого врага в очереди: рождённые вместе идут вместе.
+var _queue_squads := PackedInt32Array()
+var _queue_moods := PackedInt32Array()
 var _queue_cursor: int = 0
 
 
@@ -61,12 +64,16 @@ func update(tick: int) -> void:
 		var enemy := Registry.enemies[_queue_types[_queue_cursor]]
 		var point := points[_queue_points[_queue_cursor] % points.size()]
 		var offset := Vector2(rng.randf_range(-10.0, 10.0), rng.randf_range(-10.0, 10.0))
-		enemies.spawn(enemy, Vector2(point) * t + Vector2.ONE * t * 0.5 + offset, tick)
+		var squad_id: int = _queue_squads[_queue_cursor] if _queue_cursor < _queue_squads.size() else 0
+		var squad_mood: int = _queue_moods[_queue_cursor] if _queue_cursor < _queue_moods.size() else EnemySystem.Mood.GATE
+		enemies.spawn(enemy, Vector2(point) * t + Vector2.ONE * t * 0.5 + offset, tick, squad_id, squad_mood)
 		_queue_cursor += 1
 	if _queue_cursor >= _queue_ticks.size():
 		_queue_ticks.clear()
 		_queue_types.clear()
 		_queue_points.clear()
+		_queue_squads.clear()
+		_queue_moods.clear()
 		_queue_cursor = 0
 
 
@@ -80,6 +87,8 @@ func clear_pending() -> void:
 	_queue_ticks.clear()
 	_queue_types.clear()
 	_queue_points.clear()
+	_queue_squads.clear()
+	_queue_moods.clear()
 	_queue_cursor = 0
 
 
@@ -124,10 +133,29 @@ func _start_wave(tick: int) -> void:
 	# С номером волны точек больше: 1 на первых волнах, затем все.
 	var active := mini(point_count, 1 + (wave - 1) / 3)
 	var first := rng.randi_range(0, point_count - 1)
+	# Каждая точка выпускает свою стаю со своим намерением: одни идут к шлюзу, другие охотятся
+	# за игроком, третьи грызут всё по дороге. Чем дальше волна, тем чаще стая ведёт себя нагло.
+	var moods := PackedInt32Array()
+	for k in active:
+		moods.append(_pick_mood())
 	for k in picks.size():
+		var slot := k % active
 		_queue_ticks.append(tick + duration * k / maxi(picks.size(), 1))
 		_queue_types.append(picks[k])
-		_queue_points.append(first + k % active)
+		_queue_points.append(first + slot)
+		_queue_squads.append(wave * 16 + slot)
+		_queue_moods.append(moods[slot])
+
+
+## Намерение стаи: к шлюзу, охота на игрока или налёт на постройки.
+func _pick_mood() -> int:
+	var to_gate := 6.0
+	var to_hunt := 1.0 + wave * 0.25
+	var to_raid := 1.5 + wave * 0.2
+	var roll := rng.randf() * (to_gate + to_hunt + to_raid)
+	if roll < to_gate:
+		return EnemySystem.Mood.GATE
+	return EnemySystem.Mood.HUNT if roll < to_gate + to_hunt else EnemySystem.Mood.RAID
 
 
 ## Состав волны на бюджет: случайные доступные враги, пока хватает очков.
@@ -162,7 +190,8 @@ func save_data() -> Dictionary:
 	return {"start": start_tick, "wave": wave, "next": next_wave_tick, "spawn_end": spawn_end_tick,
 		"budget": last_budget, "rng_seed": rng.seed, "rng_state": rng.state,
 		"queue_ticks": _queue_ticks.slice(_queue_cursor), "queue_types": _queue_types.slice(_queue_cursor),
-		"queue_points": _queue_points.slice(_queue_cursor)}
+		"queue_points": _queue_points.slice(_queue_cursor),
+		"queue_squads": _queue_squads.slice(_queue_cursor), "queue_moods": _queue_moods.slice(_queue_cursor)}
 
 
 ## type_map — сохранённый индекс врага → текущий.
@@ -177,10 +206,14 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 	_queue_ticks.clear()
 	_queue_types.clear()
 	_queue_points.clear()
+	_queue_squads.clear()
+	_queue_moods.clear()
 	_queue_cursor = 0
 	var ticks: PackedInt32Array = data.get("queue_ticks", PackedInt32Array())
 	var saved_types: PackedInt32Array = data.get("queue_types", PackedInt32Array())
 	var saved_points: PackedInt32Array = data.get("queue_points", PackedInt32Array())
+	var saved_squads: PackedInt32Array = data.get("queue_squads", PackedInt32Array())
+	var saved_moods: PackedInt32Array = data.get("queue_moods", PackedInt32Array())
 	for i in mini(ticks.size(), mini(saved_types.size(), saved_points.size())):
 		var type := saved_types[i]
 		if type_map.size() > 0:
@@ -189,4 +222,6 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 			continue
 		_queue_ticks.append(ticks[i])
 		_queue_types.append(type)
+		_queue_squads.append(saved_squads[i] if i < saved_squads.size() else 0)
+		_queue_moods.append(saved_moods[i] if i < saved_moods.size() else EnemySystem.Mood.GATE)
 		_queue_points.append(saved_points[i])

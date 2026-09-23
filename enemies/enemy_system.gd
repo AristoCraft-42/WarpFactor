@@ -17,6 +17,34 @@ extends RefCounted
 
 const TARGET_NONE := 0
 const TARGET_DRONE := -1
+
+## Чем занята стая. Выбирается при рождении волны и может смениться по ходу.
+enum Mood {
+	GATE,  ## идём к шлюзу — основной поток
+	HUNT,  ## охотимся на дрона игрока
+	RAID,  ## грызём всё, что попадётся по дороге
+}
+
+## Пока стая дальше этого от цели, быстрые ждут медленных; ближе — каждый бежит как может.
+const CHARGE_TILES := 14.0
+## Медленнее этой доли своей скорости ждущий не идёт: даже с самым медлительным в стае
+## остальные не должны вставать намертво.
+const WAIT_FLOOR := 0.3
+## Поводок стаи: дальше этого от замыкающего вырвавшийся вперёд не уходит (тайлы).
+const PACK_LEASH := 5.0
+## Насколько враг виляет: размах (радианы) и частота (радиан за тик).
+const WANDER_AMPLITUDE := 0.42
+const WANDER_SPEED := 0.035
+## Как часто пересчитывается поворот виляния (тиков).
+const WANDER_EVERY := 8
+## Разброс личной скорости: ±15 %.
+const SPEED_SPREAD := 0.15
+## Охотник, который столько тиков не может сократить расстояние до дрона, бросает погоню.
+const CHASE_PATIENCE := 150
+## Дальше этого охотник дрона не видит и идёт к шлюзу (тайлы).
+const HUNT_RANGE_TILES := 40.0
+## Во сколько раз шире ищет цели стая налётчиков.
+const RAID_REACH := 3.0
 const RETARGET_TICKS := 10
 const SEPARATION_CHECKS := 6
 ## Доля перекрытия, на которую враги расходятся за тик.
@@ -41,6 +69,20 @@ var health := PackedFloat32Array()
 var next_attack := PackedInt32Array()
 ## id постройки, TARGET_DRONE или TARGET_NONE.
 var target := PackedInt32Array()
+## Стая (общий номер у рождённых вместе) и чем она занята.
+var squad := PackedInt32Array()
+var mood := PackedInt32Array()
+## Погоня: лучшее расстояние до жертвы и сколько тиков оно не улучшалось.
+var chase_best := PackedFloat32Array()
+var chase_ticks := PackedInt32Array()
+## Личные мелочи, посчитанные при рождении: множитель скорости, фаза виляния, текущий поворот
+## виляния и место стаи в сводке этого тика. Считать их каждый тик заново дорого при тысяче врагов.
+var _trait_speed := PackedFloat32Array()
+var _trait_phase := PackedFloat32Array()
+var _wander_turn := PackedFloat32Array()
+## На какой момент посчитан поворот виляния: после загрузки он пересчитывается сам.
+var _wander_tick := PackedInt32Array()
+var _slot_of := PackedInt32Array()
 ## id постройки, перегородившей путь (0 — путь свободен).
 var blocker := PackedInt32Array()
 var next_tile := PackedInt32Array()
@@ -64,6 +106,13 @@ var last_update_usec: int = 0
 
 var _world: GameWorld
 var _capacity: int = 0
+## Сводка по стаям на текущий тик: номер стаи → место в массивах ниже.
+var _squad_slot: Dictionary[int, int] = {}
+var _sq_count := PackedInt32Array()
+var _sq_dist_sum := PackedFloat32Array()
+var _sq_min_dist := PackedFloat32Array()
+var _sq_max_dist := PackedFloat32Array()
+var _sq_min_speed := PackedFloat32Array()
 # Характеристики типов по индексу EnemyDef.
 var _speed := PackedFloat32Array()
 var _radius := PackedFloat32Array()
@@ -125,7 +174,7 @@ func find_uid(value: int) -> int:
 	return -1
 
 
-func spawn(def: EnemyDef, position: Vector2, tick: int) -> int:
+func spawn(def: EnemyDef, position: Vector2, tick: int, squad_id: int = 0, squad_mood: int = Mood.GATE) -> int:
 	_ensure_capacity(count + 1)
 	var i := count
 	count += 1
@@ -140,6 +189,11 @@ func spawn(def: EnemyDef, position: Vector2, tick: int) -> int:
 	health[i] = def.health
 	next_attack[i] = tick + _interval[def.index]
 	target[i] = TARGET_NONE
+	squad[i] = squad_id
+	mood[i] = squad_mood
+	chase_best[i] = INF
+	chase_ticks[i] = 0
+	_set_traits(i)
 	blocker[i] = 0
 	next_tile[i] = -1
 	path_version[i] = -1
@@ -301,6 +355,14 @@ func remove_at(i: int) -> void:
 		health[i] = health[last]
 		next_attack[i] = next_attack[last]
 		target[i] = target[last]
+		squad[i] = squad[last]
+		mood[i] = mood[last]
+		chase_best[i] = chase_best[last]
+		chase_ticks[i] = chase_ticks[last]
+		_trait_speed[i] = _trait_speed[last]
+		_trait_phase[i] = _trait_phase[last]
+		_wander_turn[i] = _wander_turn[last]
+		_wander_tick[i] = _wander_tick[last]
 		blocker[i] = blocker[last]
 		next_tile[i] = next_tile[last]
 		path_version[i] = path_version[last]
@@ -344,6 +406,8 @@ func update(tick: int) -> void:
 		if d.world == world and d.is_targetable(tick):
 			live.append(d)
 	var drone_ok := not live.is_empty()
+	# Стаи: пока стая далеко, быстрые придерживают шаг и ждут отставших.
+	_collect_squads(dist, w, inv_t)
 
 	for i in count:
 		var type := types[i]
@@ -375,6 +439,33 @@ func update(tick: int) -> void:
 			goal_x = (nt % w + 0.5) * t
 			goal_y = (nt / w + 0.5) * t
 			has_goal = true
+		# Охотник идёт прямо на дрона, пока тот в пределах видимости; если догнать не выходит,
+		# он бросает погоню и уходит к шлюзу — стая не зацикливается на недосягаемой жертве.
+		var hunting := false
+		if mood[i] == Mood.HUNT:
+			var prey := _nearest_drone(live, x, y)
+			if prey == null:
+				mood[i] = Mood.GATE
+			else:
+				var pdx := prey.position.x - x
+				var pdy := prey.position.y - y
+				var pd := sqrt(pdx * pdx + pdy * pdy)
+				if pd > HUNT_RANGE_TILES * t:
+					mood[i] = Mood.GATE
+				else:
+					hunting = true
+					goal_x = prey.position.x
+					goal_y = prey.position.y
+					has_goal = true
+					if pd < chase_best[i] - t * 0.5:
+						chase_best[i] = pd
+						chase_ticks[i] = 0
+					else:
+						chase_ticks[i] += 1
+						if chase_ticks[i] > CHASE_PATIENCE:
+							mood[i] = Mood.GATE
+							chase_ticks[i] = 0
+							chase_best[i] = INF
 		var block := 0
 		# Внутри твёрдой постройки (её поставили поверх врага) — бьём её, но выйти можно.
 		if blocked[tile] == FlowField.SOLID:
@@ -386,8 +477,26 @@ func update(tick: int) -> void:
 			if length > 0.5:
 				vx /= length
 				vy /= length
+				# Виляние: враг не идёт по идеальной прямой, и след стаи получается полосой.
+				if length > t * 1.5:
+					var turn := wander(i, tick)
+					var cs := cos(turn)
+					var sn := sin(turn)
+					var rx := vx * cs - vy * sn
+					vy = vx * sn + vy * cs
+					vx = rx
 				facing[i] = atan2(vy, vx)
-				var step := _speed[type]
+				var step := _speed[type] * speed_scale(i)
+				# Стая идёт вместе: тот, кто вырвался вперёд, придерживает шаг, пока остальные
+				# не подтянутся. У самой цели все бегут в полную силу — тут скорость и решает.
+				if not hunting:
+					var slot := _slot_of[i]
+					if slot >= 0 and _sq_count[slot] > 1 and _sq_min_dist[slot] > CHARGE_TILES:
+						var rear: float = _sq_max_dist[slot]
+						var mine: float = float(dist[tile]) if dist[tile] < FlowField.INF else rear
+						if mine < rear - PACK_LEASH:
+							# Оторвался от замыкающего — идёт со скоростью самого медленного в стае.
+							step = minf(step, maxf(_sq_min_speed[slot], step * WAIT_FLOOR))
 				var nx := clampf(x + vx * step, 0.5, max_x)
 				var ny := clampf(y + vy * step, 0.5, max_y)
 				var lt := _tile_at(nx + vx * radius, ny + vy * radius, w, h, inv_t)
@@ -423,7 +532,10 @@ func update(tick: int) -> void:
 		if block != 0:
 			tg = block
 		elif (i + tick) % RETARGET_TICKS == 0 or (tg > 0 and manager.get_by_id(tg) == null) or (tg == TARGET_DRONE and not drone_ok):
-			tg = _find_target(x, y, type, drone_ok, drone, grid, manager)
+			# Налётчики смотрят шире и охотно грызут всё по дороге, остальные — только то,
+			# до чего дотянулись.
+			var look := RAID_REACH if mood[i] == Mood.RAID else 1.0
+			tg = _find_target(x, y, type, drone_ok, drone, grid, manager, look)
 		target[i] = tg
 
 		# 3. Атака.
@@ -462,6 +574,80 @@ func update(tick: int) -> void:
 	last_update_usec = Time.get_ticks_usec() - start
 
 
+## Личные мелочи врага (скорость, фаза виляния) считаются от его номера, а не от случайных чисел:
+## в совместной игре у всех должно выйти одно и то же.
+static func trait01(value: int, salt: int) -> float:
+	var h := (value * 2654435761 + salt * 40503) & 0x7fffffff
+	h = ((h ^ (h >> 13)) * 1274126177) & 0x7fffffff
+	return float(h % 10007) / 10007.0
+
+
+## Личные мелочи врага выводятся из его номера, поэтому после загрузки получаются те же самые:
+## сохранять их не нужно, а пересчитывать каждый тик — дорого при тысяче врагов.
+func _set_traits(i: int) -> void:
+	_trait_speed[i] = 1.0 + (trait01(uid[i], 1) - 0.5) * 2.0 * SPEED_SPREAD
+	_trait_phase[i] = trait01(uid[i], 2) * TAU
+	_wander_turn[i] = 0.0
+	_wander_tick[i] = -1
+
+
+## Личная скорость врага: ±SPEED_SPREAD от типовой, чтобы стая не шла одинаковым шагом.
+func speed_scale(i: int) -> float:
+	return _trait_speed[i]
+
+
+## Насколько враг отклоняется от прямого пути прямо сейчас (радианы): медленное виляние,
+## у каждого своя фаза. Из-за него стая идёт полосой, а не цепочкой по одному следу.
+## Пересчитывается раз в WANDER_EVERY тиков и вразнобой: синус тысяче врагов каждый тик дорог,
+## а виляние и так медленное.
+func wander(i: int, tick: int) -> float:
+	# Момент округляется вниз с шагом WANDER_EVERY и вразнобой по врагам: значение зависит только
+	# от номера врага и времени, поэтому после загрузки выходит ровно тем же.
+	var moment := tick - (tick + uid[i]) % WANDER_EVERY
+	if _wander_tick[i] != moment:
+		_wander_tick[i] = moment
+		_wander_turn[i] = WANDER_AMPLITUDE * sin(moment * WANDER_SPEED + _trait_phase[i])
+	return _wander_turn[i]
+
+
+## Пересчитать сводку по стаям: сколько их, насколько далеко они от цели и кто в стае самый медленный.
+## dist — поле расстояний до шлюза в тайлах (FlowField), по нему видно, кто вырвался вперёд.
+func _collect_squads(dist: PackedInt32Array, w: int, inv_t: float) -> void:
+	_squad_slot.clear()
+	_sq_count.clear()
+	_sq_dist_sum.clear()
+	_sq_min_dist.clear()
+	_sq_max_dist.clear()
+	_sq_min_speed.clear()
+	# Враги лежат в порядке рождения, поэтому соседи почти всегда из одной стаи: словарь
+	# спрашиваем только когда стая сменилась — при тысяче врагов это заметная экономия.
+	var last_sid := -1
+	var last_slot := -1
+	for i in count:
+		var sid := squad[i]
+		var slot := last_slot if sid == last_sid else int(_squad_slot.get(sid, -1))
+		if slot < 0:
+			slot = _sq_count.size()
+			_squad_slot[sid] = slot
+			_sq_count.append(0)
+			_sq_dist_sum.append(0.0)
+			_sq_min_dist.append(INF)
+			_sq_max_dist.append(0.0)
+			_sq_min_speed.append(INF)
+		var tile := int(pos_y[i] * inv_t) * w + int(pos_x[i] * inv_t)
+		var d: float = float(dist[tile]) if tile >= 0 and tile < dist.size() else INF
+		if d >= FlowField.INF:
+			d = _sq_min_dist[slot] if _sq_count[slot] > 0 else 0.0
+		_sq_count[slot] += 1
+		_sq_dist_sum[slot] += d
+		_sq_min_dist[slot] = minf(_sq_min_dist[slot], d)
+		_sq_max_dist[slot] = maxf(_sq_max_dist[slot], d)
+		_sq_min_speed[slot] = minf(_sq_min_speed[slot], _speed[types[i]] * _trait_speed[i])
+		_slot_of[i] = slot
+		last_sid = sid
+		last_slot = slot
+
+
 func _tile_at(px: float, py: float, w: int, h: int, inv_t: float) -> int:
 	if px < 0.0 or py < 0.0:
 		return -1
@@ -489,8 +675,9 @@ static func _nearest_drone(live: Array[Drone], x: float, y: float) -> Drone:
 	return best
 
 
-func _find_target(x: float, y: float, type: int, drone_ok: bool, drone: Drone, grid: WorldGrid, manager: BuildingManager) -> int:
-	var reach := _reach[type]
+func _find_target(x: float, y: float, type: int, drone_ok: bool, drone: Drone, grid: WorldGrid,
+		manager: BuildingManager, look: float = 1.0) -> int:
+	var reach := _reach[type] * look
 	if drone_ok:
 		var ddx := drone.position.x - x
 		var ddy := drone.position.y - y
@@ -596,6 +783,15 @@ func _ensure_capacity(wanted: int) -> void:
 	health.resize(_capacity)
 	next_attack.resize(_capacity)
 	target.resize(_capacity)
+	squad.resize(_capacity)
+	mood.resize(_capacity)
+	chase_best.resize(_capacity)
+	chase_ticks.resize(_capacity)
+	_trait_speed.resize(_capacity)
+	_trait_phase.resize(_capacity)
+	_wander_turn.resize(_capacity)
+	_wander_tick.resize(_capacity)
+	_slot_of.resize(_capacity)
 	blocker.resize(_capacity)
 	next_tile.resize(_capacity)
 	path_version.resize(_capacity)
@@ -614,6 +810,8 @@ func save_data() -> Dictionary:
 		"prev_x": prev_x.slice(0, count), "prev_y": prev_y.slice(0, count),
 		"facing": facing.slice(0, count), "health": health.slice(0, count),
 		"next_attack": next_attack.slice(0, count), "target": target.slice(0, count),
+		"squad": squad.slice(0, count), "mood": mood.slice(0, count),
+		"chase_best": chase_best.slice(0, count), "chase_ticks": chase_ticks.slice(0, count),
 		"blocker": blocker.slice(0, count), "next_tile": next_tile.slice(0, count),
 		"path_version": path_version.slice(0, count),
 		"burn_dps": burn_dps.slice(0, count), "burn_until": burn_until.slice(0, count),
@@ -637,6 +835,10 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 	var s_health: PackedFloat32Array = data.get("health", PackedFloat32Array())
 	var s_attack: PackedInt32Array = data.get("next_attack", PackedInt32Array())
 	var s_target: PackedInt32Array = data.get("target", PackedInt32Array())
+	var s_squad: PackedInt32Array = data.get("squad", PackedInt32Array())
+	var s_mood: PackedInt32Array = data.get("mood", PackedInt32Array())
+	var s_chase_best: PackedFloat32Array = data.get("chase_best", PackedFloat32Array())
+	var s_chase_ticks: PackedInt32Array = data.get("chase_ticks", PackedInt32Array())
 	var s_blocker: PackedInt32Array = data.get("blocker", PackedInt32Array())
 	var s_next: PackedInt32Array = data.get("next_tile", PackedInt32Array())
 	var s_version: PackedInt32Array = data.get("path_version", PackedInt32Array())
@@ -664,6 +866,11 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 		health[i] = s_health[j]
 		next_attack[i] = s_attack[j]
 		target[i] = s_target[j]
+		squad[i] = int(s_squad[j]) if j < s_squad.size() else 0
+		mood[i] = int(s_mood[j]) if j < s_mood.size() else Mood.GATE
+		chase_best[i] = float(s_chase_best[j]) if j < s_chase_best.size() else INF
+		chase_ticks[i] = int(s_chase_ticks[j]) if j < s_chase_ticks.size() else 0
+		_set_traits(i)
 		blocker[i] = s_blocker[j]
 		next_tile[i] = s_next[j]
 		path_version[i] = s_version[j]
