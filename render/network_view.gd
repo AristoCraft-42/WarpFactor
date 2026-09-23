@@ -19,6 +19,17 @@ var power_overlay: bool = false
 var _world: GameWorld
 var _camera: CameraController
 var _time: float = 0.0
+## Кэш проводов: пары точек для draw_multiline. Пересобирается, только когда меняется состав
+## сетей, — раньше все опоры и связи перебирались каждый кадр, и при 500+ опорах это било по FPS.
+var _wires: PackedVector2Array = PackedVector2Array()
+var _wires_revision: int = -1
+## Значки питания у потребителей пересчитываются не каждый кадр: удовлетворённость меняется
+## медленно, а потребителей могут быть сотни.
+const MARKS_EVERY := 0.25
+var _marks_unpowered: PackedVector2Array = PackedVector2Array()
+var _marks_starved: PackedVector2Array = PackedVector2Array()
+var _marks_timer: float = 0.0
+var _marks_revision: int = -1
 
 
 func setup(world: GameWorld, camera: CameraController) -> void:
@@ -29,6 +40,7 @@ func setup(world: GameWorld, camera: CameraController) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	_marks_timer -= delta
 	queue_redraw()
 
 
@@ -42,8 +54,8 @@ func _draw() -> void:
 		_draw_network_overlay(view)
 	elif show_power_areas:
 		_draw_areas(view)
-	_draw_wires(view)
-	_draw_power_marks(view)
+	_draw_wires()
+	_draw_power_marks()
 
 
 ## Подземные пары — пунктир между входом и выходом, непарные подземные трубы — красная метка.
@@ -68,18 +80,30 @@ func _draw_underground(view: Rect2) -> void:
 		draw_dashed_line(a, b, Color(0.51, 0.65, 0.6, 0.95), 3.0, 10.0)
 
 
-func _draw_wires(view: Rect2) -> void:
+## Провода рисуются одной командой на все: у Godot каждая отдельная линия — своя команда,
+## и при сотнях опор кадр уходил на них целиком.
+func _draw_wires() -> void:
+	if _wires_revision != _world.power.revision:
+		_wires_revision = _world.power.revision
+		_wires = _collect_wires()
+	if _wires.is_empty():
+		return
+	draw_multiline(_wires, WIRE_COLOR, 3.0)
+	draw_multiline(_wires, WIRE_LIGHT, 1.0)
+
+
+## Пары точек всех проводов мира (каждый провод — ровно один раз).
+func _collect_wires() -> PackedVector2Array:
+	var out := PackedVector2Array()
 	for id in _world.power.poles:
-		var pole := _world.power.poles[id]
+		var pole: PowerPole = _world.power.poles[id]
 		var a := pole.get_world_center() + Vector2(0, -6)
 		for other in pole.get_linked_poles():
 			if other.id < pole.id and other.is_linked(pole):
 				continue
-			var b := other.get_world_center() + Vector2(0, -6)
-			if not view.has_point(a) and not view.has_point(b):
-				continue
-			draw_line(a, b, WIRE_COLOR, 3.0)
-			draw_line(a, b, WIRE_LIGHT, 1.0)
+			out.append(a)
+			out.append(other.get_world_center() + Vector2(0, -6))
+	return out
 
 
 func _draw_areas(view: Rect2) -> void:
@@ -122,17 +146,35 @@ func _draw_network_overlay(view: Rect2) -> void:
 			draw_string(font, anchor, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.98, 0.29, 0.2) if overloaded else col)
 
 
-func _draw_power_marks(view: Rect2) -> void:
+## Значки питания: красный — не подключён, жёлтый — энергии не хватает. Список собирается
+## не каждый кадр: потребителей могут быть сотни, а меняется он медленно.
+func _draw_power_marks() -> void:
+	if _marks_timer <= 0.0 or _marks_revision != _world.power.revision:
+		_marks_timer = MARKS_EVERY
+		_marks_revision = _world.power.revision
+		_collect_marks()
 	var pulse := 0.6 + 0.4 * sin(_time * 5.0)
+	var view := _camera.get_world_view_rect().grow(GameConst.TILE_SIZE * 2)
+	for at in _marks_unpowered:
+		if view.has_point(at):
+			_draw_bolt(at, Color(0.98, 0.29, 0.2, pulse))
+	for at in _marks_starved:
+		if view.has_point(at):
+			_draw_bolt(at, Color(0.98, 0.74, 0.18, pulse))
+
+
+func _collect_marks() -> void:
+	_marks_unpowered = PackedVector2Array()
+	_marks_starved = PackedVector2Array()
 	for b in _world.power.unconnected:
-		if b.world != null and view.has_point(b.get_world_center()):
-			_draw_bolt(b.get_world_center(), Color(0.98, 0.29, 0.2, pulse))
+		if b.world != null:
+			_marks_unpowered.append(b.get_world_center())
 	for net in _world.power.networks:
 		if net.satisfaction >= 0.999:
 			continue
 		for b in net.consumers:
-			if b.power_request > 0.0 and view.has_point(b.get_world_center()):
-				_draw_bolt(b.get_world_center(), Color(0.98, 0.74, 0.18, pulse))
+			if b.power_request > 0.0:
+				_marks_starved.append(b.get_world_center())
 
 
 func _draw_bolt(center: Vector2, col: Color) -> void:

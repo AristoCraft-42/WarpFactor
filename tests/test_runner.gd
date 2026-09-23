@@ -63,6 +63,7 @@ func _ready() -> void:
 	_test_teleport_keeps_own_drone()
 	_test_teleport_timers()
 	_test_pad_is_paved()
+	_test_power_wires_cache()
 	_test_shift_take_all()
 	_test_transfer_label()
 	_test_save_roundtrip_and_determinism()
@@ -3799,6 +3800,34 @@ func _test_net_cursors() -> void:
 	host.close()
 	client.close()
 	host_run.dispose()
+
+## Провода для отрисовки собираются один раз на изменение сетей, а не каждый кадр: при 576 опорах
+## сбор занимал 11 мс, то есть кадр целиком (замер — tests/bench_power.tscn).
+func _test_power_wires_cache() -> void:
+	var world := Worlds.empty_world(40, 40)
+	Worlds.power_area(world, Vector2i(2, 2), 20, Vector2i(1, 1))
+	var view := NetworkView.new()
+	view._world = world
+	var wires := view._collect_wires()
+	var links := 0
+	for id in world.power.poles:
+		links += (world.power.poles[id] as PowerPole).link_count()
+	_check(wires.size() == links, "каждый провод собран ровно один раз (%d точек на %d связей)"
+		% [wires.size(), links])
+	_check(wires.size() > 0 and wires.size() % 2 == 0, "точки идут парами (%d)" % wires.size())
+	var first_pole: PowerPole = world.power.poles[world.power.poles.keys()[0]]
+	var ends := 0
+	for i in wires.size():
+		if wires[i].is_equal_approx(first_pole.get_world_center() + Vector2(0, -6)):
+			ends += 1
+	_check(ends == first_pole.link_count(), "провода выходят из центра опоры (%d из %d)" % [ends, first_pole.link_count()])
+	var revision := world.power.revision
+	var pole_def := Registry.get_building(&"small_power_pole")
+	var added := world.buildings.place(pole_def, Vector2i(30, 30), 0, true) as PowerPole
+	world.power.auto_link(added)
+	_check(world.power.revision != revision, "новая опора помечает сети изменившимися — кэш пересоберётся")
+	view.free()
+	world.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:

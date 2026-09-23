@@ -93,6 +93,10 @@ var unconnected: Array[Building] = []
 ## Балансом управляет забег (сети этажей могут быть связаны).
 var managed: bool = false
 
+## Растёт при каждом изменении состава сетей (опоры, провода, здания). Отрисовка по нему
+## понимает, что её кэш проводов устарел, и не пересобирает его каждый кадр.
+var revision: int = 0
+
 var _world: GameWorld
 var _dirty: bool = true
 var _history: Dictionary[int, PowerHistory] = {}
@@ -113,6 +117,7 @@ func dispose() -> void:
 
 
 func mark_dirty() -> void:
+	revision += 1
 	_dirty = true
 
 
@@ -289,6 +294,7 @@ func _union(parent: Dictionary[int, int], a: int, b: int) -> void:
 func register_pole(pole: PowerPole) -> void:
 	poles[pole.id] = pole
 	_dirty = true
+	revision += 1
 
 
 func unregister_pole(pole: PowerPole) -> void:
@@ -297,6 +303,7 @@ func unregister_pole(pole: PowerPole) -> void:
 	for other in pole.get_linked_poles():
 		other.unlink(pole)
 	_dirty = true
+	revision += 1
 
 
 ## Новая опора соединяется проводами с ближайшими опорами в радиусе (пока у обеих есть свободные связи).
@@ -326,12 +333,15 @@ func auto_link(pole: PowerPole) -> void:
 		pole.link(other)
 		other.link(pole)
 	_dirty = true
+	revision += 1
 
 
 func _on_changed(_building: Building) -> void:
 	_dirty = true
+	revision += 1
 
 
 func _on_removed(building: Building) -> void:
 	building.power_net = null
 	_dirty = true
+	revision += 1
