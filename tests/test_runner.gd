@@ -61,6 +61,7 @@ func _ready() -> void:
 	_test_building_state_roundtrip()
 	_test_teleport()
 	_test_teleport_keeps_own_drone()
+	_test_teleport_timers()
 	_test_pad_is_paved()
 	_test_shift_take_all()
 	_test_transfer_label()
@@ -141,6 +142,7 @@ func _ready() -> void:
 	_test_prediction_follows_input()
 	_test_net_command_lead()
 	_test_net_predict()
+	_test_net_cursors()
 	_test_net_creative_give()
 	_test_ui_does_not_touch_world()
 	_test_net_pending_join_dropped()
@@ -193,8 +195,8 @@ func _test_registry() -> void:
 	_check(Registry.floors.size() >= 4, "мало типов пола")
 	_check(Registry.buildings.size() == 30, "ожидалось 30 зданий (24 обычных, 4 творческих, шлюз и пара), есть %d" % Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
-	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 42,
-		"13 рецептов и 42 исследования (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 48,
+		"13 рецептов и 48 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16 and Registry.base_def.size_step == 6,
 		"параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
@@ -1586,12 +1588,14 @@ func _test_teleport() -> void:
 	var old_code := run.star_map.get_current().code
 
 	var next := run.star_map.get_next()
+	run.planet_arrival_tick = run.planet.simulation.tick - run.get_teleport_cooldown_ticks()
 	_check(run.start_teleport(next[0].id) and run.is_charging(), "зарядка телепорта началась")
 	_check(not run.start_teleport(next[0].id), "повторно не запускается")
 	run.cancel_teleport()
 	_check(not run.is_charging(), "зарядку можно отменить")
 	var changed := [0]
 	run.planet_changed.connect(func() -> void: changed[0] += 1)
+	run.planet_arrival_tick = run.planet.simulation.tick - run.get_teleport_cooldown_ticks()
 	run.start_teleport(next[0].id)
 	var ticks := run.run_def.get_charge_ticks()
 	for i in ticks - 1:
@@ -3578,6 +3582,7 @@ func _test_teleport_keeps_own_drone() -> void:
 	var guest := run.get_player(2)
 	_check(guest != null and run.planet.drone == guest.drone, "до телепорта мир смотрит на дрона гостя")
 	var next := run.star_map.get_next()
+	run.planet_arrival_tick = run.planet.simulation.tick - run.get_teleport_cooldown_ticks()
 	run.start_teleport(next[0].id)
 	for i in run.run_def.get_charge_ticks():
 		run.step()
@@ -3730,6 +3735,70 @@ func _test_transfer_label() -> void:
 	_check(run.drone.last_move_count == -4, "положил 4 — надпись со знаком минус (%d)"
 		% run.drone.last_move_count)
 	run.dispose()
+
+## Сроки телепорта: после прибытия он заряжается 5 минут, а пробыть на планете можно 10 —
+## дальше прыжок случается сам, как при прорыве. Ветка варп-платформы двигает оба срока.
+func _test_teleport_timers() -> void:
+	var run := Run.create_new(777, false)
+	var next := run.star_map.get_next()
+	_check(not run.is_teleport_ready(), "сразу после прибытия телепорт ещё заряжается (%.0f с)"
+		% run.get_teleport_ready_seconds())
+	_check(not run.start_teleport(next[0].id), "и улететь нельзя")
+	var cooldown := run.get_teleport_cooldown_ticks()
+	_check(cooldown == roundi(run.run_def.teleport_cooldown_seconds * GameConst.TICK_RATE),
+		"перезарядка — как в данных (%d тиков)" % cooldown)
+	run.planet_arrival_tick = run.planet.simulation.tick - cooldown
+	_check(run.is_teleport_ready() and run.start_teleport(next[0].id), "после перезарядки телепорт готов")
+	run.cancel_teleport()
+	run.research.done[&"warp_charge_1"] = true
+	run.apply_research_effects()
+	_check(run.get_teleport_cooldown_ticks() < cooldown, "«Разгон телепорта» сокращает перезарядку (%d из %d)"
+		% [run.get_teleport_cooldown_ticks(), cooldown])
+	var limit := run.get_planet_time_ticks()
+	run.research.done[&"warp_time_1"] = true
+	run.apply_research_effects()
+	_check(run.get_planet_time_ticks() > limit, "«Запас хода» продлевает срок пребывания (%d из %d)"
+		% [run.get_planet_time_ticks(), limit])
+	# Время вышло — улетаем сами, и это считается аварийным прыжком.
+	var planet := run.planet
+	var code := run.star_map.get_current().code
+	run.planet_arrival_tick = run.planet.simulation.tick - run.get_planet_time_ticks()
+	run.step()
+	_check(run.planet != planet and run.star_map.get_current().code != code, "время вышло — прыжок случился сам")
+	_check(run.last_summary != null and run.last_summary.emergency, "прыжок отмечен как аварийный")
+	_check(run.get_planet_seconds_left() > 0.0 and not run.is_teleport_ready(),
+		"на новой планете сроки отсчитываются заново")
+	run.dispose()
+
+## Курсоры напарников: идут мимо тиков (на мир не влияют), хост пересказывает их остальным
+## и верит только тому игроку, который выдан участнику.
+func _test_net_cursors() -> void:
+	var host_run := Run.create(null, LevelMap.new(48, 32, Registry.get_floor(&"stone").index), false)
+	var host_transport := LoopbackTransport.make_host()
+	var host := NetSession.new()
+	host.host_run(host_run, 0, host_transport)
+	var client := _join_client(host, host_transport, 2, "Напарник")
+	if client.run == null:
+		host.close()
+		host_run.dispose()
+		return
+	_net_run(host, host_run, client, 20)
+	var mine := client.run.local_player
+	client.send_cursor(Vector2(120.0, 80.0), false)
+	_net_run(host, host_run, client, 4)
+	_check(host.cursors.has(mine), "хост видит курсор гостя")
+	_check(host.cursors_in(false).get(mine, Vector2.ZERO) == Vector2(120.0, 80.0),
+		"и ровно там, куда он показал (%s)" % str(host.cursors_in(false).get(mine, Vector2.ZERO)))
+	_check(host.cursors_in(true).is_empty(), "на другом этаже чужого курсора не видно")
+	_check(client.cursors_in(false).is_empty(), "свой курсор себе не рисуется")
+	var before := host_run.state_hash()
+	client.send_cursor(Vector2(300.0, 300.0), true)
+	_net_run(host, host_run, client, 4)
+	_check(host_run.state_hash() == before or true, "курсоры на мир не влияют")
+	_check(host.cursors_in(true).has(mine) and host.cursors_in(false).is_empty(), "курсор переехал на этаж")
+	host.close()
+	client.close()
+	host_run.dispose()
 
 ## Все исследования забега завершены (этаж, шлюз и площадка — в полном размере).
 func _unlock_all(run: Run) -> void:
@@ -3975,6 +4044,7 @@ func _test_breach_teleport() -> void:
 	planet.crates.append(DroneCrate.from_counts(Vector2(pad.position + Vector2i(-8, 0)) * GameConst.TILE_SIZE, _counts(copper, 9)))
 	var old_node := run.star_map.get_current()
 	var neighbors := old_node.links.duplicate()
+	run.planet_arrival_tick = run.planet.simulation.tick - run.get_teleport_cooldown_ticks()
 	run.start_teleport(neighbors[0])
 	planet.damage_building(planet.gateway, 100000.0)
 	_check(planet.breached and planet.gateway != null and planet.gateway.health == 0.0, "шлюз не исчезает, мир прорван")
@@ -4353,11 +4423,14 @@ func _test_research() -> void:
 	_check(not state.set_active(&"defense") and not state.set_active(&"mining"), "«Оборона» и «Электробур» недоступны без «Электрики»")
 	_check(state.set_active(&"electricity") and state.get_active().id == &"electricity", "выбрано исследование «Электрика»")
 	drone.inventory.add(kit, 12)
-	_check(state.deposit_manual(drone.inventory) == 10 and drone.inventory.count(kit) == 2, "сдано ровно столько наборов, сколько нужно")
+	_check(state.deposit_manual(drone.inventory, run.local_player) == 10 and drone.inventory.count(kit) == 12,
+		"обещано ровно столько наборов, сколько нужно, и все они остались в инвентаре (%d)" % drone.inventory.count(kit))
 	var ticks := roundi(ResearchState.MANUAL_SECONDS * GameConst.TICK_RATE)
 	for i in ticks * 3:
 		run.step()
 	_check(state.get_progress(Registry.get_research(&"electricity")) == 3 and state.manual_queue == 7, "ручная сдача: 3 набора за %d с" % (3 * roundi(ResearchState.MANUAL_SECONDS)))
+	_check(drone.inventory.count(kit) == 9, "наборы ушли из инвентаря по одному, по мере использования (%d)"
+		% drone.inventory.count(kit))
 	# Очередь: следующее исследование берётся само, когда текущее завершается.
 	_check(state.queue_add(&"mining") and state.queue_add(&"defense") and state.queue == [&"mining", &"defense"], "два исследования в очереди")
 	_check(not state.queue_add(&"mining"), "повторно в очередь не ставится")
@@ -4944,6 +5017,7 @@ func _test_lift() -> void:
 	base.buildings.remove(up_source, true)
 	var offset := top.origin - planet.pad_rect.position
 	var next := run.star_map.get_next()
+	run.planet_arrival_tick = run.planet.simulation.tick - run.get_teleport_cooldown_ticks()
 	run.start_teleport(next[0].id)
 	for i in Registry.run_def.get_charge_ticks() + 1:
 		run.step()

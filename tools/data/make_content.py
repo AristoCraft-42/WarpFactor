@@ -266,6 +266,10 @@ RESEARCH = [
     # Полигон: бесконечное исследование для замеров скорости науки, видно только в творческом режиме.
     ("sandbox", 300, 1000000, [], [], [], []),
 ] + [("pad_%d" % i, 100 + i, 10 + 10 * i, ["pad_%d" % (i - 1)] if i > 1 else ["mining"], [], [], ["pad_size"]) for i in range(1, 6)] \
+  + [("warp_time_%d" % i, 105 + i, 15 + 15 * i, ["warp_time_%d" % (i - 1)] if i > 1 else ["pad_1"], [], [], ["planet_time"])
+     for i in range(1, 4)] \
+  + [("warp_charge_%d" % i, 108 + i, 15 + 15 * i, ["warp_charge_%d" % (i - 1)] if i > 1 else ["pad_1"], [], [], ["teleport_charge"])
+     for i in range(1, 4)] \
   + [("underground_%d" % i, 130 + i, 10 + 10 * i, ["underground_%d" % (i - 1)] if i > 1 else ["underground"], [], [], ["underground_size"])
      for i in range(1, 6)] + DRONE_RESEARCH
 
@@ -493,7 +497,10 @@ def write_levels_and_run():
            '[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]',
            '[ext_resource type="Resource" path="res://world/planet_types/normal.tres" id="3_normal"]'] + ext + [""] + subs
     out += ["[resource]", 'script = ExtResource("1_def")', f'starting_items = Array[ExtResource("2_stack")]([{refs}])',
-            "charge_seconds = 30.0", 'first_planet_type = ExtResource("3_normal")', "visible_depth = 3",
+            "charge_seconds = 30.0", "planet_time_seconds = 600.0", "planet_time_step_seconds = 120.0",
+            "teleport_cooldown_seconds = 300.0", "teleport_cooldown_step_seconds = 60.0",
+            "teleport_cooldown_min_seconds = 60.0",
+            'first_planet_type = ExtResource("3_normal")', "visible_depth = 3",
             "min_nodes_per_step = 2", "max_nodes_per_step = 3", ""]
     write("world/run.tres", out)
 

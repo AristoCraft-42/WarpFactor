@@ -444,6 +444,8 @@ func _process(_delta: float) -> void:
 		Session.net.poll()
 	if tools == null:
 		return
+	if Session.net.is_networked():
+		Session.net.send_cursor(camera.get_mouse_world(), world == run.base)
 	if Session.net.is_networked() and Time.get_ticks_msec() - _last_log_msec > 5000:
 		_last_log_msec = Time.get_ticks_msec()
 		_log_state()

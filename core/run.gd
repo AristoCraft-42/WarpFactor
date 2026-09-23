@@ -203,6 +203,12 @@ func set_local_player(id: int) -> void:
 	drone_changed_world.emit()
 
 
+## Инвентарь, из которого исследование берёт наборы при ручной сдаче (пусто — сдающего нет).
+func _manual_kits() -> Inventory:
+	var player := get_player(research.manual_player) if research != null else null
+	return player.drone.inventory if player != null and player.drone != null else null
+
+
 ## Исследования забега: общие для обоих миров, фильтр ручного крафта дрона.
 ## Творческий режим: включить или выключить волны на текущей планете.
 func set_creative_threat(on: bool) -> void:
@@ -487,7 +493,7 @@ func _run_command(cmd: Command, player: Player, actor: Drone, world: GameWorld) 
 			else:
 				research.queue_add(id)
 		Command.Kind.RESEARCH_DEPOSIT:
-			research.deposit_manual(actor.inventory)
+			research.deposit_manual(actor.inventory, cmd.player)
 		Command.Kind.USE_PASSAGE:
 			use_gateway(actor)
 		Command.Kind.TELEPORT:
@@ -605,8 +611,12 @@ func step() -> void:
 	_balance_power()
 	planet.simulation.step()
 	base.simulation.step()
-	research.step()
+	research.step(_manual_kits())
 	if planet.breached:
+		emergency_teleport()
+	elif has_time_limit() and get_planet_ticks() >= get_planet_time_ticks():
+		# Время на планете вышло: улетаем сами, как при прорыве — уцелеет площадка и то,
+		# что у игроков в инвентарях.
 		emergency_teleport()
 		return
 	if charge_target >= 0:
@@ -700,6 +710,46 @@ func use_gateway(who: Drone = null) -> bool:
 
 # --- Телепорт ---
 
+## Сколько времени мира можно пробыть на планете (тиков). Исследования «Запас хода» прибавляют.
+func get_planet_time_ticks() -> int:
+	var seconds := run_def.planet_time_seconds \
+		+ run_def.planet_time_step_seconds * research.count_effect(&"planet_time")
+	return maxi(1, roundi(seconds * GameConst.TICK_RATE))
+
+
+## Перезарядка телепорта после прибытия (тиков). Исследования «Разгон телепорта» сокращают.
+func get_teleport_cooldown_ticks() -> int:
+	var seconds := run_def.teleport_cooldown_seconds \
+		- run_def.teleport_cooldown_step_seconds * research.count_effect(&"teleport_charge")
+	return maxi(0, roundi(maxf(seconds, run_def.teleport_cooldown_min_seconds) * GameConst.TICK_RATE))
+
+
+## Сколько времени мира прошло на этой планете (тиков).
+func get_planet_ticks() -> int:
+	return planet.simulation.tick - planet_arrival_tick if planet != null else 0
+
+
+## Сколько осталось до принудительного вылета, секунд (0 — время вышло).
+func get_planet_seconds_left() -> float:
+	return maxf(float(get_planet_time_ticks() - get_planet_ticks()) / GameConst.TICK_RATE, 0.0)
+
+
+## Сколько осталось до конца перезарядки телепорта, секунд (0 — можно лететь).
+func get_teleport_ready_seconds() -> float:
+	return maxf(float(get_teleport_cooldown_ticks() - get_planet_ticks()) / GameConst.TICK_RATE, 0.0)
+
+
+## Телепорт перезарядился и готов к старту.
+func is_teleport_ready() -> bool:
+	return get_planet_ticks() >= get_teleport_cooldown_ticks()
+
+
+## Действует ли предел пребывания. В творческом режиме — только вместе с волнами: песочница
+## не должна выкидывать с планеты посреди опытов.
+func has_time_limit() -> bool:
+	return planet != null and (not creative or planet.threat != null)
+
+
 func is_charging() -> bool:
 	return charge_target >= 0
 
@@ -717,7 +767,7 @@ func get_charge_seconds_left() -> float:
 
 ## Начать зарядку телепорта на соседнюю планету звёздной карты.
 func start_teleport(node_id: int) -> bool:
-	if is_charging() or not star_map.can_travel_to(node_id):
+	if is_charging() or not star_map.can_travel_to(node_id) or not is_teleport_ready():
 		return false
 	charge_target = node_id
 	charge_ticks_total = run_def.get_charge_ticks()

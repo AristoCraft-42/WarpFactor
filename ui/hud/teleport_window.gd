@@ -115,6 +115,12 @@ func _process(_delta: float) -> void:
 	if _run.is_charging():
 		_progress.value = _run.get_charge_fraction()
 		_charge_label.text = tr("TELEPORT_CHARGING") % ceili(_run.get_charge_seconds_left())
+	elif _run.get_teleport_ready_seconds() > 0.0:
+		_charge_label.text = tr("TELEPORT_RECHARGE") % ThreatPanel._clock(_run.get_teleport_ready_seconds())
+		_start_button.disabled = true
+	elif _start_button.disabled and _run.star_map.get_node(_map_view.selected_id) != null:
+		_start_button.disabled = false
+		_charge_label.text = tr("TELEPORT_READY")
 
 
 func _on_selection_changed() -> void:
@@ -132,6 +138,10 @@ func _on_selection_changed() -> void:
 
 
 func _on_start() -> void:
+	if _run.get_teleport_ready_seconds() > 0.0:
+		Events.toast(tr("TOAST_TELEPORT_RECHARGING") % ThreatPanel._clock(_run.get_teleport_ready_seconds()),
+			Events.ToastKind.WARNING)
+		return
 	if _map_view.selected_id >= 0:
 		_run.submit(Command.Kind.TELEPORT, {"node": _map_view.selected_id})
 
@@ -146,8 +156,11 @@ func _refresh() -> void:
 		_map_view.selected_id = _run.charge_target
 	var node := _run.star_map.get_node(_map_view.selected_id)
 	_info.text = StarMapView.describe_node(node, true) if node != null else tr("TELEPORT_NO_TARGET")
+	var ready_in := _run.get_teleport_ready_seconds()
 	_start_button.visible = not charging
-	_start_button.disabled = node == null
+	_start_button.disabled = node == null or ready_in > 0.0
+	if ready_in > 0.0:
+		_charge_label.text = tr("TELEPORT_RECHARGE") % ThreatPanel._clock(ready_in)
 	_start_button.text = tr("TELEPORT_START") % roundi(_run.run_def.charge_seconds)
 	_cancel_button.visible = charging
 	_progress.visible = charging

@@ -67,6 +67,13 @@ var _late_checksums: Array[Dictionary] = []
 ## Клиент: id игрока, за которого играем, и ожидание снимка.
 var _local_player: int = 0
 var _waiting_snapshot: bool = false
+## Где чужие курсоры: id игрока → {"pos": Vector2, "base": bool, "at": мс}. На мир не влияет,
+## в отпечаток состояния не входит — это только показ.
+var cursors: Dictionary[int, Dictionary] = {}
+## Когда последний раз отправляли свой курсор (мс) и в каком мире он тогда был.
+var _cursor_sent_msec: int = 0
+var _cursor_sent_base: bool = false
+
 ## Клиент: когда началось подключение (мс) — чтобы не ждать мир хоста вечно.
 var _join_started_msec: int = 0
 ## Журнал: когда последний раз писали сводку состояния (мс).
@@ -210,6 +217,7 @@ func close() -> void:
 	_measured_delay = float(NetProtocol.INPUT_DELAY) + 1.0
 	_gap_polls = 0
 	_no_self_polls = 0
+	cursors.clear()
 	_peers.clear()
 	_planned.clear()
 	_own_checksums.clear()
@@ -564,6 +572,40 @@ func _args_brief(cmd: Command) -> String:
 	return ""
 
 
+## Показать напарникам, где мой курсор. Шлётся не чаще CURSOR_EVERY_MS и только в сетевой игре.
+func send_cursor(pos: Vector2, in_base: bool) -> void:
+	if role == Role.OFFLINE or transport == null or run == null:
+		return
+	var now := Time.get_ticks_msec()
+	# Переход между планетой и этажом шлём сразу: иначе курсор напарника ещё десятую секунды
+	# висит там, где его уже нет.
+	if now - _cursor_sent_msec < NetProtocol.CURSOR_EVERY_MS and in_base == _cursor_sent_base:
+		return
+	_cursor_sent_msec = now
+	_cursor_sent_base = in_base
+	var body := {"i": run.local_player, "x": pos.x, "y": pos.y, "b": in_base}
+	if role == Role.HOST:
+		transport.broadcast(NetProtocol.pack(NetProtocol.Kind.CURSOR, body))
+	else:
+		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.CURSOR, body))
+
+
+## Курсоры напарников в нужном мире: id игрока → положение. Устаревшие не отдаём.
+func cursors_in(in_base: bool) -> Dictionary[int, Vector2]:
+	var out: Dictionary[int, Vector2] = {}
+	if run == null:
+		return out
+	var now := Time.get_ticks_msec()
+	for id in cursors:
+		var entry: Dictionary = cursors[id]
+		if id == run.local_player or bool(entry["b"]) != in_base:
+			continue
+		if now - int(entry["at"]) > NetProtocol.CURSOR_STALE_MS:
+			continue
+		out[int(id)] = entry["pos"] as Vector2
+	return out
+
+
 ## Пауза и скорость — общие для всех, но идут мимо тиков: на паузе тики не считаются,
 ## и команда в очереди просто никогда бы не применилась.
 func send_time(paused: bool, speed_index: int) -> void:
@@ -656,6 +698,15 @@ func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 				transport.broadcast(NetProtocol.pack(NetProtocol.Kind.TIME, {"p": paused, "s": speed}))
 			NetLog.write("сессия", "время от участника %d: пауза %s, скорость %d" % [peer_id, paused, speed])
 			time_state.emit(paused, speed)
+		NetProtocol.Kind.CURSOR:
+			var who := int(message.get("i", 0))
+			# Хост верит только тому игроку, который выдан этому участнику, и пересказывает остальным.
+			if role == Role.HOST:
+				if who != int((_peers.get(peer_id, {}) as Dictionary).get("player", -1)):
+					return
+				transport.broadcast(data)
+			cursors[who] = {"pos": Vector2(float(message.get("x", 0.0)), float(message.get("y", 0.0))),
+				"b": bool(message.get("b", false)), "at": Time.get_ticks_msec()}
 		NetProtocol.Kind.BYE:
 			NetLog.write("сессия", "участник %d попрощался" % peer_id)
 			if role == Role.HOST:

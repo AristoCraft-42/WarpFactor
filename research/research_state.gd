@@ -33,6 +33,10 @@ var active: StringName = &""
 var queue: Array[StringName] = []
 ## Наборы, сданные вручную и ещё не обработанные.
 var manual_queue: int = 0
+## Кто сдаёт наборы вручную (id игрока). Сами наборы лежат у него в инвентаре и уходят
+## по одному, когда исследование их использует, — как в научном цехе. Раньше сдача забирала
+## все наборы сразу, и при смене исследования они были уже потрачены.
+var manual_player: int = 0
 var manual_ticks: int = 0
 
 var _effect_counts: Dictionary[StringName, int] = {}
@@ -71,6 +75,9 @@ func set_active(id: StringName) -> bool:
 		return false
 	active = id
 	queue.erase(id)
+	# Обещанные наборы больше никуда не идут: они так и лежат в инвентаре.
+	manual_queue = 0
+	manual_ticks = 0
 	changed.emit()
 	return true
 
@@ -195,17 +202,20 @@ func get_needed(research: ResearchDef) -> int:
 	return maxi(research.cost_amount - get_progress(research), 0)
 
 
-## Сдать вручную наборы первого уровня из инвентаря. Возвращает, сколько сдано.
-func deposit_manual(inventory: Inventory) -> int:
+## Отдать исследованию наборы первого уровня из инвентаря игрока. Наборы остаются у него
+## и расходуются по одному; возвращает, сколько их обещано отдать.
+func deposit_manual(inventory: Inventory, player_id: int) -> int:
 	var research := get_active()
 	if research == null or research.cost_item == null or research.cost_item.science_tier != 1:
 		return 0
 	var room := get_needed(research) - manual_queue
-	var moved := inventory.remove(research.cost_item.index, maxi(room, 0))
-	manual_queue += moved
-	if moved > 0:
-		changed.emit()
-	return moved
+	var promised := mini(maxi(room, 0), inventory.count(research.cost_item.index))
+	if promised <= 0:
+		return 0
+	manual_queue += promised
+	manual_player = player_id
+	changed.emit()
+	return promised
 
 
 ## Научный цех отдаёт один набор. true — набор принят выбранным исследованием.
@@ -225,17 +235,25 @@ func wants_kit(item: int) -> bool:
 	return research != null and research.cost_item != null and research.cost_item.index == item and get_needed(research) > 0
 
 
-## Тик забега: обработка ручной очереди.
-func step() -> void:
+## Тик забега: ручная сдача. Набор уходит из инвентаря игрока в тот момент, когда его
+## использовали, а не при нажатии кнопки.
+func step(inventory: Inventory = null) -> void:
 	if manual_queue <= 0:
 		return
 	var research := get_active()
-	if research == null:
+	if research == null or research.cost_item == null:
+		return
+	# Наборы кончились (потратили на крафт, отдали напарнику) — ручная сдача прекращается.
+	if inventory == null or inventory.count(research.cost_item.index) <= 0:
+		manual_queue = 0
+		manual_ticks = 0
+		changed.emit()
 		return
 	manual_ticks += 1
 	if manual_ticks >= roundi(MANUAL_SECONDS * GameConst.TICK_RATE):
 		manual_ticks = 0
 		manual_queue -= 1
+		inventory.remove(research.cost_item.index, 1)
 		_advance(research)
 
 
@@ -266,6 +284,7 @@ func save_data() -> Dictionary:
 		progress_values.append(progress[id])
 	return {"done": done_ids, "progress_ids": progress_ids, "progress_values": progress_values,
 		"active": String(active), "manual_queue": manual_queue, "manual_ticks": manual_ticks,
+		"manual_player": manual_player,
 		"queue": _queue_ids(), "creative": creative}
 
 
@@ -292,6 +311,7 @@ func load_data(data: Dictionary) -> void:
 		active = &""
 	manual_queue = int(data.get("manual_queue", 0))
 	manual_ticks = int(data.get("manual_ticks", 0))
+	manual_player = int(data.get("manual_player", 0))
 	if data.has("creative"):
 		creative = bool(data["creative"])
 		loaded = true

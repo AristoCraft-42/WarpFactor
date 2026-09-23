@@ -151,6 +151,29 @@ func _draw() -> void:
 	for player in _run.players:
 		if player.drone != null and player.drone.world == _world:
 			_draw_drone(player)
+	_draw_cursors()
+
+
+## Курсоры напарников: видно, куда смотрит и что собирается делать напарник.
+func _draw_cursors() -> void:
+	if not Session.net.is_networked():
+		return
+	var font := ThemeDB.fallback_font
+	var cursors := Session.net.cursors_in(_world == _run.base)
+	for id in cursors:
+		var player := _run.get_player(id)
+		if player == null:
+			continue
+		var at: Vector2 = cursors[id]
+		var color := player.color
+		draw_line(at + Vector2(0, -9), at + Vector2(0, 9), Color(0, 0, 0, 0.5), 3.0)
+		draw_line(at + Vector2(-9, 0), at + Vector2(9, 0), Color(0, 0, 0, 0.5), 3.0)
+		draw_line(at + Vector2(0, -8), at + Vector2(0, 8), color, 1.5)
+		draw_line(at + Vector2(-8, 0), at + Vector2(8, 0), color, 1.5)
+		draw_circle(at, 2.5, color)
+		if font != null and not player.name.is_empty():
+			draw_string_outline(font, at + Vector2(10, -6), player.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, 4, Color(0, 0, 0, 0.8))
+			draw_string(font, at + Vector2(10, -6), player.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, color)
 
 
 func _draw_drone(player: Player) -> void:

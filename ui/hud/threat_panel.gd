@@ -9,6 +9,8 @@ const GATE_ALERT_COOLDOWN := 15.0
 
 var _game: Game
 var _wave_label: Label
+## Сколько осталось до принудительного прыжка и до перезарядки телепорта.
+var _clock_label: Label
 var _enemies_label: Label
 var _gate_row: HBoxContainer
 var _gate_label: Label
@@ -36,6 +38,8 @@ func setup(game: Game) -> void:
 	_wave_label = _make_label()
 	_wave_label.add_theme_font_size_override("font_size", 17)
 	column.add_child(_wave_label)
+	_clock_label = _make_label()
+	column.add_child(_clock_label)
 	_enemies_label = _make_label()
 	_enemies_label.theme_type_variation = &"DimLabel"
 	column.add_child(_enemies_label)
@@ -71,6 +75,29 @@ func setup(game: Game) -> void:
 	refresh()
 
 
+## Срок пребывания на планете и перезарядка телепорта. Панель видна даже там, где волн нет:
+## принудительный прыжок случится в любом случае.
+func _refresh_clock(run: Run) -> void:
+	if not run.has_time_limit():
+		_clock_label.visible = false
+		return
+	_clock_label.visible = true
+	var left := run.get_planet_seconds_left()
+	var ready_in := run.get_teleport_ready_seconds()
+	if ready_in > 0.0:
+		_clock_label.text = "%s   %s" % [tr("TELEPORT_TIME_LEFT") % _clock(left),
+			tr("TELEPORT_RECHARGE") % _clock(ready_in)]
+	else:
+		_clock_label.text = "%s   %s" % [tr("TELEPORT_TIME_LEFT") % _clock(left), tr("TELEPORT_READY")]
+	var warn := left <= 60.0
+	_clock_label.add_theme_color_override("font_color", UiTheme.RED if warn else UiTheme.YELLOW)
+
+
+static func _clock(seconds: float) -> String:
+	var whole := maxi(ceili(seconds), 0)
+	return "%d:%02d" % [whole / 60, whole % 60]
+
+
 func _process(delta: float) -> void:
 	_gate_alert_timer = maxf(_gate_alert_timer - delta, 0.0)
 	_timer -= delta
@@ -85,6 +112,7 @@ func refresh() -> void:
 	if run == null or run.planet == null:
 		visible = false
 		return
+	_refresh_clock(run)
 	var planet := run.planet
 	var threat := planet.threat
 	if planet != _tracked_world:
@@ -93,7 +121,7 @@ func refresh() -> void:
 	if run.creative:
 		mouse_filter = Control.MOUSE_FILTER_PASS
 		_waves_toggle.set_pressed_no_signal(threat != null)
-	visible = threat != null or run.creative
+	visible = threat != null or run.creative or _clock_label.visible
 	_wave_label.visible = threat != null
 	_enemies_label.visible = threat != null
 	_gate_row.visible = threat != null
