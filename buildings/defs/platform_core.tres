@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="PlatformDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/gateway/platform_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://buildings/gateway/platform_core.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://buildings/defs/conveyor.tres" id="5_throughput"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"platform_core"
+name_key = "BUILDING_PLATFORM_CORE"
+description_key = "BUILDING_PLATFORM_CORE_DESC"
+category = 0
+size = 2
+removable = false
+player_buildable = false
+line_placement = false
+sort_order = 3
+health = 1500.0
+solid = true
+color = Color(0.604, 0.416, 0.227, 1)
+glyph = 15
+logic_script = ExtResource("3_logic")
+buffer_capacity = 20
+throughput_of = ExtResource("5_throughput")
+deploy_seconds = 6.0
+is_core = true
+rotatable = false

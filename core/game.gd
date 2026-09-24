@@ -263,6 +263,8 @@ func _build_scene() -> void:
 	add_child(pause_menu)
 	pause_menu.run = run
 	pause_menu.closed.connect(_update_input_enabled)
+	# Окно пульта платформы забирает WASD себе, поэтому управление переключается вместе с выбором.
+	tools.selection_changed.connect(_update_input_enabled)
 
 
 ## Подписка, которая переживает пересборку сцены.

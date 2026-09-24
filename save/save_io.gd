@@ -234,6 +234,8 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.attach_world(run.base)
 	run.relink_lifts()
 	run.apply_research_effects(false)
+	# Пульты и якоря платформ находят друг друга после того, как оба мира загружены.
+	run.relink_platforms()
 
 	# Угроза планеты: расписание, поле потоков — как в сохранении (старые сохранения начинают угрозу заново).
 	var planet_data: Dictionary = data.get("planet", {})

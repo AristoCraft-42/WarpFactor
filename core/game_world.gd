@@ -56,6 +56,9 @@ var is_base: bool = false
 var pad_rect: Rect2i = Rect2i()
 ## Открытая часть мира, тайлов: дрон и камера не выходят за неё (size 0 — вся карта).
 var play_rect: Rect2i = Rect2i()
+## Из чего она складывается на подземном этаже: центральная часть, комнаты добычи и туннели.
+## Не сохраняется — восстанавливается из исследований вместе с размерами (apply_research_effects).
+var open_rects: Array[Rect2i] = []
 ## Проверка места лифта (задаёт забег): func(world, def, origin) -> BuildingManager.Check.
 var lift_check: Callable
 var last_error: ActionError = ActionError.NONE
@@ -151,8 +154,33 @@ static func base_rect(base_def: BaseDef, side: int) -> Rect2i:
 	return Rect2i(corner, corner, s, s)
 
 
-## Открыть часть подземного этажа: пустота внутри rect становится полом, rect — открытая часть.
+## Открыть центральную часть подземного этажа: пустота внутри rect становится полом.
+## Комнаты добычи открываются отдельно (open_room) и из этой рамки выпадают, поэтому
+## play_rect — общая рамка всего открытого, а не один прямоугольник.
 func open_area(rect: Rect2i, notify: bool = true) -> void:
+	if open_rects.is_empty():
+		open_rects.append(rect)
+	else:
+		open_rects[0] = rect
+	_open_tiles(rect)
+	_refresh_play_rect(rect, notify)
+
+
+## Открыть комнату добычи с туннелем до центра. Комната добавляется к открытому, а не заменяет его.
+func open_room(rect: Rect2i, tunnel: Rect2i, notify: bool = true) -> void:
+	# В старых сохранениях карта этажа меньше — комнаты туда просто не помещаются.
+	if open_rects.has(rect) or not grid.rect_in_bounds(rect) or not grid.rect_in_bounds(tunnel):
+		return
+	open_rects.append(rect)
+	open_rects.append(tunnel)
+	_open_tiles(rect)
+	_open_tiles(tunnel)
+	if notify:
+		terrain_changed.emit(tunnel)
+	_refresh_play_rect(rect, notify)
+
+
+func _open_tiles(rect: Rect2i) -> void:
 	var open_def := Registry.get_floor(Registry.base_def.floor_id)
 	var void_def := Registry.get_floor(Registry.base_def.void_floor_id)
 	if open_def == null or void_def == null:
@@ -161,12 +189,35 @@ func open_area(rect: Rect2i, notify: bool = true) -> void:
 		for x in range(rect.position.x, rect.end.x):
 			if grid.in_bounds(x, y) and grid.get_floor(x, y) == void_def.index:
 				grid.floors[grid.index_of(x, y)] = open_def.index
-	if play_rect == rect:
+
+
+## Общая рамка всего открытого: за неё не выходят ни камера, ни дрон.
+func _refresh_play_rect(changed: Rect2i, notify: bool) -> void:
+	var bounds := open_rects[0]
+	for r in open_rects:
+		bounds = bounds.merge(r)
+	if play_rect == bounds:
+		if notify:
+			terrain_changed.emit(changed)
 		return
-	play_rect = rect
+	play_rect = bounds
 	if notify:
-		terrain_changed.emit(rect)
+		terrain_changed.emit(changed)
 		bounds_changed.emit()
+
+
+## Место платформы в комнате: пока платформа на планете, там пустота (строить нельзя),
+## когда вернулась — обычный пол этажа.
+func set_platform_open(rect: Rect2i, open: bool) -> void:
+	var def := Registry.get_floor(Registry.base_def.floor_id if open else Registry.base_def.void_floor_id)
+	if def == null:
+		return
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			# Под постройкой, которая осталась в комнате (торчала за край платформы), пол не убираем.
+			if grid.in_bounds(x, y) and (open or buildings.get_at(Vector2i(x, y)) == null):
+				grid.floors[grid.index_of(x, y)] = def.index
+	terrain_changed.emit(rect)
 
 
 ## Новая площадка шлюза: свободные пригодные тайлы добавленной части становятся платформой без руды
@@ -256,6 +307,16 @@ func damage_building(building: Building, amount: float) -> void:
 		building.health = 0.0
 		damaged[building.id] = true
 		breached = true
+		return
+	if building is PlatformCore:
+		# Якорь не исчезает: платформа аварийно отзывается в комнату вместе со всем, что уцелело.
+		building.health = building.get_max_health()
+		damaged.erase(building.id)
+		var console := (building as PlatformCore).link.console if (building as PlatformCore).link != null else null
+		if console != null:
+			# Сворачиваем не здесь, а в тике самого пульта: посреди боя мир менять нельзя.
+			console.recall()
+			Events.toast(tr("TOAST_PLATFORM_RECALLED"), Events.ToastKind.WARNING)
 		return
 	destroy_building(building)
 

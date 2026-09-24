@@ -53,6 +53,7 @@ func _run_game(game: Game) -> void:
 	await _run_research(game)
 	await _run_gateway(game)
 	await _run_lift(game)
+	await _run_mining_platform(game)
 	await _run_players(game)
 	await _run_drone(game, base)
 	await _run_interaction(game, base)
@@ -1871,6 +1872,95 @@ func _run_lift(game: Game) -> void:
 	await _key(KEY_F)
 	await _frames(5)
 	_expect(game.world == run.planet, "F над парой — обратно на площадку")
+
+
+## Комната добычи: исследование открывает её с туннелем, пульт наводит платформу на планету
+## (вид со спутника, WASD), платформа уезжает со всем, что на ней стоит, и возвращается назад.
+func _run_mining_platform(game: Game) -> void:
+	var run := game.run
+	run.research.done[&"underground"] = true
+	run.research.done[&"mining_room_1"] = true
+	run.apply_research_effects()
+	await _frames(5)
+	var console := run.get_platform_console(0)
+	_expect(console != null, "комната добычи открылась вместе с пультом")
+	if console == null:
+		return
+	var base_def := Registry.base_def
+	var plat := base_def.platform_rect(0)
+
+	# Ставим на платформу угольный бур — ради него платформу и возят на планету.
+	var drill_def := Registry.get_building(&"coal_drill")
+	run.base.buildings.place(drill_def, plat.position + Vector2i(2, 2), 0, true)
+	if game.world != run.base:
+		run.drone.move_to_world(run.base)
+		game.call("_on_drone_changed_world")
+	await _drone_to(game, GameConst.world_to_tile(console.get_world_center()))
+	game.camera.focus_on(run.drone.position, 0.7)
+	await _frames(6)
+	await _shot("p01_mining_room.png")
+
+	# Клик по пульту открывает окно наводки.
+	var console_tile := GameConst.world_to_tile(console.get_world_center())
+	await _mouse_move(game, console_tile)
+	await _mouse_button(game, console_tile, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, console_tile, MOUSE_BUTTON_LEFT, false)
+	await _frames(6)
+	var window := game.hud.platform_window
+	_expect(window.is_open(), "клик по пульту открывает окно платформы")
+	if not window.is_open():
+		return
+	# WASD двигают рамку наводки, а не дрона: окно модальное.
+	var before_aim := window.aim_tile()
+	var drone_at := run.drone.position
+	await _key_hold(KEY_D, true)
+	await _frames(12)
+	await _key_hold(KEY_D, false)
+	await _frames(3)
+	_expect(window.aim_tile().x > before_aim.x, "D двигает рамку по планете (%s → %s)" % [before_aim, window.aim_tile()])
+	_expect(run.drone.position.is_equal_approx(drone_at), "дрон при этом стоит на месте")
+	await _shot("p02_platform_aim.png")
+
+	# Ищем место, куда платформа влезает, и разворачиваем её там.
+	var target := Vector2i(-1, -1)
+	for radius in range(20, 60, 2):
+		for dir in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]:
+			var candidate: Vector2i = run.drone.get_tile() + dir * radius
+			if run.can_place_platform(candidate):
+				target = candidate
+				break
+		if target.x >= 0:
+			break
+	_expect(target.x >= 0, "на планете есть место под платформу")
+	if target.x < 0:
+		return
+	run.submit(Command.Kind.PLATFORM_AIM, {"room": 0, "tile": target})
+	await _wait_ticks(run.base, console.get_platform_def().get_deploy_ticks() + 10)
+	await _frames(6)
+	_expect(console.state == PlatformConsole.State.DEPLOYED, "платформа развернулась на планете")
+	window.close_window()
+	await _frames(3)
+
+	# Смотрим на неё на планете: рамка платформы и бур на руде.
+	var core := run.find_platform_core(0)
+	if core != null and core.world == run.planet:
+		run.drone.move_to_world(run.planet)
+		game.call("_on_drone_changed_world")
+		await _drone_to(game, GameConst.world_to_tile(core.get_world_center()))
+		game.camera.focus_on(run.drone.position, 0.55)
+		await _frames(8)
+		await _shot("p03_platform_on_planet.png")
+
+	# И отзываем обратно, чтобы дальше прогон шёл как раньше.
+	run.submit(Command.Kind.PLATFORM_AIM, {"room": 0, "tile": PlatformConsole.NO_TILE})
+	await _wait_ticks(run.base, console.get_platform_def().get_deploy_ticks() + 10)
+	await _frames(6)
+	_expect(console.state == PlatformConsole.State.DOCKED, "платформа вернулась в комнату")
+	if run.drone.world != run.planet:
+		run.drone.move_to_world(run.planet)
+		game.call("_on_drone_changed_world")
+	await _drone_to(game, GameConst.world_to_tile(run.get_gateway(run.planet).get_world_center()))
+	game.camera.recenter()
 
 
 ## После телепорта: «Расширение площадки I» — площадка 24×24, рамка и платформа перерисованы.

@@ -96,6 +96,7 @@ DEF_SCRIPTS = {
     "workshop": ("ScienceWorkshopDef", "res://buildings/production/science_workshop_def.gd"),
     "accumulator": ("AccumulatorDef", "res://buildings/power/accumulator_def.gd"),
     "lift": ("LiftDef", "res://buildings/gateway/lift_def.gd"),
+    "platform": ("PlatformDef", "res://buildings/gateway/platform_def.gd"),
     "creative": ("CreativeBlockDef", "res://buildings/creative/creative_block_def.gd"),
 }
 LOGIC = {
@@ -119,6 +120,8 @@ LOGIC = {
     "workshop": "res://buildings/production/science_workshop.gd",
     "accumulator": "res://buildings/power/accumulator.gd",
     "lift": "res://buildings/gateway/lift.gd",
+    "platform_console": "res://buildings/gateway/platform_console.gd",
+    "platform_core": "res://buildings/gateway/platform_core.gd",
     "creative": "res://buildings/creative/creative_block.gd",
 }
 
@@ -226,6 +229,13 @@ BUILDINGS = [
     ("creative_void", "creative", "creative", 0, 1, False, True, True, 31, "504945", 901, [],
      {"kind": 3, "rates": [100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 25000.0], "default_rate": 2,
       "rotatable": False, "creative_only": True, "power_use": 1.0}, (400, True), (0.5, 1, 20)),
+    # Платформа добычи: пульт в комнате и якорь на платформе (ставятся сами вместе с комнатой)
+    ("platform_console", "platform", "platform_console", 0, 2, False, False, False, 28, "4f7a6a", 2, [],
+     {"buffer_capacity": 20, "throughput": "conveyor", "deploy_seconds": 6.0, "is_core": False,
+      "rotatable": False}, (1200, True), None),
+    ("platform_core", "platform", "platform_core", 0, 2, False, False, False, 15, "9a6a3a", 3, [],
+     {"buffer_capacity": 20, "throughput": "conveyor", "deploy_seconds": 6.0, "is_core": True,
+      "rotatable": False}, (1500, True), None),
     # Шлюзы (не строятся)
     ("central_gateway", "gateway", "gateway", 0, 4, False, False, False, 15, "b0601c", 0, [],
      {"in_base": False, "inbound_side": 2, "outbound_side": 0, "buffer_capacity": 10, "throughput": "conveyor",
@@ -317,7 +327,9 @@ RESEARCH = [
   + [("warp_charge_%d" % i, 108 + i, 15 + 15 * i, ["warp_charge_%d" % (i - 1)] if i > 1 else ["pad_1"], [], [], ["teleport_charge"])
      for i in range(1, 4)] \
   + [("underground_%d" % i, 130 + i, 10 + 10 * i, ["underground_%d" % (i - 1)] if i > 1 else ["underground"], [], [], ["underground_size"])
-     for i in range(1, 6)] + DRONE_RESEARCH
+     for i in range(1, 6)]   + [("mining_room_%d" % i, 170 + i, 40 + 20 * i,
+      ["mining_room_%d" % (i - 1)] if i > 1 else ["underground", "industry"], [], [], ["mining_room"])
+     for i in range(1, 5)] + DRONE_RESEARCH
 
 START_ITEMS = [("conveyor", 20), ("furnace", 2), ("coal", 20)]
 LEVELS = [

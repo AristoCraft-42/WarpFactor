@@ -30,6 +30,7 @@ var threat_panel: ThreatPanel
 var research_window: ResearchWindow
 var _drone_was_dead: bool = false
 var teleport_window: TeleportWindow
+var platform_window: PlatformWindow
 var summary_window: SummaryWindow
 var _config_panel: ConfigPanel
 var _build_menu: BuildMenu
@@ -124,8 +125,10 @@ func toggle_debug() -> bool:
 	return _debug.visible
 
 
+## Пока открыто модальное окно, дрон стоит и мир не строится: у пульта платформы WASD
+## двигают рамку наводки, а не дрона.
 func is_modal_open() -> bool:
-	return _confirm.visible
+	return _confirm.visible or (platform_window != null and platform_window.is_open())
 
 
 # --- Построение ---
@@ -354,6 +357,9 @@ func _build_inventory_window() -> void:
 	teleport_window = TeleportWindow.new()
 	_root.add_child(teleport_window)
 	teleport_window.setup(_game)
+	platform_window = PlatformWindow.new()
+	_root.add_child(platform_window)
+	platform_window.setup(_game)
 	summary_window = SummaryWindow.new()
 	_root.add_child(summary_window)
 	summary_window.setup()

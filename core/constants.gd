@@ -30,6 +30,9 @@ const GRID_MIN_ZOOM: float = 0.45
 ## Порог «массового сноса», после которого спрашиваем подтверждение.
 const MASS_DELETE_THRESHOLD: int = 40
 
+## Сколько комнат добычи бывает на подземном этаже (по одной с каждой стороны).
+const MINING_ROOMS: int = 4
+
 enum Dir { RIGHT, DOWN, LEFT, UP }
 
 

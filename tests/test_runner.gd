@@ -71,6 +71,7 @@ func _ready() -> void:
 	_test_menu_background()
 	_test_move_group()
 	_test_autobuild()
+	_test_mining_platform()
 	_test_save_roundtrip_and_determinism()
 	_test_save_remap()
 	_test_save_files()
@@ -202,13 +203,16 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 5, "ожидалось 5 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 34, "ожидалось 34 здания (28 обычных, 4 творческих, шлюз и пара), есть %d" % Registry.buildings.size())
+	_check(Registry.buildings.size() == 36,
+		"ожидалось 36 зданий (28 обычных, 4 творческих, шлюз с парой, пульт и якорь платформы), есть %d"
+		% Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
 	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 39 and Registry.researches.size() == 61,
-		"39 рецептов и 61 исследование (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
-	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16 and Registry.base_def.size_step == 6,
-		"параметры подземного этажа загружены (16 → 46 шагами по 6)")
+	_check(Registry.recipes.size() == 39 and Registry.researches.size() == 65,
+		"39 рецептов и 65 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.base_def != null and Registry.base_def.center_max == 46 and Registry.base_def.start_size == 16
+		and Registry.base_def.size_step == 6 and Registry.base_def.size > Registry.base_def.center_max,
+		"параметры подземного этажа загружены (центр 16 → 46 шагами по 6, карта больше под комнаты)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
 	_check(Registry.items.size() == 17 + 32, "ожидалось 17 предметов и 32 предмета-постройки, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
@@ -3905,6 +3909,129 @@ func _test_autobuild() -> void:
 	world.dispose()
 
 
+## Комнаты добычи и платформа: комната с туннелем открывается исследованием, пульт и якорь
+## появляются сами, платформа уезжает на планету со всем, что на ней стоит, и возвращается назад.
+func _test_mining_platform() -> void:
+	var run := Run.create_new(4242, false)
+	var base_def := Registry.base_def
+	run.research.done[&"underground"] = true
+	run.research.done[&"mining_room_1"] = true
+	run.apply_research_effects()
+	_check(run.get_mining_rooms() == 1, "открыта одна комната добычи (%d)" % run.get_mining_rooms())
+
+	var room := base_def.room_rect(0)
+	var tunnel := base_def.tunnel_rect(0)
+	var void_floor := Registry.get_floor(&"void").index
+	_check(run.base.grid.get_floor(room.position.x + 1, room.position.y + 1) != void_floor, "комната открыта")
+	_check(run.base.grid.get_floor(tunnel.get_center().x, tunnel.get_center().y) != void_floor, "туннель открыт")
+	_check(run.base.play_rect.encloses(room), "комната попала в открытую часть этажа")
+	var second := base_def.room_rect(1)
+	_check(run.base.grid.get_floor(second.get_center().x, second.get_center().y) == void_floor,
+		"вторая комната ещё закрыта")
+
+	var console := run.get_platform_console(0)
+	var core := run.find_platform_core(0)
+	_check(console != null and core != null and console.link != null and console.link.core == core,
+		"пульт и якорь стоят и связаны")
+	_check(core.world == run.base and not console.is_deployed(), "платформа пока в комнате")
+	_check(not console.is_linked(), "пока платформа в комнате, связь не работает")
+
+	# Ставим на платформу угольный бур: он и есть то, ради чего платформу возят на планету.
+	var plat := base_def.platform_rect(0)
+	var spot := plat.position + Vector2i(1, 1)
+	_check(_place(run.base, &"coal_drill", spot) != null, "бур встал на платформу")
+
+	# Ищем на планете место, куда платформа помещается.
+	var target := Vector2i(-1, -1)
+	for radius in range(20, 60, 2):
+		for dir in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]:
+			var candidate: Vector2i = run.drone.get_tile() + dir * radius
+			if run.can_place_platform(candidate):
+				target = candidate
+				break
+		if target.x >= 0:
+			break
+	_check(target.x >= 0, "на планете нашлось место под платформу")
+	_check(not run.can_place_platform(run.drone.get_tile()), "на площадку базы платформа не встаёт")
+
+	console.set_aim(target)
+	for i in 12 * GameConst.TICK_RATE:
+		run.step()
+		if not console.is_busy():
+			break
+	_check(console.state == PlatformConsole.State.DEPLOYED, "платформа развернулась на планете (%d)" % console.state)
+	var moved_core := run.find_platform_core(0)
+	_check(moved_core != null and moved_core.world == run.planet, "якорь уехал на планету")
+	_check(run.planet.buildings.get_at(target - Vector2i.ONE * (base_def.platform_size / 2) + Vector2i(1, 1)) != null,
+		"бур теперь стоит на планете")
+	_check(run.base.buildings.get_at(spot) == null
+		and run.base.grid.get_floor(spot.x, spot.y) == void_floor, "на месте платформы в комнате пустота")
+	_check(console.is_linked() and core.link.console == console, "связь пульта с якорем работает")
+	var coal := _item(&"coal")
+	_check(moved_core.accept_item(null, coal), "якорь принимает добытое для отправки в комнату")
+
+	# Добытое едет с платформы в комнату: кладём предмет в якорь и ждём его в ящике у пульта.
+	var box_tile := console.origin + Vector2i(2, 0)
+	if run.base.buildings.get_at(box_tile) != null:
+		box_tile = console.origin + Vector2i(-1, 0)
+	var box := run.base.buildings.place(Registry.get_building(&"container"), box_tile, 0, true) as StorageBuilding
+	moved_core.handle_item(null, coal)
+	for i in 5 * GameConst.TICK_RATE:
+		run.step()
+		if box.inventory.count(coal) > 0:
+			break
+	_check(box.inventory.count(coal) == 1, "добытое доехало с платформы в комнату (%d)" % box.inventory.count(coal))
+
+	# Дрон переходит на платформу через пульт и возвращается через якорь.
+	run.drone.move_to_world(run.base)
+	run.drone.position = console.get_world_center()
+	_check(run.get_passage() == console and run.use_gateway(), "по пульту дрон уходит на платформу")
+	_check(run.drone.world == run.planet, "дрон оказался на планете")
+	_check(run.use_gateway() and run.drone.world == run.base, "и вернулся через якорь")
+
+	# Отзыв: платформа возвращается в комнату вместе с буром.
+	console.set_aim(PlatformConsole.NO_TILE)
+	for i in 12 * GameConst.TICK_RATE:
+		run.step()
+		if not console.is_busy():
+			break
+	_check(console.state == PlatformConsole.State.DOCKED, "платформа вернулась в комнату (%d)" % console.state)
+	_check(run.base.buildings.get_at(spot) != null, "бур вернулся на своё место")
+	_check(run.base.grid.get_floor(spot.x, spot.y) != void_floor, "пол платформы вернулся")
+
+	# Перелёт: платформу нельзя бросить на старой планете.
+	console.set_aim(target)
+	for i in 12 * GameConst.TICK_RATE:
+		run.step()
+		if not console.is_busy():
+			break
+	_check(console.state == PlatformConsole.State.DEPLOYED, "платформа снова на планете")
+
+	# Сохранение: развёрнутая платформа переживает загрузку вместе со связью.
+	var saved := SaveIO.run_to_dict(run)
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(saved)))
+	var loaded_console := loaded.get_platform_console(0)
+	var loaded_core := loaded.find_platform_core(0)
+	_check(loaded_console != null and loaded_console.state == PlatformConsole.State.DEPLOYED
+		and loaded_console.deployed_at == target, "после загрузки платформа всё ещё на планете")
+	_check(loaded_core != null and loaded_core.world == loaded.planet and loaded_console.is_linked()
+		and loaded_core.link == loaded_console.link, "пульт и якорь снова связаны")
+	_check(var_to_bytes(SaveIO.run_to_dict(loaded)) == var_to_bytes(saved), "состояние сходится байт в байт")
+	loaded.dispose()
+
+	var next := run.star_map.get_next()
+	run.planet_arrival_tick = run.planet.simulation.tick - run.get_teleport_cooldown_ticks()
+	_check(run.start_teleport(next[0].id), "телепорт начался")
+	for i in 60 * GameConst.TICK_RATE:
+		run.step()
+		if run.charge_target < 0:
+			break
+	var after := run.get_platform_console(0)
+	_check(after != null and after.state == PlatformConsole.State.DOCKED, "после перелёта платформа в комнате")
+	_check(run.base.buildings.get_at(spot) != null, "и бур вместе с ней")
+	run.dispose()
+
+
 ## Сроки телепорта: после прибытия он заряжается 5 минут, а пробыть на планете можно 10 —
 ## дальше прыжок случается сам, как при прорыве. Ветка варп-платформы двигает оба срока.
 func _test_teleport_timers() -> void:
@@ -5223,7 +5350,8 @@ func _test_research_effects_and_floors() -> void:
 	_check(ResearchState.max_effect(&"pad_size") == 5 and ResearchState.max_effect(&"underground_size") == 5 and ResearchState.max_effect(&"gateway_ports") == 2,
 		"пять расширений площадки и этажа, два шага портов")
 	_check(run.get_pad_size() == 20 and run.planet.pad_rect.size == Vector2i(20, 20), "площадка в начале 20×20")
-	_check(run.base.play_rect.size == Vector2i(16, 16) and run.base.grid.width == 46, "открытая часть этажа 16×16 на карте 46×46")
+	_check(run.base.play_rect.size == Vector2i(16, 16) and run.base.grid.width == Registry.base_def.size,
+		"открытая часть этажа 16×16 на карте %d×%d" % [run.base.grid.width, run.base.grid.height])
 	var void_floor := Registry.get_floor(&"void").index
 	_check(run.base.grid.get_floor(0, 0) == void_floor and not run.base.grid.is_buildable(0, 0)
 		and run.base.grid.get_floor(run.base.play_rect.position.x, run.base.play_rect.position.y) != void_floor,
@@ -5254,8 +5382,11 @@ func _test_research_effects_and_floors() -> void:
 	run.dispose()
 
 	var creative := Run.create(null, LevelMap.new(64, 64, Registry.get_floor(&"stone").index), true)
-	_check(creative.get_pad_size() == 40 and creative.base.play_rect.size == Vector2i(46, 46) and creative.can_use_gateway(),
-		"в творческом режиме площадка 40, этаж 46 и проход открыты сразу")
+	# В творческом режиме открыто всё: центральная часть 46×46 и все комнаты добычи,
+	# поэтому общая рамка этажа больше самой центральной части.
+	_check(creative.get_pad_size() == 40 and creative.base.open_rects[0].size == Vector2i(46, 46)
+		and creative.base.play_rect.size.x > 46 and creative.can_use_gateway(),
+		"в творческом режиме площадка 40, центр этажа 46, комнаты открыты и проход работает")
 	creative.dispose()
 
 

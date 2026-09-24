@@ -283,6 +283,12 @@ func is_underground_open() -> bool:
 	return research != null and research.has_effect(&"underground")
 
 
+## Сколько комнат добычи открыто исследованиями (каждая — со своим туннелем и платформой).
+func get_mining_rooms() -> int:
+	var steps := research.count_effect(&"mining_room") if research != null else 0
+	return mini(steps, GameConst.MINING_ROOMS)
+
+
 ## Применить исследования к мирам: площадка и открытая часть этажа растут, шлюз перерисовывает порты,
 ## сети труб и электросети пересобираются (шлюз и лифты могли начать их соединять).
 ## notify = false — после загрузки: размеры сверяются, но здания не будятся и сети не пересобираются
@@ -295,7 +301,16 @@ func apply_research_effects(notify: bool = true) -> void:
 	if planet != null and link != null and link.planet_gateway != null:
 		planet.resize_pad(_pad_around(link.planet_gateway))
 	if base != null:
-		base.open_area(GameWorld.base_rect(Registry.base_def, get_underground_size()))
+		base.open_area(GameWorld.base_rect(Registry.base_def, get_underground_size()), notify)
+		var base_def := Registry.base_def
+		for i in get_mining_rooms():
+			base.open_room(base_def.room_rect(i), base_def.tunnel_rect(i), notify)
+			_ensure_platform(i)
+			# Пока платформа на планете, её место в комнате — пустота: открытие комнаты
+			# (в том числе при загрузке) не должно застилать его полом обратно.
+			var console := get_platform_console(i)
+			if console != null and console.is_deployed():
+				base.set_platform_open(base_def.platform_rect(i), false)
 	for p in players:
 		p.drone.apply_upgrades(research, notify)
 	if not notify:
@@ -456,6 +471,10 @@ func _run_command(cmd: Command, player: Player, actor: Drone, world: GameWorld) 
 			_execute_remove(cmd, world)
 		Command.Kind.MOVE_GROUP:
 			_execute_move(cmd, world)
+		Command.Kind.PLATFORM_AIM:
+			var console := get_platform_console(int(args.get("room", -1)))
+			if console != null:
+				console.set_aim(args.get("tile", PlatformConsole.NO_TILE))
 		Command.Kind.ROTATE:
 			var b := world.buildings.get_by_id(int(args.get("id", 0)))
 			if b != null:
@@ -687,7 +706,11 @@ func get_passage(who: Drone = null) -> Building:
 	if gate != null and gate.world != null and gate.get_world_rect().has_point(d.position):
 		return gate
 	var lift := d.world.buildings.get_at(d.get_tile()) as Lift
-	return lift if lift != null and lift.pair != null else null
+	if lift != null and lift.pair != null:
+		return lift
+	# Пульт в комнате и якорь на развёрнутой платформе — такой же проход между мирами.
+	var platform_end := d.world.buildings.get_at(d.get_tile()) as PlatformEnd
+	return platform_end if platform_end != null and platform_end.is_linked() else null
 
 
 ## «Порты шлюза II» растят оба шлюза с 2×2 до 4×4, центр остаётся на месте.
@@ -718,7 +741,15 @@ func use_gateway(who: Drone = null) -> bool:
 	if not can_use_gateway(d):
 		return false
 	var from := get_passage(d)
-	var to: Building = (from as Lift).pair if from is Lift else get_gateway(base if d.world == planet else planet)
+	var to: Building = null
+	if from is Lift:
+		to = (from as Lift).pair
+	elif from is PlatformEnd:
+		to = (from as PlatformEnd).other_end()
+	else:
+		to = get_gateway(base if d.world == planet else planet)
+	if to == null or to.world == null:
+		return false
 	var to_world := to.world
 	var offset := d.position - from.get_world_center()
 	d.stop_mining()
@@ -835,6 +866,10 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 	summary.waves = old.threat.wave if old.threat != null else 0
 	summary.enemies_killed = old.enemies.killed
 
+	# Платформы добычи возвращаются в свои комнаты: на старой планете их бросать нельзя.
+	for console in platform_consoles():
+		console.fold_now()
+
 	# Что переезжает: постройки целиком на площадке (кроме самого шлюза — он ставится заново).
 	var pad := old.pad_rect
 	var entries: Array[Dictionary] = []
@@ -929,6 +964,7 @@ func _teleport(node_id: int, emergency: bool = false) -> void:
 		fresh.view_drone = me.drone
 	_pairing_suspended = false
 	relink_lifts()
+	relink_platforms()
 	# Лифты этажа, чья пара не переехала (не поместилась на площадке), убираются.
 	for b in base.buildings.get_all():
 		if b is Lift and (b as Lift).pair == null:
@@ -1049,6 +1085,180 @@ func relink_lifts() -> void:
 	for b in planet.buildings.get_all():
 		if b is Lift and (b as Lift).pair == null:
 			pair_lift(b as Lift, planet)
+
+
+# --- Платформы добычи ---
+
+## Пульт и якорь комнаты: ставятся вместе с комнатой и дальше живут сами.
+## Повторный вызов ничего не делает — только следит, что оба на месте и связаны.
+func _ensure_platform(index: int) -> void:
+	var base_def := Registry.base_def
+	var console_def := Registry.get_building(&"platform_console") as PlatformDef
+	var core_def := Registry.get_building(&"platform_core") as PlatformDef
+	if console_def == null or core_def == null:
+		return
+	var console := base.buildings.get_at(base_def.console_origin(index)) as PlatformConsole
+	if console == null:
+		console = base.buildings.place(console_def, base_def.console_origin(index), 0, true) as PlatformConsole
+		if console == null:
+			return
+		console.room = index
+	var core := find_platform_core(index)
+	if core == null:
+		core = base.buildings.place(core_def, base_def.core_origin(index), 0, true) as PlatformCore
+		if core == null:
+			return
+		core.room = index
+	_link_platform(console, core)
+
+
+## Связать пульт с якорем (вместимость очереди — из данных пульта).
+func _link_platform(console: PlatformConsole, core: PlatformCore) -> void:
+	if console == null or core == null:
+		return
+	if console.link != null and console.link.core == core and core.link == console.link:
+		return
+	var platform_link := console.link if console.link != null else PlatformLink.new()
+	platform_link.console = console
+	platform_link.core = core
+	platform_link.capacity = console.get_platform_def().buffer_capacity
+	console.link = platform_link
+	core.link = platform_link
+	console.wake()
+	core.wake()
+
+
+## Якорь комнаты, где бы он ни был: в комнате или уже на планете.
+func find_platform_core(index: int) -> PlatformCore:
+	for world in [base, planet]:
+		if world == null or world.buildings == null:
+			continue
+		for b in world.buildings.get_all():
+			if b is PlatformCore and (b as PlatformCore).room == index:
+				return b as PlatformCore
+	return null
+
+
+## Пульты всех открытых комнат.
+func platform_consoles() -> Array[PlatformConsole]:
+	var result: Array[PlatformConsole] = []
+	if base == null or base.buildings == null:
+		return result
+	for b in base.buildings.get_all():
+		if b is PlatformConsole:
+			result.append(b as PlatformConsole)
+	return result
+
+
+func get_platform_console(index: int) -> PlatformConsole:
+	for console in platform_consoles():
+		if console.room == index:
+			return console
+	return null
+
+
+## После загрузки: пульты и якоря находят друг друга по номеру комнаты.
+func relink_platforms() -> void:
+	for console in platform_consoles():
+		_link_platform(console, find_platform_core(console.room))
+
+
+## Прямоугольник платформы на планете с центром в tile.
+func platform_target_rect(tile: Vector2i) -> Rect2i:
+	var side := Registry.base_def.platform_size
+	return Rect2i(tile - Vector2i.ONE * (side / 2), Vector2i.ONE * side)
+
+
+## Годится ли место на планете: в границах, не на площадке базы, не на чужой платформе,
+## всё пусто и есть на чём строить.
+func can_place_platform(tile: Vector2i, except_room: int = -1) -> bool:
+	if planet == null:
+		return false
+	var rect := platform_target_rect(tile)
+	if not planet.grid.rect_in_bounds(rect):
+		return false
+	if planet.pad_rect.size != Vector2i.ZERO and planet.pad_rect.intersects(rect):
+		return false
+	for console in platform_consoles():
+		if console.room != except_room and console.is_deployed() \
+				and platform_target_rect(console.deployed_at).intersects(rect):
+			return false
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			if not planet.grid.is_buildable(x, y) or planet.buildings.get_at(Vector2i(x, y)) != null:
+				return false
+	return true
+
+
+## Развернуть платформу: всё из её прямоугольника в комнате переезжает на планету вместе с якорем.
+## false — место не годится, платформа остаётся в комнате.
+func platform_deploy(console: PlatformConsole, tile: Vector2i) -> bool:
+	if console == null or planet == null or base == null:
+		return false
+	if not can_place_platform(tile, console.room):
+		Events.toast(tr("TOAST_PLATFORM_BLOCKED"), Events.ToastKind.WARNING)
+		return false
+	var from := Registry.base_def.platform_rect(console.room)
+	var offset := platform_target_rect(tile).position - from.position
+	if _carry_buildings(base, planet, from, offset) == 0:
+		return false
+	# Место платформы в комнате становится пустотой: пока её нет, там не строят.
+	base.set_platform_open(from, false)
+	_after_platform_move(console)
+	Events.toast(tr("TOAST_PLATFORM_DEPLOYED"), Events.ToastKind.SUCCESS)
+	return true
+
+
+## Свернуть платформу обратно в комнату: то, что уцелело, возвращается на свои места.
+func platform_fold(console: PlatformConsole) -> void:
+	if console == null or console.deployed_at == PlatformConsole.NO_TILE:
+		return
+	var to := Registry.base_def.platform_rect(console.room)
+	var from := platform_target_rect(console.deployed_at)
+	base.set_platform_open(to, true)
+	_carry_buildings(planet, base, from, to.position - from.position)
+	_after_platform_move(console)
+	Events.toast(tr("TOAST_PLATFORM_FOLDED"), Events.ToastKind.SUCCESS)
+
+
+## Переезд платформы меняет состав сетей в обоих мирах и пару «пульт — якорь».
+func _after_platform_move(console: PlatformConsole) -> void:
+	_link_platform(console, find_platform_core(console.room))
+	for world in [planet, base]:
+		world.power.mark_dirty()
+		world.fluids.mark_dirty()
+
+
+## Перенос построек прямоугольника в другой мир со сдвигом offset: состояние, содержимое и
+## прочность едут с ними (как переезд площадки при телепорте). Возвращает, сколько переехало.
+## Постройки, торчащие за край прямоугольника, остаются на месте.
+func _carry_buildings(from_world: GameWorld, to_world: GameWorld, rect: Rect2i, offset: Vector2i) -> int:
+	var moving := from_world.buildings.collect_in_rect(rect)
+	var snapshots: Array[Dictionary] = []
+	for b in moving:
+		if not rect.encloses(b.get_rect()):
+			continue
+		snapshots.append({"def": b.def, "origin": b.origin + offset, "rotation": b.rotation,
+			"size": b.size, "config": b.get_config(), "state": b.save_state(), "dump": b.get_dump_cursor(),
+			"health": b.health, "room": (b as PlatformEnd).room if b is PlatformEnd else -1})
+		from_world.buildings.remove(b, true)
+	var moved := 0
+	for snap in snapshots:
+		var placed := to_world.buildings.place(snap["def"], snap["origin"], snap["rotation"], true, 0, snap["size"])
+		if placed == null:
+			push_warning("Run: постройка %s не встала при переносе платформы" % snap["def"].id)
+			continue
+		if placed is PlatformEnd:
+			(placed as PlatformEnd).room = int(snap["room"])
+		if snap["config"] != null:
+			placed.set_config(snap["config"])
+		placed.set_dump_cursor(snap["dump"])
+		placed.load_state(snap["state"])
+		placed.health = clampf(snap["health"], 0.0, placed.get_max_health())
+		if placed.is_damaged():
+			to_world.damaged[placed.id] = true
+		moved += 1
+	return moved
 
 
 ## Пары зданий, соединяющих этажи (шлюз и лифты): [здание на планете, здание на этаже].
