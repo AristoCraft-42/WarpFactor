@@ -22,6 +22,12 @@ extends Resource
 @export var floor_id: StringName = &"metal_plates"
 @export var void_floor_id: StringName = &"void"
 
+@export_group("Котельная")
+## Озеро в середине этажа: месторождение жидкости (пусто — озера нет) и его поперечник, тайлов.
+## Насосы ставятся прямо на него, поэтому у котельной свой источник воды.
+@export var lake_ore_id: StringName = &""
+@export var lake_size: int = 0
+
 @export_group("Комнаты добычи")
 ## Сторона комнаты и ширина туннеля до центра, тайлов.
 @export var room_size: int = 16
@@ -30,6 +36,13 @@ extends Resource
 @export var room_gap: int = 6
 ## Сторона платформы в комнате: всё, что стоит на ней, уезжает на планету.
 @export var platform_size: int = 10
+
+
+## Озеро котельной: квадрат lake_size в середине карты (в него вписан блоб воды).
+func lake_rect() -> Rect2i:
+	var side := clampi(lake_size, 0, size)
+	var corner := (size - side) / 2
+	return Rect2i(corner, corner, side, side)
 
 
 ## Куда смотрит комната с индексом index (0 — север, дальше по часовой стрелке).

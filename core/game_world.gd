@@ -149,7 +149,31 @@ static func create_base(base_def: BaseDef, p_creative: bool) -> GameWorld:
 	world.floor_plan = base_def
 	world.rng.seed = hash(String(base_def.id))
 	world.open_area(base_rect(base_def, base_def.start_size), false)
+	world.paint_lake(base_def)
 	return world
+
+
+## Озеро котельной: блоб месторождения воды в середине этажа. Насос ставится прямо на него,
+## поэтому воду на этом этаже не нужно возить с планеты. Форма постоянная (без случайностей),
+## иначе этаж расходился бы у участников сетевой игры.
+func paint_lake(plan: BaseDef) -> void:
+	if plan == null or plan.lake_size <= 0:
+		return
+	var ore := Registry.get_ore(plan.lake_ore_id)
+	if ore == null:
+		return
+	var rect := plan.lake_rect()
+	var center := Vector2(rect.position) + Vector2(rect.size) * 0.5
+	var radius := float(rect.size.x) * 0.5
+	for y in range(rect.position.y, rect.end.y):
+		for x in range(rect.position.x, rect.end.x):
+			if not grid.in_bounds(x, y):
+				continue
+			var offset := Vector2(x, y) + Vector2(0.5, 0.5) - center
+			# Волна вчетверо: берег получается неровным, но озеро остаётся симметричным.
+			var wobble := 1.0 + 0.12 * sin(4.0 * offset.angle() + PI * 0.25)
+			if offset.length() <= radius * wobble:
+				grid.ores[grid.index_of(x, y)] = ore.index + 1
 
 
 ## Прямоугольник открытой части этажа стороной side в центре карты.

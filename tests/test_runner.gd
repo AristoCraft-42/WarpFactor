@@ -73,6 +73,7 @@ func _ready() -> void:
 	_test_autobuild()
 	_test_mining_platform()
 	_test_shaft()
+	_test_boiler_floor()
 	_test_midgame_chain()
 	_test_enemy_progression()
 	_test_player_style()
@@ -214,13 +215,13 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 6, "ожидалось 6 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 43,
-		"ожидалось 43 здания (34 обычных, 4 творческих, шлюз с парой, шахта, пульт и якорь платформы), есть %d"
+	_check(Registry.buildings.size() == 44,
+		"ожидалось 44 здания (34 обычных, 4 творческих, шлюз с парой, две шахты, пульт и якорь платформы), есть %d"
 		% Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
 	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 49 and Registry.researches.size() == 72,
-		"49 рецептов и 72 исследования (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 49 and Registry.researches.size() == 73,
+		"49 рецептов и 73 исследования (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16
 		and Registry.base_def.size_step == 6, "параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	var mining_def := Registry.mining_def
@@ -5976,6 +5977,107 @@ func _test_power_and_fluids_between_floors() -> void:
 
 
 ## Лифт: место, пара на другом этаже, предметы в обе стороны, дрон, снос пары, переезд, сохранение.
+## Котельная: четвёртый этаж со своим озером. Шахта возит предметы, проводит ток и трубы,
+## поэтому электростанция внизу кормит подземный этаж.
+func _test_boiler_floor() -> void:
+	var closed := Run.create_new(41, false)
+	_check(closed.boiler != null and closed.floor_of(closed.boiler) == 3 and closed.world_of_floor(3) == closed.boiler,
+		"котельная — четвёртый этаж забега")
+	_check(not closed.is_boiler_open() and closed.shaft_boiler == null, "без исследования вниз хода нет")
+	var plan := Registry.boiler_def
+	var water := 0
+	for y in plan.size:
+		for x in plan.size:
+			if closed.boiler.grid.get_ore(x, y) > 0:
+				water += 1
+	_check(water > 80 and plan.lake_size > 0, "в середине котельной озеро (%d тайлов)" % water)
+	closed.dispose()
+
+	var run := _floors_run([&"underground", &"underground_1", &"mining_floor", &"boiler_floor"])
+	var base := run.base
+	var boiler := run.boiler
+	var up := run.shaft_base_boiler
+	var down := run.shaft_boiler
+	_check(up != null and down != null and up.pair == down and down.pair == up, "шахта котельной стоит парой")
+	if up == null or down == null:
+		run.dispose()
+		return
+	_check(run.shaft_base != null and not up.get_rect().intersects(run.shaft_base.get_rect()),
+		"две шахты на подземном этаже не мешают друг другу")
+	_check(boiler.grid.get_ore(down.origin.x, down.origin.y) == 0, "шахта стоит не на озере")
+
+	# Предметы: уголь едет вниз, к котлам.
+	var coal := _item(&"coal")
+	var source := base.buildings.place(Worlds.source_def(), up.get_input_tile(), 0, true)
+	source.set("items", PackedInt32Array([coal]))
+	var sink := boiler.buildings.place(Worlds.sink_def(), down.get_output_tile(), 0, true)
+	for i in 3 * GameConst.TICK_RATE:
+		run.step()
+	_check(sink.received > 10, "уголь спускается в котельную (%d)" % sink.received)
+	boiler.buildings.remove(sink, true)
+
+	# Дрон переходит вниз и обратно.
+	run.drone.move_to_world(base)
+	run.drone.position = up.get_world_center()
+	_check(run.get_passage() == up and run.use_gateway() and run.drone.world == boiler, "дрон спустился в котельную")
+	_check(run.use_gateway() and run.drone.world == base, "и поднялся обратно")
+
+	# Электростанция внизу: генератор у шахты кормит сборщик на подземном этаже.
+	var pole_def := Registry.get_building(&"small_power_pole")
+	boiler.buildings.place(pole_def, down.origin + Vector2i(-1, -1), 0, true)
+	var generator := boiler.buildings.place(Registry.get_building(&"thermal_generator"),
+		down.origin + Vector2i(-4, -3), 0, true) as Generator
+	for i in 5:
+		generator.handle_item(null, coal)
+	base.buildings.place(pole_def, up.origin + Vector2i(3, -1), 0, true)
+	var assembler := base.buildings.place(Registry.get_building(&"assembler"), up.origin + Vector2i(4, 1), 0, true) as Crafter
+	base.configure(assembler, &"gear")
+	for i in 30:
+		assembler.handle_item(null, _item(&"iron_ingot"))
+	for i in 3 * GameConst.TICK_RATE:
+		run.step()
+	_check(assembler.outputs[_item(&"gear")] >= 3 and generator.last_output_kw > 30.0,
+		"сборщик подземного этажа работает от генератора котельной (%d)" % assembler.outputs[_item(&"gear")])
+	_check(up.is_power_link() and run.shaft_base.is_power_link() == false, "ток проводит только шахта котельной")
+
+	# Трубы: вода из озера поднимается по шахте на подземный этаж. Насос стоит на берегу —
+	# по самому озеру труб не проложить, как и на планете.
+	var column := down.origin.x + 1
+	var shore := -1
+	for y in range(down.origin.y + 3, plan.size):
+		if boiler.grid.get_ore(column, y) > 0:
+			shore = y
+			break
+	var pump := boiler.buildings.place(Registry.get_building(&"pump"), Vector2i(column, shore), 0, true) if shore > 0 else null
+	_check(pump != null and (pump as Pump).fluid != null, "насос ставится на озеро под шахтой")
+	for y in range(down.origin.y + 3, shore):
+		boiler.buildings.place(Registry.get_building(&"pipe"), Vector2i(column, y), 0, true)
+	var top := base.buildings.place(Registry.get_building(&"pipe"), up.origin + Vector2i(1, -1), 0, true)
+	for i in 8 * GameConst.TICK_RATE:
+		run.step()
+	var top_net := base.fluids.get_pipe_network(top)
+	var down_net := boiler.fluids.get_port_network(down, 0)
+	_check(top_net != null and top_net.fluid == Registry.get_fluid(&"water").index and top_net.amount > 20.0,
+		"вода из озера поднялась по шахте (%.0f; внизу %.0f из %.0f)" % [top_net.amount if top_net != null else -1.0,
+			down_net.amount if down_net != null else -1.0, down_net.capacity if down_net != null else -1.0])
+
+	# Сохранение: этаж и его шахта переживают круг (тестовый источник в сохранение не входит).
+	base.buildings.remove(source, true)
+	var data := SaveIO.run_to_dict(run)
+	var copy := SaveIO.run_from_dict(data)
+	_check(copy.boiler != null and copy.shaft_boiler != null and copy.shaft_base_boiler != null
+		and copy.shaft_boiler.pair == copy.shaft_base_boiler, "котельная и её шахта в сохранении")
+	var diff := ""
+	var a_parts := run.state_parts()
+	var b_parts := copy.state_parts()
+	for i in mini(a_parts.size(), b_parts.size()):
+		if a_parts[i] != b_parts[i]:
+			diff += "%s " % Run.STATE_PART_NAMES[i]
+	_check(copy.state_hash() == run.state_hash(), "состояние котельной совпало после загрузки (%s)" % diff)
+	copy.dispose()
+	run.dispose()
+
+
 func _test_lift() -> void:
 	var run := _floors_run([&"underground", &"underground_1", &"lift"])
 	var planet := run.planet

@@ -21,11 +21,12 @@ func get_shaft_def() -> LiftDef:
 
 
 ## Этот конец принимает предметы: вниз грузят наверху, вверх — внизу.
+## Какой конец нижний, решает номер этажа — шахт в забеге две (добыча и котельная).
 func is_source() -> bool:
-	if world == null or world.run == null:
+	if world == null or world.run == null or pair == null or pair.world == null:
 		return false
-	var on_mining := world == world.run.mining
-	return (direction == Direction.DOWN) != on_mining
+	var deeper := world.run.floor_of(world) > world.run.floor_of(pair.world)
+	return (direction == Direction.DOWN) != deeper
 
 
 func get_input_side() -> int:
@@ -56,6 +57,21 @@ func _side_tile(side: int) -> Vector2i:
 			return origin + Vector2i(-1, middle)
 		_:
 			return origin + Vector2i(middle, -1)
+
+
+## Шахта котельной проводит ток: её концы сшивают электросети своих этажей.
+func is_power_link() -> bool:
+	return pair != null and get_shaft_def().energy_link
+
+
+## И трубы: все четыре стороны — одна сеть, общая с шахтой другого этажа.
+func get_fluid_ports() -> Array[FluidGraph.Port]:
+	var ports: Array[FluidGraph.Port] = []
+	if not get_shaft_def().energy_link:
+		return ports
+	for side in 4:
+		ports.append(FluidGraph.Port.new(side, null, 0))
+	return ports
 
 
 func on_placed() -> void:

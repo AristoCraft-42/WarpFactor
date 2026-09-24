@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="BaseDef" format=3]
+
+[ext_resource type="Script" path="res://world/base_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"boiler"
+title_key = "LOCATION_BOILER"
+size = 40
+start_size = 32
+size_step = 0
+center_max = 40
+floor_id = &"dark_stone"
+void_floor_id = &"void"
+lake_ore_id = &"water"
+lake_size = 14

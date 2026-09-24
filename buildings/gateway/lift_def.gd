@@ -6,6 +6,8 @@ extends BuildingDef
 @export var buffer_capacity: int = 10
 ## Скорость выдачи — как у этой ленты.
 @export var throughput_of: ConveyorDef
+## Шахта котельной проводит ещё ток и жидкости: этаж-электростанция иначе некуда девать.
+@export var energy_link: bool = false
 
 
 func get_ticks_per_item() -> int:

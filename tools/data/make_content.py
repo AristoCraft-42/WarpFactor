@@ -270,6 +270,8 @@ BUILDINGS = [
       "rotatable": False, "creative_only": True, "power_use": 1.0}, (400, True), (0.5, 1, 20)),
     ("shaft", "lift", "shaft", 0, 3, False, False, False, 28, "7a7f8a", 4, [],
      {"buffer_capacity": 20, "throughput": "conveyor"}, (2000, True), None),
+    ("boiler_shaft", "lift", "shaft", 0, 3, False, False, False, 28, "8a7a6a", 5, [],
+     {"buffer_capacity": 20, "throughput": "conveyor", "energy_link": True}, (2000, True), None),
     # Платформа добычи: пульт в комнате и якорь на платформе (ставятся сами вместе с комнатой)
     ("platform_console", "platform", "platform_console", 0, 2, False, False, False, 28, "4f7a6a", 2, [],
      {"buffer_capacity": 20, "throughput": "conveyor", "deploy_seconds": 6.0, "is_core": False,
@@ -342,6 +344,7 @@ RESEARCH = [
     ("microchips", 87, 40, ["sphalerite", "science_automation"], [], ["microchip", "science_kit_2"], []),
     ("steel_logistics", 88, 45, ["microchips"], ["steel_conveyor", "steel_junction", "steel_router"], [], []),
     ("mining_floor", 169, 50, ["underground_1", "microchips"], [], [], ["mining_floor"]),
+    ("boiler_floor", 180, 55, ["mining_floor", "steam_power"], [], [], ["boiler_floor"]),
     ("compact_production", 89, 45, ["microchips"], ["smeltery", "fabricator", "fast_drill", "large_container"], [], []),
     # Оборона
     ("defense", 90, 25, ["electricity"], ["machine_gun"], ["casing_mg"] + [out for _, out in FILLERS], []),
@@ -388,7 +391,7 @@ LEVELS = [
 # Исследования, которым вдобавок нужны наборы второго уровня: всё, что идёт после «Микросхем».
 # Раньше них наборы второго уровня негде делать — это и задаёт порядок мидгейма.
 KIT2_AFTER = {"steel_logistics", "compact_production", "mining_floor", "accumulators", "lift",
-              "advanced_defense"}
+              "advanced_defense", "boiler_floor"}
 KIT2_PREFIXES = ("mining_room_", "science_speed_", "gateway_speed_", "star_depth_")
 KIT2_EXACT = {"warp_time_4", "warp_time_5", "warp_charge_3", "underground_4", "underground_5",
               "pad_4", "pad_5", "drone_speed_3", "drone_mining_3", "drone_health_3",

@@ -38,9 +38,14 @@ var base: GameWorld
 ## Этаж добычи: третий мир забега, открывается исследованием «Этаж добычи».
 ## Пустой, пока исследование не пройдено: комнаты и шахта появляются вместе с ним.
 var mining: GameWorld
+## Котельная: четвёртый мир забега со своим озером воды. Открывается исследованием «Котельная».
+var boiler: GameWorld
 ## Шахта между подземным этажом и этажом добычи (пара зданий).
 var shaft_base: Shaft
 var shaft_mining: Shaft
+## Вторая шахта — с подземного этажа в котельную. Она же проводит ток и трубы.
+var shaft_base_boiler: Shaft
+var shaft_boiler: Shaft
 var research: ResearchState
 ## Игроки забега по возрастанию id: у каждого свой дрон, инвентарь и очередь крафта.
 var players: Array[Player] = []
@@ -123,9 +128,11 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	_register_player("", drone)
 	base = GameWorld.create_base(Registry.base_def, creative)
 	mining = GameWorld.create_base(Registry.mining_def, creative)
+	boiler = GameWorld.create_base(Registry.boiler_def, creative)
 	attach_world(planet)
 	attach_world(base)
 	attach_world(mining)
+	attach_world(boiler)
 	setup_research(ResearchState.new())
 	link = GatewayLink.new()
 	var spawn := drone.get_tile()
@@ -203,15 +210,23 @@ func remove_player(id: int) -> void:
 	players_changed.emit()
 
 
+## Все миры забега по номеру этажа: планета, подземный этаж, этаж добычи, котельная.
+func get_worlds() -> Array[GameWorld]:
+	var list: Array[GameWorld] = []
+	for world in [planet, base, mining, boiler]:
+		if world != null:
+			list.append(world)
+	return list
+
+
 ## Сменить локального игрока: интерфейс и камера переезжают к его дрону.
 func set_local_player(id: int) -> void:
 	var player := get_player(id)
 	if player == null:
 		return
 	local_player = id
-	for world in [planet, base, mining]:
-		if world != null:
-			world.view_drone = player.drone
+	for world in get_worlds():
+		world.view_drone = player.drone
 	players_changed.emit()
 	drone_changed_world.emit()
 
@@ -301,12 +316,14 @@ func cheats_allowed() -> bool:
 	return creative or cheats
 
 
-## Номер этажа мира: 0 — планета, 1 — подземный этаж, 2 — этаж добычи.
+## Номер этажа мира: 0 — планета, 1 — подземный этаж, 2 — этаж добычи, 3 — котельная.
 func floor_of(world: GameWorld) -> int:
 	if world == base:
 		return 1
 	if world == mining:
 		return 2
+	if world == boiler:
+		return 3
 	return 0
 
 
@@ -317,6 +334,8 @@ func world_of_floor(level: int) -> GameWorld:
 			return base
 		2:
 			return mining
+		3:
+			return boiler
 		_:
 			return planet
 
@@ -324,6 +343,11 @@ func world_of_floor(level: int) -> GameWorld:
 ## Этаж добычи открыт исследованием.
 func is_mining_open() -> bool:
 	return research != null and research.has_effect(&"mining_floor")
+
+
+## Котельная открыта исследованием: до него вниз нет шахты, а сам этаж пустует.
+func is_boiler_open() -> bool:
+	return research != null and research.has_effect(&"boiler_floor")
 
 
 ## Сколько комнат добычи открыто исследованиями (каждая — со своим туннелем и платформой).
@@ -361,12 +385,14 @@ func apply_research_effects(notify: bool = true) -> void:
 			var console := get_platform_console(i)
 			if console != null and console.is_deployed():
 				mining.set_platform_open(mining_def.platform_rect(i), false)
+	if boiler != null and is_boiler_open():
+		_ensure_boiler_shaft(notify)
 	for p in players:
 		p.drone.apply_upgrades(research, notify)
 	if not notify:
 		return
-	for world in [planet, base, mining]:
-		if world == null or world.buildings == null:
+	for world in get_worlds():
+		if world.buildings == null:
 			continue
 		world.power.mark_dirty()
 		world.fluids.mark_dirty()
@@ -378,8 +404,8 @@ func apply_research_effects(notify: bool = true) -> void:
 
 
 func _on_research_changed() -> void:
-	for world in [planet, base, mining]:
-		if world == null or world.buildings == null:
+	for world in get_worlds():
+		if world.buildings == null:
 			continue
 		for b in world.buildings.get_all():
 			if b is ScienceWorkshop:
@@ -418,6 +444,7 @@ const STATE_PART_NAMES := [
 	"постройки планеты", "предметы на лентах планеты", "враги планеты",
 	"постройки базы", "предметы на лентах базы", "враги базы",
 	"постройки этажа добычи", "предметы на лентах этажа добычи", "враги этажа добычи",
+	"постройки котельной", "предметы на лентах котельной", "враги котельной",
 	"игроки"]
 
 
@@ -435,7 +462,7 @@ func state_parts() -> PackedInt64Array:
 	var parts := PackedInt64Array()
 	parts.append(get_tick())
 	parts.append(research.done.size() * 1000 + research.manual_queue)
-	for world in [planet, base, mining]:
+	for world in [planet, base, mining, boiler]:
 		if world == null or world.buildings == null:
 			parts.append(0)
 			parts.append(0)
@@ -708,6 +735,7 @@ func step() -> void:
 	planet.simulation.step()
 	base.simulation.step()
 	mining.simulation.step()
+	boiler.simulation.step()
 	research.step(_manual_kits())
 	if planet.breached:
 		emergency_teleport()
@@ -734,6 +762,8 @@ func get_world_title(world: GameWorld) -> String:
 		return TranslationServer.translate(Registry.base_def.title_key)
 	if world == mining:
 		return TranslationServer.translate(Registry.mining_def.title_key)
+	if world == boiler:
+		return TranslationServer.translate(Registry.boiler_def.title_key)
 	var node := star_map.get_current()
 	var level := Registry.get_level(level_id) if level_id != &"" else null
 	if level != null and node.id == 0:
@@ -1211,12 +1241,41 @@ func _ensure_shaft(notify: bool = true) -> void:
 
 
 ## Шахта стоит в середине этажа, рядом с центром: место постоянное, чтобы пара всегда сходилась.
-func _shaft_origin(world: GameWorld, plan: BaseDef, size: int) -> Vector2i:
+## На подземном этаже в центре стоит пара шлюза — шахты ставим по бокам от неё, не задевая порты:
+## слева вниз, на этаж добычи, справа — в котельную. На нижнем этаже шахта ровно в середине.
+func _shaft_origin(world: GameWorld, plan: BaseDef, size: int, to_boiler: bool = false) -> Vector2i:
 	var center := Vector2i(plan.size / 2, plan.size / 2)
-	# На подземном этаже в центре стоит пара шлюза — шахту ставим слева от неё, в трёх тайлах,
-	# чтобы она не отнимала место у портов. На этаже добычи она ровно в середине комнаты.
-	var offset := Vector2i(-6, -1) if world == base else Vector2i(-size / 2, -size / 2)
-	return center + offset
+	if world == boiler:
+		# В середине котельной озеро — шахта стоит у северного края открытой части.
+		return Vector2i(center.x - size / 2, (plan.size - plan.start_size) / 2 + 2)
+	if world != base:
+		return center + Vector2i(-size / 2, -size / 2)
+	return center + (Vector2i(4, -1) if to_boiler else Vector2i(-6, -1))
+
+
+## Шахта в котельную: пара зданий на подземном этаже и в середине котельной.
+## Ставится сама, когда исследование открыто; сносить её нельзя — это единственный путь вниз.
+func _ensure_boiler_shaft(notify: bool = true) -> void:
+	var def := Registry.get_building(&"boiler_shaft") as LiftDef
+	if def == null or base == null or boiler == null:
+		return
+	var base_origin := _shaft_origin(base, Registry.base_def, def.size, true)
+	var boiler_origin := _shaft_origin(boiler, Registry.boiler_def, def.size)
+	if shaft_base_boiler == null or shaft_base_boiler.world != base:
+		shaft_base_boiler = base.buildings.get_at(base_origin) as Shaft
+	if shaft_base_boiler == null:
+		shaft_base_boiler = base.buildings.place(def, base_origin, 0, true) as Shaft
+	if shaft_boiler == null or shaft_boiler.world != boiler:
+		shaft_boiler = boiler.buildings.get_at(boiler_origin) as Shaft
+	if shaft_boiler == null:
+		shaft_boiler = boiler.buildings.place(def, boiler_origin, 0, true) as Shaft
+	if shaft_base_boiler != null and shaft_boiler != null:
+		shaft_base_boiler.pair = shaft_boiler
+		shaft_boiler.pair = shaft_base_boiler
+		shaft_boiler.direction = shaft_base_boiler.direction
+		if notify:
+			shaft_base_boiler.wake()
+			shaft_boiler.wake()
 
 
 ## Связать пульт с якорем (вместимость очереди — из данных пульта).
@@ -1371,7 +1430,8 @@ func _carry_buildings(from_world: GameWorld, to_world: GameWorld, rect: Rect2i, 
 	return moved
 
 
-## Пары зданий, соединяющих этажи (шлюз и лифты): [здание на планете, здание на этаже].
+## Пары зданий, соединяющих этажи: шлюз, лифты и шахта котельной.
+## Через них идут общие электросети и выравниваются трубы (шахта добычи ток не проводит).
 func _floor_links() -> Array:
 	var result: Array = []
 	if link != null and link.planet_gateway != null and link.base_gateway != null:
@@ -1379,6 +1439,9 @@ func _floor_links() -> Array:
 	for lift in _linked_lifts:
 		if lift.world != null and lift.pair != null and lift.pair.world != null:
 			result.append([lift, lift.pair])
+	if shaft_base_boiler != null and shaft_boiler != null \
+			and shaft_base_boiler.world != null and shaft_boiler.world != null:
+		result.append([shaft_base_boiler, shaft_boiler])
 	return result
 
 
@@ -1388,9 +1451,13 @@ func _balance_power() -> void:
 	base.power.prepare()
 	if mining != null:
 		mining.power.update()
+	if boiler != null:
+		boiler.power.prepare()
 	var nets: Array[PowerGraph.PowerNetwork] = []
 	nets.append_array(planet.power.networks)
 	nets.append_array(base.power.networks)
+	if boiler != null:
+		nets.append_array(boiler.power.networks)
 	if nets.is_empty():
 		return
 	var index: Dictionary[PowerGraph.PowerNetwork, int] = {}
@@ -1435,6 +1502,8 @@ func _balance_fluids() -> void:
 	base.fluids.update()
 	if mining != null:
 		mining.fluids.update()
+	if boiler != null:
+		boiler.fluids.update()
 	var limit := FLUID_LINK_RATE * GameConst.TICK_DT
 	for pair in _floor_links():
 		var a: Building = pair[0]
@@ -1445,10 +1514,10 @@ func _balance_fluids() -> void:
 			if not ga.fluids_enabled():
 				continue
 			for relative in [1, 3]:
-				_balance_fluid_pair(planet.fluids.get_port_network(ga, ga.get_fluid_side(relative)),
-					base.fluids.get_port_network(gb, gb.get_fluid_side(relative)), limit)
-		elif not a.get_fluid_ports().is_empty():
-			_balance_fluid_pair(planet.fluids.get_port_network(a, 0), base.fluids.get_port_network(b, 0), limit)
+				_balance_fluid_pair(a.world.fluids.get_port_network(ga, ga.get_fluid_side(relative)),
+					b.world.fluids.get_port_network(gb, gb.get_fluid_side(relative)), limit)
+		elif not a.get_fluid_ports().is_empty() and not b.get_fluid_ports().is_empty():
+			_balance_fluid_pair(a.world.fluids.get_port_network(a, 0), b.world.fluids.get_port_network(b, 0), limit)
 
 
 ## Выровнять долю заполнения двух сетей одной жидкости (не больше limit за тик).

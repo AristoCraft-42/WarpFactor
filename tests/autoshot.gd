@@ -54,6 +54,7 @@ func _run_game(game: Game) -> void:
 	await _run_gateway(game)
 	await _run_lift(game)
 	await _run_mining_platform(game)
+	await _run_boiler_floor(game)
 	await _run_players(game)
 	await _run_drone(game, base)
 	await _run_interaction(game, base)
@@ -2046,6 +2047,59 @@ func _run_mining_platform(game: Game) -> void:
 	if run.drone.world != run.planet:
 		run.drone.move_to_world(run.planet)
 		game.call("_on_drone_changed_world")
+	await _drone_to(game, GameConst.world_to_tile(run.get_gateway(run.planet).get_world_center()))
+	game.camera.recenter()
+
+
+## Котельная: четвёртый этаж со своим озером. Насос на берегу, труба до шахты — и вода
+## поднимается на подземный этаж: шахта котельной проводит не только предметы, но и трубы с током.
+func _run_boiler_floor(game: Game) -> void:
+	var run := game.run
+	run.research.done[&"boiler_floor"] = true
+	run.apply_research_effects()
+	await _frames(5)
+	var up := run.shaft_base_boiler
+	var down := run.shaft_boiler
+	_expect(up != null and down != null and up.pair == down, "шахта котельной связала этажи")
+	if up == null or down == null:
+		return
+	var plan := Registry.boiler_def
+	var column := down.origin.x + 1
+	var shore := -1
+	for y in range(down.origin.y + 3, plan.size):
+		if run.boiler.grid.get_ore(column, y) > 0:
+			shore = y
+			break
+	_expect(shore > 0, "под шахтой начинается озеро")
+	if shore > 0:
+		run.boiler.buildings.place(Registry.get_building(&"pump"), Vector2i(column, shore), 0, true)
+		for y in range(down.origin.y + 3, shore):
+			run.boiler.buildings.place(Registry.get_building(&"pipe"), Vector2i(column, y), 0, true)
+	var top := run.base.buildings.place(Registry.get_building(&"pipe"), up.origin + Vector2i(1, -1), 0, true)
+
+	# Дрон спускается вниз по шахте.
+	if run.drone.world != run.base:
+		run.drone.move_to_world(run.base)
+		game.call("_on_drone_changed_world")
+		await _frames(5)
+	await _drone_to(game, GameConst.world_to_tile(up.get_world_center()))
+	await _key(KEY_F)
+	await _frames(5)
+	_expect(game.world == run.boiler, "F у шахты — спуск в котельную")
+	game.camera.focus_on(Vector2(plan.lake_rect().get_center()) * GameConst.TILE_SIZE, 0.6)
+	await _frames(8)
+	await _shot("p05_boiler_lake.png")
+	await _wait_ticks(run.boiler, 8 * GameConst.TICK_RATE)
+	var top_net := run.base.fluids.get_pipe_network(top)
+	_expect(top_net != null and top_net.amount > 10.0,
+		"вода из озера поднялась по шахте (%.0f)" % (top_net.amount if top_net != null else -1.0))
+
+	# Обратно на планету, дальше прогон идёт как раньше.
+	await _key(KEY_F)
+	await _frames(5)
+	run.drone.move_to_world(run.planet)
+	game.call("_on_drone_changed_world")
+	await _frames(5)
 	await _drone_to(game, GameConst.world_to_tile(run.get_gateway(run.planet).get_world_center()))
 	game.camera.recenter()
 

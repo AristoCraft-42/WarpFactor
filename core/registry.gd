@@ -18,6 +18,7 @@ const LEVELS_DIR := "res://levels/"
 const DRONE_PATH := "res://player/drone.tres"
 const BASE_PATH := "res://world/base.tres"
 const MINING_PATH := "res://world/mining.tres"
+const BOILER_PATH := "res://world/boiler.tres"
 const RUN_PATH := "res://world/run.tres"
 const PLANET_TYPES_DIR := "res://world/planet_types/"
 const ENEMIES_DIR := "res://enemies/defs/"
@@ -35,6 +36,8 @@ static var drone_def: DroneDef
 static var base_def: BaseDef
 ## Этаж добычи: центральная комната, четыре комнаты с платформами и туннели к ним.
 static var mining_def: BaseDef
+## Котельная: четвёртый этаж с озером воды.
+static var boiler_def: BaseDef
 static var run_def: RunDef
 static var planet_types: Array[PlanetTypeDef] = []
 static var enemies: Array[EnemyDef] = []
@@ -97,6 +100,10 @@ static func ensure_loaded() -> void:
 		mining_def = load(MINING_PATH) as BaseDef
 	if mining_def == null:
 		mining_def = base_def
+	if ResourceLoader.exists(BOILER_PATH):
+		boiler_def = load(BOILER_PATH) as BaseDef
+	if boiler_def == null:
+		boiler_def = base_def
 	if ResourceLoader.exists(RUN_PATH):
 		run_def = load(RUN_PATH) as RunDef
 	if run_def == null:

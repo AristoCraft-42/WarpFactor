@@ -189,6 +189,7 @@ static func run_to_dict(run: Run) -> Dictionary:
 		"planet": world_to_dict(run.planet),
 		"base": world_to_dict(run.base),
 		"mining": world_to_dict(run.mining),
+		"boiler": world_to_dict(run.boiler),
 	}
 
 
@@ -211,12 +212,17 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.planet = world_from_dict(data.get("planet", {}), null)
 	run.base = world_from_dict(data.get("base", {}), null)
 	run.base.floor_plan = Registry.base_def
-	# Этажа добычи в старых сохранениях нет — заводим пустой.
+	# Нижних этажей в старых сохранениях нет — заводим пустые.
 	if data.has("mining"):
 		run.mining = world_from_dict(data.get("mining", {}), null)
 	else:
 		run.mining = GameWorld.create_base(Registry.mining_def, run.creative)
 	run.mining.floor_plan = Registry.mining_def
+	if data.has("boiler"):
+		run.boiler = world_from_dict(data.get("boiler", {}), null)
+	else:
+		run.boiler = GameWorld.create_base(Registry.boiler_def, run.creative)
+	run.boiler.floor_plan = Registry.boiler_def
 	_players_from_array(run, data.get("players", []))
 	run.next_player_id = maxi(int(run_data.get("next_player", 1)), run.next_player_id)
 	var research := ResearchState.new()
@@ -243,6 +249,7 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.attach_world(run.planet)
 	run.attach_world(run.base)
 	run.attach_world(run.mining)
+	run.attach_world(run.boiler)
 	run.relink_lifts()
 	run.apply_research_effects(false)
 	# Пульты и якоря платформ находят друг друга после того, как оба мира загружены.

@@ -802,4 +802,9 @@ STAT_TURRET_CHAIN,"Lightning: %d damage, up to %d targets","Молния: %d у�
 STAT_TURRET_REPAIR,Repairs %d health at a time,Чинит по %d прочности за раз
 STAT_TURRET_SPRAY,"Splash %.1f tiles: water slows for %.0f s, steam burns %d/s","Лужа %.1f тайла: вода замедляет на %.0f с, пар жжёт %d/с"
 STATUS_NO_FLUID,No fluid,Нет жидкости
+LOCATION_BOILER,Boiler Room,Котельная
+BUILDING_BOILER_SHAFT,Boiler Shaft,Шахта котельной
+BUILDING_BOILER_SHAFT_DESC,"The way down to the boiler room. Carries items like the mining shaft, and power and pipes on top of that — that is what the floor is for.","Путь вниз, в котельную. Возит предметы, как шахта добычи, а ещё проводит ток и трубы — ради этого этаж и нужен."
+RESEARCH_BOILER_FLOOR,Boiler Room,Котельная
+RESEARCH_BOILER_FLOOR_DESC,"A fourth floor with its own underground lake: pumps stand right on the water, and the shaft carries power and fluids up.","Четвёртый этаж со своим подземным озером: насосы ставятся прямо на воду, а шахта поднимает наверх ток и жидкости."
 ACTION_OVERLAY_POWER,Power networks overlay,Оверлей электросетей

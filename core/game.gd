@@ -12,6 +12,7 @@ var clock: SimClock
 var planet_view: WorldView
 var base_view: WorldView
 var mining_view: WorldView
+var boiler_view: WorldView
 var active_view: WorldView
 var preview: PlacementPreview
 var drone_view: DroneView
@@ -188,9 +189,9 @@ func save_named(file_id: String, display_name: String, announce: bool) -> void:
 		Events.toast(tr("TOAST_SAVED") % display_name, Events.ToastKind.SUCCESS)
 
 
-## Один из этажей базы открыт на экране (подземный или добычи).
+## Один из этажей базы открыт на экране (подземный, добычи или котельная).
 func is_in_base() -> bool:
-	return world == run.base or world == run.mining
+	return world == run.base or world == run.mining or world == run.boiler
 
 
 func _build_scene() -> void:
@@ -231,11 +232,16 @@ func _build_scene() -> void:
 	mining_view.name = "MiningView"
 	add_child(mining_view)
 	mining_view.setup(run.mining, camera, clock)
+	boiler_view = WorldView.new()
+	boiler_view.name = "BoilerView"
+	add_child(boiler_view)
+	boiler_view.setup(run.boiler, camera, clock)
 	run.base.bounds_changed.connect(_on_bounds_changed.bind(run.base))
 	run.mining.bounds_changed.connect(_on_bounds_changed.bind(run.mining))
+	run.boiler.bounds_changed.connect(_on_bounds_changed.bind(run.boiler))
 	run.planet.bounds_changed.connect(_on_bounds_changed.bind(run.planet))
 	active_view = _view_of(world)
-	for view in [planet_view, base_view, mining_view]:
+	for view in [planet_view, base_view, mining_view, boiler_view]:
 		view.set_active(view == active_view)
 
 	preview = PlacementPreview.new()
@@ -590,8 +596,8 @@ func _on_planet_changed() -> void:
 	old_view.queue_free()
 	world = run.drone.world
 	active_view = _view_of(world)
-	planet_view.set_active(active_view == planet_view)
-	base_view.set_active(active_view == base_view)
+	for view in [planet_view, base_view, mining_view, boiler_view]:
+		view.set_active(view == active_view)
 	ore_overlay.visible = _ores_shown
 	belt_overlay.visible = _belts_shown
 	grid_overlay.set_chunk_lines_visible(_debug_enabled)
@@ -616,6 +622,8 @@ func _view_of(target: GameWorld) -> WorldView:
 		return base_view
 	if target == run.mining:
 		return mining_view
+	if target == run.boiler:
+		return boiler_view
 	return planet_view
 
 

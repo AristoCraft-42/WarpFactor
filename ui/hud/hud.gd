@@ -433,7 +433,7 @@ func on_planet_changed() -> void:
 
 ## Уведомления мира планеты (после телепорта мир новый — подписываемся заново).
 func _connect_world_signals() -> void:
-	for world in [_game.run.planet, _game.run.base, _game.run.mining]:
+	for world in _game.run.get_worlds():
 		if not world.crate_picked.is_connected(_on_crate_picked):
 			world.crate_picked.connect(_on_crate_picked)
 
