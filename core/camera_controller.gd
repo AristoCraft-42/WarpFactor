@@ -56,6 +56,13 @@ func focus_on(world_pos: Vector2, zoom_value: float = -1.0) -> void:
 	_apply_position()
 
 
+## Задать масштаб напрямую, без плавного перехода (пролёт камеры на фоне меню).
+func set_zoom_level(value: float) -> void:
+	user_zoom = clampf(value, GameConst.ZOOM_MIN, GameConst.ZOOM_MAX)
+	_target_zoom = user_zoom
+	_apply_zoom_property()
+
+
 ## Вернуть взгляд на дрона.
 func recenter() -> void:
 	look_offset = Vector2.ZERO

@@ -64,6 +64,8 @@ SET_FPS_UNLIMITED,Unlimited,Без ограничения
 SET_SMOOTH_TEXTURES,Smooth textures,Сглаживание текстур
 SET_SMOOTH_TEXTURES_HINT,Off keeps pixel art crisp.,Выключено — пиксель-арт остаётся чётким.
 SET_SHOW_FPS,Show FPS,Показывать FPS
+SET_MENU_BACKGROUND,Live menu background,Живой фон меню
+SET_MENU_BACKGROUND_HINT,A working factory runs behind the main menu. Turn it off on weak machines.,За главным меню работает настоящая фабрика. На слабых машинах можно выключить.
 SET_LANGUAGE,Language,Язык
 SET_UI_SCALE,Interface scale,Масштаб интерфейса
 SET_UI_SCALE_HINT,Applied when you release the slider.,"Применяется, когда отпускаете ползунок."

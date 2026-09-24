@@ -32,8 +32,12 @@ const CHARGE_TILES := 14.0
 const WAIT_FLOOR := 0.3
 ## Поводок стаи: дальше этого от замыкающего вырвавшийся вперёд не уходит (тайлы).
 const PACK_LEASH := 5.0
+## Проходящий рядом игрок перебивает любые планы: ближе этого враг бросается на него (тайлы).
+const AGGRO_TILES := 7.0
+## Стрелок держится на этой доле своей дальности и не подходит ближе.
+const KEEP_RANGE := 0.75
 ## Насколько враг виляет: размах (радианы) и частота (радиан за тик).
-const WANDER_AMPLITUDE := 0.42
+const WANDER_AMPLITUDE := 0.75
 const WANDER_SPEED := 0.035
 ## Как часто пересчитывается поворот виляния (тиков).
 const WANDER_EVERY := 8
@@ -442,6 +446,13 @@ func update(tick: int) -> void:
 		# Охотник идёт прямо на дрона, пока тот в пределах видимости; если догнать не выходит,
 		# он бросает погоню и уходит к шлюзу — стая не зацикливается на недосягаемой жертве.
 		var hunting := false
+		# Игрок прошёл рядом — враг переключается на него, чем бы ни занимался.
+		if drone_ok and mood[i] != Mood.HUNT:
+			var near := _nearest_drone(live, x, y)
+			if near != null and Vector2(near.position.x - x, near.position.y - y).length() < AGGRO_TILES * t:
+				mood[i] = Mood.HUNT
+				chase_best[i] = INF
+				chase_ticks[i] = 0
 		if mood[i] == Mood.HUNT:
 			var prey := _nearest_drone(live, x, y)
 			if prey == null:
@@ -470,6 +481,23 @@ func update(tick: int) -> void:
 		# Внутри твёрдой постройки (её поставили поверх врага) — бьём её, но выйти можно.
 		if blocked[tile] == FlowField.SOLID:
 			block = ids[tile]
+		# Стрелок держит дистанцию: подойдя на выстрел, он останавливается, а если жертва подошла
+		# вплотную — пятится. Лезть в ближний бой ему незачем.
+		if _ranged[type] == 1 and target[i] != TARGET_NONE and has_goal:
+			var aim := _target_point(target[i], live, manager, x, y)
+			if aim.z > 0.0:
+				var adx := aim.x - x
+				var ady := aim.y - y
+				var ad := sqrt(adx * adx + ady * ady)
+				var reach_now := _reach[type]
+				if ad <= reach_now and ad > 0.01:
+					if ad < reach_now * KEEP_RANGE:
+						goal_x = x - adx / ad * t
+						goal_y = y - ady / ad * t
+					else:
+						has_goal = false
+						facing[i] = atan2(ady, adx)
+
 		if has_goal:
 			var vx := goal_x - x
 			var vy := goal_y - y
@@ -492,9 +520,11 @@ func update(tick: int) -> void:
 				if not hunting:
 					var slot := _slot_of[i]
 					if slot >= 0 and _sq_count[slot] > 1 and _sq_min_dist[slot] > CHARGE_TILES:
+						# Поводок у каждого свой (±40 %): иначе стая идёт ровной шеренгой.
+						var leash := PACK_LEASH * (0.6 + 0.8 * trait01(uid[i], 3))
 						var rear: float = _sq_max_dist[slot]
 						var mine: float = float(dist[tile]) if dist[tile] < FlowField.INF else rear
-						if mine < rear - PACK_LEASH:
+						if mine < rear - leash:
 							# Оторвался от замыкающего — идёт со скоростью самого медленного в стае.
 							step = minf(step, maxf(_sq_min_speed[slot], step * WAIT_FLOOR))
 				var nx := clampf(x + vx * step, 0.5, max_x)
@@ -646,6 +676,18 @@ func _collect_squads(dist: PackedInt32Array, w: int, inv_t: float) -> void:
 		_slot_of[i] = slot
 		last_sid = sid
 		last_slot = slot
+
+
+## Куда целится враг: (x, y, 1) — точка цели, z = 0 — цели уже нет.
+func _target_point(tg: int, live: Array[Drone], manager: BuildingManager, x: float, y: float) -> Vector3:
+	if tg == TARGET_DRONE:
+		var drone := _nearest_drone(live, x, y)
+		return Vector3(drone.position.x, drone.position.y, 1.0) if drone != null else Vector3.ZERO
+	var b := manager.get_by_id(tg)
+	if b == null:
+		return Vector3.ZERO
+	var rect := b.get_world_rect()
+	return Vector3(clampf(x, rect.position.x, rect.end.x), clampf(y, rect.position.y, rect.end.y), 1.0)
 
 
 func _tile_at(px: float, py: float, w: int, h: int, inv_t: float) -> int:

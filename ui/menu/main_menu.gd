@@ -2,11 +2,13 @@ class_name MainMenu
 extends Control
 ## Главное меню: слева — кнопки, справа — открытая страница (новый забег, загрузка или настройки).
 ## «Продолжить» загружает последнее сохранение.
-## На фоне медленно проплывает карта одного из уровней.
+## На фоне работает настоящая фабрика, над которой летает камера (MenuBackground);
+## если живой фон выключен настройкой, вместо него медленно проплывает карта уровня.
 
 const VERSION_TEXT := "v%s"
 
 var _background: TextureRect
+var _live_background: MenuBackground
 var _pages: CenterContainer
 var _new_run: NewRunScreen
 var _saves: SavesScreen
@@ -160,6 +162,17 @@ func _build_background() -> void:
 	UiUtil.full_rect(base)
 	add_child(base)
 
+	if Settings.get_bool(&"graphics/menu_background"):
+		_live_background = MenuBackground.new()
+		_live_background.name = "LiveBackground"
+		UiUtil.full_rect(_live_background)
+		_live_background.modulate = Color(0.78, 0.78, 0.78)
+		add_child(_live_background)
+		# Сид от времени: каждый запуск игры — свой пейзаж вокруг одного и того же завода.
+		_live_background.setup(int(Time.get_unix_time_from_system()) & 0xffff)
+		_build_shade()
+		return
+
 	_background = TextureRect.new()
 	UiUtil.full_rect(_background)
 	_background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -183,6 +196,11 @@ func _build_background() -> void:
 		tween.tween_property(_background, "scale", Vector2(1.12, 1.12), 18.0).set_trans(Tween.TRANS_SINE)
 		tween.tween_property(_background, "scale", Vector2(1.0, 1.0), 18.0).set_trans(Tween.TRANS_SINE)
 
+	_build_shade()
+
+
+## Затемнение слева направо: под кнопками фон тёмный, справа виден мир.
+func _build_shade() -> void:
 	var gradient := Gradient.new()
 	gradient.set_color(0, Color(UiTheme.BG_HARD, 0.92))
 	gradient.set_color(1, Color(UiTheme.BG_HARD, 0.25))

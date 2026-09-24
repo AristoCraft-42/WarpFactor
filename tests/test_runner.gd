@@ -68,6 +68,7 @@ func _ready() -> void:
 	_test_power_wires_cache()
 	_test_shift_take_all()
 	_test_transfer_label()
+	_test_menu_background()
 	_test_save_roundtrip_and_determinism()
 	_test_save_remap()
 	_test_save_files()
@@ -3738,15 +3739,42 @@ func _test_transfer_label() -> void:
 	var ore := _item(&"hematite")
 	box.inventory.add(ore, 50)
 	run.planet.player_take(box, ore, 10)
-	_check(run.drone.last_move_item == ore and run.drone.last_move_count == 10,
-		"забрал 10 — так и написано (%d)" % run.drone.last_move_count)
+	_check(run.drone.last_move_items == PackedInt32Array([ore]) and run.drone.last_move_counts[0] == 10,
+		"забрал 10 — так и написано (%s)" % str(run.drone.last_move_counts))
 	run.planet.player_take(box, ore, 5)
-	_check(run.drone.last_move_count == 15, "второй заход подряд сложился с первым (%d)"
-		% run.drone.last_move_count)
+	_check(run.drone.last_move_counts[0] == 15, "второй заход подряд сложился с первым (%d)"
+		% run.drone.last_move_counts[0])
+	# Несколько видов сразу: в надписи должны быть все, а не только первый.
+	var coal := _item(&"coal")
+	box.inventory.add(coal, 9)
+	run.planet.player_take(box, coal, 9)
+	_check(run.drone.last_move_items.size() == 2 and run.drone.last_move_counts[1] == 9,
+		"второй вид предметов тоже попал в надпись (%s / %s)"
+		% [str(run.drone.last_move_items), str(run.drone.last_move_counts)])
 	run.planet.player_put(box, ore, 4)
-	_check(run.drone.last_move_count == -4, "положил 4 — надпись со знаком минус (%d)"
-		% run.drone.last_move_count)
+	_check(run.drone.last_move_counts[0] == -4, "положил 4 — надпись со знаком минус (%d)"
+		% run.drone.last_move_counts[0])
 	run.dispose()
+
+
+## Фон главного меню — настоящая работающая фабрика. Проверяем без окна: чертёж встаёт целиком,
+## буры получают ток, ленты не пустуют, а через полторы минуты в ящике лежат шестерни.
+func _test_menu_background() -> void:
+	var scene := MenuWorld.new(7)
+	_check(scene.failed == 0, "чертёж фона меню встал целиком (не встало %d)" % scene.failed)
+	for i in 90 * GameConst.TICK_RATE:
+		scene.step()
+	var world := scene.world
+	var drill := world.buildings.get_at(MenuWorld.ORIGIN + Vector2i(2, MenuWorld.LINES[0])) as Drill
+	_check(drill != null and drill.power_net != null and drill.get_power_satisfaction() > 0.5,
+		"бур фона питается от генераторов")
+	var box := world.buildings.get_at(MenuWorld.ORIGIN + Vector2i(27, 28)) as StorageBuilding
+	var gears := box.inventory.count(Registry.get_item(&"gear").index) if box != null else 0
+	_check(gears > 0, "цепочка дошла до шестерён в ящике (%d)" % gears)
+	var moving := world.simulation.conveyors.get_item_count()
+	_check(moving > 30, "ленты фона не пустуют (%d предметов)" % moving)
+	scene.dispose()
+
 
 ## Сроки телепорта: после прибытия он заряжается 5 минут, а пробыть на планете можно 10 —
 ## дальше прыжок случается сам, как при прорыве. Ветка варп-платформы двигает оба срока.
@@ -4152,7 +4180,10 @@ func _test_threat_schedule() -> void:
 	_check(warned and threat.wave == 1 and threat.is_spawning(planet.simulation.tick), "предупреждение, затем волна 1")
 	for i in 31:
 		run.step()
-	_check(planet.enemies.count == 3 and planet.enemies.spawned == 3, "волна 1 — бюджет 3 → 3 ползуна (%d)" % planet.enemies.count)
+	# Сколько ползунов поместится в бюджет первой волны — считаем из данных, а не из памяти.
+	var per_wave := int(3.0 / Registry.get_enemy(&"crawler").threat_cost)
+	_check(planet.enemies.count == per_wave and planet.enemies.spawned == per_wave,
+		"волна 1 — бюджет 3 → %d ползунов (%d)" % [per_wave, planet.enemies.count])
 	var crawler := Registry.get_enemy(&"crawler").index
 	var only_crawlers := true
 	for i in planet.enemies.count:

@@ -259,6 +259,8 @@ func _build_entries() -> void:
 		[[0, "SET_FPS_UNLIMITED"], [30, "30"], [60, "60"], [75, "75"], [120, "120"], [144, "144"], [165, "165"], [240, "240"]]))
 	_add(SettingEntry.make_bool(&"graphics/smooth_textures", TAB_GRAPHICS, false, "SET_SMOOTH_TEXTURES", "SET_SMOOTH_TEXTURES_HINT"))
 	_add(SettingEntry.make_bool(&"graphics/show_fps", TAB_GRAPHICS, false, "SET_SHOW_FPS"))
+	_add(SettingEntry.make_bool(&"graphics/menu_background", TAB_GRAPHICS, true, "SET_MENU_BACKGROUND",
+		"SET_MENU_BACKGROUND_HINT"))
 
 	# Игра и интерфейс
 	_add(SettingEntry.make_choice(&"game/language", TAB_GAME, _default_locale(), "SET_LANGUAGE",

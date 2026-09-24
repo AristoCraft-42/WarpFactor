@@ -11,9 +11,9 @@ def color(h):
 
 # id, порядок, прочность, скорость (тайл/с), радиус (px), урон, пауза (с), дальность (тайлы), стоимость, цвет, форма, размер
 ENEMIES = [
-    ("crawler", 10, 70.0, 3.0, 7.0, 5.0, 0.4, 0.15, 1.0, "cc5a3a", 0, 26.0),
-    ("soldier", 20, 160.0, 1.8, 9.0, 9.0, 0.9, 3.5, 3.0, "b8483f", 1, 32.0),
-    ("brute", 30, 900.0, 1.1, 14.0, 45.0, 1.4, 0.2, 10.0, "8f3a4a", 2, 46.0),
+    ("crawler", 10, 70.0, 4.5, 9.0, 5.0, 0.4, 0.15, 0.7, "cc5a3a", 0, 32.0),
+    ("soldier", 20, 160.0, 2.7, 11.0, 9.0, 0.9, 3.5, 2.1, "b8483f", 1, 38.0),
+    ("brute", 30, 900.0, 1.7, 15.0, 45.0, 1.4, 0.2, 7.0, "8f3a4a", 2, 54.0),
 ]
 
 os.makedirs(os.path.join(ROOT, "enemies", "defs"), exist_ok=True)
@@ -44,9 +44,9 @@ spawn_seconds = 8.0
 spawn_seconds_per_wave = 2.5
 max_spawn_seconds = 45.0
 warning_seconds = 15.0
-budget_base = 3.0
-budget_per_wave = 2.0
-budget_per_minute = 0.3
+budget_base = 4.0
+budget_per_wave = 2.6
+budget_per_minute = 0.4
 enemy_ids = Array[StringName]([&"crawler", &"soldier", &"brute"])
 enemy_from_wave = PackedInt32Array(1, 4, 8)
 enemy_weights = PackedFloat32Array(3, 2, 1)

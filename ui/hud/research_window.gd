@@ -26,6 +26,8 @@ var _cards: Dictionary[StringName, Dictionary] = {}
 var _tree: ResearchTreeView
 ## Обёртка дерева: её минимальный размер задаёт прокрутку при приближении.
 var _tree_wrap: Control
+## Прокрутка дерева: её двигает перетаскивание средней кнопкой.
+var _scroll: ScrollContainer
 var _tree_size: Vector2 = Vector2.ZERO
 var _tree_zoom: float = 1.0
 ## Дерево тащат средней кнопкой мыши.
@@ -70,6 +72,7 @@ func setup(game: Game) -> void:
 	_tree_wrap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_tree_wrap.add_child(_tree)
 	var scroll := ScrollContainer.new()
+	_scroll = scroll
 	scroll.custom_minimum_size = Vector2(minf(_tree_size.x, MAX_TREE_SIZE.x) + 12.0,
 		minf(_tree_size.y, MAX_TREE_SIZE.y) + 12.0)
 	scroll.add_child(_tree_wrap)
@@ -113,24 +116,36 @@ func setup(game: Game) -> void:
 
 
 ## Колесо над деревом меняет масштаб, а не прокручивает список.
-## Колесо приближает, перетаскивание средней кнопкой двигает — как камера в мире.
-func _on_tree_scroll(event: InputEvent, scroll: ScrollContainer) -> void:
+## Перетаскивание дерева средней кнопкой — как камера в мире.
+##
+## Ловится здесь, а не в gui_input прокрутки: карточки исследований перехватывают движение мыши
+## раньше неё, и до прокрутки события просто не доходили — перетаскивание не работало.
+func _input(event: InputEvent) -> void:
+	if not visible or _scroll == null:
+		return
 	var click := event as InputEventMouseButton
 	if click != null and click.button_index == MOUSE_BUTTON_MIDDLE:
-		_tree_panning = click.pressed
-		scroll.accept_event()
+		if click.pressed and _scroll.get_global_rect().has_point(click.global_position):
+			_tree_panning = true
+			get_viewport().set_input_as_handled()
+		elif not click.pressed and _tree_panning:
+			_tree_panning = false
+			get_viewport().set_input_as_handled()
 		return
 	var motion := event as InputEventMouseMotion
-	if motion != null:
-		if not _tree_panning:
-			return
-		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
-			_tree_panning = false
-			return
-		scroll.scroll_horizontal = maxi(scroll.scroll_horizontal - roundi(motion.relative.x), 0)
-		scroll.scroll_vertical = maxi(scroll.scroll_vertical - roundi(motion.relative.y), 0)
-		scroll.accept_event()
+	if motion == null or not _tree_panning:
 		return
+	if not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+		_tree_panning = false
+		return
+	_scroll.scroll_horizontal = maxi(_scroll.scroll_horizontal - roundi(motion.relative.x), 0)
+	_scroll.scroll_vertical = maxi(_scroll.scroll_vertical - roundi(motion.relative.y), 0)
+	get_viewport().set_input_as_handled()
+
+
+## Колесо приближает дерево, точка под курсором остаётся на месте.
+func _on_tree_scroll(event: InputEvent, scroll: ScrollContainer) -> void:
+	var click := event as InputEventMouseButton
 	if click == null or not click.pressed:
 		return
 	var factor := 0.0
