@@ -10,6 +10,9 @@ enum RecipeMode { FIXED, AUTO, SELECT }
 @export var recipe_mode: RecipeMode = RecipeMode.FIXED
 ## Базовая вместимость входного буфера на предмет (не меньше двойной потребности) и выходного буфера.
 @export var item_capacity: int = 10
+## Во сколько раз завод быстрее времени рецепта: улучшенные версии занимают ту же клетку,
+## но выдают больше. Топливо и ток они тратят пропорционально (fuel_use, power_use — уже итоговые).
+@export var craft_speed: float = 1.0
 
 @export_group("Топливо")
 ## Мощность сжигания топлива во время работы, кВт (0 — топливо не нужно).
@@ -30,7 +33,8 @@ func get_stat_lines() -> PackedStringArray:
 	for recipe in recipes:
 		if recipe == null:
 			continue
-		lines.append(tr("STAT_RECIPE") % [_stacks_text(_consume_stacks(recipe)), _produce_text(recipe), recipe.craft_time])
+		lines.append(tr("STAT_RECIPE") % [_stacks_text(_consume_stacks(recipe)), _produce_text(recipe),
+			recipe.craft_time / maxf(craft_speed, 0.01)])
 	if power_use > 0.0:
 		lines.append(tr("STAT_POWER_USE") % roundi(power_use))
 	if fuel_use > 0.0:

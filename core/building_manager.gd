@@ -99,6 +99,28 @@ func check_place(def: BuildingDef, origin: Vector2i, rotation: int) -> Check:
 	return Check.REPLACE
 
 
+## Проверка переноса: как check_place, но тайлы, которые освободит сама переезжающая группа,
+## считаются свободными (inside — все тайлы группы). Замену чужого здания перенос не делает:
+## под группой должно быть пусто.
+func check_move(building: Building, offset: Vector2i, inside: Dictionary[Vector2i, bool]) -> Check:
+	var def := building.def
+	var target := Rect2i(building.get_rect().position + offset, building.get_rect().size)
+	if not grid.rect_in_bounds(target):
+		return Check.OUT_OF_BOUNDS
+	for y in range(target.position.y, target.end.y):
+		for x in range(target.position.x, target.end.x):
+			if not grid.is_buildable(x, y):
+				return Check.BAD_TERRAIN
+			if not def.allowed_on_fluid:
+				var ore := grid.get_ore_def(x, y)
+				if ore != null and ore.fluid != null:
+					return Check.ON_FLUID
+			if grid.building_ids[grid.index_of(x, y)] != 0 and not inside.has(Vector2i(x, y)):
+				return Check.OCCUPIED
+	# Бур на новом месте должен стоять на руде, насос — на воде: об этом знает сама постройка.
+	return def.check_placement(grid, target.position) as Check
+
+
 ## Ставит здание. При force=false проверяет размещение (REPLACE сносит старое здание).
 ## forced_id — занять конкретный id (загрузка сохранения). Возвращает новое здание или null.
 func place(def: BuildingDef, origin: Vector2i, rotation: int, force: bool = false, forced_id: int = 0,

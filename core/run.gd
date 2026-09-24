@@ -454,6 +454,8 @@ func _run_command(cmd: Command, player: Player, actor: Drone, world: GameWorld) 
 			_execute_build(cmd, player, world)
 		Command.Kind.REMOVE:
 			_execute_remove(cmd, world)
+		Command.Kind.MOVE_GROUP:
+			_execute_move(cmd, world)
 		Command.Kind.ROTATE:
 			var b := world.buildings.get_by_id(int(args.get("id", 0)))
 			if b != null:
@@ -606,6 +608,24 @@ func _execute_remove(cmd: Command, world: GameWorld) -> void:
 		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
 	if lost > 0:
 		Events.toast(tr("TOAST_ITEMS_LOST") % lost, Events.ToastKind.WARNING)
+
+
+## Перенос группы построек: либо переезжает вся группа, либо ничего.
+func _execute_move(cmd: Command, world: GameWorld) -> void:
+	var ids: PackedInt32Array = cmd.args.get("ids", PackedInt32Array())
+	var offset: Vector2i = cmd.args.get("offset", Vector2i.ZERO)
+	var moved := world.move_group(ids, offset)
+	if command_router.is_valid():
+		NetLog.write("мир", "тик %d: игрок %d переносит %d построек на %s — переехало %d"
+			% [get_tick(), cmd.player, ids.size(), offset, moved])
+	if cmd.player != local_player:
+		return
+	if moved > 0:
+		Events.toast(tr("TOAST_MOVED") % moved, Events.ToastKind.SUCCESS)
+	elif world.last_error == GameWorld.ActionError.OUT_OF_RANGE:
+		Events.toast(tr("TOAST_OUT_OF_RANGE"), Events.ToastKind.WARNING)
+	else:
+		Events.toast(tr("TOAST_MOVE_BLOCKED"), Events.ToastKind.WARNING)
 
 
 func step() -> void:

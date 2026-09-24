@@ -518,12 +518,16 @@ func _update_hint() -> void:
 			_hint_label.text = tr("HINT_PASTE") % [
 				tools.plan.size(), primary, InputActions.primary_label(&"rotate"),
 				InputActions.primary_label(&"select_area"), InputActions.primary_label(&"cancel")]
+		ToolController.Mode.MOVE:
+			_hint_label.text = tr("HINT_MOVE") % [
+				tools.plan.size(), primary, InputActions.primary_label(&"select_area"),
+				InputActions.primary_label(&"cancel")]
 		_:
 			if tools.has_area():
 				_hint_label.text = tr("HINT_AREA") % [
 					tools.area_buildings.size(), InputActions.primary_label(&"delete_selection"),
-					InputActions.primary_label(&"copy_selection"), InputActions.primary_label(&"select_area"),
-					InputActions.primary_label(&"cancel")]
+					InputActions.primary_label(&"copy_selection"), InputActions.primary_label(&"move_selection"),
+					InputActions.primary_label(&"select_area"), InputActions.primary_label(&"cancel")]
 			else:
 				var move := "%s%s%s%s" % [InputActions.primary_label(&"move_up"), InputActions.primary_label(&"move_left"),
 					InputActions.primary_label(&"move_down"), InputActions.primary_label(&"move_right")]

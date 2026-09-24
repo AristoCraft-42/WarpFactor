@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/smeltery.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"smeltery"
+name_key = "BUILDING_SMELTERY"
+color = Color(0.647, 0.443, 0.310, 1)
+sort_order = 1111
+stack_size = 20
+building = ExtResource("2_building")

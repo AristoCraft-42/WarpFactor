@@ -155,6 +155,8 @@ BUILDINGS = [
      {"buffer_capacity": 10, "throughput": "conveyor", "rotatable": False}, (400, True), (4.0, 1, 10)),
     ("container", "storage", "storage", 0, 1, False, True, True, 14, "6a6a5a", 70, [("iron_ingot", 12)],
      {"slots": 16}, (180, True), (1.5, 1, 20)),
+    ("large_container", "storage", "storage", 0, 1, False, True, True, 14, "8a8560", 75,
+     [("iron_ingot", 20), ("brick", 8)], {"slots": 32}, (300, True), (3.0, 1, 20)),
     # Производство
     ("furnace", "crafter", "crafter", 1, 2, False, True, True, 11, "7a5a48", 10, [("stone", 10)],
      {"recipes": ["smelt_iron", "smelt_brick", "smelt_copper"], "recipe_mode": 1, "item_capacity": 10,
@@ -167,6 +169,18 @@ BUILDINGS = [
     ("assembler", "crafter", "crafter", 1, 2, False, True, True, 9, "5e6670", 30, [("resistor", 4), ("gear", 6), ("copper_ingot", 10)],
      {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg"] + [out for _, out in FILLERS],
       "recipe_mode": 2, "item_capacity": 20, "power_use": 75.0}, (220, True), (3.0, 1, 20)),
+    ("smeltery", "crafter", "crafter", 1, 2, False, True, True, 11, "a5714f", 11,
+     [("brick", 20), ("iron_ingot", 20), ("gear", 10)],
+     {"recipes": ["smelt_iron", "smelt_brick", "smelt_copper"], "recipe_mode": 1, "item_capacity": 20,
+      "craft_speed": 2.5, "fuel_use": 225.0, "fuel_capacity": 20}, (320, True), (4.0, 1, 20)),
+    ("fast_drill", "drill", "drill", 1, 2, False, True, True, 8, "b0894f", 21,
+     [("iron_ingot", 20), ("gear", 10), ("resistor", 4)],
+     {"tier": 2, "base_seconds": 3.0, "hardness_seconds": 0.75, "item_capacity": 20, "power_use": 200.0},
+     (260, True), (4.0, 1, 20)),
+    ("fabricator", "crafter", "crafter", 1, 2, False, True, True, 9, "7b8796", 31,
+     [("resistor", 10), ("gear", 20), ("copper_cable", 20)],
+     {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg"] + [out for _, out in FILLERS],
+      "recipe_mode": 2, "item_capacity": 30, "craft_speed": 2.0, "power_use": 160.0}, (300, True), (5.0, 1, 20)),
     ("science_workshop", "workshop", "workshop", 1, 2, False, True, True, 24, "6a5a7a", 40,
      [("copper_cable", 10), ("iron_ingot", 10), ("resistor", 5)],
      {"seconds_per_kit": 2.0, "kit_capacity": 10, "power_use": 60.0}, (220, True), (3.0, 1, 10)),
@@ -222,6 +236,25 @@ BUILDINGS = [
 ]
 BUILDING_IDS = {b[0] for b in BUILDINGS}
 
+# --- Автосборка: сборщик делает сами постройки ---
+# Рецепт повторяет ручной крафт: те же входы, тот же выход и то же время. Открывается одним
+# исследованием «Автосборка» — до него сборщик делает только компоненты.
+AUTOBUILD_MAKERS = ("assembler", "fabricator")
+BUILD_RECIPES = []
+for _b in BUILDINGS:
+    _bid, _kind, _cost, _order, _craft = _b[0], _b[1], _b[11], _b[10], _b[14]
+    # Сборщик не делает сам себя: его описание ссылалось бы на рецепт, рецепт — на предмет,
+    # а предмет — обратно на описание, и Godot не смог бы загрузить такой круг.
+    if not _b[7] or not _cost or _craft is None or _kind == "creative" or _bid in AUTOBUILD_MAKERS:
+        continue
+    BUILD_RECIPES.append(("build_%s" % _bid, list(_cost), [(_bid, _craft[1])], float(_craft[0]), False, 300 + _order))
+BUILD_RECIPE_IDS = [r[0] for r in BUILD_RECIPES]
+RECIPES += BUILD_RECIPES
+RECIPE_IDS = {r[0] for r in RECIPES}
+for _b in BUILDINGS:
+    if _b[0] in AUTOBUILD_MAKERS:
+        _b[12]["recipes"] = _b[12]["recipes"] + BUILD_RECIPE_IDS
+
 # id, порядок, стоимость (наборов), предшествующие, постройки, рецепты, эффекты
 # Эффекты: underground — подземный этаж; underground_size, pad_size — шаг расширения этажа и площадки;
 # gateway_items, gateway_ports, gateway_power, gateway_fluids — что передаёт шлюз (и лифты);
@@ -253,6 +286,8 @@ RESEARCH = [
     ("logistics", 60, 20, ["mining"], ["sorter", "unloader", "bridge_conveyor"], [], []),
     ("industry", 70, 30, ["mining"], ["assembler"], [], []),
     ("science_automation", 80, 35, ["industry"], ["science_workshop"], [], []),
+    ("autobuild", 85, 40, ["industry"], [], BUILD_RECIPE_IDS, []),
+    ("compact_production", 86, 45, ["industry"], ["smeltery", "fabricator", "fast_drill", "large_container"], [], []),
     # Оборона
     ("defense", 90, 25, ["electricity"], ["machine_gun"], ["casing_mg"] + [out for _, out in FILLERS], []),
     # База: этажи, шлюз, лифты

@@ -173,11 +173,16 @@ HUD_BELT_BLOCKED,Stopped (jam),Стоит (затор)
 ACTION_SELECT_AREA,Select area (hold),Выделение области (с зажатием)
 ACTION_DELETE_SELECTION,Demolish selection / hovered,Снести выделенное / под курсором
 ACTION_TAKE_BLUEPRINT,Take last blueprint,Взять последний чертёж
+ACTION_MOVE_SELECTION,Move selection,Перенести выделенное
 TOAST_NO_BLUEPRINT,No blueprint copied yet,Чертёж ещё не скопирован
 ACTION_COPY_SELECTION,Copy selection,Копировать выделенное
-HINT_AREA,Selected buildings: %d  ·  %s — demolish  ·  %s — copy  ·  %s or %s — clear selection,Выделено построек: %d  ·  %s — снести  ·  %s — копировать  ·  %s или %s — снять выделение
+HINT_AREA,Selected buildings: %d  ·  %s — demolish  ·  %s — copy  ·  %s — move  ·  %s or %s — clear selection,Выделено построек: %d  ·  %s — снести  ·  %s — копировать  ·  %s — перенести  ·  %s или %s — снять выделение
 HINT_PASTE,Paste (%d buildings)  ·  %s — place  ·  %s — rotate  ·  %s or %s — cancel,Вставка (%d построек)  ·  %s — поставить  ·  %s — повернуть  ·  %s или %s — отмена
 TOAST_COPIED,Copied buildings: %d,Скопировано построек: %d
+HINT_MOVE,Moving %d buildings  ·  %s — drop  ·  %s or %s — cancel,Перенос %d построек  ·  %s — поставить  ·  %s или %s — отмена
+TOAST_MOVED,Moved buildings: %d,Перенесено построек: %d
+TOAST_MOVE_BLOCKED,The group does not fit here,Группа сюда не помещается
+TOAST_MOVE_NOTHING,Nothing to move here: the gateway and lifts stay put,Переносить нечего: шлюз и лифты остаются на месте
 INFO_INPUTS,Input: %s,Вход: %s
 INFO_OUTPUTS,Output: %s,Выход: %s
 TOOLTIP_CRAFT_TIME,%.1f s,%.1f с
@@ -440,6 +445,16 @@ TOAST_QUICK_PUT,Loaded: %d,Загружено: %d
 TOAST_QUICK_EMPTY,Nothing to take,Забирать нечего
 TOAST_QUICK_NOTHING,Nothing to load,Загружать нечего
 BUILDING_COAL_DRILL_DESC,"One tile, burns coal instead of power and mines soft deposits four times slower than the electric drill. On a coal deposit it keeps what it needs and sends the rest out.","Один тайл, работает на угле вместо электричества и добывает мягкие месторождения вчетверо медленнее электробура. На угле сам берёт себе сколько нужно, остальное отдаёт наружу."
+BUILDING_SMELTERY,Smeltery,Плавильня
+BUILDING_SMELTERY_DESC,A furnace of the same size that smelts two and a half times faster and burns fuel to match.,Печь того же размера: плавит в два с половиной раза быстрее и во столько же раз больше жжёт топлива.
+BUILDING_FABRICATOR,Fabricator,Фабрикатор
+BUILDING_FABRICATOR_DESC,"An assembler of the same size, twice as fast and twice as hungry for power.",Сборщик того же размера: вдвое быстрее и вдвое прожорливее по току.
+BUILDING_FAST_DRILL,Fast drill,Скоростной бур
+BUILDING_FAST_DRILL_DESC,"An electric drill of the same size, twice as fast on the same patch.",Электробур того же размера: вдвое быстрее на той же залежи.
+BUILDING_LARGE_CONTAINER,Large container,Большой ящик
+BUILDING_LARGE_CONTAINER_DESC,Twice the slots on the same tile.,Вдвое больше ячеек на том же тайле.
+RESEARCH_COMPACT_PRODUCTION,Compact production,Уплотнение производства
+RESEARCH_COMPACT_PRODUCTION_DESC,"Improved smeltery, fabricator, fast drill and large container: the same footprint, more output — the base floor stops running out of room.","Плавильня, фабрикатор, скоростной бур и большой ящик: та же площадь, больше отдачи — этаж базы перестаёт кончаться."
 BUILDING_ASSEMBLER,Assembler,Сборщик
 BUILDING_ASSEMBLER_DESC,Makes components and cartridges by the chosen recipe. Needs power.,Делает компоненты и патроны по выбранному рецепту. Нужно электричество.
 BUILDING_SCIENCE_WORKSHOP,Science Workshop,Научный цех
@@ -519,6 +534,8 @@ TOAST_RESEARCH_DONE,Research complete: %s,Исследование заверш�
 TOAST_RESEARCH_DEPOSITED,Kits handed in: %d,Сдано наборов: %d
 RESEARCH_MINING,Electric drill,Электробур
 RESEARCH_MINING_DESC,"A drill on power: any deposit, malachite included, and four times faster than the coal drill.","Бур на электричестве: любые месторождения, включая малахит, и вчетверо быстрее угольного."
+RESEARCH_AUTOBUILD,Auto-assembly,Автосборка
+RESEARCH_AUTOBUILD_DESC,The assembler builds buildings too: pick a building as its recipe and it makes them from components — no more crafting every belt by hand on each planet.,"Сборщик делает и постройки: выберите постройку рецептом, и он будет собирать её из компонентов — не придётся крафтить каждую ленту руками на каждой планете."
 RESEARCH_SANDBOX,Test bench,Полигон
 RESEARCH_SANDBOX_DESC,"Creative mode only: never finishes, eats kits forever — handy for measuring how fast science flows.",Только творческий режим: никогда не заканчивается и бесконечно принимает наборы — удобно мерить скорость науки.
 RESEARCH_RESET,Research from scratch,Исследовать заново

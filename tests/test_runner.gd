@@ -69,6 +69,8 @@ func _ready() -> void:
 	_test_shift_take_all()
 	_test_transfer_label()
 	_test_menu_background()
+	_test_move_group()
+	_test_autobuild()
 	_test_save_roundtrip_and_determinism()
 	_test_save_remap()
 	_test_save_files()
@@ -200,14 +202,15 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 5, "ожидалось 5 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 30, "ожидалось 30 зданий (24 обычных, 4 творческих, шлюз и пара), есть %d" % Registry.buildings.size())
+	_check(Registry.buildings.size() == 34, "ожидалось 34 здания (28 обычных, 4 творческих, шлюз и пара), есть %d" % Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
-	_check(Registry.recipes.size() == 13 and Registry.researches.size() == 59,
-		"13 рецептов и 59 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
+	_check(Registry.recipes.size() == 39 and Registry.researches.size() == 61,
+		"39 рецептов и 61 исследование (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16 and Registry.base_def.size_step == 6,
 		"параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 17 + 28, "ожидалось 17 предметов и 28 предметов-построек, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 17 + 32, "ожидалось 17 предметов и 32 предмета-постройки, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
 	for def in Registry.buildings:
@@ -1148,13 +1151,29 @@ func _test_recipes_data() -> void:
 			for recipe in (def as CrafterDef).recipes:
 				_check(recipe != null and not recipe.consumes.is_empty() and not recipe.output_items().is_empty(), "рецепт %s завода %s" % [recipe.id, def.id])
 			_check(not def.get_stat_lines().is_empty(), "характеристики завода %s для меню" % def.id)
-	_check(crafters == 2, "заводов 2: печь и сборщик (%d)" % crafters)
+	_check(crafters == 4, "заводов 4: печь, плавильня, сборщик и фабрикатор (%d)" % crafters)
 	var furnace := Registry.get_building(&"furnace") as CrafterDef
 	_check(furnace.recipe_mode == CrafterDef.RecipeMode.AUTO and furnace.fuel_use > 0.0 and furnace.power_use == 0.0 and furnace.recipes.size() == 3,
 		"печь: три переплавки на топливе, рецепт по сырью")
 	var assembler := Registry.get_building(&"assembler") as CrafterDef
-	_check(assembler.recipe_mode == CrafterDef.RecipeMode.SELECT and assembler.power_use > 0.0 and assembler.recipes.size() == 10,
-		"сборщик: 10 рецептов на выбор, от электричества")
+	_check(assembler.recipe_mode == CrafterDef.RecipeMode.SELECT and assembler.power_use > 0.0 and assembler.recipes.size() == 36,
+		"сборщик: 10 рецептов компонентов и 26 построек на выбор (%d)" % assembler.recipes.size())
+	# Улучшенные версии занимают ту же клетку, но выдают больше — на это и опирается ветка уплотнения.
+	var smeltery := Registry.get_building(&"smeltery") as CrafterDef
+	var furnace_def := Registry.get_building(&"furnace") as CrafterDef
+	_check(smeltery.size == furnace_def.size and smeltery.craft_speed > furnace_def.craft_speed
+		and smeltery.fuel_use > furnace_def.fuel_use, "плавильня — быстрая печь того же размера")
+	var fabricator := Registry.get_building(&"fabricator") as CrafterDef
+	_check(fabricator.size == assembler.size and fabricator.craft_speed > assembler.craft_speed
+		and fabricator.power_use > assembler.power_use, "фабрикатор — быстрый сборщик того же размера")
+	var fast_drill := Registry.get_building(&"fast_drill") as DrillDef
+	var drill_def := Registry.get_building(&"drill") as DrillDef
+	var ore := Registry.get_ore(&"hematite")
+	_check(fast_drill.size == drill_def.size and fast_drill.seconds_per_item(ore, 4) < drill_def.seconds_per_item(ore, 4)
+		and fast_drill.power_use > drill_def.power_use, "скоростной бур — быстрый электробур того же размера")
+	var large := Registry.get_building(&"large_container") as StorageDef
+	_check(large.size == 1 and large.slots > (Registry.get_building(&"container") as StorageDef).slots,
+		"большой ящик — тот же тайл, больше ячеек")
 	for id in [&"drill", &"science_workshop"]:
 		_check(Registry.get_building(id).power_use > 0.0, "%s потребляет электричество" % id)
 	for id in [&"machine_gun", &"unloader", &"pump"]:
@@ -3774,6 +3793,116 @@ func _test_menu_background() -> void:
 	var moving := world.simulation.conveyors.get_item_count()
 	_check(moving > 30, "ленты фона не пустуют (%d предметов)" % moving)
 	scene.dispose()
+
+
+## Перенос группы построек: постройки переезжают вместе с содержимым, настройками и id,
+## ничего не тратится; если хоть одна не помещается — не двигается никто.
+func _test_move_group() -> void:
+	var world := Worlds.empty_world(40, 24)
+	var conveyor := Registry.get_building(&"conveyor")
+	Worlds.conveyor_line(world, Vector2i(6, 6), 6, GameConst.Dir.RIGHT)
+	var container := world.buildings.place(Registry.get_building(&"container"), Vector2i(12, 6), 0, true) as StorageBuilding
+	var stone := Registry.get_item(&"stone").index
+	container.inventory.add(stone, 7)
+	world.buildings.place(Worlds.source_def(), Vector2i(5, 6), 0, true)
+	Worlds.run_ticks(world, 90)
+	var on_belts := world.simulation.conveyors.get_item_count()
+	_check(on_belts > 0, "на лентах есть предметы до переноса (%d)" % on_belts)
+
+	var group: Array[Building] = []
+	for x in range(6, 13):
+		group.append(world.buildings.get_at(Vector2i(x, 6)))
+	var ids := PackedInt32Array()
+	for b in group:
+		ids.append(b.id)
+	var head_id := group[0].id
+
+	# Сдвиг на один тайл вдоль самой себя: место под группой считается свободным.
+	_check(world.move_group(ids, Vector2i(1, 0)) == 7, "группа сдвинулась на тайл вдоль себя")
+	_check(world.buildings.get_at(Vector2i(6, 6)) == null and world.buildings.get_at(Vector2i(13, 6)) != null,
+		"линия переехала целиком")
+	_check(world.buildings.get_at(Vector2i(7, 6)).id == head_id, "id постройки сохранился")
+
+	# Переезд вниз: содержимое и предметы на лентах едут вместе.
+	_check(world.move_group(ids, Vector2i(0, 5)) == 7, "группа переехала вниз")
+	var moved_box := world.buildings.get_at(Vector2i(13, 11)) as StorageBuilding
+	_check(moved_box != null and moved_box.inventory.count(stone) == 7, "содержимое ящика переехало с ним")
+	_check(world.simulation.conveyors.get_item_count() == on_belts,
+		"предметы на лентах не потерялись (%d из %d)" % [world.simulation.conveyors.get_item_count(), on_belts])
+	_check(world.buildings.get_at(Vector2i(7, 6)) == null, "на старом месте пусто")
+
+	# Занятое место: не переезжает никто.
+	world.buildings.place(conveyor, Vector2i(9, 14), 0, true)
+	var before := world.buildings.get_count()
+	_check(world.move_group(ids, Vector2i(0, 3)) == 0, "занятое место отменяет перенос всей группы")
+	_check(world.buildings.get_at(Vector2i(7, 11)) != null and world.buildings.get_count() == before,
+		"после отказа группа осталась на месте")
+	_check(world.move_group(ids, Vector2i(-40, 0)) == 0, "за край карты группа не уезжает")
+
+	# Опора: провод к оставшейся на месте опоре обрывается, на новом месте связи ищутся заново.
+	var pole_def := Registry.get_building(&"small_power_pole")
+	var fixed := world.buildings.place(pole_def, Vector2i(20, 6), 0, true) as PowerPole
+	var travelling := world.buildings.place(pole_def, Vector2i(24, 6), 0, true) as PowerPole
+	world.power.auto_link(travelling)
+	_check(travelling.is_linked(fixed) and fixed.is_linked(travelling), "опоры соединены проводом")
+	var pole_ids := PackedInt32Array([travelling.id])
+	_check(world.move_group(pole_ids, Vector2i(0, 12)) == 1, "опора переехала")
+	var moved_pole := world.buildings.get_at(Vector2i(24, 18)) as PowerPole
+	_check(moved_pole != null and not moved_pole.is_linked(fixed) and not fixed.is_linked(moved_pole),
+		"провод до оставшейся опоры оборвался")
+	world.dispose()
+
+	# Шлюз и лифты не переезжают, а вне творческого режима нужен радиус дрона.
+	var run := Run.create_new(31, false)
+	var gate := run.get_gateway(run.planet)
+	_check(not GameWorld.can_move_building(gate), "шлюз не переносится")
+	var near_tile := run.drone.get_tile() + Vector2i(3, 0)
+	var box := run.planet.buildings.place(Registry.get_building(&"container"), near_tile, 0, true)
+	_check(run.planet.move_group(PackedInt32Array([box.id]), Vector2i(0, 1)) == 1, "рядом с дроном перенос проходит")
+	# Переехавшая постройка — уже другой объект с тем же id: старую ссылку держать нельзя.
+	box = run.planet.buildings.get_at(near_tile + Vector2i(0, 1))
+	var far_offset := Vector2i(0, 14)
+	var inside := GameWorld.group_tiles([box] as Array[Building])
+	_check(run.planet.check_move(box, far_offset, inside) == BuildingManager.Check.OUT_OF_RANGE,
+		"место за радиусом дрона подсвечено как недоступное")
+	_check(run.planet.move_group(PackedInt32Array([box.id]), far_offset) == 0
+		and run.planet.last_error == GameWorld.ActionError.OUT_OF_RANGE, "далеко от дрона — нельзя")
+	run.dispose()
+
+
+## Автосборка: сборщик собирает сами постройки по тем же рецептам, что и руки, но открывается
+## это отдельным исследованием — до него в списке рецептов постройки стоят закрытыми.
+func _test_autobuild() -> void:
+	var recipe := Registry.get_recipe(&"build_conveyor")
+	_check(recipe != null and not recipe.hand_craftable, "рецепт ленты для сборщика есть и не дублирует ручной крафт")
+	var research := Registry.get_recipe_research(recipe)
+	_check(research != null and research.id == &"autobuild", "он открывается «Автосборкой»")
+	var assembler_def := Registry.get_building(&"assembler") as CrafterDef
+	var has_it := false
+	for r in assembler_def.recipes:
+		if r == recipe:
+			has_it = true
+	_check(has_it, "рецепт стоит в списке сборщика")
+	var state := ResearchState.new()
+	_check(not state.is_recipe_unlocked(recipe), "без исследования рецепт закрыт")
+	state.done[&"autobuild"] = true
+	_check(state.is_recipe_unlocked(recipe), "после исследования — открыт")
+
+	var world := Worlds.empty_world(32, 20)
+	var assembler := _place(world, &"assembler", Vector2i(6, 6)) as Crafter
+	world.configure(assembler, &"build_conveyor")
+	_check(assembler.get_recipe() == recipe, "сборщик принял постройку рецептом")
+	for i in 10:
+		assembler.handle_item(null, _item(&"iron_ingot"))
+		assembler.handle_item(null, _item(&"gear"))
+	_place(world, &"small_power_pole", Vector2i(9, 7))
+	var generator := _place(world, &"thermal_generator", Vector2i(10, 8)) as Generator
+	for i in 3:
+		generator.handle_item(null, _item(&"coal"))
+	Worlds.run_ticks(world, 5 * GameConst.TICK_RATE)
+	var belts := assembler.outputs[_item(&"conveyor")]
+	_check(belts > 0, "сборщик выдал ленты (%d)" % belts)
+	world.dispose()
 
 
 ## Сроки телепорта: после прибытия он заряжается 5 минут, а пробыть на планете можно 10 —

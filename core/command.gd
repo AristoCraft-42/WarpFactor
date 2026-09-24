@@ -13,6 +13,7 @@ enum Kind {
 	MINE,              ## начать или прекратить добычу тайла (args.tile: Vector2i, NO_TILE — прекратить)
 	BUILD,             ## поставить здание (def, origin, rotation, config)
 	REMOVE,            ## снести здания по id (args.ids: PackedInt32Array)
+	MOVE_GROUP,        ## перенести группу построек (args.ids: PackedInt32Array, args.offset: Vector2i)
 	ROTATE,            ## повернуть здание (args.id, args.rotation)
 	CONFIGURE,         ## настроить здание (args.id, args.value)
 	TAKE,              ## забрать предметы из здания (args.id, args.item, args.amount)

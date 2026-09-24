@@ -6,7 +6,8 @@ extends Node
 ## - Shift+ЛКМ по зданию пустой рукой — забрать накопленную продукцию, Shift+ПКМ — загрузить в него
 ##   всё подходящее сырьё из инвентаря.
 ## - ПКМ с зажатием: выделение области; X — снести выделенное (без выделения — здание под курсором),
-##   C — скопировать выделенное в руку.
+##   C — скопировать выделенное в руку, M — перенести выделенное целиком (постройки переезжают
+##   вместе с содержимым, ничего не тратится).
 ##   Клик ПКМ отменяет инструмент или выделение, а по зданию без инструмента выделяет его.
 ## - R: поворот здания в руке, скопированного плана или стоящего здания под курсором. Q — пипетка.
 ## Все изменения мира идут через GameWorld: радиус дрона, постройки из инвентаря, возврат при сносе.
@@ -24,7 +25,7 @@ signal selection_changed
 ## Изменилось выделение области.
 signal area_changed
 
-enum Mode { NONE, PLACE, PASTE }
+enum Mode { NONE, PLACE, PASTE, MOVE }
 enum Drag { NONE, PLACE, SELECT, MINE }
 
 ## Сдвиг мыши (пикселей), после которого нажатие ПКМ считается выделением, а не кликом.
@@ -61,6 +62,10 @@ var plan_size: Vector2i = Vector2i.ZERO
 ## Последний скопированный чертёж: его возвращает в руку take_blueprint (V) после отмены.
 var _last_plan: Array[PlanEntry] = []
 var _last_plan_size: Vector2i = Vector2i.ZERO
+
+## Перенос группы (Mode.MOVE): что переносим и откуда — смещение считается от угла группы.
+var _move_buildings: Array[Building] = []
+var _move_corner: Vector2i = Vector2i.ZERO
 
 var input_enabled: bool = true:
 	set(value):
@@ -151,6 +156,7 @@ func clear_tool() -> void:
 	place_def = null
 	place_config = null
 	plan = []
+	_move_buildings = []
 	mode = Mode.NONE
 	_dirty = true
 	mode_changed.emit()
@@ -245,6 +251,36 @@ func copy_area() -> void:
 	Events.toast(tr("TOAST_COPIED") % entries.size())
 
 
+## Перенести выделенное (M): постройки едут вместе с содержимым, настройками и прочностью.
+## Шлюз и лифты остаются на месте — лифт привязан к паре на другом этаже.
+func begin_move() -> void:
+	var sources: Array[Building] = []
+	for b in area_buildings:
+		if b.world == _world and GameWorld.can_move_building(b):
+			sources.append(b)
+	clear_area()
+	if sources.is_empty():
+		Events.toast(tr("TOAST_MOVE_NOTHING"), Events.ToastKind.WARNING)
+		return
+	var bounds := sources[0].get_rect()
+	for b in sources:
+		bounds = bounds.merge(b.get_rect())
+	var entries: Array[PlanEntry] = []
+	for b in sources:
+		entries.append(PlanEntry.new(b.def, b.origin - bounds.position, b.rotation, b.get_config()))
+	_cancel_drag()
+	select(null)
+	place_def = null
+	place_config = null
+	plan = entries
+	plan_size = bounds.size
+	_move_buildings = sources
+	_move_corner = bounds.position
+	mode = Mode.MOVE
+	_dirty = true
+	mode_changed.emit()
+
+
 ## Взять в руку последний скопированный чертёж (V): копировать заново не нужно.
 func take_last_blueprint() -> void:
 	if _last_plan.is_empty():
@@ -277,6 +313,8 @@ func _unhandled_input(event: InputEvent) -> void:
 				_begin_place_drag()
 			Mode.PASTE:
 				_paste()
+			Mode.MOVE:
+				_apply_move()
 			_:
 				clear_area()
 				if hover_building == null and _world.drone.get_mineable_ore(hover_tile) != null:
@@ -313,6 +351,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("copy_selection"):
 		if has_area():
 			copy_area()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("move_selection"):
+		if has_area():
+			begin_move()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("cancel"):
 		if _drag != Drag.NONE:
@@ -413,6 +455,8 @@ func _process(_delta: float) -> void:
 			_update_ghosts(mouse_world, tile)
 		Mode.PASTE:
 			_update_paste_ghosts(tile)
+		Mode.MOVE:
+			_update_move_ghosts(tile)
 		_:
 			_set_ghosts([])
 			_preview.set_hover(hovered)
@@ -655,6 +699,54 @@ func _update_ghosts(mouse_world: Vector2, tile: Vector2i) -> void:
 		var rot := def.placement_rotation(_world, origin, rotation)
 		ghosts.append(PlacementPreview.Ghost.new(def, origin, rot, _world.check_build(def, origin, rot, budget)))
 	_set_ghosts(ghosts)
+
+
+## Куда переедет группа, если отпустить её под курсором.
+func _move_offset(tile: Vector2i) -> Vector2i:
+	return tile - plan_size / 2 - _move_corner
+
+
+## Призраки переноса: у каждой постройки своя проверка, и место, которое освободит сама группа,
+## считается свободным.
+func _update_move_ghosts(tile: Vector2i) -> void:
+	var alive: Array[Building] = []
+	for b in _move_buildings:
+		if b.world == _world:
+			alive.append(b)
+	_move_buildings = alive
+	if alive.is_empty():
+		clear_tool()
+		return
+	var offset := _move_offset(tile)
+	var inside := GameWorld.group_tiles(alive)
+	var ghosts: Array[PlacementPreview.Ghost] = []
+	for b in alive:
+		var ghost := PlacementPreview.Ghost.new(b.def, b.origin + offset, b.rotation,
+			_world.check_move(b, offset, inside))
+		ghost.config = b.get_config()
+		ghosts.append(ghost)
+	_set_ghosts(ghosts)
+
+
+## Отпустить группу: переезжает вся или никто, поэтому одна красная постройка отменяет перенос.
+func _apply_move() -> void:
+	var tile := GameConst.world_to_tile(_camera.get_mouse_world())
+	_update_move_ghosts(tile)
+	if _move_buildings.is_empty():
+		return
+	for g in _ghosts:
+		if not BuildingManager.is_valid_check(g.check):
+			Events.toast(tr("TOAST_MOVE_BLOCKED"), Events.ToastKind.WARNING)
+			return
+	var offset := _move_offset(tile)
+	if offset == Vector2i.ZERO:
+		clear_tool()
+		return
+	var ids := PackedInt32Array()
+	for b in _move_buildings:
+		ids.append(b.id)
+	_world.submit(Command.Kind.MOVE_GROUP, {"ids": ids, "offset": offset})
+	clear_tool()
 
 
 func _update_paste_ghosts(tile: Vector2i) -> void:

@@ -520,6 +520,109 @@ func demolish(building: Building) -> bool:
 	return true
 
 
+## Постройки группы, которые вообще умеют переезжать: остальное (шлюз, лифты) стоит на месте.
+## Лифт привязан к паре на другом этаже, поэтому переносится только вместе с ней — пока никак.
+static func can_move_building(building: Building) -> bool:
+	return building != null and building.def.removable and building.def.player_buildable 		and not (building is Lift) and not (building is GatewayBuilding)
+
+
+## Тайлы, занятые группой: при переносе они считаются свободными — постройки группы
+## могут наезжать на места друг друга.
+static func group_tiles(group: Array[Building]) -> Dictionary[Vector2i, bool]:
+	var inside: Dictionary[Vector2i, bool] = {}
+	for b in group:
+		var rect := b.get_rect()
+		for y in range(rect.position.y, rect.end.y):
+			for x in range(rect.position.x, rect.end.x):
+				inside[Vector2i(x, y)] = true
+	return inside
+
+
+## Проверка переноса одной постройки группы: место, местность и радиус дрона (старое место
+## и новое). Постройки в инвентаре не нужны — переезд ничего не тратит.
+func check_move(building: Building, offset: Vector2i, inside: Dictionary[Vector2i, bool]) -> BuildingManager.Check:
+	if not can_move_building(building):
+		return BuildingManager.Check.OCCUPIED
+	var check := buildings.check_move(building, offset, inside)
+	if check != BuildingManager.Check.OK:
+		return check
+	if not has_drone():
+		return BuildingManager.Check.OUT_OF_RANGE
+	if creative:
+		return check
+	var rect := building.get_rect()
+	var who := acting_drone()
+	if not who.can_reach_tiles(rect) or not who.can_reach_tiles(Rect2i(rect.position + offset, rect.size)):
+		return BuildingManager.Check.OUT_OF_RANGE
+	return check
+
+
+## Переносит группу построек на offset тайлов: всё или ничего. Постройки не сносятся и не строятся
+## заново, а переезжают вместе со своим состоянием — содержимым, настройкой, прочностью и id;
+## предметы на лентах едут вместе с ними. Ничего не тратится и не возвращается в инвентарь.
+## Возвращает, сколько построек переехало (0 — не поместились, причина в last_error).
+func move_group(ids: PackedInt32Array, offset: Vector2i) -> int:
+	last_error = ActionError.NONE
+	if offset == Vector2i.ZERO:
+		return 0
+	var moving: Array[Building] = []
+	var seen: Dictionary[int, bool] = {}
+	for id in ids:
+		var b := buildings.get_by_id(id)
+		if b == null or seen.has(id) or not can_move_building(b):
+			continue
+		seen[id] = true
+		moving.append(b)
+	if moving.is_empty():
+		last_error = ActionError.NOT_ALLOWED
+		return 0
+	var inside := group_tiles(moving)
+	for b in moving:
+		var check := check_move(b, offset, inside)
+		if check == BuildingManager.Check.OUT_OF_RANGE:
+			last_error = ActionError.OUT_OF_RANGE
+			return 0
+		if check != BuildingManager.Check.OK:
+			last_error = ActionError.NOT_ALLOWED
+			return 0
+
+	# Снимок всей группы до сноса: снимается так же, как в сохранении.
+	var snapshots: Array[Dictionary] = []
+	for b in moving:
+		snapshots.append({"def": b.def, "origin": b.origin + offset, "rotation": b.rotation, "id": b.id,
+			"size": b.size, "config": b.get_config(), "state": b.save_state(), "dump": b.get_dump_cursor(),
+			"health": b.health})
+		# Провода к оставшимся на месте опорам после переезда указывали бы в пустоту.
+		if b is PowerPole:
+			for other in (b as PowerPole).get_linked_poles():
+				if not seen.has(other.id):
+					(b as PowerPole).unlink(other)
+					other.unlink(b as PowerPole)
+	for b in moving:
+		buildings.remove(b, true)
+	var moved := 0
+	var poles: Array[PowerPole] = []
+	for snap in snapshots:
+		var b := buildings.place(snap["def"], snap["origin"], snap["rotation"], true, snap["id"], snap["size"])
+		if b == null:
+			push_warning("GameWorld: постройка %s не встала после переноса" % snap["def"].id)
+			continue
+		if snap["config"] != null:
+			b.set_config(snap["config"])
+		b.set_dump_cursor(snap["dump"])
+		b.load_state(snap["state"])
+		b.health = clampf(snap["health"], 0.0, b.get_max_health())
+		if b.is_damaged():
+			damaged[b.id] = true
+		if b is PowerPole:
+			poles.append(b as PowerPole)
+		moved += 1
+	# Опоры на новом месте дотягиваются до соседей сами; связи внутри группы уже восстановлены.
+	for pole in poles:
+		power.auto_link(pole)
+	return moved
+
+
 ## Поворачивает стоящее здание на delta шагов по часовой стрелке.
 func rotate_building(building: Building, delta: int = 1) -> bool:
 	if not can_interact(building):

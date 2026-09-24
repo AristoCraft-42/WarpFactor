@@ -134,10 +134,20 @@ func _check_catch_up(host: NetSession, host_run: Run, client: NetSession) -> voi
 			host_run.step()
 			host.after_step()
 		await get_tree().process_frame
-	for i in 5:
+	# Пока у клиента не было кадров, он не подтверждал пакеты, и часть накопленного хосту
+	# приходится досылать. Ждём, пока запас перестанет расти: иначе мерили бы не логику,
+	# а скорость доставки на этой машине.
+	var behind := 0
+	for i in 60:
+		# Хост тоже опрашивается: досылкой потерянных пакетов занимается его сторона,
+		# а тики он в этом цикле не считает.
+		host.poll()
 		client.poll()
 		await get_tree().process_frame
-	var behind := client.ready_ticks()
+		var ready := client.ready_ticks()
+		if ready == behind and ready > 40:
+			break
+		behind = ready
 	_expect(behind > 40, "после провала кадров клиент отстал на %d тиков" % behind)
 
 	# Кадры вернулись: часы должны догнать хоста, а не остаться позади навсегда.

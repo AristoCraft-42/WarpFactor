@@ -133,7 +133,7 @@ func update_tick(_tick: int) -> bool:
 	if crafting:
 		var rate := _work_rate()
 		if rate > 0.0:
-			progress += rate / recipe.get_craft_ticks()
+			progress += rate * get_crafter_def().craft_speed / recipe.get_craft_ticks()
 			_burn_fuel(rate)
 		if progress >= 1.0:
 			progress = 1.0

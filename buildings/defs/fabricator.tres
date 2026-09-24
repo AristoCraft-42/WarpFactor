@@ -42,43 +42,44 @@
 [ext_resource type="Resource" path="res://items/recipes/build_machine_gun.tres" id="recipe_build_machine_gun"]
 [ext_resource type="Resource" path="res://items/types/resistor.tres" id="item_resistor"]
 [ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
-[ext_resource type="Resource" path="res://items/types/copper_ingot.tres" id="item_copper_ingot"]
+[ext_resource type="Resource" path="res://items/types/copper_cable.tres" id="item_copper_cable"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
 item = ExtResource("item_resistor")
-amount = 4
+amount = 10
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
 item = ExtResource("item_gear")
-amount = 6
+amount = 20
 
 [sub_resource type="Resource" id="cost_2"]
 script = ExtResource("2_stack")
-item = ExtResource("item_copper_ingot")
-amount = 10
+item = ExtResource("item_copper_cable")
+amount = 20
 
 [resource]
 script = ExtResource("1_def")
-id = &"assembler"
-name_key = "BUILDING_ASSEMBLER"
-description_key = "BUILDING_ASSEMBLER_DESC"
+id = &"fabricator"
+name_key = "BUILDING_FABRICATOR"
+description_key = "BUILDING_FABRICATOR_DESC"
 category = 1
 size = 2
 removable = true
 player_buildable = true
 line_placement = false
-sort_order = 30
+sort_order = 31
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
-craft_time = 3.0
+craft_time = 5.0
 craft_amount = 1
-health = 220.0
+health = 300.0
 solid = true
-color = Color(0.369, 0.400, 0.439, 1)
+color = Color(0.482, 0.529, 0.588, 1)
 glyph = 9
 logic_script = ExtResource("3_logic")
 recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_gear"), ExtResource("recipe_copper_cable"), ExtResource("recipe_science_kit"), ExtResource("recipe_resistor"), ExtResource("recipe_casing_mg"), ExtResource("recipe_cartridge_stone"), ExtResource("recipe_cartridge_iron"), ExtResource("recipe_cartridge_coal"), ExtResource("recipe_cartridge_copper"), ExtResource("recipe_cartridge_brick"), ExtResource("recipe_build_conveyor"), ExtResource("recipe_build_junction"), ExtResource("recipe_build_router"), ExtResource("recipe_build_sorter"), ExtResource("recipe_build_bridge_conveyor"), ExtResource("recipe_build_unloader"), ExtResource("recipe_build_lift"), ExtResource("recipe_build_container"), ExtResource("recipe_build_large_container"), ExtResource("recipe_build_furnace"), ExtResource("recipe_build_coal_drill"), ExtResource("recipe_build_drill"), ExtResource("recipe_build_smeltery"), ExtResource("recipe_build_fast_drill"), ExtResource("recipe_build_science_workshop"), ExtResource("recipe_build_small_power_pole"), ExtResource("recipe_build_thermal_generator"), ExtResource("recipe_build_pipe"), ExtResource("recipe_build_underground_pipe"), ExtResource("recipe_build_water_tank"), ExtResource("recipe_build_pump"), ExtResource("recipe_build_boiler"), ExtResource("recipe_build_steam_generator"), ExtResource("recipe_build_accumulator"), ExtResource("recipe_build_stone_wall"), ExtResource("recipe_build_machine_gun")])
 recipe_mode = 2
-item_capacity = 20
-power_use = 75.0
+item_capacity = 30
+craft_speed = 2.0
+power_use = 160.0

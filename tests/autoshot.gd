@@ -1023,6 +1023,36 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	await _mouse_button(game, paste_at, MOUSE_BUTTON_RIGHT, false)
 	_expect(tools.mode == ToolController.Mode.NONE, "клик ПКМ выходит из вставки")
 
+	# Перенос выделенного на M: группа переезжает целиком, из инвентаря ничего не берётся
+	# и в него ничего не возвращается.
+	var strip := _find_clear_rect(world, Vector2i(4, 4), base + Vector2i(6, 6), 12)
+	Worlds_line(world, strip, 4, GameConst.Dir.RIGHT)
+	await _mouse_move(game, strip)
+	await _mouse_button(game, strip, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_move(game, strip + Vector2i(3, 0))
+	await _mouse_button(game, strip + Vector2i(3, 0), MOUSE_BUTTON_RIGHT, false)
+	_expect(tools.area_buildings.size() == 4, "выделено четыре ленты для переноса (%d)" % tools.area_buildings.size())
+	await _key(KEY_M)
+	_expect(tools.mode == ToolController.Mode.MOVE and tools.plan.size() == 4,
+		"M берёт выделенное на перенос (%d)" % tools.plan.size())
+	# Призрак группы центрируется под курсором, поэтому целимся в середину нового места.
+	var move_to := strip + Vector2i(2, 2)
+	await _mouse_move(game, move_to)
+	await _frames(3)
+	await _shot("i03c_move_preview.png")
+	var belts_in_hand := inv.count(conveyor.item.index)
+	var count_before_move := bm.get_count()
+	await _mouse_button(game, move_to, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, move_to, MOUSE_BUTTON_LEFT, false)
+	await _settle(game)
+	_expect(bm.get_at(strip) == null and bm.get_at(strip + Vector2i(0, 2)) != null, "группа переехала на два тайла вниз")
+	_expect(bm.get_count() == count_before_move and inv.count(conveyor.item.index) == belts_in_hand,
+		"перенос ничего не потратил и не создал")
+	_expect(tools.mode == ToolController.Mode.NONE, "после переноса руки свободны")
+	for x in bm.collect_in_rect(Rect2i(strip, Vector2i(4, 4))):
+		if x.def.removable:
+			bm.remove(x, true)
+
 	# Выделение и снос на X: постройки возвращаются в инвентарь.
 	await _mouse_move(game, rect.position)
 	await _mouse_button(game, rect.position, MOUSE_BUTTON_RIGHT, true)

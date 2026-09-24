@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="DrillDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/production/drill_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/production/drill.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
+[ext_resource type="Resource" path="res://items/types/resistor.tres" id="item_resistor"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 20
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_gear")
+amount = 10
+
+[sub_resource type="Resource" id="cost_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_resistor")
+amount = 4
+
+[resource]
+script = ExtResource("1_def")
+id = &"fast_drill"
+name_key = "BUILDING_FAST_DRILL"
+description_key = "BUILDING_FAST_DRILL_DESC"
+category = 1
+size = 2
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 21
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
+craft_time = 4.0
+craft_amount = 1
+health = 260.0
+solid = true
+color = Color(0.690, 0.537, 0.310, 1)
+glyph = 8
+logic_script = ExtResource("3_logic")
+tier = 2
+base_seconds = 3.0
+hardness_seconds = 0.75
+item_capacity = 20
+power_use = 200.0

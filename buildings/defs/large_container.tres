@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="StorageDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/storage/storage_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/storage/storage_building.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/brick.tres" id="item_brick"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 20
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_brick")
+amount = 8
+
+[resource]
+script = ExtResource("1_def")
+id = &"large_container"
+name_key = "BUILDING_LARGE_CONTAINER"
+description_key = "BUILDING_LARGE_CONTAINER_DESC"
+category = 0
+size = 1
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 75
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1")])
+craft_time = 3.0
+craft_amount = 1
+health = 300.0
+solid = true
+color = Color(0.541, 0.522, 0.376, 1)
+glyph = 14
+logic_script = ExtResource("3_logic")
+slots = 32
