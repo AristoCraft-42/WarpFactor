@@ -36,7 +36,7 @@ godot --headless --path D:\Mind res://tests/test_runner.tscn
 ```
 
 `tests/test_runner.gd` — плоский список функций `_test_*`, каждая печатает свои проверки.
-В конце — счётчик (сейчас **1406 проверок**) и ненулевой код возврата при провале.
+В конце — счётчик (сейчас **1777 проверок**) и ненулевой код возврата при провале.
 
 Что покрыто, по группам:
 
@@ -77,16 +77,20 @@ godot --path D:\Mind res://ui/menu/main_menu.tscn -- --autoshot --autoshot-dir=D
 
 `tests/autoshot.gd` подключается из `core/game.gd`, если в аргументах есть `--autoshot`.
 Он играет в игру настоящим вводом (движение дрона, клики, горячие клавиши), проверяет состояние
-и делает скриншот на каждом шаге. Сейчас **199 проверок**, около 150 секунд.
+и делает скриншот на каждом шаге. Сейчас **211 проверок**, около 8 минут.
 
 Сценарии: `_run_menu`, `_run_game`, `_run_drone`, `_run_interaction`, `_run_build_helpers`,
 `_run_coal_drill`, `_run_production_chain`, `_run_factory`, `_run_logistics`, `_run_power`,
 `_run_pipe_dragging`, `_run_research`,
-`_run_gateway`, `_run_lift`, `_run_pad_expansion`, `_run_enemies`, `_run_defense`, `_run_breach`,
-`_run_teleport`, `_run_saves`.
+`_run_gateway`, `_run_lift`, `_run_mining_platform`, `_run_pad_expansion`, `_run_enemies`,
+`_run_defense`, `_run_breach`, `_run_teleport`, `_run_saves`.
 
 ### Грабли
 
+- **Запускается прогон из `Game._start`.** В правках 16в этот блок случайно уехал в
+  `_on_teleport_starting`, и автопрогон перестал стартовать вовсе: игра просто стояла, снимков не
+  было, и это принимали за зависание из-за занятого экрана. Если прогон молчит — сначала проверить,
+  что блок с `--autoshot` вызывается из `_start`.
 - **Автопрогон не headless.** Ему нужно видимое неперекрытое окно: Godot не отдаёт кадры
   свёрнутому или полностью закрытому окну, и прогон зависает в ожидании тиков (`_wait_ticks`)
   или завершается раньше времени. Один и тот же код может дать 171/171 и «зависнуть» —

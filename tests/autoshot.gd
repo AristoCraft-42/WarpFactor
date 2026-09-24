@@ -799,15 +799,20 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	# тот летит, — даём ему полетать. Летим налево, вглубь карты: у края камера упирается
 	# в границу мира, и меряли бы мы не слежение, а этот упор.
 	await _key_hold(KEY_A, true)
-	await _frames(45)
+	await _frames(90)
 	await _key_hold(KEY_A, false)
 	await _frames(40)
 	# Камера держится нарисованного дрона: у него к позиции симуляции прибавлено упреждение.
 	var drawn := drone.get_draw_position(game.clock.alpha) + game.drone_view.local_offset()
-	_expect(game.camera.position.distance_to(drawn) < 2.0,
-		"камера следует за дроном (%.1f px; камера %s, дрон %s, свой дрон %s, взгляд %s)"
-			% [game.camera.position.distance_to(drawn), game.camera.position, drawn,
-				"да" if drone == game.run.drone else "нет", game.camera.look_offset])
+	# У края карты камера упирается в её границу — там она стоит не на дроне, и это правильно.
+	var world_bounds := drone.world.get_play_rect_px()
+	var half_view := game.camera.get_world_view_rect().size * 0.5
+	var expected := world_bounds.position + Vector2(
+		CameraController.clamp_axis(drawn.x - world_bounds.position.x, half_view.x, world_bounds.size.x),
+		CameraController.clamp_axis(drawn.y - world_bounds.position.y, half_view.y, world_bounds.size.y))
+	_expect(game.camera.position.distance_to(expected) < 2.0,
+		"камера следует за дроном (%.1f px; камера %s, ожидалось %s, дрон %s)"
+			% [game.camera.position.distance_to(expected), game.camera.position, expected, drawn])
 	await _shot("d00_drone.png")
 
 	# Добыча: ЛКМ по руде с зажатием.
