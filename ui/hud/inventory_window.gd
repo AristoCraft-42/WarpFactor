@@ -50,6 +50,10 @@ var _section_views: Array[Dictionary] = []
 var _building: Building
 var _inventory_revision: int = -1
 var _timer: float = 0.0
+## Кнопки облика дрона: цвета и значки.
+var _color_buttons: Array[Button] = []
+var _icon_buttons: Array[Button] = []
+## Кнопки облика дрона: цвета и значки.
 
 
 func setup(tools: ToolController, world: GameWorld) -> void:
@@ -95,6 +99,7 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hint.custom_minimum_size = Vector2(INVENTORY_COLUMNS * (ItemSlot.SIZE + 4), 0)
 	left.add_child(hint)
+	_build_style_row(left)
 
 	# Правая часть: крафт или содержимое здания.
 	var right := UiUtil.vbox(8)
@@ -280,6 +285,60 @@ func _refresh_inventory() -> void:
 	for i in _inventory_slots.size():
 		_inventory_slots[i].set_stack(inventory.slot_items[i], inventory.slot_counts[i])
 	_slots_label.text = tr("INVENTORY_SLOTS") % [inventory.used_slots(), inventory.size()]
+	_sync_style()
+
+
+## Облик дрона: цвет и значок. Выбор идёт командой, поэтому его видят все участники.
+func _build_style_row(parent: Control) -> void:
+	var title := UiUtil.label("INVENTORY_STYLE", &"DimLabel")
+	parent.add_child(title)
+	var colors := UiUtil.hbox(4)
+	parent.add_child(colors)
+	for k in Player.COLORS.size():
+		var b := _style_button()
+		b.self_modulate = Player.COLORS[k]
+		b.text = "■"
+		b.pressed.connect(_choose_style.bind(k, -1))
+		colors.add_child(b)
+		_color_buttons.append(b)
+	var icons := UiUtil.hbox(4)
+	parent.add_child(icons)
+	for k in Player.ICONS:
+		var b := _style_button()
+		b.text = ["●", "▲", "■", "◆", "✚", "★"][k]
+		b.pressed.connect(_choose_style.bind(-1, k))
+		icons.add_child(b)
+		_icon_buttons.append(b)
+
+
+func _style_button() -> Button:
+	var b := Button.new()
+	b.theme_type_variation = &"SlotButton"
+	b.focus_mode = Control.FOCUS_NONE
+	b.toggle_mode = true
+	b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	b.custom_minimum_size = Vector2(28, 28)
+	return b
+
+
+## −1 означает «оставить как было».
+func _choose_style(color_index: int, icon: int) -> void:
+	var me := _world.run.get_local_player() if _world.run != null else null
+	if me == null:
+		return
+	_world.run.submit(Command.Kind.PLAYER_STYLE, {
+		"color": me.color_index if color_index < 0 else color_index,
+		"icon": me.icon if icon < 0 else icon})
+
+
+func _sync_style() -> void:
+	var me := _world.run.get_local_player() if _world != null and _world.run != null else null
+	if me == null:
+		return
+	for k in _color_buttons.size():
+		_color_buttons[k].set_pressed_no_signal(k == me.color_index)
+	for k in _icon_buttons.size():
+		_icon_buttons[k].set_pressed_no_signal(k == me.icon)
 
 
 func _on_inventory_slot_clicked(button: MouseButton, shift: bool, slot: int) -> void:

@@ -74,6 +74,9 @@ func _ready() -> void:
 	_test_mining_platform()
 	_test_shaft()
 	_test_midgame_chain()
+	_test_enemy_progression()
+	_test_player_style()
+	_test_chat()
 	_test_cheats()
 	_test_warp_time_unlimited()
 	_test_save_roundtrip_and_determinism()
@@ -4055,6 +4058,86 @@ func _test_warp_time_unlimited() -> void:
 		run.research.done[StringName("warp_time_%d" % i)] = true
 	run.apply_research_effects()
 	_check(not run.has_time_limit(), "после последней ступени на планете можно сидеть сколько угодно")
+	run.dispose()
+
+
+## Чат: сообщения идут мимо тиков, пустые не отправляются, длинные обрезаются.
+func _test_chat() -> void:
+	var run := Run.create_new(5, false)
+	var previous := Session.net.run
+	Session.net.run = run
+	var got := PackedStringArray()
+	var listener := func(_id: int, text: String) -> void: got.append(text)
+	Session.net.chat_received.connect(listener)
+	Session.net.send_chat("   ")
+	_check(got.is_empty(), "пустое сообщение не уходит")
+	Session.net.send_chat("  привет  ")
+	_check(got.size() == 1 and got[0] == "привет", "пробелы по краям срезаются")
+	var long_text := "а".repeat(NetProtocol.CHAT_LIMIT + 50)
+	Session.net.send_chat(long_text)
+	_check(got.size() == 2 and got[1].length() == NetProtocol.CHAT_LIMIT,
+		"длинное сообщение обрезается до предела (%d)" % got[1].length())
+	Session.net.chat_received.disconnect(listener)
+	Session.net.run = previous
+	run.dispose()
+
+
+## Облик дрона: цвет и значок выбираются командой, видны всем и переживают сохранение.
+func _test_player_style() -> void:
+	var run := Run.create_new(12, false)
+	var me := run.get_local_player()
+	_check(me != null and me.color == Player.COLORS[me.color_index], "цвет игрока берётся из палитры")
+	run.submit(Command.Kind.PLAYER_STYLE, {"color": 4, "icon": 3})
+	run.step()
+	_check(me.color_index == 4 and me.icon == 3 and me.color == Player.COLORS[4], "команда сменила облик")
+	run.submit(Command.Kind.PLAYER_STYLE, {"color": 99, "icon": 99})
+	run.step()
+	_check(me.color_index < Player.COLORS.size() and me.icon < Player.ICONS, "чужие числа подрезаются")
+	me.set_style(4, 3)
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(SaveIO.run_to_dict(run))))
+	var loaded_me := loaded.get_local_player()
+	_check(loaded_me != null and loaded_me.color_index == 4 and loaded_me.icon == 3, "облик пережил сохранение")
+	loaded.dispose()
+	run.dispose()
+
+
+## Прогрессия врагов: с номером волны и глубиной звёздной карты та же порода крепче и бьёт больнее,
+## множитель едет с каждым врагом и переживает сохранение.
+func _test_enemy_progression() -> void:
+	var run := _enemy_run()
+	var threat := run.planet.threat
+	_check(threat != null, "у планеты есть угроза")
+	if threat == null:
+		run.dispose()
+		return
+	var crawler := Registry.get_enemy(&"crawler")
+	var spot := run.planet.gateway.get_world_center() + Vector2(-20, 0) * GameConst.TILE_SIZE
+	threat.wave = 1
+	threat.depth = 0
+	run.planet.spawn_enemy(crawler, spot)
+	var base_health := run.planet.enemies.health[0]
+	_check(is_equal_approx(base_health, crawler.health), "на первой волне у старта враг обычный")
+
+	# Дальняя планета и поздняя волна — тот же ползун крепче и бьёт больнее.
+	threat.wave = 20
+	threat.depth = 3
+	run.planet.spawn_enemy(crawler, spot + Vector2(0, 64))
+	var strong := run.planet.enemies.count - 1
+	var scale := threat.health_scale()
+	_check(scale > 1.5 and is_equal_approx(run.planet.enemies.health[strong], crawler.health * scale),
+		"на 20-й волне в трёх шагах враг крепче в %.2f раза" % scale)
+	_check(run.planet.enemies.power_damage[strong] > run.planet.enemies.power_damage[0],
+		"и урон у него выше")
+	_check(threat.def.get_health_scale(1000, 10) <= threat.def.max_health_scale, "сила упирается в потолок")
+
+	# Сохранение: множители едут с врагами.
+	var saved := SaveIO.run_to_dict(run)
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(saved)))
+	_check(loaded.planet.enemies.count == run.planet.enemies.count
+		and is_equal_approx(loaded.planet.enemies.power_health[strong], run.planet.enemies.power_health[strong]),
+		"сила врагов пережила сохранение")
+	_check(loaded.planet.threat.depth == 3, "глубина планеты тоже сохранилась")
+	loaded.dispose()
 	run.dispose()
 
 

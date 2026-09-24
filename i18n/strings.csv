@@ -174,6 +174,8 @@ ACTION_SELECT_AREA,Select area (hold),Выделение области (с за
 ACTION_DELETE_SELECTION,Demolish selection / hovered,Снести выделенное / под курсором
 ACTION_TAKE_BLUEPRINT,Take last blueprint,Взять последний чертёж
 ACTION_MOVE_SELECTION,Move selection,Перенести выделенное
+ACTION_CHAT,Chat,Чат
+CHAT_PLACEHOLDER,Message to teammates…,Сообщение напарникам…
 TOAST_NO_BLUEPRINT,No blueprint copied yet,Чертёж ещё не скопирован
 ACTION_COPY_SELECTION,Copy selection,Копировать выделенное
 HINT_AREA,Selected buildings: %d  ·  %s — demolish  ·  %s — copy  ·  %s — move  ·  %s or %s — clear selection,Выделено построек: %d  ·  %s — снести  ·  %s — копировать  ·  %s — перенести  ·  %s или %s — снять выделение
@@ -216,6 +218,7 @@ TOAST_ITEMS_LOST,Items did not fit into the inventory and were lost: %d,Не п�
 TOAST_CANNOT_CRAFT,Not enough materials for «%s»,Не хватает материалов для «%s»
 INVENTORY_TITLE,Inventory,Инвентарь
 INVENTORY_SLOTS,%d / %d slots,ячеек: %d / %d
+INVENTORY_STYLE,Your drone: colour and badge,Ваш дрон: цвет и значок
 INVENTORY_HINT,"Click a building item to take it in hand. With a storage or factory open: LMB — put a stack, RMB — half, Shift+LMB — all of this item.","Клик по постройке — взять в руку. При открытом складе или заводе: ЛКМ — положить стопку, ПКМ — половину, Shift+ЛКМ — все такие предметы."
 CRAFT_TITLE,Crafting,Крафт
 CRAFT_HINT,"LMB — craft 1, RMB — 5, Shift+LMB — as many as possible. Missing parts are crafted automatically.","ЛКМ — скрафтить 1, ПКМ — 5, Shift+ЛКМ — сколько хватит. Недостающие детали крафтятся автоматически."
@@ -307,6 +310,7 @@ ENEMY_BRUTE,Brute,Громила
 THREAT_FIRST_WAVE,First wave in %s,Первая волна через %s
 THREAT_NEXT_WAVE,Wave %d in %s,Волна %d через %s
 THREAT_WAVE_ACTIVE,Wave %d is coming,Идёт волна %d
+THREAT_POWER,"enemy power: ×%.1f health, ×%.1f damage","сила врагов: ×%.1f прочности, ×%.1f урона"
 THREAT_CONTINUOUS,Endless assault · wave %d,Непрерывная атака · волна %d
 THREAT_GATEWAY,Gateway: %d / %d,Шлюз: %d / %d
 TOAST_WAVE_WARNING,Wave %d in %d seconds!,Волна %d через %d с!

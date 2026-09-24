@@ -108,6 +108,10 @@ var blocker := PackedInt32Array()
 var next_tile := PackedInt32Array()
 var path_version := PackedInt32Array()
 ## Горение: урон в секунду и тик окончания.
+## Во сколько раз этот враг крепче и больнее обычного: считается при рождении по номеру волны
+## и глубине звёздной карты (ThreatDef), дальше едет с ним и сохраняется.
+var power_health := PackedFloat32Array()
+var power_damage := PackedFloat32Array()
 var burn_dps := PackedFloat32Array()
 var burn_until := PackedInt32Array()
 
@@ -220,7 +224,14 @@ func spawn(def: EnemyDef, position: Vector2, tick: int, squad_id: int = 0, squad
 	prev_x[i] = position.x
 	prev_y[i] = position.y
 	facing[i] = 0.0
-	health[i] = def.health
+	var scale_health := 1.0
+	var scale_damage := 1.0
+	if _world != null and _world.threat != null:
+		scale_health = _world.threat.health_scale()
+		scale_damage = _world.threat.damage_scale()
+	power_health[i] = scale_health
+	power_damage[i] = scale_damage
+	health[i] = def.health * scale_health
 	next_attack[i] = tick + _interval[def.index]
 	target[i] = TARGET_NONE
 	squad[i] = squad_id
@@ -433,6 +444,8 @@ func remove_at(i: int) -> void:
 		blocker[i] = blocker[last]
 		next_tile[i] = next_tile[last]
 		path_version[i] = path_version[last]
+		power_health[i] = power_health[last]
+		power_damage[i] = power_damage[last]
 		burn_dps[i] = burn_dps[last]
 		burn_until[i] = burn_until[last]
 	count -= 1
@@ -673,7 +686,7 @@ func update(tick: int) -> void:
 			if drone_ok and ddx * ddx + ddy * ddy <= drone_reach * drone_reach:
 				next_attack[i] = tick + _interval[type]
 				_push_event(x, y, drone.position.x, drone.position.y, tick, type)
-				world.damage_drone(drone, _damage[type], tick)
+				world.damage_drone(drone, _damage[type] * power_damage[i], tick)
 				if not drone.is_targetable(tick):
 					live.erase(drone)
 					drone_ok = not live.is_empty()
@@ -690,7 +703,7 @@ func update(tick: int) -> void:
 		if (cx - x) * (cx - x) + (cy - y) * (cy - y) <= reach * reach:
 			next_attack[i] = tick + _interval[type]
 			_push_event(x, y, cx, cy, tick, type)
-			world.damage_building(b, _damage[type])
+			world.damage_building(b, _damage[type] * power_damage[i])
 		elif block != tg:
 			target[i] = TARGET_NONE
 
@@ -946,6 +959,8 @@ func _ensure_capacity(wanted: int) -> void:
 	blocker.resize(_capacity)
 	next_tile.resize(_capacity)
 	path_version.resize(_capacity)
+	power_health.resize(_capacity)
+	power_damage.resize(_capacity)
 	burn_dps.resize(_capacity)
 	burn_until.resize(_capacity)
 	_cell_next.resize(_capacity)
@@ -966,6 +981,7 @@ func save_data() -> Dictionary:
 		"blocker": blocker.slice(0, count), "next_tile": next_tile.slice(0, count),
 		"path_version": path_version.slice(0, count),
 		"burn_dps": burn_dps.slice(0, count), "burn_until": burn_until.slice(0, count),
+		"power_health": power_health.slice(0, count), "power_damage": power_damage.slice(0, count),
 	}
 
 
@@ -993,6 +1009,8 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 	var s_blocker: PackedInt32Array = data.get("blocker", PackedInt32Array())
 	var s_next: PackedInt32Array = data.get("next_tile", PackedInt32Array())
 	var s_version: PackedInt32Array = data.get("path_version", PackedInt32Array())
+	var s_power_health: PackedFloat32Array = data.get("power_health", PackedFloat32Array())
+	var s_power_damage: PackedFloat32Array = data.get("power_damage", PackedFloat32Array())
 	var s_burn_dps: PackedFloat32Array = data.get("burn_dps", PackedFloat32Array())
 	var s_burn_until: PackedInt32Array = data.get("burn_until", PackedInt32Array())
 	for k in [s_uid.size(), s_types.size(), s_px.size(), s_py.size(), s_prx.size(), s_pry.size(), s_facing.size(),
@@ -1025,5 +1043,8 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 		blocker[i] = s_blocker[j]
 		next_tile[i] = s_next[j]
 		path_version[i] = s_version[j]
+		# В старых сохранениях силы нет — там все враги были обычными.
+		power_health[i] = s_power_health[j] if j < s_power_health.size() else 1.0
+		power_damage[i] = s_power_damage[j] if j < s_power_damage.size() else 1.0
 		burn_dps[i] = s_burn_dps[j] if j < s_burn_dps.size() else 0.0
 		burn_until[i] = s_burn_until[j] if j < s_burn_until.size() else 0

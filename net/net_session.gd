@@ -26,6 +26,8 @@ enum Role { OFFLINE, HOST, CLIENT }
 signal state_changed
 ## Событие для интерфейса: кто-то вошёл, вышел, расхождение, ошибка.
 signal notice(text: String)
+## Пришло сообщение в чат: id игрока и текст. Сообщения идут мимо тиков и на мир не влияют.
+signal chat_received(player_id: int, text: String)
 ## Клиенту пришёл снимок мира: забег нужно заменить этим.
 signal run_replaced(run: Run)
 ## Пришло общее состояние времени: пауза и скорость.
@@ -74,6 +76,9 @@ var cursors: Dictionary[int, Dictionary] = {}
 var _cursor_sent_msec: int = 0
 ## Этаж, на котором в последний раз показали свой курсор (0 — планета, 1 — база, 2 — добыча).
 var _cursor_sent_base: int = -1
+## Что было в руках и в выделении в тот момент.
+var _cursor_sent_selection := Rect2i()
+var _cursor_sent_plan := Rect2i()
 
 ## Клиент: когда началось подключение (мс) — чтобы не ждать мир хоста вечно.
 var _join_started_msec: int = 0
@@ -574,21 +579,65 @@ func _args_brief(cmd: Command) -> String:
 
 
 ## Показать напарникам, где мой курсор. Шлётся не чаще CURSOR_EVERY_MS и только в сетевой игре.
-func send_cursor(pos: Vector2, floor_level: int) -> void:
+## Вместе с курсором летят выделение и рамка чертежа в руке: напарник видит, что вы собираетесь
+## снести или поставить, раньше, чем это случится.
+func send_cursor(pos: Vector2, floor_level: int, selection: Rect2i = Rect2i(), plan: Rect2i = Rect2i()) -> void:
 	if role == Role.OFFLINE or transport == null or run == null:
 		return
 	var now := Time.get_ticks_msec()
-	# Переход между этажами шлём сразу: иначе курсор напарника ещё десятую секунды
-	# висит там, где его уже нет.
-	if now - _cursor_sent_msec < NetProtocol.CURSOR_EVERY_MS and floor_level == _cursor_sent_base:
+	# Переход между этажами и смену выделения шлём сразу: иначе курсор и рамки напарника ещё
+	# десятую секунды висят там, где их уже нет.
+	var same := floor_level == _cursor_sent_base and selection == _cursor_sent_selection \
+		and plan == _cursor_sent_plan
+	if now - _cursor_sent_msec < NetProtocol.CURSOR_EVERY_MS and same:
 		return
 	_cursor_sent_msec = now
 	_cursor_sent_base = floor_level
-	var body := {"i": run.local_player, "x": pos.x, "y": pos.y, "b": floor_level}
+	_cursor_sent_selection = selection
+	_cursor_sent_plan = plan
+	var body := {"i": run.local_player, "x": pos.x, "y": pos.y, "b": floor_level,
+		"s": selection, "p": plan}
 	if role == Role.HOST:
 		transport.broadcast(NetProtocol.pack(NetProtocol.Kind.CURSOR, body))
 	else:
 		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.CURSOR, body))
+
+
+## Отправить сообщение в чат. Пустые и слишком длинные приводятся в порядок здесь же.
+func send_chat(text: String) -> void:
+	var clean := text.strip_edges().substr(0, NetProtocol.CHAT_LIMIT)
+	if clean.is_empty() or run == null:
+		return
+	if role == Role.OFFLINE or transport == null:
+		# В одиночной игре чат — просто эхо самому себе: пусть работает и так.
+		chat_received.emit(run.local_player, clean)
+		return
+	var body := {"i": run.local_player, "t": clean}
+	if role == Role.HOST:
+		transport.broadcast(NetProtocol.pack(NetProtocol.Kind.CHAT, body))
+	else:
+		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.CHAT, body))
+	chat_received.emit(run.local_player, clean)
+
+
+## Выделения и чертежи напарников на этом этаже: id игрока → {"sel": Rect2i, "plan": Rect2i}.
+func marks_in(floor_level: int) -> Dictionary[int, Dictionary]:
+	var out: Dictionary[int, Dictionary] = {}
+	if run == null:
+		return out
+	var now := Time.get_ticks_msec()
+	for id in cursors:
+		var entry: Dictionary = cursors[id]
+		if id == run.local_player or int(entry.get("b", 0)) != floor_level:
+			continue
+		if now - int(entry["at"]) > NetProtocol.CURSOR_STALE_MS:
+			continue
+		var selection: Rect2i = entry.get("sel", Rect2i())
+		var plan: Rect2i = entry.get("plan", Rect2i())
+		if selection.size == Vector2i.ZERO and plan.size == Vector2i.ZERO:
+			continue
+		out[int(id)] = {"sel": selection, "plan": plan}
+	return out
 
 
 ## Курсоры напарников в нужном мире: id игрока → положение. Устаревшие не отдаём.
@@ -707,7 +756,18 @@ func _on_packet(peer_id: int, data: PackedByteArray) -> void:
 					return
 				transport.broadcast(data)
 			cursors[who] = {"pos": Vector2(float(message.get("x", 0.0)), float(message.get("y", 0.0))),
-				"b": bool(message.get("b", false)), "at": Time.get_ticks_msec()}
+				"b": int(message.get("b", 0)), "sel": message.get("s", Rect2i()), "plan": message.get("p", Rect2i()),
+				"at": Time.get_ticks_msec()}
+		NetProtocol.Kind.CHAT:
+			var sender := int(message.get("i", 0))
+			# Хост верит только тому игроку, который выдан этому участнику, и пересказывает остальным.
+			if role == Role.HOST:
+				if sender != int((_peers.get(peer_id, {}) as Dictionary).get("player", -1)):
+					return
+				transport.broadcast(data)
+			var text := String(message.get("t", "")).substr(0, NetProtocol.CHAT_LIMIT)
+			if not text.is_empty():
+				chat_received.emit(sender, text)
 		NetProtocol.Kind.BYE:
 			NetLog.write("сессия", "участник %d попрощался" % peer_id)
 			if role == Role.HOST:

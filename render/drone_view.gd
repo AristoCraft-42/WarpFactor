@@ -337,3 +337,49 @@ func _draw_body(pos: Vector2, player: Player) -> void:
 		draw_polyline(outline, player.color.lightened(0.35), 2.0)
 		draw_circle(Vector2(r * 0.15, 0), 3.5, Color(0.2, 0.9, 1.0))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# Значок игрока рисуется поверх корпуса и не крутится вместе с ним: по нему в общей свалке
+	# сразу видно, где чей дрон.
+	draw_player_icon(self, pos, player.icon, player.color.lightened(0.55), 5.0)
+
+
+## Значок игрока: кружок, треугольник, квадрат, ромб, крест или звезда.
+static func draw_player_icon(canvas: CanvasItem, at: Vector2, icon: int, color: Color, radius: float) -> void:
+	var dark := Color(0.08, 0.09, 0.1, 0.85)
+	match posmod(icon, Player.ICONS):
+		0:
+			canvas.draw_circle(at, radius + 1.0, dark)
+			canvas.draw_circle(at, radius, color)
+		1:
+			canvas.draw_colored_polygon(_shape_points(at, radius + 1.0, 3, -PI * 0.5), dark)
+			canvas.draw_colored_polygon(_shape_points(at, radius, 3, -PI * 0.5), color)
+		2:
+			canvas.draw_rect(Rect2(at - Vector2.ONE * (radius + 1.0), Vector2.ONE * (radius + 1.0) * 2.0), dark)
+			canvas.draw_rect(Rect2(at - Vector2.ONE * radius, Vector2.ONE * radius * 2.0), color)
+		3:
+			canvas.draw_colored_polygon(_shape_points(at, radius + 1.5, 4, 0.0), dark)
+			canvas.draw_colored_polygon(_shape_points(at, radius + 0.5, 4, 0.0), color)
+		4:
+			for offset in [Vector2(1, 0), Vector2(0, 1)]:
+				var arm: Vector2 = offset * (radius + 1.0)
+				canvas.draw_line(at - arm, at + arm, dark, 4.0)
+				canvas.draw_line(at - arm * 0.9, at + arm * 0.9, color, 2.0)
+		_:
+			canvas.draw_colored_polygon(_star_points(at, radius + 1.0, (radius + 1.0) * 0.45), dark)
+			canvas.draw_colored_polygon(_star_points(at, radius, radius * 0.45), color)
+
+
+static func _shape_points(at: Vector2, radius: float, sides: int, rotation: float) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for i in sides:
+		var angle := rotation + TAU * i / sides
+		points.append(at + Vector2(cos(angle), sin(angle)) * radius)
+	return points
+
+
+static func _star_points(at: Vector2, outer: float, inner: float) -> PackedVector2Array:
+	var points := PackedVector2Array()
+	for i in 10:
+		var angle := -PI * 0.5 + TAU * i / 10.0
+		var r := outer if i % 2 == 0 else inner
+		points.append(at + Vector2(cos(angle), sin(angle)) * r)
+	return points

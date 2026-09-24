@@ -32,6 +32,7 @@ var _ghosts: Array[Ghost] = []
 var _area_rect: Rect2i = Rect2i()
 var _area_targets: Array[Building] = []
 var _hover: Building
+var _remote_marks: Array = []
 var _selected: Building
 ## Сетевая игра: поставленное, но ещё не построенное — команда идёт до хоста и обратно
 ## сотни миллисекунд, и без отметки клик выглядит так, будто не сработал.
@@ -80,6 +81,16 @@ func set_ghosts(ghosts: Array[Ghost]) -> void:
 	queue_redraw()
 
 
+## Рамки напарников: [{"rect": Rect2i, "plan": Rect2i, "color": Color, "name": String}].
+## Их присылает сессия вместе с курсорами — по ним видно, что напарник сейчас выделил
+## и что держит в руке.
+func set_remote_marks(marks: Array) -> void:
+	if marks == _remote_marks:
+		return
+	_remote_marks = marks
+	queue_redraw()
+
+
 func set_area(rect: Rect2i, targets: Array[Building]) -> void:
 	if rect == _area_rect and targets == _area_targets:
 		return
@@ -111,6 +122,7 @@ func clear() -> void:
 
 func _draw() -> void:
 	var t := float(GameConst.TILE_SIZE)
+	_draw_remote_marks(t)
 
 	if _hover != null and _hover.id != 0 and _ghosts.is_empty() and _area_rect.size == Vector2i.ZERO:
 		draw_rect(_hover.get_world_rect().grow(1.0), COLOR_HOVER, false, 2.0)
@@ -189,6 +201,25 @@ func _draw() -> void:
 
 
 ## Дальность моста: тайлы по четырём направлениям, мосты-кандидаты обведены.
+## Выделение и чертёж напарника: пунктир его цветом с подписью.
+func _draw_remote_marks(t: float) -> void:
+	var font := ThemeDB.fallback_font
+	for mark in _remote_marks:
+		var color: Color = mark.get("color", Color.WHITE)
+		for key in ["rect", "plan"]:
+			var tiles: Rect2i = mark.get(key, Rect2i())
+			if tiles.size == Vector2i.ZERO:
+				continue
+			var rect := Rect2(Vector2(tiles.position) * t, Vector2(tiles.size) * t)
+			draw_rect(rect, Color(color, 0.10), true)
+			draw_rect(rect, Color(color, 0.9), false, 2.0)
+			if font != null and key == "rect":
+				var text: String = mark.get("name", "")
+				draw_string_outline(font, rect.position + Vector2(2, -6), text, HORIZONTAL_ALIGNMENT_LEFT,
+					-1, 12, 4, Color(0, 0, 0, 0.85))
+				draw_string(font, rect.position + Vector2(2, -6), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, color)
+
+
 func _draw_bridge_range(bridge: BridgeConveyor) -> void:
 	if bridge.world == null:
 		return

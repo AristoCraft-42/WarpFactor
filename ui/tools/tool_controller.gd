@@ -762,6 +762,20 @@ func _update_paste_ghosts(tile: Vector2i) -> void:
 	_set_ghosts(ghosts)
 
 
+## Рамки, которые видят напарники: выделенная область и то, что сейчас в руке (план или призраки).
+func shared_selection() -> Rect2i:
+	return area_rect if has_area() else Rect2i()
+
+
+func shared_plan() -> Rect2i:
+	if _ghosts.is_empty():
+		return Rect2i()
+	var bounds := Rect2i(_ghosts[0].origin, Vector2i.ONE * _ghosts[0].def.size)
+	for g in _ghosts:
+		bounds = bounds.merge(Rect2i(g.origin, Vector2i.ONE * g.def.size))
+	return bounds
+
+
 func _set_ghosts(ghosts: Array[PlacementPreview.Ghost]) -> void:
 	_ghosts = ghosts
 	_preview.set_ghosts(ghosts)

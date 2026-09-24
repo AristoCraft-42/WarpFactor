@@ -322,7 +322,9 @@ static func _players_from_array(run: Run, entries: Array) -> void:
 		var world := run.world_of_floor(int(data.get("floor", 1 if bool(data.get("in_base", false)) else 0)))
 		var drone := Drone.new(Registry.drone_def, world, Vector2.ZERO)
 		drone.load_data(data.get("drone", {}))
-		run._register_player(String(data.get("name", "")), drone, int(data.get("id", 0)))
+		var player := run._register_player(String(data.get("name", "")), drone, int(data.get("id", 0)))
+		if player != null and data.has("color"):
+			player.set_style(int(data.get("color", 0)), int(data.get("icon", 0)))
 	if run.players.is_empty():
 		# Сохранение без игроков (не должно случаться) — заводим одного, чтобы забег был играбелен.
 		var fallback := Drone.new(Registry.drone_def, run.planet, Vector2.ZERO)

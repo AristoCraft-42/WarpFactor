@@ -24,6 +24,17 @@ extends Resource
 ## Предупреждение до волны, секунд.
 @export var warning_seconds: float = 15.0
 
+@export_group("Сила")
+## Прочность и урон врага растут от номера волны и от глубины звёздной карты: та же порода
+## с каждой волной крепче и больнее бьёт. Множитель считается при рождении и едет с врагом.
+@export var health_per_wave: float = 0.05
+@export var health_per_depth: float = 0.2
+@export var damage_per_wave: float = 0.035
+@export var damage_per_depth: float = 0.15
+## Выше этих множителей сила не растёт.
+@export var max_health_scale: float = 6.0
+@export var max_damage_scale: float = 4.0
+
 @export_group("Бюджет")
 ## Очки угрозы первой волны, прирост за волну и за минуту на планете.
 @export var budget_base: float = 6.0
@@ -66,3 +77,13 @@ func get_spawn_ticks(wave: int) -> int:
 ## Бюджет волны: номер с 1, минуты на планете к её началу.
 func get_budget(wave: int, minutes: float) -> float:
 	return budget_base + budget_per_wave * maxi(wave - 1, 0) + budget_per_minute * maxf(minutes, 0.0)
+
+
+## Во сколько раз крепче враги волны wave на глубине depth звёздной карты.
+func get_health_scale(wave: int, depth: int) -> float:
+	return minf(1.0 + health_per_wave * maxi(wave - 1, 0) + health_per_depth * maxi(depth, 0), max_health_scale)
+
+
+## Во сколько раз больнее они бьют.
+func get_damage_scale(wave: int, depth: int) -> float:
+	return minf(1.0 + damage_per_wave * maxi(wave - 1, 0) + damage_per_depth * maxi(depth, 0), max_damage_scale)

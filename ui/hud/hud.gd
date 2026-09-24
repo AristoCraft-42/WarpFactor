@@ -31,6 +31,7 @@ var research_window: ResearchWindow
 var _drone_was_dead: bool = false
 var teleport_window: TeleportWindow
 var platform_window: PlatformWindow
+var chat_panel: ChatPanel
 var summary_window: SummaryWindow
 var _config_panel: ConfigPanel
 var _build_menu: BuildMenu
@@ -59,6 +60,7 @@ func setup(game: Game) -> void:
 	_root.add_child(alarm)
 	alarm.setup(game)
 	_build_toasts()
+	_build_chat()
 	_build_confirm()
 	var tooltip := BuildingTooltip.new()
 	_root.add_child(tooltip)
@@ -128,7 +130,7 @@ func toggle_debug() -> bool:
 ## Пока открыто модальное окно, дрон стоит и мир не строится: у пульта платформы WASD
 ## двигают рамку наводки, а не дрона.
 func is_modal_open() -> bool:
-	return _confirm.visible or (platform_window != null and platform_window.is_open())
+	return _confirm.visible or (platform_window != null and platform_window.is_open()) 		or (chat_panel != null and chat_panel.is_typing())
 
 
 # --- Построение ---
@@ -366,6 +368,17 @@ func _build_inventory_window() -> void:
 	research_window = ResearchWindow.new()
 	_root.add_child(research_window)
 	research_window.setup(_game)
+
+
+## Чат: слева внизу, над подсказками. Открывается по Enter.
+func _build_chat() -> void:
+	chat_panel = ChatPanel.new()
+	chat_panel.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	chat_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	chat_panel.offset_left = 16
+	chat_panel.offset_bottom = -120
+	_root.add_child(chat_panel)
+	chat_panel.setup(_game)
 
 
 func _build_toasts() -> void:

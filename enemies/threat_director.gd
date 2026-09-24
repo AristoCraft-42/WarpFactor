@@ -17,6 +17,9 @@ var spawn_end_tick: int = 0
 var last_budget: float = 0.0
 var rng := RandomNumberGenerator.new()
 
+## Глубина звёздной карты, на которой стоит планета: чем дальше от старта, тем злее волны.
+var depth: int = 0
+
 var _world: GameWorld
 var _enemies: Array[EnemyDef] = []
 var _from_wave := PackedInt32Array()
@@ -29,6 +32,16 @@ var _queue_points := PackedInt32Array()
 var _queue_squads := PackedInt32Array()
 var _queue_moods := PackedInt32Array()
 var _queue_cursor: int = 0
+
+
+## Во сколько раз крепче враги текущей волны (считается при рождении каждого).
+func health_scale() -> float:
+	return def.get_health_scale(maxi(wave, 1), depth)
+
+
+## Во сколько раз больнее они бьют.
+func damage_scale() -> float:
+	return def.get_damage_scale(maxi(wave, 1), depth)
 
 
 func _init(world: GameWorld, p_def: ThreatDef, p_start_tick: int, seed_value: int) -> void:
@@ -189,7 +202,7 @@ func _compose(budget: float) -> PackedInt32Array:
 # --- Сохранение ---
 
 func save_data() -> Dictionary:
-	return {"start": start_tick, "wave": wave, "next": next_wave_tick, "spawn_end": spawn_end_tick,
+	return {"start": start_tick, "wave": wave, "next": next_wave_tick, "spawn_end": spawn_end_tick, "depth": depth,
 		"budget": last_budget, "rng_seed": rng.seed, "rng_state": rng.state,
 		"queue_ticks": _queue_ticks.slice(_queue_cursor), "queue_types": _queue_types.slice(_queue_cursor),
 		"queue_points": _queue_points.slice(_queue_cursor),
@@ -200,6 +213,7 @@ func save_data() -> Dictionary:
 func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 	start_tick = int(data.get("start", start_tick))
 	wave = int(data.get("wave", 0))
+	depth = int(data.get("depth", depth))
 	next_wave_tick = int(data.get("next", next_wave_tick))
 	spawn_end_tick = int(data.get("spawn_end", 0))
 	last_budget = float(data.get("budget", 0.0))

@@ -142,6 +142,9 @@ func refresh() -> void:
 		color = UiTheme.RED if threat.is_warning(tick) else UiTheme.YELLOW
 	_wave_label.add_theme_color_override("font_color", color)
 	_enemies_label.text = tr("THREAT_ENEMIES_KILLED") % [planet.enemies.count, planet.enemies.killed]
+	# С каждой волной и с каждым шагом по звёздной карте враги крепче и бьют больнее.
+	if threat.health_scale() > 1.01 or threat.damage_scale() > 1.01:
+		_enemies_label.text += "  ·  " + tr("THREAT_POWER") % [threat.health_scale(), threat.damage_scale()]
 	_enemies_label.visible = planet.enemies.count > 0 or threat.wave > 0
 
 	var gate := planet.gateway

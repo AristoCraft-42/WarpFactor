@@ -42,6 +42,7 @@ static func definitions() -> Array[Dictionary]:
 		{"name": &"copy_selection", "label": "ACTION_COPY_SELECTION", "group": GROUP_BUILD, "events": ["key:C"]},
 		{"name": &"take_blueprint", "label": "ACTION_TAKE_BLUEPRINT", "group": GROUP_BUILD, "events": ["key:V"]},
 		{"name": &"move_selection", "label": "ACTION_MOVE_SELECTION", "group": GROUP_BUILD, "events": ["key:M"]},
+		{"name": &"chat", "label": "ACTION_CHAT", "group": GROUP_GAME, "events": ["key:Enter", "key:KpEnter"]},
 		{"name": &"cancel", "label": "ACTION_CANCEL", "group": GROUP_BUILD, "events": ["key:Escape"]},
 
 		{"name": &"quick_save", "label": "ACTION_QUICK_SAVE", "group": GROUP_GAME, "events": ["key:F5"]},

@@ -283,6 +283,20 @@ func _on_net_notice(text: String) -> void:
 	Events.toast(text, Events.ToastKind.INFO)
 
 
+## Выделения и чертежи напарников на этом этаже — в превью, каждому свой цвет.
+func _show_remote_marks() -> void:
+	var marks: Array = []
+	var shared := Session.net.marks_in(run.floor_of(world))
+	for id in shared:
+		var player := run.get_player(id)
+		if player == null:
+			continue
+		var entry: Dictionary = shared[id]
+		marks.append({"rect": entry.get("sel", Rect2i()), "plan": entry.get("plan", Rect2i()),
+			"color": player.color, "name": player.name})
+	preview.set_remote_marks(marks)
+
+
 ## Можно ли считать очередной тик: в сетевой игре клиент ждёт список команд от хоста.
 ## Заодно забираем пришедшие пакеты — так ожидание короче ровно на один кадр.
 func _net_can_step() -> bool:
@@ -443,6 +457,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		else:
 			Events.toast(tr("TOAST_PLAYER_ALONE"), Events.ToastKind.INFO)
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("chat"):
+		# Enter открывает строку чата, а пока она открыта — управление дроном выключено.
+		if hud.chat_panel.is_typing():
+			hud.chat_panel.close_input()
+		else:
+			hud.chat_panel.open_input()
+		_update_input_enabled()
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_debug"):
 		if not run.cheats_allowed():
 			get_viewport().set_input_as_handled()
@@ -459,7 +481,9 @@ func _process(_delta: float) -> void:
 	if tools == null:
 		return
 	if Session.net.is_networked():
-		Session.net.send_cursor(camera.get_mouse_world(), run.floor_of(world))
+		Session.net.send_cursor(camera.get_mouse_world(), run.floor_of(world),
+			tools.shared_selection(), tools.shared_plan())
+		_show_remote_marks()
 	if Session.net.is_networked() and Time.get_ticks_msec() - _last_log_msec > 5000:
 		_last_log_msec = Time.get_ticks_msec()
 		_log_state()
