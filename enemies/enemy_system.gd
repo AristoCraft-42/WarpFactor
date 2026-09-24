@@ -30,6 +30,8 @@ const CHARGE_TILES := 14.0
 ## Медленнее этой доли своей скорости ждущий не идёт: даже с самым медлительным в стае
 ## остальные не должны вставать намертво.
 const WAIT_FLOOR := 0.3
+## А вот тот, кто ушёл вдвое дальше поводка, останавливается почти совсем.
+const WAIT_STOP := 0.05
 ## Поводок стаи: дальше этого от замыкающего вырвавшийся вперёд не уходит (тайлы).
 const PACK_LEASH := 5.0
 ## Проходящий рядом игрок перебивает любые планы: ближе этого враг бросается на него (тайлы).
@@ -43,6 +45,16 @@ const WANDER_SPEED := 0.035
 const WANDER_EVERY := 8
 ## Разброс личной скорости: ±15 %.
 const SPEED_SPREAD := 0.15
+## Своя дорожка: к цели каждый идёт со своим поперечным смещением (тайлы в каждую сторону).
+## Из-за него стая идёт полосой, а не колонной по одному следу.
+const LANE_TILES := 2.6
+## Рывки и передышки: раз в DASH_PERIOD тиков враг ускоряется на DASH_TICKS, а половина ещё
+## и замирает на PAUSE_TICKS — со стороны это выглядит живым роем, а не строем машин.
+const DASH_PERIOD := 210
+const DASH_TICKS := 24
+const DASH_SPEED := 1.4
+const PAUSE_TICKS := 12
+const PAUSE_SPEED := 0.12
 ## Охотник, который столько тиков не может сократить расстояние до дрона, бросает погоню.
 const CHASE_PATIENCE := 150
 ## Дальше этого охотник дрона не видит и идёт к шлюзу (тайлы).
@@ -83,6 +95,10 @@ var chase_ticks := PackedInt32Array()
 ## виляния и место стаи в сводке этого тика. Считать их каждый тик заново дорого при тысяче врагов.
 var _trait_speed := PackedFloat32Array()
 var _trait_phase := PackedFloat32Array()
+## Своя дорожка (пиксели поперёк пути) и склонность к передышкам — считаются при рождении:
+## в тике на тысячу врагов лишние вычисления стоят дороже, чем лишний массив.
+var _trait_lane := PackedFloat32Array()
+var _trait_pause := PackedByteArray()
 var _wander_turn := PackedFloat32Array()
 ## На какой момент посчитан поворот виляния: после загрузки он пересчитывается сам.
 var _wander_tick := PackedInt32Array()
@@ -125,6 +141,20 @@ var _damage := PackedFloat32Array()
 var _interval := PackedInt32Array()
 var _ranged := PackedByteArray()
 # Раздвигание толпы: списки врагов по тайлам.
+## Крупная сетка для поиска: у турели дальность в восемь тайлов, и по тайловой сетке она
+## перебирала бы сотни ячеек на каждый поиск цели. Клетка в QUERY_CELL тайлов — их десятки.
+const QUERY_CELL := 4
+## До какого радиуса (в тайлах) выгоднее тайловая сетка.
+const FINE_QUERY_TILES := 2.5
+var _query_head := PackedInt32Array()
+var _query_next := PackedInt32Array()
+var _query_w: int = 0
+var _query_h: int = 0
+var _query_valid: bool = false
+## Буферы поиска, чтобы не создавать массив на каждый запрос (их два: поиск и круг не вложены).
+var _near_scratch := PackedInt32Array()
+var _circle_scratch := PackedInt32Array()
+
 var _cell_head := PackedInt32Array()
 var _cell_next := PackedInt32Array()
 var _cells := PackedInt32Array()
@@ -205,6 +235,7 @@ func spawn(def: EnemyDef, position: Vector2, tick: int, squad_id: int = 0, squad
 	burn_until[i] = 0
 	spawned += 1
 	_cells_valid = false
+	_query_valid = false
 	return i
 
 
@@ -261,7 +292,9 @@ func is_alive(i: int) -> bool:
 func find_nearest(x: float, y: float, max_range: float, min_range: float = 0.0) -> int:
 	if count == 0:
 		return -1
-	var candidates := _candidates(x, y, max_range)
+	_near_scratch.clear()
+	_collect_candidates(x, y, max_range, _near_scratch)
+	var candidates := _near_scratch
 	var best := -1
 	var best_d := INF
 	for i in candidates:
@@ -276,36 +309,64 @@ func find_nearest(x: float, y: float, max_range: float, min_range: float = 0.0) 
 func query_circle(x: float, y: float, radius: float, out: PackedInt32Array) -> void:
 	if count == 0:
 		return
-	for i in _candidates(x, y, radius):
+	_circle_scratch.clear()
+	_collect_candidates(x, y, radius, _circle_scratch)
+	for i in _circle_scratch:
 		if health[i] > 0.0 and _body_distance(i, x, y) <= radius:
 			out.append(i)
 
 
-## Кандидаты рядом с точкой: все враги, если их мало, иначе — из списков тайлов в квадрате радиуса.
-func _candidates(x: float, y: float, radius: float) -> PackedInt32Array:
-	var result := PackedInt32Array()
+## Кандидаты рядом с точкой. Сетка выбирается по радиусу: для попадания пули (радиус меньше тайла)
+## тайловая сетка даёт девять клеток и почти никого лишнего, а для поиска цели турелью (восемь
+## тайлов) по ней пришлось бы перебрать сотни клеток — там выигрывает крупная.
+func _collect_candidates(x: float, y: float, radius: float, out: PackedInt32Array) -> void:
 	var t := float(GameConst.TILE_SIZE)
-	var span := ceili(radius / t) + 1
+	var fine := radius <= t * FINE_QUERY_TILES
+	var cell := t if fine else t * QUERY_CELL
+	var span := ceili(radius / cell) + 1
 	if count <= (span * 2 + 1) * (span * 2 + 1):
-		result.resize(count)
+		out.resize(count)
 		for i in count:
-			result[i] = i
-		return result
-	if not _cells_valid:
-		rebuild_cells()
-	var grid := _world.grid
-	var w := grid.width
-	var h := grid.height
-	var tx := int(x / t)
-	var ty := int(y / t)
+			out[i] = i
+		return
+	var w := _world.grid.width if fine else _query_w
+	var h := _world.grid.height if fine else _query_h
+	if fine:
+		if not _cells_valid:
+			rebuild_cells()
+	elif not _query_valid:
+		rebuild_query_cells()
+	var heads := _cell_head if fine else _query_head
+	var next := _cell_next if fine else _query_next
+	var tx := int(x / cell)
+	var ty := int(y / cell)
 	for cy in range(maxi(ty - span, 0), mini(ty + span, h - 1) + 1):
+		var row := cy * w
 		for cx in range(maxi(tx - span, 0), mini(tx + span, w - 1) + 1):
-			var j := _cell_head[cy * w + cx]
+			var j := heads[row + cx]
 			while j >= 0:
 				if j < count:
-					result.append(j)
-				j = _cell_next[j]
-	return result
+					out.append(j)
+				j = next[j]
+
+
+## Крупная сетка для поиска целей и попаданий: перестраивается раз в тик, как и тайловая.
+func rebuild_query_cells() -> void:
+	var grid := _world.grid
+	var cell := GameConst.TILE_SIZE * QUERY_CELL
+	_query_w = (grid.width + QUERY_CELL - 1) / QUERY_CELL
+	_query_h = (grid.height + QUERY_CELL - 1) / QUERY_CELL
+	if _query_head.size() != _query_w * _query_h:
+		_query_head.resize(_query_w * _query_h)
+	_query_head.fill(-1)
+	if _query_next.size() < _capacity:
+		_query_next.resize(_capacity)
+	var inv := 1.0 / float(cell)
+	for i in count:
+		var c := clampi(int(pos_y[i] * inv), 0, _query_h - 1) * _query_w + clampi(int(pos_x[i] * inv), 0, _query_w - 1)
+		_query_next[i] = _query_head[c]
+		_query_head[c] = i
+	_query_valid = true
 
 
 ## Расстояние от точки до края тела врага (0 — внутри).
@@ -365,6 +426,8 @@ func remove_at(i: int) -> void:
 		chase_ticks[i] = chase_ticks[last]
 		_trait_speed[i] = _trait_speed[last]
 		_trait_phase[i] = _trait_phase[last]
+		_trait_lane[i] = _trait_lane[last]
+		_trait_pause[i] = _trait_pause[last]
 		_wander_turn[i] = _wander_turn[last]
 		_wander_tick[i] = _wander_tick[last]
 		blocker[i] = blocker[last]
@@ -374,11 +437,13 @@ func remove_at(i: int) -> void:
 		burn_until[i] = burn_until[last]
 	count -= 1
 	_cells_valid = false
+	_query_valid = false
 
 
 func clear() -> void:
 	count = 0
 	_cells_valid = false
+	_query_valid = false
 
 
 # --- Тик ---
@@ -498,6 +563,16 @@ func update(tick: int) -> void:
 						has_goal = false
 						facing[i] = atan2(ady, adx)
 
+		# Своя дорожка: цель сдвигается поперёк пути, у каждого по-своему. Охотник бежит прямо
+		# на жертву — ему вилять незачем.
+		if has_goal and not hunting:
+			var lane := _trait_lane[i]
+			var ldx := goal_x - x
+			var ldy := goal_y - y
+			var llen := sqrt(ldx * ldx + ldy * ldy)
+			if llen > t * 0.5:
+				goal_x += -ldy / llen * lane
+				goal_y += ldx / llen * lane
 		if has_goal:
 			var vx := goal_x - x
 			var vy := goal_y - y
@@ -514,7 +589,7 @@ func update(tick: int) -> void:
 					vy = vx * sn + vy * cs
 					vx = rx
 				facing[i] = atan2(vy, vx)
-				var step := _speed[type] * speed_scale(i)
+				var step := _speed[type] * speed_scale(i) * pace_scale(i, tick)
 				# Стая идёт вместе: тот, кто вырвался вперёд, придерживает шаг, пока остальные
 				# не подтянутся. У самой цели все бегут в полную силу — тут скорость и решает.
 				if not hunting:
@@ -524,9 +599,14 @@ func update(tick: int) -> void:
 						var leash := PACK_LEASH * (0.6 + 0.8 * trait01(uid[i], 3))
 						var rear: float = _sq_max_dist[slot]
 						var mine: float = float(dist[tile]) if dist[tile] < FlowField.INF else rear
-						if mine < rear - leash:
+						if mine < rear - leash * 2.0:
+							# Ушёл слишком далеко — стоит и ждёт своих.
+							step = minf(step, _speed[type] * WAIT_STOP)
+						elif mine < rear - leash:
 							# Оторвался от замыкающего — идёт со скоростью самого медленного в стае.
 							step = minf(step, maxf(_sq_min_speed[slot], step * WAIT_FLOOR))
+				# Шаг не длиннее остатка пути: быстрый враг не проскакивает цель и не дрожит у неё.
+				step = minf(step, length)
 				var nx := clampf(x + vx * step, 0.5, max_x)
 				var ny := clampf(y + vy * step, 0.5, max_y)
 				var lt := _tile_at(nx + vx * radius, ny + vy * radius, w, h, inv_t)
@@ -536,7 +616,21 @@ func update(tick: int) -> void:
 				else:
 					var ahead_building := blocked[lt] == FlowField.SOLID
 					var path_blocked := nt >= 0 and blocked[nt] != FlowField.OPEN
-					if ahead_building and (path_blocked or nt < 0):
+					# Целый шаг не влез — пробуем короче: иначе быстрый враг встаёт в полутайле
+					# от стены и до неё не дотягивается.
+					var fitted := false
+					for fraction in [0.5]:
+						var fx := clampf(x + vx * step * fraction, 0.5, max_x)
+						var fy := clampf(y + vy * step * fraction, 0.5, max_y)
+						var ft := _tile_at(fx + vx * radius, fy + vy * radius, w, h, inv_t)
+						if ft < 0 or ft == tile or blocked[ft] == FlowField.OPEN:
+							x = fx
+							y = fy
+							fitted = true
+							break
+					if fitted:
+						pass
+					elif ahead_building and (path_blocked or nt < 0):
 						block = ids[lt]
 					else:
 						# Скольжение вдоль препятствия по одной из осей.
@@ -617,6 +711,8 @@ static func trait01(value: int, salt: int) -> float:
 func _set_traits(i: int) -> void:
 	_trait_speed[i] = 1.0 + (trait01(uid[i], 1) - 0.5) * 2.0 * SPEED_SPREAD
 	_trait_phase[i] = trait01(uid[i], 2) * TAU
+	_trait_lane[i] = (trait01(uid[i], 5) - 0.5) * 2.0 * LANE_TILES * GameConst.TILE_SIZE
+	_trait_pause[i] = 1 if trait01(uid[i], 7) > 0.5 else 0
 	_wander_turn[i] = 0.0
 	_wander_tick[i] = -1
 
@@ -624,6 +720,17 @@ func _set_traits(i: int) -> void:
 ## Личная скорость врага: ±SPEED_SPREAD от типовой, чтобы стая не шла одинаковым шагом.
 func speed_scale(i: int) -> float:
 	return _trait_speed[i]
+
+
+## Рывок или передышка: всё считается от номера врага и тика, без случайных чисел,
+## поэтому у всех участников сетевой игры рой ведёт себя одинаково.
+func pace_scale(i: int, tick: int) -> float:
+	var phase := posmod(tick + uid[i] * 37, DASH_PERIOD)
+	if phase < DASH_TICKS:
+		return DASH_SPEED
+	if phase < DASH_TICKS + PAUSE_TICKS and _trait_pause[i] == 1:
+		return PAUSE_SPEED
+	return 1.0
 
 
 ## Насколько враг отклоняется от прямого пути прямо сейчас (радианы): медленное виляние,
@@ -831,6 +938,8 @@ func _ensure_capacity(wanted: int) -> void:
 	chase_ticks.resize(_capacity)
 	_trait_speed.resize(_capacity)
 	_trait_phase.resize(_capacity)
+	_trait_lane.resize(_capacity)
+	_trait_pause.resize(_capacity)
 	_wander_turn.resize(_capacity)
 	_wander_tick.resize(_capacity)
 	_slot_of.resize(_capacity)

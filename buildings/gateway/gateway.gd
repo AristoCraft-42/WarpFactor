@@ -68,8 +68,19 @@ func items_enabled() -> bool:
 
 ## Сколько портов открыто на каждой стороне (1 + исследования «Порты шлюза», не больше стороны здания).
 func port_count() -> int:
-	var extra := world.research.count_effect(&"gateway_ports") if world != null and world.research != null else 0
-	return clampi(1 + extra, 1, get_size())
+	var steps := world.research.count_effect(&"gateway_ports") if world != null and world.research != null else 0
+	return clampi(GatewayDef.ports_for(steps), 1, get_size())
+
+
+## Номер порта, к которому примыкает сосед (−1 — сосед не у порта).
+func input_port_of(source: Building) -> int:
+	if source == null:
+		return -1
+	var tiles := get_input_tiles()
+	for k in tiles.size():
+		if source.occupies(tiles[k]):
+			return k
+	return -1
 
 
 ## Шлюз соединяет электросети этажей (исследование «Передача энергии»).
@@ -137,16 +148,13 @@ func load_state(state: Dictionary) -> void:
 func accept_item(source: Building, _item: int) -> bool:
 	if link == null or source == null or not items_enabled():
 		return false
-	var from_port := false
-	for tile in get_input_tiles():
-		if source.occupies(tile):
-			from_port = true
-			break
-	return from_port and link.size_of(not is_in_base()) < link.capacity * port_count()
+	var port := input_port_of(source)
+	return port >= 0 and link.has_space(not is_in_base(), port)
 
 
-func handle_item(_source: Building, item: int) -> void:
-	link.push(not is_in_base(), item)
+func handle_item(source: Building, item: int) -> void:
+	var port := maxi(input_port_of(source), 0)
+	link.push(not is_in_base(), port, item)
 	var other := link.other(self)
 	if other != null and other.world != null:
 		other.wake()
@@ -156,7 +164,7 @@ func update_tick(tick: int) -> bool:
 	if link == null:
 		return false
 	var to_base := is_in_base()
-	if link.size_of(to_base) == 0:
+	if link.total_of(to_base) == 0:
 		# Проснёмся, когда другая сторона положит предмет в очередь.
 		return false
 	if not items_enabled():
@@ -166,9 +174,10 @@ func update_tick(tick: int) -> bool:
 		_next_out.resize(tiles.size())
 	var soonest := 1 << 30
 	var gave := false
+	# У каждого порта своя очередь: k-й выход отдаёт то, что вошло в k-й вход.
 	for k in tiles.size():
-		if link.size_of(to_base) == 0:
-			break
+		if link.size_of(to_base, k) == 0:
+			continue
 		if tick < _next_out[k]:
 			soonest = mini(soonest, _next_out[k])
 			continue
@@ -176,11 +185,11 @@ func update_tick(tick: int) -> bool:
 		if target == null:
 			# Выхода нет — ждём, пока рядом что-нибудь построят (on_proximity_changed).
 			continue
-		var item := link.peek(to_base)
+		var item := link.peek(to_base, k)
 		if not target.accept_item(self, item):
 			wait_for(target)
 			continue
-		link.pop(to_base)
+		link.pop(to_base, k)
 		target.handle_item(self, item)
 		_next_out[k] = tick + get_throughput_ticks()
 		soonest = mini(soonest, _next_out[k])
@@ -190,7 +199,7 @@ func update_tick(tick: int) -> bool:
 		var other := link.other(self)
 		if other != null and other.world != null:
 			other.notify_space()
-	if link.size_of(to_base) > 0 and soonest < (1 << 30):
+	if link.total_of(to_base) > 0 and soonest < (1 << 30):
 		sleep_until(soonest)
 	return false
 
@@ -202,7 +211,7 @@ func get_info_lines() -> PackedStringArray:
 		return PackedStringArray([tr("INFO_GATEWAY_ITEMS_LOCKED") % tr(Registry.get_research(&"gateway_items").name_key)])
 	var limit := link.capacity * port_count()
 	return PackedStringArray([
-		tr("INFO_GATEWAY_TO_BASE") % [link.size_of(true), limit],
-		tr("INFO_GATEWAY_TO_PLANET") % [link.size_of(false), limit],
+		tr("INFO_GATEWAY_TO_BASE") % [link.total_of(true), limit],
+		tr("INFO_GATEWAY_TO_PLANET") % [link.total_of(false), limit],
 		tr("INFO_GATEWAY_PORTS") % port_count(),
 	])

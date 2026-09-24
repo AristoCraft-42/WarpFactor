@@ -12,6 +12,8 @@ var run_seed: int = -1
 var load_path: String = ""
 ## Творческий режим: постройки не расходуются, радиус дрона не ограничен.
 var creative: bool = false
+## Читы для нового забега (в творческом они и так есть).
+var cheats: bool = false
 ## Совместная игра: одна на всё приложение, переживает смену сцен.
 var net := NetSession.new()
 ## Показ своих действий до их применения (см. NetPredict): интерфейс читает его вместо мира.
@@ -180,20 +182,22 @@ func load_game(path: String) -> void:
 
 
 ## Новый забег: первая планета генерируется по сиду.
-func start_run(p_seed: int, p_creative: bool) -> void:
+func start_run(p_seed: int, p_creative: bool, p_cheats: bool = false) -> void:
 	load_path = ""
 	run_seed = p_seed
 	level = null
 	creative = p_creative
+	cheats = p_cheats
 	get_tree().paused = false
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 
-func start_level(level_def: LevelDef, p_creative: bool) -> void:
+func start_level(level_def: LevelDef, p_creative: bool, p_cheats: bool = false) -> void:
 	load_path = ""
 	level = level_def
 	run_seed = -1
 	creative = p_creative
+	cheats = p_cheats
 	get_tree().paused = false
 	get_tree().change_scene_to_file(GAME_SCENE)
 

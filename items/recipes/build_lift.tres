@@ -14,17 +14,17 @@
 [sub_resource type="Resource" id="in_0"]
 script = ExtResource("5_stack")
 item = ExtResource("item_iron_ingot")
-amount = 20
+amount = 30
 
 [sub_resource type="Resource" id="in_1"]
 script = ExtResource("5_stack")
 item = ExtResource("item_gear")
-amount = 10
+amount = 15
 
 [sub_resource type="Resource" id="in_2"]
 script = ExtResource("5_stack")
 item = ExtResource("item_resistor")
-amount = 4
+amount = 6
 
 [sub_resource type="Resource" id="consume_0"]
 script = ExtResource("3_consume_items")
@@ -46,4 +46,4 @@ sort_order = 380
 hand_craftable = false
 consumes = Array[ExtResource("2_consume")]([SubResource("consume_0")])
 produces = Array[ExtResource("4_produce")]([SubResource("produce_0")])
-craft_time = 4.0
+craft_time = 5.0

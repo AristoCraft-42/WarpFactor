@@ -93,7 +93,7 @@ func _ready() -> void:
 		if arg.begins_with("--seed="):
 			run_seed = arg.substr("--seed=".length()).to_int()
 	if run_seed >= 0:
-		run = Run.create_new(run_seed, Session.creative)
+		run = Run.create_new(run_seed, Session.creative, Session.cheats)
 		_start()
 		return
 
@@ -116,7 +116,7 @@ func _ready() -> void:
 		Session.exit_to_menu.call_deferred()
 		return
 
-	run = Run.create(level, map, Session.creative)
+	run = Run.create(level, map, Session.creative, Session.cheats)
 	_start()
 
 
@@ -411,10 +411,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		clock.set_speed_index(0)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("speed_2"):
-		clock.set_speed_index(1)
+		# Ускорение времени — чит: в обычном выживании его нет.
+		if run.cheats_allowed():
+			clock.set_speed_index(1)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("speed_3"):
-		clock.set_speed_index(2)
+		if run.cheats_allowed():
+			clock.set_speed_index(2)
 		get_viewport().set_input_as_handled()
 	elif _debug_enabled and event is InputEventKey and (event as InputEventKey).pressed and not (event as InputEventKey).echo \
 			and (event as InputEventKey).physical_keycode == KEY_N and run.planet.threat != null:
@@ -435,6 +438,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			Events.toast(tr("TOAST_PLAYER_ALONE"), Events.ToastKind.INFO)
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("toggle_debug"):
+		if not run.cheats_allowed():
+			get_viewport().set_input_as_handled()
+			return
 		_debug_enabled = hud.toggle_debug()
 		grid_overlay.set_chunk_lines_visible(_debug_enabled)
 		_update_grid_visibility()

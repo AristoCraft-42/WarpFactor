@@ -11,6 +11,16 @@ extends BuildingDef
 @export var outbound_side: int = GameConst.Dir.RIGHT
 ## Сколько предметов ждёт перехода в каждую сторону.
 @export var buffer_capacity: int = 10
+
+## Сколько портов бывает у шлюза: пара в начале и четыре после второй ступени исследования.
+## Число всегда чётное — иначе порты не встают симметрично на сторону.
+const START_PORTS := 2
+const MAX_PORTS := 4
+
+
+## Сколько портов открыто на steps ступенях исследования «Порты шлюза».
+static func ports_for(steps: int) -> int:
+	return MAX_PORTS if steps >= 2 else START_PORTS
 ## Сторона шлюза в начале забега и после «Портов шлюза II» (size в данных — наибольший из них).
 @export var start_size: int = 2
 @export var grown_size: int = 4

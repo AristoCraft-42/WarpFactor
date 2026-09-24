@@ -63,7 +63,9 @@ func update(tick: int) -> void:
 			break
 		var enemy := Registry.enemies[_queue_types[_queue_cursor]]
 		var point := points[_queue_points[_queue_cursor] % points.size()]
-		var offset := Vector2(rng.randf_range(-10.0, 10.0), rng.randf_range(-10.0, 10.0))
+		# Разброс места рождения в пару тайлов: волна с самого начала идёт роем, а не колонной.
+		var spread := GameConst.TILE_SIZE * 2.0
+		var offset := Vector2(rng.randf_range(-spread, spread), rng.randf_range(-spread, spread))
 		var squad_id: int = _queue_squads[_queue_cursor] if _queue_cursor < _queue_squads.size() else 0
 		var squad_mood: int = _queue_moods[_queue_cursor] if _queue_cursor < _queue_moods.size() else EnemySystem.Mood.GATE
 		enemies.spawn(enemy, Vector2(point) * t + Vector2.ONE * t * 0.5 + offset, tick, squad_id, squad_mood)

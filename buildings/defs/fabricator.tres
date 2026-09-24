@@ -82,4 +82,4 @@ recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_gear"), Ext
 recipe_mode = 2
 item_capacity = 30
 craft_speed = 2.0
-power_use = 160.0
+power_use = 225.0

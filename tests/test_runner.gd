@@ -72,6 +72,8 @@ func _ready() -> void:
 	_test_move_group()
 	_test_autobuild()
 	_test_mining_platform()
+	_test_cheats()
+	_test_warp_time_unlimited()
 	_test_save_roundtrip_and_determinism()
 	_test_save_remap()
 	_test_save_files()
@@ -208,8 +210,8 @@ func _test_registry() -> void:
 		% Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
 	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 39 and Registry.researches.size() == 65,
-		"39 рецептов и 65 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 39 and Registry.researches.size() == 67,
+		"39 рецептов и 67 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.center_max == 46 and Registry.base_def.start_size == 16
 		and Registry.base_def.size_step == 6 and Registry.base_def.size > Registry.base_def.center_max,
 		"параметры подземного этажа загружены (центр 16 → 46 шагами по 6, карта больше под комнаты)")
@@ -1374,7 +1376,8 @@ func _test_run_gateway() -> void:
 	run.base.buildings.remove(base_sink, true)
 	for i in 600:
 		run.step()
-	_check(run.link.size_of(true) == run.link.capacity * gate.port_count(), "без выхода очередь шлюза заполнена: по %d на порт (%d)" % [run.link.capacity, run.link.size_of(true)])
+	_check(run.link.total_of(true) == run.link.capacity,
+		"без выхода очередь порта заполнена: %d из %d" % [run.link.total_of(true), run.link.capacity])
 	base_sink = _sink(run.base, out_port + Vector2i(-2, 0))
 	for i in 300:
 		run.step()
@@ -1617,7 +1620,7 @@ func _test_teleport() -> void:
 	var outside := run.planet.buildings.place(Registry.get_building(&"container"), pad.position + Vector2i(-6, 0), 0, true) as StorageBuilding
 	outside.inventory.add(copper, 33)
 	run.planet.rotate_building(gate, 2)
-	run.link.push(true, copper)
+	run.link.push(true, 0, copper)
 	var in_base := run.base.buildings.place(Registry.get_building(&"container"), Vector2i(2, 2), 0, true) as StorageBuilding
 	in_base.inventory.add(copper, 11)
 	var old_planet := run.planet
@@ -1656,7 +1659,7 @@ func _test_teleport() -> void:
 	_check(moved_sorter != null and moved_sorter.get_display_item() == copper and moved_sorter.is_inverted(), "настройка сортировщика переехала")
 	var new_gate := run.get_gateway(run.planet)
 	_check(new_gate != null and new_gate.world == run.planet and new_gate.rotation == 2 and new_gate.link == run.link, "шлюз на новой планете с тем же поворотом и связью")
-	_check(run.link.size_of(true) == 1, "очередь шлюза сохранилась")
+	_check(run.link.total_of(true) == 1, "очередь шлюза сохранилась")
 	_check(in_base.world == run.base and in_base.inventory.count(copper) == 11, "база не изменилась")
 	_check(run.drone.world == run.planet and new_pad.has_point(run.drone.get_tile()), "дрон на площадке новой планеты")
 	var summary := run.last_summary
@@ -2221,7 +2224,7 @@ func _test_gateway_growth() -> void:
 	_check(steps > 0 and gate.get_size() == 4 and pair.get_size() == 4, "после всех «Портов шлюза» шлюз 4×4")
 	_check(gate.origin + Vector2i(2, 2) == center, "центр шлюза остался на месте")
 	_check(run.planet.buildings.get_at(gate.origin + Vector2i(3, 3)) == gate, "новые тайлы заняты шлюзом")
-	_check(gate.port_count() == 3, "открыто три порта")
+	_check(gate.port_count() == 4, "открыто четыре порта (%d)" % gate.port_count())
 	var tiles := gate.get_input_tiles()
 	var rect := gate.get_rect()
 	for tile in tiles:
@@ -4032,6 +4035,39 @@ func _test_mining_platform() -> void:
 	run.dispose()
 
 
+## Пятая ступень «Запаса хода» снимает срок пребывания на планете совсем.
+func _test_warp_time_unlimited() -> void:
+	var run := Run.create_new(99, false)
+	_check(run.has_time_limit(), "в начале забега срок на планете есть")
+	var steps := ResearchState.max_effect(&"planet_time")
+	_check(steps == 5, "у «Запаса хода» пять ступеней (%d)" % steps)
+	for i in range(1, steps + 1):
+		run.research.done[StringName("warp_time_%d" % i)] = true
+	run.apply_research_effects()
+	_check(not run.has_time_limit(), "после последней ступени на планете можно сидеть сколько угодно")
+	run.dispose()
+
+
+## Читы: ускорение времени и отладочный оверлей есть только в творческом забеге или когда
+## их включили при создании. Флажок живёт в сохранении вместе с забегом.
+func _test_cheats() -> void:
+	var plain := Run.create_new(7, false)
+	_check(not plain.cheats and not plain.cheats_allowed(), "в обычном забеге читов нет")
+	var cheated := Run.create_new(7, false, true)
+	_check(cheated.cheats_allowed(), "с флажком при создании читы включены")
+	var creative := Run.create_new(7, true)
+	_check(creative.cheats and creative.cheats_allowed(), "в творческом забеге читы есть всегда")
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(SaveIO.run_to_dict(cheated))))
+	_check(loaded.cheats_allowed(), "флажок читов пережил сохранение")
+	var loaded_plain := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(SaveIO.run_to_dict(plain))))
+	_check(not loaded_plain.cheats_allowed(), "а в обычном забеге он так и остался выключен")
+	plain.dispose()
+	cheated.dispose()
+	creative.dispose()
+	loaded.dispose()
+	loaded_plain.dispose()
+
+
 ## Сроки телепорта: после прибытия он заряжается 5 минут, а пробыть на планете можно 10 —
 ## дальше прыжок случается сам, как при прорыве. Ветка варп-платформы двигает оба срока.
 func _test_teleport_timers() -> void:
@@ -4239,6 +4275,29 @@ func _test_enemy_pack() -> void:
 	_check(charge_speed > march_speed * 1.3, "у цели быстрый идёт быстрее, чем на марше (%.2f против %.2f px за тик)"
 		% [charge_speed, march_speed])
 	run.dispose()
+
+	# Рой идёт полосой: десяток врагов из одной точки расходится поперёк пути, а не тянется колонной.
+	var crowd := _enemy_run()
+	var crowd_gate := crowd.planet.gateway.get_world_center()
+	var crowd_spot := crowd_gate + Vector2(-34, 0) * GameConst.TILE_SIZE
+	# Рождаются вразброс, как их выпускает волна.
+	for k in 10:
+		var jitter := Vector2(GameConst.TILE_SIZE * ((k % 5) - 2.0), GameConst.TILE_SIZE * ((k / 5) - 0.5))
+		crowd.planet.enemies.spawn(fast, crowd_spot + jitter, 0, 11, EnemySystem.Mood.GATE)
+	# Меряем на ходу: у самого шлюза рой и должен сжиматься в кучу.
+	for i in 90:
+		crowd.step()
+	var forward := (crowd_gate - crowd_spot).normalized()
+	var across := Vector2(-forward.y, forward.x)
+	var lo := INF
+	var hi := -INF
+	for k in crowd.planet.enemies.count:
+		var offset := crowd.planet.enemies.get_position(k).dot(across)
+		lo = minf(lo, offset)
+		hi = maxf(hi, offset)
+	var band := (hi - lo) / GameConst.TILE_SIZE
+	_check(band > 3.0, "рой идёт полосой в %.1f тайла, а не колонной" % band)
+	crowd.dispose()
 
 	# Виляние у каждого своё: два врага одной породы из одной точки расходятся в стороны.
 	var twins := _enemy_run()
@@ -5390,24 +5449,23 @@ func _test_research_effects_and_floors() -> void:
 	creative.dispose()
 
 
-## Шлюз: передача предметов закрыта исследованием, «Порты шлюза» добавляют вход и выход.
+## Шлюз: передача предметов закрыта исследованием; портов всегда чётное число (пара в начале,
+## четыре после второй ступени), и что вошло в k-й вход, выходит из k-го выхода на другом этаже.
 func _test_gateway_ports() -> void:
 	var run := _floors_run([&"underground"])
 	var gate := run.get_gateway(run.planet)
 	var pair := run.get_gateway(run.base)
 	var hematite := _item(&"hematite")
-	var inputs := gate.get_gateway_def().get_port_tiles(gate.origin, gate.get_size(), gate.get_input_side(), 2)
-	var outputs := pair.get_gateway_def().get_port_tiles(pair.origin, pair.get_size(), pair.get_output_side(), 2)
+	var lead := _item(&"stone")
+	_check(gate.port_count() == 2, "в начале забега у шлюза пара портов (%d)" % gate.port_count())
+
+	# Без «Передачи предметов» шлюз не берёт ничего.
 	var sources: Array[Building] = []
 	var sinks: Array[Building] = []
-	for k in 2:
-		var src := run.planet.buildings.place(Worlds.source_def(), inputs[k], 0, true)
-		src.set("items", PackedInt32Array([hematite]))
-		sources.append(src)
-		sinks.append(run.base.buildings.place(Worlds.sink_def(), outputs[k], 0, true))
+	_gateway_ports_setup(run, gate, pair, sources, sinks, [hematite, hematite])
 	for i in 150:
 		run.step()
-	_check(run.link.size_of(true) == 0 and sinks[0].received == 0, "без «Передачи предметов» шлюз ничего не принимает")
+	_check(run.link.total_of(true) == 0 and sinks[0].received == 0, "без «Передачи предметов» шлюз ничего не принимает")
 	run.research.done[&"gateway_items"] = true
 	run.apply_research_effects()
 	for i in 150:
@@ -5415,19 +5473,66 @@ func _test_gateway_ports() -> void:
 	var before: int = sinks[0].received + sinks[1].received
 	for i in 600:
 		run.step()
-	var one_port: float = (sinks[0].received + sinks[1].received - before) / 20.0
-	_check(absf(one_port - 6.0) < 0.5 and sinks[1].received == 0, "один порт: %.1f предм./с только через средний" % one_port)
-	run.research.done[&"gateway_ports_1"] = true
-	run.apply_research_effects()
-	_check(gate.port_count() == 2 and gate.get_input_tiles() == inputs, "«Порты шлюза I»: второй вход и выход")
-	for i in 150:
-		run.step()
-	before = sinks[0].received + sinks[1].received
+	var two_ports: float = (sinks[0].received + sinks[1].received - before) / 20.0
+	_check(absf(two_ports - 12.0) < 1.0 and sinks[0].received > 0 and sinks[1].received > 0,
+		"пара портов: %.1f предм./с через оба" % two_ports)
+
+	# Каждый вход отдаёт в свой выход: во второй порт кладём другой предмет.
+	_gateway_ports_setup(run, gate, pair, sources, sinks, [hematite, lead])
 	for i in 600:
 		run.step()
-	var two_ports: float = (sinks[0].received + sinks[1].received - before) / 20.0
-	_check(absf(two_ports - 12.0) < 1.0 and sinks[1].received > 0, "два порта: %.1f предм./с" % two_ports)
+	# Камень кладут только во второй вход — значит, в первом выходе его быть не может.
+	_check(sinks[0].count_of(hematite) > 0 and sinks[0].count_of(lead) == 0,
+		"из первого выхода идёт только то, что вошло в первый вход")
+	_check(sinks[1].count_of(lead) > 0, "а камень из второго входа выходит во втором (%d)" % sinks[1].count_of(lead))
+
+	# «Порты шлюза I» растит шлюз до 4×4, портов по-прежнему пара и стоит она посередине.
+	run.research.done[&"gateway_ports_1"] = true
+	run.apply_research_effects()
+	_check(gate.get_size() == 4 and gate.port_count() == 2, "после первой ступени шлюз 4×4 с парой портов")
+	var side := gate.get_input_tiles()
+	_check(side.size() == 2 and (side[0] - side[1]).length() == 1, "порты стоят рядом в середине стороны")
+
+	# «Порты шлюза II» открывает четыре порта, и поток вырастает вдвое.
+	run.research.done[&"gateway_ports_2"] = true
+	run.apply_research_effects()
+	_check(gate.port_count() == 4, "после второй ступени портов четыре")
+	var four: Array[int] = [hematite, hematite, hematite, hematite]
+	_gateway_ports_setup(run, gate, pair, sources, sinks, four)
+	for i in 150:
+		run.step()
+	before = 0
+	for sink in sinks:
+		before += sink.received
+	for i in 600:
+		run.step()
+	var total := 0
+	for sink in sinks:
+		total += sink.received
+	var four_ports: float = (total - before) / 20.0
+	_check(absf(four_ports - 24.0) < 2.0, "четыре порта: %.1f предм./с" % four_ports)
 	run.dispose()
+
+
+## Источники у входов шлюза и приёмники у выходов пары (по предмету на порт).
+## Старые ставятся заново: после расширения шлюза порты переезжают.
+func _gateway_ports_setup(run: Run, gate: GatewayBuilding, pair: GatewayBuilding,
+		sources: Array[Building], sinks: Array[Building], items: Array[int]) -> void:
+	for b in sources:
+		if b.world != null:
+			b.world.buildings.remove(b, true)
+	for b in sinks:
+		if b.world != null:
+			b.world.buildings.remove(b, true)
+	sources.clear()
+	sinks.clear()
+	var inputs := gate.get_input_tiles()
+	var outputs := pair.get_output_tiles()
+	for k in mini(items.size(), mini(inputs.size(), outputs.size())):
+		var src := run.planet.buildings.place(Worlds.source_def(), inputs[k], 0, true)
+		src.set("items", PackedInt32Array([items[k]]))
+		sources.append(src)
+		sinks.append(run.base.buildings.place(Worlds.sink_def(), outputs[k], 0, true))
 
 
 ## Аккумулятор: заряжается излишком, покрывает нехватку, запас сохраняется.
@@ -5535,16 +5640,23 @@ func _test_lift() -> void:
 	var top := planet.buildings.place(lift_def, inside, 0, true) as Lift
 	var bottom := base.buildings.get_at(run.pair_origin(planet, inside)) as Lift
 	_check(top != null and bottom != null and top.pair == bottom and bottom.pair == top, "пара лифта появилась на этаже в том же месте")
-	var source := planet.buildings.place(Worlds.source_def(), inside + Vector2i(-1, 0), 0, true)
+	# У лифта один вход и один выход — середины противоположных сторон.
+	_check(top.get_input_tile() == top.origin + Vector2i(-1, 1) and top.get_output_tile() == top.origin + Vector2i(3, 1),
+		"вход и выход лифта — середины сторон")
+	var source := planet.buildings.place(Worlds.source_def(), top.get_input_tile(), 0, true)
 	source.set("items", PackedInt32Array([hematite]))
-	var down_sink := base.buildings.place(Worlds.sink_def(), bottom.origin + Vector2i(2, 0), 0, true)
+	var side_source := planet.buildings.place(Worlds.source_def(), top.origin + Vector2i(-1, 0), 0, true)
+	side_source.set("items", PackedInt32Array([hematite]))
+	var down_sink := base.buildings.place(Worlds.sink_def(), bottom.get_output_tile(), 0, true)
 	for i in 10 * GameConst.TICK_RATE:
 		run.step()
 	_check(down_sink.received >= 55 and down_sink.received <= 62, "вниз едет со скоростью ленты: %d за 10 с" % down_sink.received)
+	_check(not top.accept_item(side_source, hematite), "сбоку лифт предметы не принимает")
 	planet.buildings.remove(source, true)
-	var up_source := base.buildings.place(Worlds.source_def(), bottom.origin + Vector2i(-1, 0), 0, true)
+	planet.buildings.remove(side_source, true)
+	var up_source := base.buildings.place(Worlds.source_def(), bottom.get_input_tile(), 0, true)
 	up_source.set("items", PackedInt32Array([_item(&"brick")]))
-	var up_sink := planet.buildings.place(Worlds.sink_def(), top.origin + Vector2i(2, 1), 0, true)
+	var up_sink := planet.buildings.place(Worlds.sink_def(), top.get_output_tile(), 0, true)
 	base.configure(bottom, Lift.Direction.UP)
 	_check(top.direction == Lift.Direction.UP and bottom.is_source() and not top.is_source(), "направление — общая настройка пары")
 	for i in 5 * GameConst.TICK_RATE:

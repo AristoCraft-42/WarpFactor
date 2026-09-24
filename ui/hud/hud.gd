@@ -220,7 +220,7 @@ func _build_top_right() -> void:
 	column.add_child(row)
 	var speed := SpeedPanel.new()
 	row.add_child(speed)
-	speed.setup(_game.clock)
+	speed.setup(_game.clock, _game.run.cheats_allowed())
 	var research_button := UiUtil.button("HUD_RESEARCH", func() -> void: research_window.toggle())
 	research_button.focus_mode = Control.FOCUS_NONE
 	research_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER

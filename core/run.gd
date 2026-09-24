@@ -59,6 +59,9 @@ var link: GatewayLink
 var star_map: StarMap
 var run_def: RunDef
 var creative: bool = false
+## Читы включены при создании забега: ускорение времени, отладочный оверлей (F3) и всё,
+## что в выживании выключено. В творческом режиме они есть всегда.
+var cheats: bool = false
 var run_seed: int = 0
 
 ## Узел, куда идёт зарядка (-1 — телепорт не заряжается).
@@ -79,10 +82,11 @@ var level_id: StringName = &""
 
 
 ## Новый забег: первая планета генерируется по сиду, дрон получает стартовый инвентарь забега.
-static func create_new(p_seed: int, p_creative: bool) -> Run:
+static func create_new(p_seed: int, p_creative: bool, p_cheats: bool = false) -> Run:
 	var run := Run.new()
 	run.run_seed = p_seed
 	run.creative = p_creative
+	run.cheats = p_cheats or p_creative
 	run.run_def = Registry.run_def
 	run.star_map = StarMap.new(p_seed, run.run_def, Registry.planet_types)
 	var map := PlanetGenerator.generate(run.star_map.get_current(), run.run_def.pad_start_size, max_pad_size())
@@ -94,10 +98,11 @@ static func create_new(p_seed: int, p_creative: bool) -> Run:
 
 
 ## Забег на готовой карте уровня (разработка, тесты): шлюз — на месте появления дрона.
-static func create(level: LevelDef, map: LevelMap, p_creative: bool) -> Run:
+static func create(level: LevelDef, map: LevelMap, p_creative: bool, p_cheats: bool = false) -> Run:
 	var run := Run.new()
 	run.run_seed = hash(String(level.id)) & 0x7fffffff if level != null else 1
 	run.creative = p_creative
+	run.cheats = p_cheats or p_creative
 	run.run_def = Registry.run_def
 	run.star_map = StarMap.new(run.run_seed, run.run_def, Registry.planet_types)
 	if level != null:
@@ -281,6 +286,11 @@ func get_underground_size() -> int:
 
 func is_underground_open() -> bool:
 	return research != null and research.has_effect(&"underground")
+
+
+## Ускорение времени и отладочный оверлей: только в творческом забеге или когда включены читы.
+func cheats_allowed() -> bool:
+	return creative or cheats
 
 
 ## Сколько комнат добычи открыто исследованиями (каждая — со своим туннелем и платформой).
@@ -800,8 +810,13 @@ func is_teleport_ready() -> bool:
 
 ## Действует ли предел пребывания. В творческом режиме — только вместе с волнами: песочница
 ## не должна выкидывать с планеты посреди опытов.
+## Последняя ступень «Запаса хода» снимает срок совсем: на планете можно сидеть сколько угодно.
 func has_time_limit() -> bool:
-	return planet != null and (not creative or planet.threat != null)
+	if planet == null:
+		return false
+	if research != null and research.count_effect(&"planet_time") >= ResearchState.max_effect(&"planet_time"):
+		return false
+	return not creative or planet.threat != null
 
 
 func is_charging() -> bool:
@@ -1046,7 +1061,8 @@ func pair_lift(lift: Lift, world: GameWorld) -> void:
 			_linked_lifts.append(lift if lift.world == planet else existing)
 			_on_lift_linked(lift)
 		return
-	var placed := other.buildings.place(lift.def, target, 0) as Lift
+	# Пара встаёт с тем же поворотом: вход и выход должны смотреть в те же стороны.
+	var placed := other.buildings.place(lift.def, target, lift.rotation) as Lift
 	if placed != null and placed.pair == lift:
 		placed.set_config(lift.direction)
 
@@ -1369,8 +1385,8 @@ func _gateway_size() -> int:
 	var def := Registry.get_building(&"central_gateway") as GatewayDef
 	if def == null:
 		return 2
-	var steps := ResearchState.max_effect(&"gateway_ports")
-	return def.grown_size if steps > 0 and research != null and research.count_effect(&"gateway_ports") >= steps else def.start_size
+	var steps := research.count_effect(&"gateway_ports") if research != null else 0
+	return def.grown_size if steps >= 1 else def.start_size
 
 
 func dispose() -> void:

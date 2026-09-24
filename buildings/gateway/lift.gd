@@ -3,9 +3,12 @@ extends Building
 ## Лифт между площадкой шлюза (планета) и подземным этажом: пара лифтов стоит в одном и том же месте
 ## относительно шлюза на обоих этажах. Пары связывает забег (Run); лифт без пары ничего не делает.
 ## Направление — настройка, общая для пары: вниз (площадка → этаж) или вверх (этаж → площадка).
-## Лифт на исходном этаже принимает предметы от соседей в буфер, лифт на другом этаже отдаёт их соседям
-## по кругу не чаще, чем лента. Ток и жидкости проходят, если открыты «Передача энергии» и
-## «Передача жидкостей». Дрон переходит по F (Run.use_gateway).
+##
+## У лифта 3×3 один вход и один выход — середины противоположных сторон (поворот R крутит обе).
+## Лифт исходного этажа принимает со своего входа, лифт другого этажа отдаёт со своего выхода
+## не чаще, чем лента. Пара ставится с тем же поворотом, поэтому поток идёт насквозь.
+## Ток и жидкости проходят, если открыты «Передача энергии» и «Передача жидкостей».
+## Дрон переходит по F (Run.use_gateway).
 
 enum Direction { DOWN, UP }
 
@@ -18,6 +21,40 @@ var _next_out: int = 0
 
 func get_lift_def() -> LiftDef:
 	return def as LiftDef
+
+
+## Сторона входа (спина) и выхода (лицо) с учётом поворота.
+func get_input_side() -> int:
+	return posmod(rotation + 2, 4)
+
+
+func get_output_side() -> int:
+	return rotation
+
+
+## Тайл перед входом (снаружи здания): только оттуда лифт принимает предметы.
+func get_input_tile() -> Vector2i:
+	return _side_tile(get_input_side())
+
+
+## Тайл перед выходом: только туда лифт отдаёт.
+func get_output_tile() -> Vector2i:
+	return _side_tile(get_output_side())
+
+
+## Середина стороны снаружи здания.
+func _side_tile(side: int) -> Vector2i:
+	var size := get_size()
+	var middle := size / 2
+	match posmod(side, 4):
+		GameConst.Dir.RIGHT:
+			return origin + Vector2i(size, middle)
+		GameConst.Dir.DOWN:
+			return origin + Vector2i(middle, size)
+		GameConst.Dir.LEFT:
+			return origin + Vector2i(-1, middle)
+		_:
+			return origin + Vector2i(middle, -1)
 
 
 ## Этот лифт принимает предметы (его этаж — исходный для направления).
@@ -35,8 +72,20 @@ func on_proximity_changed() -> void:
 	wake()
 
 
+func on_rotated(_old_rotation: int) -> void:
+	# Пара крутится вместе: иначе поток входил бы с одной стороны, а выходил с неожиданной.
+	if pair != null and pair.rotation != rotation and pair.world != null:
+		pair.world.buildings.rotate(pair, rotation)
+	notify_space()
+	wake()
+
+
 func accept_item(source: Building, _item: int) -> bool:
-	return pair != null and not (source is Lift) and is_source() and buffer.size() < get_lift_def().buffer_capacity
+	if pair == null or source is Lift or not is_source():
+		return false
+	if not source.occupies(get_input_tile()):
+		return false
+	return buffer.size() < get_lift_def().buffer_capacity
 
 
 func handle_item(_source: Building, item: int) -> void:
@@ -51,9 +100,15 @@ func update_tick(tick: int) -> bool:
 	if tick < _next_out:
 		sleep_until(_next_out)
 		return false
-	if not dump(pair.buffer[0]):
-		wait_for_proximity()
+	var target := world.buildings.get_at(get_output_tile())
+	var item: int = pair.buffer[0]
+	if target == null or not target.accept_item(self, item):
+		if target != null:
+			wait_for(target)
+		else:
+			wait_for_proximity()
 		return false
+	target.handle_item(self, item)
 	pair.buffer.remove_at(0)
 	pair.notify_space()
 	_next_out = tick + GatewayBuilding.throughput_ticks(get_lift_def().get_ticks_per_item(), world)

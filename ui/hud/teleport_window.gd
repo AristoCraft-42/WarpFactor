@@ -172,8 +172,8 @@ func _update_queues() -> void:
 	if _run.link == null:
 		return
 	_queues.text = "%s   ·   %s" % [
-		tr("INFO_GATEWAY_TO_BASE") % [_run.link.size_of(true), _run.link.capacity],
-		tr("INFO_GATEWAY_TO_PLANET") % [_run.link.size_of(false), _run.link.capacity]]
+		tr("INFO_GATEWAY_TO_BASE") % [_run.link.total_of(true), _run.link.capacity],
+		tr("INFO_GATEWAY_TO_PLANET") % [_run.link.total_of(false), _run.link.capacity]]
 
 
 func _notification(what: int) -> void:

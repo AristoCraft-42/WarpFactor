@@ -176,7 +176,7 @@ static func run_to_dict(run: Run) -> Dictionary:
 		"version": VERSION,
 		"tables": {"items": item_ids, "floors": floor_ids, "ores": ore_ids, "enemies": enemy_ids, "fluids": fluid_ids},
 		"run": {
-			"seed": run.run_seed, "creative": run.creative, "level": String(run.level_id),
+			"seed": run.run_seed, "creative": run.creative, "cheats": run.cheats, "level": String(run.level_id),
 			"star_map": run.star_map.save_data(),
 			"charge_target": run.charge_target, "charge_left": run.charge_ticks_left, "charge_total": run.charge_ticks_total,
 			"arrival_tick": run.planet_arrival_tick, "drone_in_base": run.drone.world == run.base,
@@ -201,6 +201,7 @@ static func run_from_dict(data: Dictionary) -> Run:
 	var run := Run.new()
 	run.run_seed = int(run_data.get("seed", 0))
 	run.creative = bool(run_data.get("creative", false))
+	run.cheats = bool(run_data.get("cheats", run.creative))
 	run.level_id = StringName(run_data.get("level", ""))
 	run.run_def = Registry.run_def
 	run.star_map = StarMap.new(run.run_seed, run.run_def, Registry.planet_types)

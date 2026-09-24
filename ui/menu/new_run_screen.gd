@@ -8,6 +8,7 @@ var _seed_edit: LineEdit
 var _preview: TextureRect
 var _info: Label
 var _creative: CheckBox
+var _cheats: CheckBox
 var _preview_seed: int = -1
 
 
@@ -63,6 +64,17 @@ func _ready() -> void:
 	creative_row.add_child(creative_hint)
 	root.add_child(creative_row)
 
+	var cheats_row := UiUtil.hbox(10)
+	_cheats = CheckBox.new()
+	_cheats.text = "LEVELS_CHEATS"
+	_cheats.tooltip_text = "LEVELS_CHEATS_HINT"
+	cheats_row.add_child(_cheats)
+	var cheats_hint := UiUtil.label("LEVELS_CHEATS_HINT", &"DimLabel")
+	cheats_hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cheats_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cheats_row.add_child(cheats_hint)
+	root.add_child(cheats_row)
+
 	var bottom := UiUtil.hbox(10)
 	root.add_child(bottom)
 	bottom.add_child(UiUtil.button("SETTINGS_BACK", func() -> void: back_requested.emit()))
@@ -97,7 +109,7 @@ func _update_preview() -> void:
 
 
 func _start() -> void:
-	Session.start_run(get_seed(), _creative.button_pressed)
+	Session.start_run(get_seed(), _creative.button_pressed, _cheats.button_pressed)
 
 
 static func _random_seed() -> int:

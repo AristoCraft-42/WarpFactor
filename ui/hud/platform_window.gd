@@ -87,6 +87,15 @@ func is_open() -> bool:
 	return visible
 
 
+## Пока окно открыто, инструменты выключены, и Escape до них не доходит — закрываем сами.
+func _unhandled_input(event: InputEvent) -> void:
+	if not visible:
+		return
+	if event.is_action_pressed("cancel"):
+		close_window()
+		get_viewport().set_input_as_handled()
+
+
 func close_window() -> void:
 	if not visible:
 		return

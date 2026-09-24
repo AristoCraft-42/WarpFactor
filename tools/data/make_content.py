@@ -154,8 +154,8 @@ BUILDINGS = [
      {"transfer_ticks": 6, "capacity": 10, "link_range": 4, "throughput": "conveyor"}, (70, False), (1.0, 2, 50)),
     ("unloader", "logistic", "unloader", 0, 1, False, True, True, 7, "4f7272", 60, [("copper_cable", 4), ("conveyor", 1), ("gear", 2)],
      {"throughput": "conveyor"}, (70, False), (1.0, 1, 50)),
-    ("lift", "lift", "lift", 0, 2, False, True, True, 28, "6a6f7a", 80, [("iron_ingot", 20), ("gear", 10), ("resistor", 4)],
-     {"buffer_capacity": 10, "throughput": "conveyor", "rotatable": False}, (400, True), (4.0, 1, 10)),
+    ("lift", "lift", "lift", 0, 3, False, True, True, 28, "6a6f7a", 80, [("iron_ingot", 30), ("gear", 15), ("resistor", 6)],
+     {"buffer_capacity": 10, "throughput": "conveyor"}, (600, True), (5.0, 1, 10)),
     ("container", "storage", "storage", 0, 1, False, True, True, 14, "6a6a5a", 70, [("iron_ingot", 12)],
      {"slots": 16}, (180, True), (1.5, 1, 20)),
     ("large_container", "storage", "storage", 0, 1, False, True, True, 14, "8a8560", 75,
@@ -175,15 +175,15 @@ BUILDINGS = [
     ("smeltery", "crafter", "crafter", 1, 2, False, True, True, 11, "a5714f", 11,
      [("brick", 20), ("iron_ingot", 20), ("gear", 10)],
      {"recipes": ["smelt_iron", "smelt_brick", "smelt_copper"], "recipe_mode": 1, "item_capacity": 20,
-      "craft_speed": 2.5, "fuel_use": 225.0, "fuel_capacity": 20}, (320, True), (4.0, 1, 20)),
+      "craft_speed": 2.0, "fuel_use": 270.0, "fuel_capacity": 20}, (320, True), (4.0, 1, 20)),
     ("fast_drill", "drill", "drill", 1, 2, False, True, True, 8, "b0894f", 21,
      [("iron_ingot", 20), ("gear", 10), ("resistor", 4)],
-     {"tier": 2, "base_seconds": 3.0, "hardness_seconds": 0.75, "item_capacity": 20, "power_use": 200.0},
+     {"tier": 2, "base_seconds": 3.0, "hardness_seconds": 0.75, "item_capacity": 20, "power_use": 270.0},
      (260, True), (4.0, 1, 20)),
     ("fabricator", "crafter", "crafter", 1, 2, False, True, True, 9, "7b8796", 31,
      [("resistor", 10), ("gear", 20), ("copper_cable", 20)],
      {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg"] + [out for _, out in FILLERS],
-      "recipe_mode": 2, "item_capacity": 30, "craft_speed": 2.0, "power_use": 160.0}, (300, True), (5.0, 1, 20)),
+      "recipe_mode": 2, "item_capacity": 30, "craft_speed": 2.0, "power_use": 225.0}, (300, True), (5.0, 1, 20)),
     ("science_workshop", "workshop", "workshop", 1, 2, False, True, True, 24, "6a5a7a", 40,
      [("copper_cable", 10), ("iron_ingot", 10), ("resistor", 5)],
      {"seconds_per_kit": 2.0, "kit_capacity": 10, "power_use": 60.0}, (220, True), (3.0, 1, 10)),
@@ -323,7 +323,7 @@ RESEARCH = [
       ["star_depth_%d" % (i - 1)] if i > 1 else ["star_scan_2"], [], [], ["star_depth"])
      for i in range(1, 3)] \
   + [("warp_time_%d" % i, 105 + i, 15 + 15 * i, ["warp_time_%d" % (i - 1)] if i > 1 else ["pad_1"], [], [], ["planet_time"])
-     for i in range(1, 4)] \
+     for i in range(1, 6)] \
   + [("warp_charge_%d" % i, 108 + i, 15 + 15 * i, ["warp_charge_%d" % (i - 1)] if i > 1 else ["pad_1"], [], [], ["teleport_charge"])
      for i in range(1, 4)] \
   + [("underground_%d" % i, 130 + i, 10 + 10 * i, ["underground_%d" % (i - 1)] if i > 1 else ["underground"], [], [], ["underground_size"])

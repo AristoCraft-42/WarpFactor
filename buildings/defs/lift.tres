@@ -11,17 +11,17 @@
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
 item = ExtResource("item_iron_ingot")
-amount = 20
+amount = 30
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
 item = ExtResource("item_gear")
-amount = 10
+amount = 15
 
 [sub_resource type="Resource" id="cost_2"]
 script = ExtResource("2_stack")
 item = ExtResource("item_resistor")
-amount = 4
+amount = 6
 
 [resource]
 script = ExtResource("1_def")
@@ -29,19 +29,18 @@ id = &"lift"
 name_key = "BUILDING_LIFT"
 description_key = "BUILDING_LIFT_DESC"
 category = 0
-size = 2
+size = 3
 removable = true
 player_buildable = true
 line_placement = false
 sort_order = 80
 cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
-craft_time = 4.0
+craft_time = 5.0
 craft_amount = 1
-health = 400.0
+health = 600.0
 solid = true
 color = Color(0.416, 0.435, 0.478, 1)
 glyph = 28
 logic_script = ExtResource("3_logic")
 buffer_capacity = 10
 throughput_of = ExtResource("5_throughput")
-rotatable = false

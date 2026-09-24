@@ -82,9 +82,15 @@ func clear() -> void:
 	count = 0
 
 
+## Сколько заняло обновление снарядов в прошлом тике (мкс): для бенчмарков и отладки.
+var last_update_usec: int = 0
+
+
 func update(tick: int) -> void:
+	last_update_usec = 0
 	if count == 0:
 		return
+	var started := Time.get_ticks_usec()
 	var enemies := _world.enemies
 	var size := _world.grid.get_pixel_size()
 	var i := 0
@@ -121,6 +127,7 @@ func update(tick: int) -> void:
 				_remove(i)
 				continue
 		i += 1
+	last_update_usec = Time.get_ticks_usec() - started
 
 
 ## Первый живой враг, которого задевает отрезок (x0, y0) → (x1, y1); -1 — никого.

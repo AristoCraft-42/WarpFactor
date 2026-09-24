@@ -21,6 +21,8 @@ var conveyors: ConveyorSystem
 var last_tick_usec: int = 0
 var avg_tick_usec: float = 0.0
 var last_awake_buildings: int = 0
+## Сколько заняли тики бодрствующих зданий в прошлом тике (мкс): для бенчмарков.
+var last_buildings_usec: int = 0
 
 var _world: GameWorld
 var _manager: BuildingManager
@@ -68,9 +70,11 @@ func step() -> void:
 	_awake = []
 	for b in current:
 		b.awake = false
+	var buildings_started := Time.get_ticks_usec()
 	for b in current:
 		if b.world != null and b.update_tick(tick):
 			wake(b)
+	last_buildings_usec = Time.get_ticks_usec() - buildings_started
 	last_awake_buildings = current.size()
 
 	if _world.threat != null:

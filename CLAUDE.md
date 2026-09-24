@@ -46,7 +46,7 @@ python tools/data/check_strings.py
 # Настоящая игровая сцена в роли клиента: снимок, починка, сверка состояний
 & $g --headless --path D:\Mind res://tests/net_scene_check.tscn
 
-# Логические тесты (сейчас 1777 проверок)
+# Логические тесты (сейчас 1796 проверок)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 
 # Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 199 проверок, ~150 с)
@@ -57,6 +57,7 @@ python tools/data/check_strings.py
 & $g --headless --path D:\Mind res://tests/bench_conveyors.tscn   # ленты
 & $g --headless --path D:\Mind res://tests/bench_saves.tscn       # сохранения
 & $g --headless --path D:\Mind res://tests/bench_enemies.tscn     # бой
+& $g --headless --path D:\Mind res://tests/bench_turrets.tscn     # турели (тик и перерисовки)
 
 # Игра с готовой картой или сгенерированным забегом
 & $g --path D:\Mind res://core/game.tscn -- --level=rift

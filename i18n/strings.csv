@@ -201,6 +201,9 @@ ACTION_INVENTORY,Inventory and crafting,Инвентарь и крафт
 DRONE_NAME,Drone,Дрон
 HUD_CREATIVE,CREATIVE,ТВОРЧЕСКИЙ
 LEVELS_CREATIVE,Creative mode,Творческий режим
+LEVELS_CHEATS,Cheats,Читы
+LEVELS_CHEATS_HINT,"Allow speeding time up (×2, ×4) and the debug overlay (F3) in a survival run. In creative they are always on.","Разрешает ускорение времени (×2, ×4) и отладочный оверлей (F3) в обычном забеге. В творческом они есть всегда."
+HUD_SPEED_LOCKED,Speeding time up is a cheat: enable cheats when starting a run or play in creative.,Ускорение времени — чит: включите читы при создании забега или играйте в творческом режиме.
 LEVELS_CREATIVE_HINT,Buildings are not consumed and the drone's reach is unlimited.,"Постройки не расходуются, радиус дрона не ограничен."
 STAT_SLOTS,Slots: %d,Ячеек: %d
 INFO_SLOTS,Slots used: %d of %d,Занято ячеек: %d из %d

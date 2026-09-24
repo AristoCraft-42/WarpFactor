@@ -45,4 +45,4 @@ tier = 2
 base_seconds = 3.0
 hardness_seconds = 0.75
 item_capacity = 20
-power_use = 200.0
+power_use = 270.0

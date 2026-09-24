@@ -22,12 +22,28 @@ var target_index: int = -1
 var last_shot_tick: int = -1000
 var status: Status = Status.NO_AMMO
 
+## Описание и центр турели кешируются: она не двигается, а тик у неё горячий — при сотне турелей
+## в бою эти вызовы складывались в миллисекунды.
+var _def: TurretDef
+var _center := Vector2.INF
+
 
 func get_turret_def() -> TurretDef:
-	return def as TurretDef
+	if _def == null:
+		_def = def as TurretDef
+	return _def
+
+
+## Середина турели в мире (кешируется).
+func center() -> Vector2:
+	if _center == Vector2.INF:
+		_center = get_world_center()
+	return _center
 
 
 func on_placed() -> void:
+	_def = def as TurretDef
+	_center = get_world_center()
 	world.turrets[id] = self
 	wake()
 
@@ -110,7 +126,7 @@ func update_tick(tick: int) -> bool:
 		sleep_until(tick + IDLE_TICKS)
 		return false
 	var d := get_turret_def()
-	var center := get_world_center()
+	var center := center()
 	if not _target_valid(enemies, center, d):
 		target_index = enemies.find_nearest(center.x, center.y, d.get_range_px(), d.get_min_range_px())
 		target_uid = enemies.uid[target_index] if target_index >= 0 else 0
@@ -140,7 +156,10 @@ func _target_valid(enemies: EnemySystem, center: Vector2, d: TurretDef) -> bool:
 		return false
 	if not enemies.is_alive(target_index):
 		return false
-	var dist := maxf(enemies.get_position(target_index).distance_to(center) - enemies.get_radius(target_index), 0.0)
+	# Без Vector2: этот расчёт идёт у каждой турели в каждом тике боя.
+	var dx := enemies.pos_x[target_index] - center.x
+	var dy := enemies.pos_y[target_index] - center.y
+	var dist := maxf(sqrt(dx * dx + dy * dy) - enemies.get_radius(target_index), 0.0)
 	return dist <= d.get_range_px() and dist >= d.get_min_range_px()
 
 
