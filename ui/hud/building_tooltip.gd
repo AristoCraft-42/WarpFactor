@@ -133,6 +133,9 @@ func _update_dynamic() -> void:
 		Building.Status.NO_FUEL:
 			text = tr("STATUS_NO_FUEL")
 			color = UiTheme.ORANGE
+		Building.Status.NO_FLUID:
+			text = tr("STATUS_NO_FLUID")
+			color = UiTheme.ORANGE
 		Building.Status.NO_RECIPE:
 			text = tr("STATUS_NO_RECIPE")
 			color = UiTheme.ORANGE

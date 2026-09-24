@@ -236,6 +236,25 @@ BUILDINGS = [
     ("machine_gun", "turret", "turret", 3, 1, False, True, True, 17, "7a6a55", 20, [("iron_ingot", 10), ("gear", 5), ("resistor", 3)],
      {"rotatable": False, "shoot_range": 8.5, "reload_seconds": 0.3, "rotate_speed": 540.0, "shoot_cone": 12.0,
       "inaccuracy": 3.0, "max_ammo": 40, "artillery": False, "barrel_length": 13.0, "ammo": MG_AMMO}, (220, True), (1.5, 1, 20)),
+    # Тесла-турель: молния прыгает по цепи врагов, патронов не просит, но ест ток.
+    ("tesla_turret", "turret", "turret", 3, 2, False, True, True, 32, "83a598", 30,
+     [("galvanized_steel", 15), ("copper_cable", 25), ("microchip", 4)],
+     {"kind": 1, "rotatable": False, "shoot_range": 7.0, "reload_seconds": 0.8, "rotate_speed": 720.0,
+      "shoot_cone": 20.0, "inaccuracy": 0.0, "max_ammo": 0, "barrel_length": 10.0, "power_use": 180.0,
+      "chain_damage": 18.0, "chain_targets": 4, "chain_falloff": 0.65, "chain_jump": 3.5}, (320, True), (3.0, 1, 10)),
+    # Ремонтная турель: чинит самую побитую постройку рядом, а если все целы — дрона.
+    ("repair_turret", "turret", "turret", 3, 2, False, True, True, 33, "8ec07c", 32,
+     [("galvanized_steel", 10), ("gear", 10), ("microchip", 2)],
+     {"kind": 2, "rotatable": False, "shoot_range": 9.0, "reload_seconds": 1.0, "rotate_speed": 360.0,
+      "shoot_cone": 20.0, "inaccuracy": 0.0, "max_ammo": 0, "barrel_length": 9.0, "power_use": 120.0,
+      "repair_amount": 60.0}, (300, True), (3.0, 1, 10)),
+    # Жидкостная турель: поливает область из труб. Вода замедляет, пар жжёт.
+    ("fluid_turret", "turret", "turret", 3, 2, False, True, True, 34, "458588", 34,
+     [("iron_ingot", 20), ("gear", 8), ("pipe", 6), ("galvanized_steel", 6)],
+     {"kind": 3, "rotatable": False, "shoot_range": 8.0, "reload_seconds": 1.2, "rotate_speed": 400.0,
+      "shoot_cone": 20.0, "inaccuracy": 0.0, "max_ammo": 0, "barrel_length": 12.0,
+      "spray_use": 60.0, "spray_radius": 2.5, "slow_factor": 0.45, "slow_seconds": 4.0,
+      "steam_dps": 14.0, "steam_seconds": 4.0}, (300, True), (3.0, 1, 10)),
     # Творческий режим
     ("creative_item_source", "creative", "creative", 0, 1, False, True, True, 30, "b16286", 900, [],
      {"kind": 0, "rates": [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0], "default_rate": 3, "rotatable": False,
@@ -326,6 +345,8 @@ RESEARCH = [
     ("compact_production", 89, 45, ["microchips"], ["smeltery", "fabricator", "fast_drill", "large_container"], [], []),
     # Оборона
     ("defense", 90, 25, ["electricity"], ["machine_gun"], ["casing_mg"] + [out for _, out in FILLERS], []),
+    ("advanced_defense", 91, 45, ["microchips", "defense"],
+     ["tesla_turret", "repair_turret", "fluid_turret"], [], []),
     # База: этажи, шлюз, лифты
     ("underground", 110, 15, ["mining"], [], [], ["underground"]),
     ("gateway_items", 120, 10, ["underground"], [], [], ["gateway_items"]),
@@ -362,6 +383,23 @@ LEVELS = [
     ("01_first_steps", "first_steps", "LEVEL_FIRST_STEPS", 1, (48, 32)),
     ("02_rift", "rift", "LEVEL_RIFT", 2, (41, 96)),
 ]
+
+
+# Исследования, которым вдобавок нужны наборы второго уровня: всё, что идёт после «Микросхем».
+# Раньше них наборы второго уровня негде делать — это и задаёт порядок мидгейма.
+KIT2_AFTER = {"steel_logistics", "compact_production", "mining_floor", "accumulators", "lift",
+              "advanced_defense"}
+KIT2_PREFIXES = ("mining_room_", "science_speed_", "gateway_speed_", "star_depth_")
+KIT2_EXACT = {"warp_time_4", "warp_time_5", "warp_charge_3", "underground_4", "underground_5",
+              "pad_4", "pad_5", "drone_speed_3", "drone_mining_3", "drone_health_3",
+              "drone_gun_3", "drone_repair_3"}
+
+
+def kit2_amount(rid, amount):
+    """Сколько наборов второго уровня нужно исследованию (0 — не нужны)."""
+    if rid in KIT2_AFTER or rid in KIT2_EXACT or rid.startswith(KIT2_PREFIXES):
+        return max(5, amount // 2)
+    return 0
 
 
 def item_path(item):
@@ -522,22 +560,6 @@ def write_building_item(b):
            f"sort_order = {1000 + cat * 100 + order}", f"stack_size = {craft[2]}",
            'building = ExtResource("2_building")', ""]
     write(f"items/types/buildings/{bid}.tres", out)
-
-
-# Исследования, которым вдобавок нужны наборы второго уровня: всё, что идёт после «Микросхем».
-# Раньше них наборы второго уровня негде делать — это и задаёт порядок мидгейма.
-KIT2_AFTER = {"steel_logistics", "compact_production", "mining_floor", "accumulators", "lift"}
-KIT2_PREFIXES = ("mining_room_", "science_speed_", "gateway_speed_", "star_depth_")
-KIT2_EXACT = {"warp_time_4", "warp_time_5", "warp_charge_3", "underground_4", "underground_5",
-              "pad_4", "pad_5", "drone_speed_3", "drone_mining_3", "drone_health_3",
-              "drone_gun_3", "drone_repair_3"}
-
-
-def kit2_amount(rid, amount):
-    """Сколько наборов второго уровня нужно исследованию (0 — не нужны)."""
-    if rid in KIT2_AFTER or rid in KIT2_EXACT or rid.startswith(KIT2_PREFIXES):
-        return max(5, amount // 2)
-    return 0
 
 
 def write_research():

@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="TurretDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/defense/turret_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/defense/turret.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
+[ext_resource type="Resource" path="res://items/types/buildings/pipe.tres" id="item_pipe"]
+[ext_resource type="Resource" path="res://items/types/galvanized_steel.tres" id="item_galvanized_steel"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_iron_ingot")
+amount = 20
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_gear")
+amount = 8
+
+[sub_resource type="Resource" id="cost_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_pipe")
+amount = 6
+
+[sub_resource type="Resource" id="cost_3"]
+script = ExtResource("2_stack")
+item = ExtResource("item_galvanized_steel")
+amount = 6
+
+[resource]
+script = ExtResource("1_def")
+id = &"fluid_turret"
+name_key = "BUILDING_FLUID_TURRET"
+description_key = "BUILDING_FLUID_TURRET_DESC"
+category = 3
+size = 2
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 34
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2"), SubResource("cost_3")])
+craft_time = 3.0
+craft_amount = 1
+health = 300.0
+solid = true
+color = Color(0.271, 0.522, 0.533, 1)
+glyph = 34
+logic_script = ExtResource("3_logic")
+kind = 3
+rotatable = false
+shoot_range = 8.0
+reload_seconds = 1.2
+rotate_speed = 400.0
+shoot_cone = 20.0
+inaccuracy = 0.0
+max_ammo = 0
+barrel_length = 12.0
+spray_use = 60.0
+spray_radius = 2.5
+slow_factor = 0.45
+slow_seconds = 4.0
+steam_dps = 14.0
+steam_seconds = 4.0

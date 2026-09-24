@@ -97,6 +97,10 @@ func _ready() -> void:
 	_test_turret_ammo()
 	_test_turret_kills()
 	_test_artillery()
+	_test_tesla_turret()
+	_test_repair_turret()
+	_test_fluid_turret()
+	_test_advanced_defense_research()
 	_test_drone_gun_and_repair()
 	_test_walls_route()
 	_test_power_network()
@@ -210,20 +214,20 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 6, "ожидалось 6 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 40,
-		"ожидалось 40 зданий (31 обычное, 4 творческих, шлюз с парой, шахта, пульт и якорь платформы), есть %d"
+	_check(Registry.buildings.size() == 43,
+		"ожидалось 43 здания (34 обычных, 4 творческих, шлюз с парой, шахта, пульт и якорь платформы), есть %d"
 		% Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
 	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 46 and Registry.researches.size() == 71,
-		"46 рецептов и 71 исследование (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 49 and Registry.researches.size() == 72,
+		"49 рецептов и 72 исследования (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16
 		and Registry.base_def.size_step == 6, "параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	var mining_def := Registry.mining_def
 	_check(mining_def != null and mining_def.id == &"mining" and mining_def.room_size > 0
 		and mining_def.size > mining_def.center_max, "этаж добычи: своя карта с местом под комнаты")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 22 + 35, "ожидалось 22 предмета и 35 предметов-построек, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 22 + 38, "ожидалось 22 предмета и 38 предметов-построек, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
 	for def in Registry.buildings:
@@ -1169,8 +1173,8 @@ func _test_recipes_data() -> void:
 	_check(furnace.recipe_mode == CrafterDef.RecipeMode.AUTO and furnace.fuel_use > 0.0 and furnace.power_use == 0.0
 		and furnace.recipes.size() == 4, "печь: четыре переплавки на топливе, рецепт по сырью (%d)" % furnace.recipes.size())
 	var assembler := Registry.get_building(&"assembler") as CrafterDef
-	_check(assembler.recipe_mode == CrafterDef.RecipeMode.SELECT and assembler.power_use > 0.0 and assembler.recipes.size() == 42,
-		"сборщик: 13 рецептов компонентов и 29 построек на выбор (%d)" % assembler.recipes.size())
+	_check(assembler.recipe_mode == CrafterDef.RecipeMode.SELECT and assembler.power_use > 0.0 and assembler.recipes.size() == 45,
+		"сборщик: 13 рецептов компонентов и 32 постройки на выбор (%d)" % assembler.recipes.size())
 	# Улучшенные версии занимают ту же клетку, но выдают больше — на это и опирается ветка уплотнения.
 	var smeltery := Registry.get_building(&"smeltery") as CrafterDef
 	var furnace_def := Registry.get_building(&"furnace") as CrafterDef
@@ -5033,6 +5037,152 @@ func _test_turret_kills() -> void:
 
 
 ## Артиллерия (в ранней игре её нет, механика остаётся): мёртвая зона и взрыв по площади.
+## Тесла-турель: молния прыгает по цепи и не тратит патронов, но без тока молчит.
+func _test_tesla_turret() -> void:
+	var run := _defense_run()
+	var planet := run.planet
+	var gate := planet.gateway
+	var def := Registry.get_building(&"tesla_turret") as TurretDef
+	_check(def.kind == TurretDef.Kind.CHAIN and def.ammo.is_empty() and def.power_use > 0.0 and def.chain_targets >= 3,
+		"тесла-турель: цепь, без патронов, на электричестве")
+	var at := gate.origin + Vector2i(-6, 0)
+	var tesla := planet.buildings.place(def, at, 0, true) as Turret
+	var center := tesla.get_world_center()
+	var crawler := Registry.get_enemy(&"crawler")
+	# Цепочка врагов: каждый следующий в пределах перескока молнии.
+	for k in 4:
+		planet.spawn_enemy(crawler, center + Vector2(-3.0 - k * 2.5, 0.0) * GameConst.TILE_SIZE)
+	for k in planet.enemies.count:
+		planet.enemies.next_attack[k] = 1000000
+	# Без опор и генератора турель стоит без тока.
+	for i in 20:
+		run.step()
+	_check(tesla.get_status() == Building.Status.NO_POWER and planet.enemies.count == 4,
+		"без электричества тесла-турель не бьёт (%d)" % tesla.get_status())
+	Worlds.power_area(planet, at - Vector2i(4, 4), 12, at + Vector2i(0, 6))
+	var start_health := planet.enemies.health.duplicate()
+	var fired := 0
+	for i in 200:
+		run.step()
+		if tesla.last_shot_tick > 0:
+			fired += 1
+		if planet.enemies.killed >= 3:
+			break
+	var hurt := planet.enemies.killed
+	for k in planet.enemies.count:
+		if planet.enemies.health[k] < start_health[k] - 0.01:
+			hurt += 1
+	_check(fired > 0 and planet.projectiles.fired == 0, "тесла-турель бьёт молнией, а не снарядами")
+	_check(hurt >= 3, "молния задевает цепь врагов (%d из 4)" % hurt)
+	_check(planet.projectiles.last_beam_tick > 0, "лучи молнии уходят в отрисовку")
+	run.dispose()
+
+
+## Ремонтная турель: чинит самую побитую постройку рядом, а когда всё цело — дрона.
+func _test_repair_turret() -> void:
+	var world := Worlds.empty_world(24, 20, false)
+	# Дрон сам чинит постройки рядом — уводим его, чтобы мерить только турель.
+	world.drone.position = Vector2(1, 18) * GameConst.TILE_SIZE
+	var def := Registry.get_building(&"repair_turret") as TurretDef
+	_check(def.kind == TurretDef.Kind.REPAIR and def.repair_amount > 0.0 and def.power_use > 0.0,
+		"ремонтная турель: чинит и тратит электричество")
+	var at := Vector2i(10, 10)
+	var turret := world.buildings.place(def, at, 0, true) as Turret
+	var wall_def := Registry.get_building(&"stone_wall")
+	var near := world.buildings.place(wall_def, Vector2i(13, 10), 0, true)
+	var far := world.buildings.place(wall_def, Vector2i(22, 18), 0, true)
+	world.damage_building(near, wall_def.health * 0.6)
+	world.damage_building(far, far.def.health * 0.6)
+	var near_low := near.health
+	var far_low := far.health
+	Worlds.run_ticks(world, 30)
+	_check(turret.get_status() == Building.Status.NO_POWER and is_equal_approx(near.health, near_low),
+		"без электричества ремонтная турель не чинит (%d, %.1f → %.1f)" % [turret.get_status(), near_low, near.health])
+	Worlds.power_area(world, at - Vector2i(4, 4), 12, at + Vector2i(0, 6))
+	Worlds.run_ticks(world, 240)
+	_check(near.health > near_low and is_equal_approx(far.health, far_low),
+		"чинится постройка в радиусе, дальняя — нет (%.0f → %.0f)" % [near_low, near.health])
+	Worlds.run_ticks(world, 600)
+	_check(not near.is_damaged() and not world.damaged.has(near.id), "постройку вылечили до конца")
+	# Всё цело — луч уходит на дрона.
+	var drone := world.drone
+	drone.position = turret.get_world_center() + Vector2(2, 0) * GameConst.TILE_SIZE
+	drone.health = drone.get_max_health() * 0.4
+	var drone_low := drone.health
+	Worlds.run_ticks(world, 120)
+	_check(drone.health > drone_low, "ремонтная турель лечит дрона (%.0f → %.0f)" % [drone_low, drone.health])
+	drone.health = drone.get_max_health()
+	world.dispose()
+
+
+## Жидкостная турель: вода замедляет, пар жжёт, без жидкости — молчит.
+func _test_fluid_turret() -> void:
+	var run := _defense_run()
+	var planet := run.planet
+	var gate := planet.gateway
+	var def := Registry.get_building(&"fluid_turret") as TurretDef
+	_check(def.kind == TurretDef.Kind.SPRAY and def.spray_use > 0.0 and def.slow_factor < 1.0 and def.steam_dps > 0.0,
+		"жидкостная турель: полив, замедление и ожог")
+	var at := gate.origin + Vector2i(-6, 0)
+	var turret := planet.buildings.place(def, at, 0, true) as Turret
+	planet.buildings.place(Registry.get_building(&"water_tank"), at + Vector2i(2, 0), 0, true)
+	planet.fluids.update()
+	var net := planet.fluids.get_port_network(turret, 0)
+	_check(net != null and net.capacity > 0.0, "турель полива подключена к баку")
+	var crawler := Registry.get_enemy(&"crawler")
+	var center := turret.get_world_center()
+	for k in 3:
+		planet.spawn_enemy(crawler, center + Vector2(-4.0, (k - 1) * 1.2) * GameConst.TILE_SIZE)
+	for k in planet.enemies.count:
+		planet.enemies.next_attack[k] = 1000000
+	for i in 30:
+		run.step()
+	_check(turret.get_status() == Building.Status.NO_FLUID, "без жидкости турель полива молчит (%d)" % turret.get_status())
+	# Вода: замедляет нескольких сразу.
+	var water := Registry.get_fluid(&"water").index
+	net.insert(water, net.capacity)
+	var slowed := 0
+	for i in 120:
+		run.step()
+		slowed = 0
+		for k in planet.enemies.count:
+			if planet.enemies.is_slowed(k, planet.simulation.tick):
+				slowed += 1
+		if slowed >= 2:
+			break
+	_check(slowed >= 2, "вода замедляет нескольких врагов сразу (%d)" % slowed)
+	_check(net.amount < net.capacity, "полив тратит жидкость из труб")
+	# Пар: поджигает.
+	net.extract(net.fluid, net.amount)
+	net.insert(Registry.get_fluid(&"steam").index, net.capacity)
+	var burning := 0
+	for i in 200:
+		run.step()
+		burning = 0
+		for k in planet.enemies.count:
+			if planet.enemies.is_burning(k, planet.simulation.tick):
+				burning += 1
+		if burning >= 2:
+			break
+	_check(burning >= 2 or planet.enemies.killed > 0, "пар обжигает врагов (%d)" % burning)
+	run.dispose()
+
+
+## Новая оборона открывается одним исследованием мидгейма — после микросхем.
+func _test_advanced_defense_research() -> void:
+	var research := Registry.get_research(&"advanced_defense")
+	_check(research != null and research.prerequisites.has(&"microchips") and research.prerequisites.has(&"defense"),
+		"продвинутая оборона идёт после микросхем и обороны")
+	var ids := PackedStringArray()
+	for b in research.unlock_buildings:
+		ids.append(String(b.id))
+	_check(ids.size() == 3 and ids.has("tesla_turret") and ids.has("repair_turret") and ids.has("fluid_turret"),
+		"исследование открывает три новые турели")
+	var costs := research.costs()
+	_check(costs.size() == 2 and costs[1].item.id == &"science_kit_2" and research.total_cost() > research.cost_amount,
+		"продвинутой обороне нужны наборы второго уровня")
+
+
 func _test_artillery() -> void:
 	var run := _defense_run()
 	var planet := run.planet

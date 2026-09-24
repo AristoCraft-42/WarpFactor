@@ -60,6 +60,8 @@ func has_target() -> bool:
 
 func accept_item(_source: Building, item: int) -> bool:
 	var d := get_turret_def()
+	if d.kind != TurretDef.Kind.BULLET:
+		return false
 	var index := d.find_ammo(item)
 	return index >= 0 and total_shots + d.ammo[index].shots_per_item <= d.max_ammo
 
@@ -82,6 +84,16 @@ func handle_item(_source: Building, item: int) -> void:
 		ammo_types.append(index)
 		ammo_shots.append(shots)
 	wake()
+
+
+## Турель полива подключается к трубам всеми сторонами: одна сеть, любая жидкость.
+func get_fluid_ports() -> Array[FluidGraph.Port]:
+	var ports: Array[FluidGraph.Port] = []
+	if get_turret_def().kind != TurretDef.Kind.SPRAY:
+		return ports
+	for side in 4:
+		ports.append(FluidGraph.Port.new(side, null, 0))
+	return ports
 
 
 func get_current_ammo() -> TurretAmmo:
@@ -115,6 +127,15 @@ func collect_contents(out: PackedInt32Array) -> void:
 # --- Бой ---
 
 func update_tick(tick: int) -> bool:
+	match get_turret_def().kind:
+		TurretDef.Kind.CHAIN:
+			return _tick_chain(tick)
+		TurretDef.Kind.REPAIR:
+			return _tick_repair(tick)
+		TurretDef.Kind.SPRAY:
+			return _tick_spray(tick)
+		_:
+			pass
 	if total_shots <= 0:
 		_lose_target()
 		status = Status.NO_AMMO
@@ -149,6 +170,160 @@ func update_tick(tick: int) -> bool:
 	if tick >= reload_until and absf(wrapf(desired - angle, -PI, PI)) <= deg_to_rad(d.shoot_cone):
 		_shoot(tick, d, ammo_type, center, Vector2(tx, ty))
 	return true
+
+
+## Тесла-турель: бьёт молнией по ближайшему врагу и перескакивает на соседей.
+## Патронов не просит, но без тока молчит; при нехватке питания перезаряжается дольше.
+func _tick_chain(tick: int) -> bool:
+	var d := get_turret_def()
+	var enemies := world.enemies
+	power_request = 0.0
+	if enemies.count == 0:
+		status = Status.IDLE
+		sleep_until(tick + IDLE_TICKS)
+		return false
+	var center := center()
+	var first := enemies.find_nearest(center.x, center.y, d.get_range_px(), d.get_min_range_px())
+	if first < 0:
+		status = Status.IDLE
+		sleep_until(tick + SEARCH_TICKS)
+		return false
+	power_request = d.power_use
+	var rate := get_power_satisfaction() if d.power_use > 0.0 else 1.0
+	if rate <= 0.01:
+		status = Status.NO_POWER
+		return true
+	status = Status.WORKING
+	if tick < reload_until:
+		return true
+	# Цепь: каждый следующий враг ближе предыдущего не дальше chain_jump.
+	var damage := d.chain_damage
+	var from := center
+	var index := first
+	var hit := {}
+	for k in maxi(d.chain_targets, 1):
+		if index < 0 or hit.has(enemies.uid[index]):
+			break
+		hit[enemies.uid[index]] = true
+		var to := enemies.get_position(index)
+		world.projectiles.push_beam(from, to, tick, Color(0.55, 0.8, 1.0))
+		angle = atan2(to.y - center.y, to.x - center.x)
+		enemies.hurt(index, damage)
+		last_shot_tick = tick
+		damage *= d.chain_falloff
+		from = to
+		index = enemies.find_nearest(to.x, to.y, d.chain_jump * GameConst.TILE_SIZE)
+		if index >= 0 and hit.has(enemies.uid[index]):
+			index = -1
+	# Погибших убирает симуляция в конце тика, как после снарядов: find_nearest их уже не видит.
+	reload_until = tick + maxi(roundi(d.reload_seconds * GameConst.TICK_RATE / maxf(rate, 0.05)), 1)
+	return true
+
+
+## Ремонтная турель: чинит самую побитую постройку в радиусе, а если целых нет — дронов.
+func _tick_repair(tick: int) -> bool:
+	var d := get_turret_def()
+	power_request = 0.0
+	var center := center()
+	var target_building := _most_damaged(center, d.get_range_px())
+	var target_drone := _hurt_drone(center, d.get_range_px()) if target_building == null else null
+	if target_building == null and target_drone == null:
+		status = Status.IDLE
+		sleep_until(tick + IDLE_TICKS)
+		return false
+	power_request = d.power_use
+	var rate := get_power_satisfaction() if d.power_use > 0.0 else 1.0
+	if rate <= 0.01:
+		status = Status.NO_POWER
+		return true
+	status = Status.WORKING
+	if tick < reload_until:
+		return true
+	var amount := d.repair_amount * rate
+	if target_building != null:
+		world.repair_building(target_building, amount)
+		world.projectiles.push_beam(center, target_building.get_world_center(), tick, Color(0.55, 0.9, 0.55))
+		angle = (target_building.get_world_center() - center).angle()
+	else:
+		target_drone.heal(amount)
+		world.projectiles.push_beam(center, target_drone.position, tick, Color(0.55, 0.9, 0.55))
+		angle = (target_drone.position - center).angle()
+	last_shot_tick = tick
+	reload_until = tick + maxi(roundi(d.reload_seconds * GameConst.TICK_RATE), 1)
+	return true
+
+
+## Жидкостная турель: поливает область тем, что пришло по трубам. Вода замедляет, пар жжёт.
+func _tick_spray(tick: int) -> bool:
+	var d := get_turret_def()
+	var enemies := world.enemies
+	power_request = 0.0
+	if enemies.count == 0:
+		status = Status.IDLE
+		sleep_until(tick + IDLE_TICKS)
+		return false
+	var center := center()
+	var index := enemies.find_nearest(center.x, center.y, d.get_range_px(), d.get_min_range_px())
+	if index < 0:
+		status = Status.IDLE
+		sleep_until(tick + SEARCH_TICKS)
+		return false
+	status = Status.WORKING
+	if tick < reload_until:
+		return true
+	var net := world.fluids.get_port_network(self, 0)
+	if net == null or net.fluid < 0 or net.amount < d.spray_use:
+		# Труб нет или они пусты: спим и проверяем снова, как при поиске цели.
+		status = Status.NO_FLUID
+		sleep_until(tick + SEARCH_TICKS)
+		return false
+	var fluid := Registry.fluids[net.fluid]
+	net.extract(net.fluid, d.spray_use)
+	var at := enemies.get_position(index)
+	angle = (at - center).angle()
+	var hits := PackedInt32Array()
+	enemies.query_circle(at.x, at.y, d.spray_radius * GameConst.TILE_SIZE, hits)
+	var steam := fluid != null and fluid.id == &"steam"
+	for j in hits:
+		if steam:
+			enemies.ignite(j, d.steam_dps, tick + roundi(d.steam_seconds * GameConst.TICK_RATE))
+		else:
+			enemies.slow(j, d.slow_factor, tick + roundi(d.slow_seconds * GameConst.TICK_RATE))
+	var color := fluid.color if fluid != null else Color(0.4, 0.7, 1.0)
+	world.projectiles.push_beam(center, at, tick, color)
+	world.projectiles.push_splash(at, d.spray_radius * GameConst.TILE_SIZE, tick, color)
+	last_shot_tick = tick
+	reload_until = tick + maxi(roundi(d.reload_seconds * GameConst.TICK_RATE), 1)
+	return true
+
+
+## Самая побитая постройка в радиусе (кроме себя).
+func _most_damaged(center: Vector2, radius: float) -> Building:
+	var best: Building = null
+	var best_fraction := 1.0
+	for id in world.damaged:
+		var b := world.buildings.get_by_id(id)
+		if b == null or b == self or not b.is_damaged():
+			continue
+		var rect := b.get_world_rect()
+		var closest := center.clamp(rect.position, rect.end)
+		if closest.distance_to(center) > radius:
+			continue
+		var fraction := b.health / b.get_max_health()
+		if fraction < best_fraction:
+			best_fraction = fraction
+			best = b
+	return best
+
+
+## Побитый дрон в радиусе.
+func _hurt_drone(center: Vector2, radius: float) -> Drone:
+	for d in world.drones:
+		if d.dead or d.health >= d.get_max_health():
+			continue
+		if d.position.distance_to(center) <= radius:
+			return d
+	return null
 
 
 func _target_valid(enemies: EnemySystem, center: Vector2, d: TurretDef) -> bool:
@@ -202,7 +377,8 @@ func save_state() -> Dictionary:
 	for index in ammo_types:
 		items.append(d.ammo[index].item.index)
 	return {"ammo_items": items, "ammo_shots": ammo_shots.duplicate(), "angle": angle, "reload": reload_until,
-		"target_uid": target_uid, "target_index": target_index, "last_shot": last_shot_tick, "status": status}
+		"target_uid": target_uid, "target_index": target_index, "last_shot": last_shot_tick, "status": status,
+		"power": power_request}
 
 
 func load_state(state: Dictionary) -> void:
@@ -225,6 +401,7 @@ func load_state(state: Dictionary) -> void:
 	target_index = int(state.get("target_index", -1))
 	last_shot_tick = int(state.get("last_shot", -1000))
 	status = int(state.get("status", Status.NO_AMMO)) as Status
+	power_request = float(state.get("power", 0.0))
 	wake()
 
 

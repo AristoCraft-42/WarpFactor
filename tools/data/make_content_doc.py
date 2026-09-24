@@ -43,6 +43,7 @@ RECIPES = ns["RECIPES"]
 BUILDINGS = ns["BUILDINGS"]
 RESEARCH = ns["RESEARCH"]
 MG_AMMO = ns["MG_AMMO"]
+kit2_amount = ns["kit2_amount"]
 START_ITEMS = ns["START_ITEMS"]
 CATEGORIES = ["Логистика", "Производство", "Энергия", "Оборона"]
 
@@ -197,7 +198,19 @@ for cat in range(4):
         if bid == "boiler":
             p.append("уголь %s кВт → пар %s ед./с" % (fmt(params["fuel_power"]), fmt(params["steam_per_second"])))
         if kind == "turret":
-            p.append("радиус %s, запас %d выстрелов, без электричества" % (fmt(params["shoot_range"]), params["max_ammo"]))
+            # 0 — патроны, 1 — молния, 2 — ремонт, 3 — полив (TurretDef.Kind).
+            turret_kind = params.get("kind", 0)
+            if turret_kind == 1:
+                p.append("радиус %s, молния %s урона по цепи до %d целей" %
+                         (fmt(params["shoot_range"]), fmt(params["chain_damage"]), params["chain_targets"]))
+            elif turret_kind == 2:
+                p.append("радиус %s, чинит по %s прочности раз в %s с" %
+                         (fmt(params["shoot_range"]), fmt(params["repair_amount"]), fmt(params["reload_seconds"])))
+            elif turret_kind == 3:
+                p.append("радиус %s, лужа %s тайла: вода замедляет, пар жжёт; %s ед. жидкости за раз" %
+                         (fmt(params["shoot_range"]), fmt(params["spray_radius"]), fmt(params["spray_use"])))
+            else:
+                p.append("радиус %s, запас %d выстрелов, без электричества" % (fmt(params["shoot_range"]), params["max_ammo"]))
         if bid == "stone_wall":
             p.append("ставится линией")
         p.append("прочность %d" % hp)
@@ -258,8 +271,12 @@ EFFECT_TEXT = {
 }
 for rid, _, cost, pre, blds, recs, _effects in sorted(RESEARCH, key=lambda r: r[1]):
     opens = [building_name(b) for b in blds] + [item_name(r) for r in recs] + [EFFECT_TEXT[e] for e in _effects]
-    w("| %s | %d × %s | %s | %s |" % (research_name(rid), cost, item_name("science_kit"),
-                                     ", ".join(research_name(p) for p in pre) or "—", ", ".join(opens)))
+    price = "%d × %s" % (cost, item_name("science_kit"))
+    kit2 = kit2_amount(rid, cost)
+    if kit2 > 0:
+        price += " + %d × %s" % (kit2, item_name("science_kit_2"))
+    w("| %s | %s | %s | %s |" % (research_name(rid), price,
+                                 ", ".join(research_name(p) for p in pre) or "—", ", ".join(opens)))
 w("")
 w("- Без исследования доступны: конвейер, перекрёсток, маршрутизатор, контейнер, печь, угольный бур,")
 w("  каменная стена и все компоненты. Электричество, трубы, электробур и логистика — за исследования.")

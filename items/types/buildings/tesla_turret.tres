@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/tesla_turret.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"tesla_turret"
+name_key = "BUILDING_TESLA_TURRET"
+color = Color(0.514, 0.647, 0.596, 1)
+sort_order = 1330
+stack_size = 10
+building = ExtResource("2_building")

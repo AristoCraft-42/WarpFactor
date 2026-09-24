@@ -12,6 +12,12 @@ enum Kind { BULLET, SHELL }
 const GROW := 128
 ## Запас к радиусу врага при попадании пулей, пикселей.
 const HIT_PADDING := 2.0
+## Лучи (молния тесла-турели, ремонтный луч): кольцевой буфер отрезков для отрисовки.
+## На симуляцию не влияют — это только картинка, но живут они в системе снарядов,
+## чтобы отрисовке было где их взять.
+const BEAM_CAPACITY := 64
+const BEAM_STRIDE := 6
+
 const BLAST_CAPACITY := 64
 ## x, y, радиус, тик; цвет — в blast_colors.
 const BLAST_STRIDE := 4
@@ -37,6 +43,10 @@ var burn_ticks := PackedInt32Array()
 var fired: int = 0
 var hits: int = 0
 ## Вспышки попаданий и взрывов для отрисовки (не сохраняются).
+## Лучи: x0, y0, x1, y1, тик, цвет (упакованный).
+var beams := PackedFloat32Array()
+var beam_cursor: int = 0
+var last_beam_tick: int = -1000
 var blasts := PackedFloat32Array()
 var blast_colors := PackedInt32Array()
 var blast_cursor: int = 0
@@ -49,6 +59,8 @@ var _candidates := PackedInt32Array()
 
 func _init(world: GameWorld) -> void:
 	_world = world
+	beams.resize(BEAM_CAPACITY * BEAM_STRIDE)
+	beams.fill(-1.0)
 	blasts.resize(BLAST_CAPACITY * BLAST_STRIDE)
 	blasts.fill(-1.0)
 	blast_colors.resize(BLAST_CAPACITY)
@@ -231,6 +243,24 @@ func _remove(i: int) -> void:
 	count -= 1
 
 
+## Показать лужу жидкости (турель полива). Только для отрисовки.
+func push_splash(at: Vector2, radius: float, tick: int, color: Color) -> void:
+	_push_blast(at.x, at.y, radius, tick, pack_color(color))
+
+
+## Показать луч от from к to (молния, ремонт). Только для отрисовки.
+func push_beam(from: Vector2, to: Vector2, tick: int, color: Color) -> void:
+	var o := beam_cursor * BEAM_STRIDE
+	beams[o] = from.x
+	beams[o + 1] = from.y
+	beams[o + 2] = to.x
+	beams[o + 3] = to.y
+	beams[o + 4] = float(tick)
+	beams[o + 5] = float(pack_color(color))
+	beam_cursor = (beam_cursor + 1) % BEAM_CAPACITY
+	last_beam_tick = tick
+
+
 func _push_blast(x: float, y: float, radius: float, tick: int, rgba: int) -> void:
 	var o := blast_cursor * BLAST_STRIDE
 	blasts[o] = x
@@ -244,6 +274,10 @@ func _push_blast(x: float, y: float, radius: float, tick: int, rgba: int) -> voi
 
 static func color_of(rgba: int) -> Color:
 	return Color.hex(rgba & 0xFFFFFFFF)
+
+
+static func pack_color(color: Color) -> int:
+	return int(color.to_rgba32())
 
 
 # --- Сохранение ---

@@ -78,6 +78,9 @@ func _ready() -> void:
 		elif arg == "--creative":
 			# Творческий забег прямо из командной строки: нужен автопрогону и ручной отладке.
 			Session.creative = true
+		elif arg == "--cheats" or arg == "--autoshot":
+			# Автопрогон нажимает отладочные клавиши (F3, ускорение времени) — ему нужны читы.
+			Session.cheats = true
 	if not Session.load_path.is_empty():
 		var path := Session.load_path
 		Session.load_path = ""

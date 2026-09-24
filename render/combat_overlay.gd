@@ -9,6 +9,8 @@ const BAR_HEIGHT := 4.0
 ## Сколько тиков видна вспышка атаки.
 const EVENT_TICKS := 4
 ## Сколько секунд видны обломки.
+## Сколько тиков живёт луч на экране.
+const BEAM_TICKS := 6
 const DEBRIS_SECONDS := 0.7
 ## Сколько тиков видны взрывы и гибель врагов.
 const BLAST_TICKS := 10
@@ -43,6 +45,8 @@ func _process(delta: float) -> void:
 	var has_content := not _world.damaged.is_empty() or _world.enemies.count > 0 or not _debris.is_empty() \
 		or not _world.crates.is_empty() or _world.projectiles.count > 0 \
 		or tick - _world.projectiles.last_blast_tick <= BLAST_TICKS or tick - _world.enemies.last_death_tick <= DEATH_TICKS
+	if tick - _world.projectiles.last_beam_tick <= BEAM_TICKS:
+		has_content = true
 	if has_content or _had_content:
 		queue_redraw()
 	_had_content = has_content
@@ -58,6 +62,7 @@ func _draw() -> void:
 	_draw_events(view)
 	_draw_projectiles(view)
 	_draw_blasts(view)
+	_draw_beams(view)
 	_draw_burning(view)
 	if _camera.user_zoom >= 0.3:
 		_draw_building_bars(view)
@@ -167,6 +172,26 @@ func _draw_burning(view: Rect2) -> void:
 			var phase := _time * 9.0 + k * 2.1 + i
 			var offset := Vector2(sin(phase) * r * 0.6, -r * 0.4 - absf(cos(phase * 0.7)) * r * 0.8)
 			draw_circle(p + offset, 2.5 + sin(phase * 1.3), Color(1.0, 0.55 + 0.25 * sin(phase), 0.1, 0.85))
+
+
+## Лучи турелей: молния бьёт цепью, ремонтный луч тянется к постройке.
+func _draw_beams(view: Rect2) -> void:
+	var sys := _world.projectiles
+	var tick := _world.simulation.tick
+	for k in ProjectileSystem.BEAM_CAPACITY:
+		var o := k * ProjectileSystem.BEAM_STRIDE
+		var at := sys.beams[o + 4]
+		var age := tick - int(at)
+		if at < 0.0 or age < 0 or age >= BEAM_TICKS:
+			continue
+		var from := Vector2(sys.beams[o], sys.beams[o + 1])
+		var to := Vector2(sys.beams[o + 2], sys.beams[o + 3])
+		if not view.intersects(Rect2(from, Vector2.ZERO).expand(to)):
+			continue
+		var fade := 1.0 - float(age) / BEAM_TICKS
+		var color := ProjectileSystem.color_of(int(sys.beams[o + 5]))
+		draw_line(from, to, Color(color, 0.85 * fade), 3.0 * fade + 1.0)
+		draw_line(from, to, Color(color.lightened(0.5), 0.9 * fade), 1.0)
 
 
 func _draw_blasts(view: Rect2) -> void:

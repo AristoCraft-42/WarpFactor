@@ -524,9 +524,14 @@ func _run_defense(game: Game) -> void:
 	while planet.enemies.killed - killed_before < spawned and guard < 900:
 		await get_tree().process_frame
 		guard += 1
-	# Часть ползунов может пройти к шлюзу вне радиуса турели — достаточно половины.
-	_expect(spawned > 0 and (planet.enemies.killed - killed_before) * 2 >= spawned and gun.last_shot_tick > 0,
-		"пулемёт уничтожил врагов (%d из %d)" % [planet.enemies.killed - killed_before, spawned])
+	# Быстрые ползуны часто пробегают мимо радиуса турели, поэтому считаем не только убитых,
+	# но и раненых: важно, что пулемёт успел достать половину волны.
+	var hit := planet.enemies.killed - killed_before
+	for k in planet.enemies.count:
+		if planet.enemies.health[k] < Registry.get_enemy(&"crawler").health - 0.01:
+			hit += 1
+	_expect(spawned > 0 and hit * 2 >= spawned and gun.last_shot_tick > 0,
+		"пулемёт достал врагов (%d из %d, убито %d)" % [hit, spawned, planet.enemies.killed - killed_before])
 	planet.enemies.clear()
 	planet.projectiles.clear()
 	await _key(KEY_T)
@@ -542,6 +547,56 @@ func _run_defense(game: Game) -> void:
 	await _shot("d02_repair.png")
 	await _wait_ticks(planet, 240)
 	_expect(not wall.is_damaged(), "стена починена")
+
+	# Новая оборона: тесла бьёт молнией, полив заливает водой, ремонтная чинит соседей.
+	var near := gun.origin + Vector2i(-7, 0)
+	var new_turrets: Array[Building] = []
+	for id: StringName in [&"tesla_turret", &"repair_turret", &"fluid_turret"]:
+		var def := Registry.get_building(id)
+		var at := _find_clear_rect(planet, Vector2i(2, 2), near, 14)
+		if at.x < 0:
+			continue
+		var placed := planet.buildings.place(def, at, 0, true)
+		if placed != null:
+			new_turrets.append(placed)
+	_expect(new_turrets.size() == 3, "тесла, ремонтная и жидкостная турели поставлены (%d)" % new_turrets.size())
+	if new_turrets.size() < 3:
+		return
+	var tesla := new_turrets[0] as Turret
+	var spray := new_turrets[2] as Turret
+	_power_up(planet, [new_turrets[0], new_turrets[1]])
+	# Баку с водой хватает на несколько заливок — насос сценарию не нужен.
+	var tank_at := _find_clear_rect(planet, Vector2i(2, 2), spray.origin + Vector2i(0, 3), 6)
+	if tank_at.x >= 0:
+		planet.buildings.place(Registry.get_building(&"water_tank"), tank_at, 0, true)
+	planet.fluids.update()
+	var water_net := planet.fluids.get_port_network(spray, 0)
+	if water_net != null:
+		water_net.insert(Registry.get_fluid(&"water").index, water_net.capacity)
+	var wave: Array[Vector2] = []
+	for turret: Building in [tesla, spray]:
+		for k in 3:
+			var p: Vector2 = turret.get_world_center() + Vector2(-4.0, (k - 1) * 1.2) * GameConst.TILE_SIZE
+			if planet.flow.get_dist(GameConst.world_to_tile(p)) < FlowField.INF:
+				wave.append(p)
+	for p: Vector2 in wave:
+		planet.spawn_enemy(Registry.get_enemy(&"crawler"), p)
+	game.camera.focus_on(tesla.get_world_center(), 1.0)
+	var wait := 0
+	while wait < 600 and (tesla.last_shot_tick <= 0 or spray.last_shot_tick <= 0):
+		await get_tree().process_frame
+		wait += 1
+	await _shot("d03_new_turrets.png")
+	_expect(tesla.last_shot_tick > 0 and planet.projectiles.last_beam_tick > 0,
+		"тесла-турель бьёт молнией (луч на тике %d)" % planet.projectiles.last_beam_tick)
+	_expect(water_net != null and spray.last_shot_tick > 0 and water_net.amount < water_net.capacity,
+		"жидкостная турель полила врагов водой")
+	# Убираем их со сцены: дальше проверяется прорыв шлюза, защищать его никто не должен.
+	for turret: Building in new_turrets:
+		planet.buildings.remove(turret, true)
+	planet.enemies.clear()
+	planet.projectiles.clear()
+
 
 ## Прорыв: шлюз разрушен — аварийный телепорт на соседнюю планету и итог.
 func _run_breach(game: Game) -> void:

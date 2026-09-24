@@ -457,6 +457,22 @@ static func make_building(def: BuildingDef) -> Image:
 			_rect(img, Rect2i(Vector2i(c + Vector2(-8, -8) * k), Vector2i(Vector2(16, 16) * k)), body.lightened(0.15))
 			_line(img, c + Vector2(-8, -8) * k, c + Vector2(8, 8) * k, 2.0 * k, dark)
 			_line(img, c + Vector2(8, -8) * k, c + Vector2(-8, 8) * k, 2.0 * k, dark)
+		BuildingDef.Glyph.BOLT:
+			var bolt := PackedVector2Array([c + Vector2(2, -12) * k, c + Vector2(-8, 1) * k, c + Vector2(-1, 1) * k,
+				c + Vector2(-2, 12) * k, c + Vector2(8, -1) * k, c + Vector2(1, -1) * k])
+			_poly(img, bolt, Color("83a598").lightened(0.35))
+			_poly(img, _scale_pts(bolt, c, 0.5), LIGHT)
+		BuildingDef.Glyph.WRENCH:
+			_line(img, c + Vector2(-8, 8) * k, c + Vector2(5, -5) * k, 3.5 * k, glyph_col)
+			_circle(img, c + Vector2(7, -7) * k, 5.5 * k, glyph_col)
+			_circle(img, c + Vector2(9, -9) * k, 2.5 * k, dark)
+			_circle(img, c + Vector2(-9, 9) * k, 2.5 * k, ACCENT)
+		BuildingDef.Glyph.SPRAY:
+			_rect(img, Rect2i(Vector2i(c + Vector2(-11, -4) * k), Vector2i(Vector2(10, 8) * k)), glyph_col)
+			for i in 3:
+				var spread := (i - 1) * 6.0
+				_line(img, c + Vector2(0, 0) * k, c + Vector2(11, spread) * k, 2.0 * k, Color("458588").lightened(0.3))
+				_circle(img, c + Vector2(11, spread) * k, 2.5 * k, Color("458588").lightened(0.5))
 		BuildingDef.Glyph.PUMP:
 			_circle(img, c, 10.0 * k, dark)
 			_circle(img, c, 7.5 * k, Color("458588"))

@@ -325,6 +325,14 @@ static func validate() -> PackedStringArray:
 	for def in buildings:
 		if def is TurretDef:
 			var turret := def as TurretDef
+			if turret.kind != TurretDef.Kind.BULLET:
+				if not turret.ammo.is_empty():
+					errors.append("турель %s: патроны только у пулемётных" % def.id)
+				if turret.kind != TurretDef.Kind.SPRAY and turret.power_use <= 0.0:
+					errors.append("турель %s должна тратить электричество" % def.id)
+				if turret.kind == TurretDef.Kind.SPRAY and turret.spray_use <= 0.0:
+					errors.append("турель %s должна тратить жидкость" % def.id)
+				continue
 			if turret.ammo.is_empty():
 				errors.append("турель %s без патронов" % def.id)
 			for a in turret.ammo:

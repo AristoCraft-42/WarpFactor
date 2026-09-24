@@ -114,6 +114,9 @@ var power_health := PackedFloat32Array()
 var power_damage := PackedFloat32Array()
 var burn_dps := PackedFloat32Array()
 var burn_until := PackedInt32Array()
+## Замедление (жидкостная турель): доля скорости и тик, до которого оно держится.
+var slow_factor := PackedFloat32Array()
+var slow_until := PackedInt32Array()
 
 var next_uid: int = 1
 var spawned: int = 0
@@ -244,6 +247,8 @@ func spawn(def: EnemyDef, position: Vector2, tick: int, squad_id: int = 0, squad
 	path_version[i] = -1
 	burn_dps[i] = 0.0
 	burn_until[i] = 0
+	slow_factor[i] = 1.0
+	slow_until[i] = 0
 	spawned += 1
 	_cells_valid = false
 	_query_valid = false
@@ -273,6 +278,21 @@ func ignite(i: int, dps: float, until_tick: int) -> void:
 
 func is_burning(i: int, tick: int) -> bool:
 	return tick < burn_until[i]
+
+
+## Замедлить врага: доля скорости (0.5 — вдвое) до тика until_tick. Сильнейшее замедление побеждает.
+func slow(i: int, factor: float, until_tick: int) -> void:
+	if i < 0 or i >= count:
+		return
+	if until_tick <= slow_until[i]:
+		slow_factor[i] = minf(slow_factor[i], clampf(factor, 0.05, 1.0))
+	else:
+		slow_factor[i] = clampf(factor, 0.05, 1.0)
+		slow_until[i] = until_tick
+
+
+func is_slowed(i: int, tick: int) -> bool:
+	return tick < slow_until[i]
 
 
 ## Урон без удаления (снаряды): погибший остаётся до remove_dead. true — враг погиб этим уроном.
@@ -448,6 +468,8 @@ func remove_at(i: int) -> void:
 		power_damage[i] = power_damage[last]
 		burn_dps[i] = burn_dps[last]
 		burn_until[i] = burn_until[last]
+		slow_factor[i] = slow_factor[last]
+		slow_until[i] = slow_until[last]
 	count -= 1
 	_cells_valid = false
 	_query_valid = false
@@ -603,6 +625,8 @@ func update(tick: int) -> void:
 					vx = rx
 				facing[i] = atan2(vy, vx)
 				var step := _speed[type] * speed_scale(i) * pace_scale(i, tick)
+				if tick < slow_until[i]:
+					step *= slow_factor[i]
 				# Стая идёт вместе: тот, кто вырвался вперёд, придерживает шаг, пока остальные
 				# не подтянутся. У самой цели все бегут в полную силу — тут скорость и решает.
 				if not hunting:
@@ -963,6 +987,8 @@ func _ensure_capacity(wanted: int) -> void:
 	power_damage.resize(_capacity)
 	burn_dps.resize(_capacity)
 	burn_until.resize(_capacity)
+	slow_factor.resize(_capacity)
+	slow_until.resize(_capacity)
 	_cell_next.resize(_capacity)
 
 
@@ -981,6 +1007,7 @@ func save_data() -> Dictionary:
 		"blocker": blocker.slice(0, count), "next_tile": next_tile.slice(0, count),
 		"path_version": path_version.slice(0, count),
 		"burn_dps": burn_dps.slice(0, count), "burn_until": burn_until.slice(0, count),
+		"slow_factor": slow_factor.slice(0, count), "slow_until": slow_until.slice(0, count),
 		"power_health": power_health.slice(0, count), "power_damage": power_damage.slice(0, count),
 	}
 
@@ -1011,6 +1038,8 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 	var s_version: PackedInt32Array = data.get("path_version", PackedInt32Array())
 	var s_power_health: PackedFloat32Array = data.get("power_health", PackedFloat32Array())
 	var s_power_damage: PackedFloat32Array = data.get("power_damage", PackedFloat32Array())
+	var s_slow_factor: PackedFloat32Array = data.get("slow_factor", PackedFloat32Array())
+	var s_slow_until: PackedInt32Array = data.get("slow_until", PackedInt32Array())
 	var s_burn_dps: PackedFloat32Array = data.get("burn_dps", PackedFloat32Array())
 	var s_burn_until: PackedInt32Array = data.get("burn_until", PackedInt32Array())
 	for k in [s_uid.size(), s_types.size(), s_px.size(), s_py.size(), s_prx.size(), s_pry.size(), s_facing.size(),
@@ -1046,5 +1075,7 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 		# В старых сохранениях силы нет — там все враги были обычными.
 		power_health[i] = s_power_health[j] if j < s_power_health.size() else 1.0
 		power_damage[i] = s_power_damage[j] if j < s_power_damage.size() else 1.0
+		slow_factor[i] = s_slow_factor[j] if j < s_slow_factor.size() else 1.0
+		slow_until[i] = s_slow_until[j] if j < s_slow_until.size() else 0
 		burn_dps[i] = s_burn_dps[j] if j < s_burn_dps.size() else 0.0
 		burn_until[i] = s_burn_until[j] if j < s_burn_until.size() else 0

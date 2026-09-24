@@ -14,7 +14,8 @@ extends RefCounted
 ## ROUTER — приоритетные стороны маршрутизатора, RECIPE — рецепт сборщика.
 enum ConfigKind { NONE, ITEM, BRIDGE, MODE, ROUTER, RECIPE, SOURCE }
 ## Состояние здания для подсказки.
-enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE, NO_AMMO, NO_POWER, NO_FUEL, NO_RECIPE, NO_RESEARCH }
+enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE, NO_AMMO, NO_POWER, NO_FUEL, NO_RECIPE,
+	NO_RESEARCH, NO_FLUID }
 
 ## Уникальный id в BuildingManager (0 — «нет здания»).
 var id: int = 0

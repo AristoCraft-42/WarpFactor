@@ -790,4 +790,16 @@ WINDOW_GRAPH_CHARGE,charge,заряд
 WINDOW_NETWORK_LINKED,Linked with the other floor through the gateway or a lift,Связана с другим этажом через шлюз или лифт
 WINDOW_NETWORK_GENERATORS,Sources: %s,Источники: %s
 WINDOW_NETWORK_CONSUMERS,Consumers: %s,Потребители: %s
+BUILDING_TESLA_TURRET,Tesla Turret,Тесла-турель
+BUILDING_TESLA_TURRET_DESC,"Lightning jumps from the nearest enemy to its neighbours, losing power with every jump. Needs no ammo, but goes quiet without electricity.","Молния бьёт по ближайшему врагу и перескакивает на соседей, слабея с каждым прыжком. Патроны не нужны, но без электричества турель молчит."
+BUILDING_REPAIR_TURRET,Repair Turret,Ремонтная турель
+BUILDING_REPAIR_TURRET_DESC,"Repairs the most damaged building within range with a beam, and drones when everything else is whole. Runs on electricity.","Лучом чинит самую побитую постройку в радиусе, а когда всё цело — дронов. Работает от электричества."
+BUILDING_FLUID_TURRET,Fluid Turret,Жидкостная турель
+BUILDING_FLUID_TURRET_DESC,"Floods an area with whatever the pipes bring: water slows enemies down, steam scalds them. Connects to pipes from any side.","Заливает область тем, что пришло по трубам: вода замедляет врагов, пар обжигает. Подключается к трубам любой стороной."
+RESEARCH_ADVANCED_DEFENSE,Advanced Defense,Продвинутая оборона
+RESEARCH_ADVANCED_DEFENSE_DESC,"Tesla, repair and fluid turrets.","Тесла-турель, ремонтная и жидкостная турели."
+STAT_TURRET_CHAIN,"Lightning: %d damage, up to %d targets","Молния: %d урона, до %d целей"
+STAT_TURRET_REPAIR,Repairs %d health at a time,Чинит по %d прочности за раз
+STAT_TURRET_SPRAY,"Splash %.1f tiles: water slows for %.0f s, steam burns %d/s","Лужа %.1f тайла: вода замедляет на %.0f с, пар жжёт %d/с"
+STATUS_NO_FLUID,No fluid,Нет жидкости
 ACTION_OVERLAY_POWER,Power networks overlay,Оверлей электросетей

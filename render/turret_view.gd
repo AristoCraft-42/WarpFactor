@@ -124,6 +124,13 @@ func _collect_head(turret: Turret, d: TurretDef, center: Vector2, tick: int, bod
 		bodies.append({"at": base, "r": 11.0, "color": Color(0.11, 0.13, 0.13)})
 		bodies.append({"at": base, "r": 9.0, "color": body.lightened(0.2)})
 		bodies.append({"at": base - dir * 2.0, "r": 4.0, "color": body.darkened(0.3)})
+	elif d.kind != TurretDef.Kind.BULLET:
+		# Молния, ремонт и полив: один излучатель вместо пары стволов.
+		_add_line(base, base + dir * (d.barrel_length + 1.5), Color(0.11, 0.13, 0.13))
+		_add_line(base, base + dir * d.barrel_length, body.lightened(0.5))
+		bodies.append({"at": base, "r": 9.5, "color": Color(0.11, 0.13, 0.13)})
+		bodies.append({"at": base, "r": 7.5, "color": body.lightened(0.2)})
+		bodies.append({"at": base + dir * d.barrel_length, "r": 3.0, "color": body.lightened(0.6)})
 	else:
 		for k in [-1.0, 1.0]:
 			var offset: Vector2 = side * 3.5 * k
@@ -132,7 +139,7 @@ func _collect_head(turret: Turret, d: TurretDef, center: Vector2, tick: int, bod
 		bodies.append({"at": base, "r": 9.0, "color": Color(0.11, 0.13, 0.13)})
 		bodies.append({"at": base, "r": 7.0, "color": body.lightened(0.25)})
 		bodies.append({"at": base, "r": 2.5, "color": body.darkened(0.4)})
-	if turret.get_status() == Building.Status.NO_AMMO:
+	if d.kind == TurretDef.Kind.BULLET and turret.get_status() == Building.Status.NO_AMMO:
 		bodies.append({"at": center + Vector2(9, -9) * d.size, "r": 3.5, "color": Color(0.98, 0.29, 0.2, 0.9)})
 	if since < 3:
 		var muzzle := center + dir * (d.barrel_length + 3.0)

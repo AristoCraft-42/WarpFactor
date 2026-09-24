@@ -130,6 +130,13 @@ func is_alive() -> bool:
 
 
 ## Могут ли враги атаковать дрона в этот тик.
+## Починка дрона (ремонтная турель): прочность не выше полной.
+func heal(amount: float) -> void:
+	if dead or amount <= 0.0:
+		return
+	health = minf(health + amount, get_max_health())
+
+
 func is_targetable(tick: int) -> bool:
 	return not dead and tick >= invulnerable_until
 

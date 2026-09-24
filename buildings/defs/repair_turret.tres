@@ -1,0 +1,54 @@
+[gd_resource type="Resource" script_class="TurretDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/defense/turret_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/defense/turret.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/galvanized_steel.tres" id="item_galvanized_steel"]
+[ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
+[ext_resource type="Resource" path="res://items/types/microchip.tres" id="item_microchip"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_galvanized_steel")
+amount = 10
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_gear")
+amount = 10
+
+[sub_resource type="Resource" id="cost_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_microchip")
+amount = 2
+
+[resource]
+script = ExtResource("1_def")
+id = &"repair_turret"
+name_key = "BUILDING_REPAIR_TURRET"
+description_key = "BUILDING_REPAIR_TURRET_DESC"
+category = 3
+size = 2
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 32
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2")])
+craft_time = 3.0
+craft_amount = 1
+health = 300.0
+solid = true
+color = Color(0.557, 0.753, 0.486, 1)
+glyph = 33
+logic_script = ExtResource("3_logic")
+kind = 2
+rotatable = false
+shoot_range = 9.0
+reload_seconds = 1.0
+rotate_speed = 360.0
+shoot_cone = 20.0
+inaccuracy = 0.0
+max_ammo = 0
+barrel_length = 9.0
+power_use = 120.0
+repair_amount = 60.0
