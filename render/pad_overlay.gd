@@ -35,17 +35,24 @@ func _process(_delta: float) -> void:
 ## Где сейчас стоят платформы этого мира. true — состав изменился.
 func _refresh_platforms() -> void:
 	var run := _world.run if _world != null else null
-	if run == null or _world != run.planet:
+	if run == null:
 		return
 	var rects: Array[Rect2] = []
 	var signature := ""
 	var t := float(GameConst.TILE_SIZE)
-	for console in run.platform_consoles():
-		if not console.is_deployed():
-			continue
-		var tiles := run.platform_target_rect(console.deployed_at)
-		rects.append(Rect2(Vector2(tiles.position) * t, Vector2(tiles.size) * t))
-		signature += "%d:%s;" % [console.room, console.deployed_at]
+	if _world == run.planet:
+		for console in run.platform_consoles():
+			if not console.is_deployed():
+				continue
+			var tiles := run.platform_target_rect(console.deployed_at)
+			rects.append(Rect2(Vector2(tiles.position) * t, Vector2(tiles.size) * t))
+			signature += "%d:%s;" % [console.room, console.deployed_at]
+	elif _world == run.base:
+		# В комнате рамка показывает, что именно уедет на планету (и куда вернётся).
+		for room in run.get_mining_rooms():
+			var tiles := Registry.base_def.platform_rect(room)
+			rects.append(Rect2(Vector2(tiles.position) * t, Vector2(tiles.size) * t))
+			signature += "room%d;" % room
 	if signature == _signature:
 		return
 	_signature = signature

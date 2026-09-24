@@ -126,22 +126,6 @@ func _start() -> void:
 	_connect_run_signals()
 	_last_autosave_tick = run.base.simulation.tick
 
-
-## Подписки на сам забег. Забег заменяется целиком (вход в сеть, починка снимком),
-## поэтому подписки живут отдельно от построения сцены и ставятся заново на новый забег.
-func _connect_run_signals() -> void:
-	run.drone_changed_world.connect(_on_drone_changed_world)
-	run.planet_changed.connect(_on_planet_changed)
-	run.teleport_starting.connect(_on_teleport_starting)
-
-
-func _on_teleport_starting() -> void:
-	save_named(TELEPORT_AUTOSAVE_FILE, tr("SAVE_NAME_BEFORE_TELEPORT"), false)
-
-	camera.focus_on(run.drone.position, 1.0)
-	_on_view_changed()
-	terrain.flush()
-
 	# Отладочные прогоны (tests/), только по флагам командной строки.
 	var args := OS.get_cmdline_user_args()
 	if args.has("--autoshot"):
@@ -157,6 +141,22 @@ func _on_teleport_starting() -> void:
 			var stress_script: Script = load("res://tests/stress_render.gd")
 			if stress_script != null:
 				add_child(stress_script.new())
+
+
+## Подписки на сам забег. Забег заменяется целиком (вход в сеть, починка снимком),
+## поэтому подписки живут отдельно от построения сцены и ставятся заново на новый забег.
+func _connect_run_signals() -> void:
+	run.drone_changed_world.connect(_on_drone_changed_world)
+	run.planet_changed.connect(_on_planet_changed)
+	run.teleport_starting.connect(_on_teleport_starting)
+
+
+func _on_teleport_starting() -> void:
+	save_named(TELEPORT_AUTOSAVE_FILE, tr("SAVE_NAME_BEFORE_TELEPORT"), false)
+
+	camera.focus_on(run.drone.position, 1.0)
+	_on_view_changed()
+	terrain.flush()
 
 
 func _exit_tree() -> void:

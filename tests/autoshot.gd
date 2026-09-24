@@ -172,8 +172,10 @@ func _run_research(game: Game) -> void:
 	var deposit: Button = window.get("_deposit_button")
 	await _click_control(deposit)
 	await _settle(game)
-	_expect(state.manual_queue == 10 and run.drone.inventory.count(kit) == 2,
-		"кнопка сдаёт нужные наборы в ручную очередь (сдано %d, наборов у дрона %d, выбрано «%s», кнопка %s)"
+	# Наборы остаются в инвентаре и уходят по одному по мере сдачи (правки 17), поэтому сразу
+	# после кнопки у дрона их столько же, сколько было.
+	_expect(state.manual_queue == 10 and run.drone.inventory.count(kit) == 12,
+		"кнопка ставит нужные наборы в ручную очередь (сдано %d, наборов у дрона %d, выбрано «%s», кнопка %s)"
 			% [state.manual_queue, run.drone.inventory.count(kit), state.active, "выключена" if deposit.disabled else "включена"])
 	game.clock.set_speed_index(2)
 	await _wait_ticks(run.planet, roundi(ResearchState.MANUAL_SECONDS * GameConst.TICK_RATE) * 2 + 5)
@@ -596,10 +598,16 @@ func _run_gateway(game: Game) -> void:
 	await _key(KEY_F)
 	await _frames(5)
 	_expect(game.world == run.base and run.drone.world == run.base and game.is_in_base(), "F над шлюзом — дрон и вид в базе")
-	# Этаж по ширине меньше экрана — камера по X стоит в его центре и не показывает пустоту за краем.
+	# Камера не показывает пустоту за краем этажа: пока открытая часть уже экрана, она стоит
+	# в её центре по X, а когда шире (открыты комнаты добычи) — следует за дроном внутри рамки.
 	var bounds := run.base.get_play_rect_px()
-	_expect(absf(game.camera.position.x - bounds.get_center().x) < 2.0 and bounds.has_point(game.camera.position),
-		"камера на этаже — в пределах открытой части")
+	var half_view := game.camera.get_world_view_rect().size.x * 0.5
+	var centered := bounds.size.x <= half_view * 2.0
+	var camera_x := game.camera.position.x
+	var ok := bounds.has_point(game.camera.position) and (absf(camera_x - bounds.get_center().x) < 2.0
+		if centered else camera_x >= bounds.position.x + half_view - 2.0 and camera_x <= bounds.end.x - half_view + 2.0)
+	_expect(ok, "камера на этаже — в пределах открытой части (x %.0f, рамка %.0f…%.0f)"
+		% [camera_x, bounds.position.x, bounds.end.x])
 
 	# Много труб на экране: раньше кадр перерисовывал их все заново, теперь чанки кэшируются.
 	# Ставим только на свободные тайлы этажа, ничего не сносим.
@@ -779,15 +787,27 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	var drone := world.drone
 	var inv := drone.inventory
 
-	# Полёт на D и слежение камеры.
+	# Полёт на D и слежение камеры. Взгляд сначала возвращаем к дрону: в прошлых сценах его
+	# смещал зум к курсору, а гасится это смещение только в полёте — мерили бы не слежение.
+	game.camera.recenter()
 	var start := drone.position
 	await _key_hold(KEY_D, true)
 	await _frames(20)
 	await _key_hold(KEY_D, false)
 	_expect(drone.position.x > start.x + 16.0, "D двигает дрона вправо (%.0f px)" % (drone.position.x - start.x))
-	await _frames(60)
-	_expect(game.camera.position.distance_to(drone.get_draw_position(game.clock.alpha)) < 2.0,
-		"камера следует за дроном (%.1f px)" % game.camera.position.distance_to(drone.get_draw_position(game.clock.alpha)))
+	# Смещённый взгляд (после зума к курсору в прошлых сценах) возвращается к дрону, только пока
+	# тот летит, — даём ему полетать. Летим налево, вглубь карты: у края камера упирается
+	# в границу мира, и меряли бы мы не слежение, а этот упор.
+	await _key_hold(KEY_A, true)
+	await _frames(45)
+	await _key_hold(KEY_A, false)
+	await _frames(40)
+	# Камера держится нарисованного дрона: у него к позиции симуляции прибавлено упреждение.
+	var drawn := drone.get_draw_position(game.clock.alpha) + game.drone_view.local_offset()
+	_expect(game.camera.position.distance_to(drawn) < 2.0,
+		"камера следует за дроном (%.1f px; камера %s, дрон %s, свой дрон %s, взгляд %s)"
+			% [game.camera.position.distance_to(drawn), game.camera.position, drawn,
+				"да" if drone == game.run.drone else "нет", game.camera.look_offset])
 	await _shot("d00_drone.png")
 
 	# Добыча: ЛКМ по руде с зажатием.
@@ -1028,6 +1048,8 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	# и в него ничего не возвращается.
 	var strip := _find_clear_rect(world, Vector2i(4, 4), base + Vector2i(6, 6), 12)
 	Worlds_line(world, strip, 4, GameConst.Dir.RIGHT)
+	# Переносить можно в радиусе дрона (как строить), поэтому подлетаем к самой линии.
+	await _drone_to(game, strip + Vector2i(2, 1))
 	await _mouse_move(game, strip)
 	await _mouse_button(game, strip, MOUSE_BUTTON_RIGHT, true)
 	await _mouse_move(game, strip + Vector2i(3, 0))
@@ -1053,6 +1075,7 @@ func _run_interaction(game: Game, base: Vector2i) -> void:
 	for x in bm.collect_in_rect(Rect2i(strip, Vector2i(4, 4))):
 		if x.def.removable:
 			bm.remove(x, true)
+	await _drone_to(game, base)
 
 	# Выделение и снос на X: постройки возвращаются в инвентарь.
 	await _mouse_move(game, rect.position)

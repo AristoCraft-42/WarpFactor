@@ -120,11 +120,20 @@ func move_aim(delta: Vector2i) -> void:
 	_refresh()
 
 
+## Куда смотреть, когда окно открыли впервые: ближайшее к базе место, куда платформа влезает.
+## Целиться в саму площадку бессмысленно — там платформе не встать.
 func _default_aim() -> Vector2i:
 	var gate := _run.get_gateway(_run.planet)
+	var middle := Vector2i(_run.planet.grid.width / 2, _run.planet.grid.height / 2)
 	if gate != null and gate.world != null:
-		return gate.origin + Vector2i.ONE * (gate.get_size() / 2)
-	return Vector2i(_run.planet.grid.width / 2, _run.planet.grid.height / 2)
+		middle = gate.origin + Vector2i.ONE * (gate.get_size() / 2)
+	var side := Registry.base_def.platform_size
+	for radius in range(side, side * 6, 2):
+		for dir: Vector2i in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]:
+			var candidate := middle + dir * radius
+			if _run.can_place_platform(candidate, _console.room if _console != null else -1):
+				return candidate
+	return middle
 
 
 func _on_selection_changed() -> void:
