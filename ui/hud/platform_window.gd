@@ -136,7 +136,7 @@ func _default_aim() -> Vector2i:
 	var middle := Vector2i(_run.planet.grid.width / 2, _run.planet.grid.height / 2)
 	if gate != null and gate.world != null:
 		middle = gate.origin + Vector2i.ONE * (gate.get_size() / 2)
-	var side := Registry.base_def.platform_size
+	var side := Registry.mining_def.platform_size
 	for radius in range(side, side * 6, 2):
 		for dir: Vector2i in [Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0), Vector2i(0, -1)]:
 			var candidate := middle + dir * radius

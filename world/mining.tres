@@ -4,11 +4,15 @@
 
 [resource]
 script = ExtResource("1_def")
-id = &"base"
-title_key = "LOCATION_BASE"
-size = 46
-start_size = 16
-size_step = 6
-center_max = 46
+id = &"mining"
+title_key = "LOCATION_MINING"
+size = 96
+start_size = 20
+size_step = 0
+center_max = 20
 floor_id = &"metal_plates"
 void_floor_id = &"void"
+room_size = 16
+tunnel_width = 3
+room_gap = 6
+platform_size = 10

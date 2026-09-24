@@ -7,13 +7,13 @@
 
 [resource]
 script = ExtResource("1_def")
-id = &"mining_room_1"
-name_key = "RESEARCH_MINING_ROOM_1"
-description_key = "RESEARCH_MINING_ROOM_1_DESC"
-sort_order = 171
+id = &"mining_floor"
+name_key = "RESEARCH_MINING_FLOOR"
+description_key = "RESEARCH_MINING_FLOOR_DESC"
+sort_order = 169
 cost_item = ExtResource("2_kit")
-cost_amount = 60
-prerequisites = Array[StringName]([&"mining_floor"])
+cost_amount = 50
+prerequisites = Array[StringName]([&"underground_1", &"industry"])
 unlock_buildings = Array[ExtResource("3_building_script")]([])
 unlock_recipes = Array[ExtResource("4_recipe_script")]([])
-effects = Array[StringName]([&"mining_room"])
+effects = Array[StringName]([&"mining_floor"])

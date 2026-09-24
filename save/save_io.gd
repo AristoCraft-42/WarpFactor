@@ -180,6 +180,7 @@ static func run_to_dict(run: Run) -> Dictionary:
 			"star_map": run.star_map.save_data(),
 			"charge_target": run.charge_target, "charge_left": run.charge_ticks_left, "charge_total": run.charge_ticks_total,
 			"arrival_tick": run.planet_arrival_tick, "drone_in_base": run.drone.world == run.base,
+			"drone_floor": run.floor_of(run.drone.world),
 			"local_player": run.local_player, "next_player": run.next_player_id,
 		},
 		"research": run.research.save_data(),
@@ -187,6 +188,7 @@ static func run_to_dict(run: Run) -> Dictionary:
 		"players": _players_to_array(run),
 		"planet": world_to_dict(run.planet),
 		"base": world_to_dict(run.base),
+		"mining": world_to_dict(run.mining),
 	}
 
 
@@ -208,6 +210,13 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.star_map.load_data(run_data.get("star_map", {}))
 	run.planet = world_from_dict(data.get("planet", {}), null)
 	run.base = world_from_dict(data.get("base", {}), null)
+	run.base.floor_plan = Registry.base_def
+	# Этажа добычи в старых сохранениях нет — заводим пустой.
+	if data.has("mining"):
+		run.mining = world_from_dict(data.get("mining", {}), null)
+	else:
+		run.mining = GameWorld.create_base(Registry.mining_def, run.creative)
+	run.mining.floor_plan = Registry.mining_def
 	_players_from_array(run, data.get("players", []))
 	run.next_player_id = maxi(int(run_data.get("next_player", 1)), run.next_player_id)
 	var research := ResearchState.new()
@@ -233,6 +242,7 @@ static func run_from_dict(data: Dictionary) -> Run:
 	run.planet_arrival_tick = int(run_data.get("arrival_tick", 0))
 	run.attach_world(run.planet)
 	run.attach_world(run.base)
+	run.attach_world(run.mining)
 	run.relink_lifts()
 	run.apply_research_effects(false)
 	# Пульты и якоря платформ находят друг друга после того, как оба мира загружены.
@@ -302,14 +312,14 @@ static func world_to_dict(world: GameWorld) -> Dictionary:
 static func _players_to_array(run: Run) -> Array:
 	var out := []
 	for p in run.players:
-		out.append(p.save_data(run.base))
+		out.append(p.save_data(run.floor_of(p.drone.world) if p.drone != null else 0))
 	return out
 
 
 static func _players_from_array(run: Run, entries: Array) -> void:
 	for entry in entries:
 		var data: Dictionary = entry
-		var world := run.base if bool(data.get("in_base", false)) else run.planet
+		var world := run.world_of_floor(int(data.get("floor", 1 if bool(data.get("in_base", false)) else 0)))
 		var drone := Drone.new(Registry.drone_def, world, Vector2.ZERO)
 		drone.load_data(data.get("drone", {}))
 		run._register_player(String(data.get("name", "")), drone, int(data.get("id", 0)))

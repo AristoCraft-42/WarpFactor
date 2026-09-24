@@ -238,7 +238,14 @@ BUILDING_BASE_GATEWAY_DESC,"The pair of the central gateway on the underground f
 INFO_GATEWAY_TO_BASE,Down: %d / %d,Вниз: %d / %d
 INFO_GATEWAY_TO_PLANET,Up: %d / %d,Вверх: %d / %d
 LOCATION_BASE,Underground floor,Подземный этаж
+LOCATION_MINING,Mining floor,Этаж добычи
+BUILDING_SHAFT,Shaft,Шахта
+BUILDING_SHAFT_DESC,The only way down to the mining floor: items go through it and the drone rides it with F.,"Единственный путь на этаж добычи: по ней идут предметы, и по F спускается дрон."
+INFO_SHAFT_QUEUE,Waiting in the shaft: %d / %d,В шахте ждёт: %d из %d
+RESEARCH_MINING_FLOOR,Mining floor,Этаж добычи
+RESEARCH_MINING_FLOOR_DESC,Digs a floor below the base: a central room with a shaft down and room for four mining rooms around it.,Прокапывает этаж под базой: центральная комната с шахтой вниз и место для четырёх комнат добычи вокруг.
 HINT_GATEWAY_TO_BASE,%s — go down to the underground floor,%s — спуститься на подземный этаж
+HINT_GATEWAY_TO,%s — go to %s,%s — перейти: %s
 HINT_GATEWAY_TO_PLANET,%s — go up to the pad,%s — подняться на площадку
 ACTION_USE_GATEWAY,Pass through the gateway,Пройти через шлюз
 HUD_INFO_PAD,Gateway pad: moves together with the base,Площадка шлюза: переезжает вместе с базой

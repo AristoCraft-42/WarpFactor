@@ -47,10 +47,10 @@ func _refresh_platforms() -> void:
 			var tiles := run.platform_target_rect(console.deployed_at)
 			rects.append(Rect2(Vector2(tiles.position) * t, Vector2(tiles.size) * t))
 			signature += "%d:%s;" % [console.room, console.deployed_at]
-	elif _world == run.base:
+	elif _world == run.mining:
 		# В комнате рамка показывает, что именно уедет на планету (и куда вернётся).
 		for room in run.get_mining_rooms():
-			var tiles := Registry.base_def.platform_rect(room)
+			var tiles := Registry.mining_def.platform_rect(room)
 			rects.append(Rect2(Vector2(tiles.position) * t, Vector2(tiles.size) * t))
 			signature += "room%d;" % room
 	if signature == _signature:

@@ -120,6 +120,7 @@ LOGIC = {
     "workshop": "res://buildings/production/science_workshop.gd",
     "accumulator": "res://buildings/power/accumulator.gd",
     "lift": "res://buildings/gateway/lift.gd",
+    "shaft": "res://buildings/gateway/shaft.gd",
     "platform_console": "res://buildings/gateway/platform_console.gd",
     "platform_core": "res://buildings/gateway/platform_core.gd",
     "creative": "res://buildings/creative/creative_block.gd",
@@ -229,6 +230,8 @@ BUILDINGS = [
     ("creative_void", "creative", "creative", 0, 1, False, True, True, 31, "504945", 901, [],
      {"kind": 3, "rates": [100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 25000.0], "default_rate": 2,
       "rotatable": False, "creative_only": True, "power_use": 1.0}, (400, True), (0.5, 1, 20)),
+    ("shaft", "lift", "shaft", 0, 3, False, False, False, 28, "7a7f8a", 4, [],
+     {"buffer_capacity": 20, "throughput": "conveyor"}, (2000, True), None),
     # Платформа добычи: пульт в комнате и якорь на платформе (ставятся сами вместе с комнатой)
     ("platform_console", "platform", "platform_console", 0, 2, False, False, False, 28, "4f7a6a", 2, [],
      {"buffer_capacity": 20, "throughput": "conveyor", "deploy_seconds": 6.0, "is_core": False,
@@ -297,6 +300,7 @@ RESEARCH = [
     ("industry", 70, 30, ["mining"], ["assembler"], [], []),
     ("science_automation", 80, 35, ["industry"], ["science_workshop"], [], []),
     ("autobuild", 85, 40, ["industry"], [], BUILD_RECIPE_IDS, []),
+    ("mining_floor", 169, 50, ["underground_1", "industry"], [], [], ["mining_floor"]),
     ("compact_production", 86, 45, ["industry"], ["smeltery", "fabricator", "fast_drill", "large_container"], [], []),
     # Оборона
     ("defense", 90, 25, ["electricity"], ["machine_gun"], ["casing_mg"] + [out for _, out in FILLERS], []),
@@ -328,7 +332,7 @@ RESEARCH = [
      for i in range(1, 4)] \
   + [("underground_%d" % i, 130 + i, 10 + 10 * i, ["underground_%d" % (i - 1)] if i > 1 else ["underground"], [], [], ["underground_size"])
      for i in range(1, 6)]   + [("mining_room_%d" % i, 170 + i, 40 + 20 * i,
-      ["mining_room_%d" % (i - 1)] if i > 1 else ["underground", "industry"], [], [], ["mining_room"])
+      ["mining_room_%d" % (i - 1)] if i > 1 else ["mining_floor"], [], [], ["mining_room"])
      for i in range(1, 5)] + DRONE_RESEARCH
 
 START_ITEMS = [("conveyor", 20), ("furnace", 2), ("coal", 20)]

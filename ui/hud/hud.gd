@@ -420,7 +420,7 @@ func on_planet_changed() -> void:
 
 ## Уведомления мира планеты (после телепорта мир новый — подписываемся заново).
 func _connect_world_signals() -> void:
-	for world in [_game.run.planet, _game.run.base]:
+	for world in [_game.run.planet, _game.run.base, _game.run.mining]:
 		if not world.crate_picked.is_connected(_on_crate_picked):
 			world.crate_picked.connect(_on_crate_picked)
 
@@ -548,8 +548,14 @@ func _update_gateway_label() -> void:
 	if not _game.run.is_underground_open():
 		_gateway_label.text = tr("HINT_GATEWAY_LOCKED") % tr(Registry.get_research(&"underground").name_key)
 		return
-	var key := "HINT_GATEWAY_TO_PLANET" if _game.world.is_base else "HINT_GATEWAY_TO_BASE"
-	_gateway_label.text = tr(key) % InputActions.primary_label(&"use_gateway")
+	# Этажей три, поэтому подсказка называет, куда именно ведёт проход под дроном.
+	var passage := _game.run.get_passage()
+	var target := _game.run.passage_target(passage) if passage != null else null
+	if target == null or target.world == null:
+		_gateway_label.text = ""
+		return
+	_gateway_label.text = tr("HINT_GATEWAY_TO") % [InputActions.primary_label(&"use_gateway"),
+		_game.run.get_world_title(target.world)]
 
 
 func _update_problem() -> void:

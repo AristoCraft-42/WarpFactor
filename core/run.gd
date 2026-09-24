@@ -35,6 +35,12 @@ signal teleport_starting
 
 var planet: GameWorld
 var base: GameWorld
+## Этаж добычи: третий мир забега, открывается исследованием «Этаж добычи».
+## Пустой, пока исследование не пройдено: комнаты и шахта появляются вместе с ним.
+var mining: GameWorld
+## Шахта между подземным этажом и этажом добычи (пара зданий).
+var shaft_base: Shaft
+var shaft_mining: Shaft
 var research: ResearchState
 ## Игроки забега по возрастанию id: у каждого свой дрон, инвентарь и очередь крафта.
 var players: Array[Player] = []
@@ -116,8 +122,10 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	var drone := planet.drone
 	_register_player("", drone)
 	base = GameWorld.create_base(Registry.base_def, creative)
+	mining = GameWorld.create_base(Registry.mining_def, creative)
 	attach_world(planet)
 	attach_world(base)
+	attach_world(mining)
 	setup_research(ResearchState.new())
 	link = GatewayLink.new()
 	var spawn := drone.get_tile()
@@ -201,7 +209,7 @@ func set_local_player(id: int) -> void:
 	if player == null:
 		return
 	local_player = id
-	for world in [planet, base]:
+	for world in [planet, base, mining]:
 		if world != null:
 			world.view_drone = player.drone
 	players_changed.emit()
@@ -293,8 +301,35 @@ func cheats_allowed() -> bool:
 	return creative or cheats
 
 
+## Номер этажа мира: 0 — планета, 1 — подземный этаж, 2 — этаж добычи.
+func floor_of(world: GameWorld) -> int:
+	if world == base:
+		return 1
+	if world == mining:
+		return 2
+	return 0
+
+
+## Мир по номеру этажа.
+func world_of_floor(level: int) -> GameWorld:
+	match level:
+		1:
+			return base
+		2:
+			return mining
+		_:
+			return planet
+
+
+## Этаж добычи открыт исследованием.
+func is_mining_open() -> bool:
+	return research != null and research.has_effect(&"mining_floor")
+
+
 ## Сколько комнат добычи открыто исследованиями (каждая — со своим туннелем и платформой).
 func get_mining_rooms() -> int:
+	if not is_mining_open():
+		return 0
 	var steps := research.count_effect(&"mining_room") if research != null else 0
 	return mini(steps, GameConst.MINING_ROOMS)
 
@@ -312,20 +347,25 @@ func apply_research_effects(notify: bool = true) -> void:
 		planet.resize_pad(_pad_around(link.planet_gateway))
 	if base != null:
 		base.open_area(GameWorld.base_rect(Registry.base_def, get_underground_size()), notify)
-		var base_def := Registry.base_def
+	if mining != null and is_mining_open():
+		var mining_def := Registry.mining_def
+		# Центральная комната — первая в списке открытого: после загрузки список пуст,
+		# и без неё общая рамка этажа считалась бы только по комнатам добычи.
+		mining.open_area(GameWorld.base_rect(mining_def, mining_def.start_size), notify)
+		_ensure_shaft(notify)
 		for i in get_mining_rooms():
-			base.open_room(base_def.room_rect(i), base_def.tunnel_rect(i), notify)
-			_ensure_platform(i)
+			mining.open_room(mining_def.room_rect(i), mining_def.tunnel_rect(i), notify)
+			_ensure_platform(i, notify)
 			# Пока платформа на планете, её место в комнате — пустота: открытие комнаты
 			# (в том числе при загрузке) не должно застилать его полом обратно.
 			var console := get_platform_console(i)
 			if console != null and console.is_deployed():
-				base.set_platform_open(base_def.platform_rect(i), false)
+				mining.set_platform_open(mining_def.platform_rect(i), false)
 	for p in players:
 		p.drone.apply_upgrades(research, notify)
 	if not notify:
 		return
-	for world in [planet, base]:
+	for world in [planet, base, mining]:
 		if world == null or world.buildings == null:
 			continue
 		world.power.mark_dirty()
@@ -338,7 +378,7 @@ func apply_research_effects(notify: bool = true) -> void:
 
 
 func _on_research_changed() -> void:
-	for world in [planet, base]:
+	for world in [planet, base, mining]:
 		if world == null or world.buildings == null:
 			continue
 		for b in world.buildings.get_all():
@@ -377,6 +417,7 @@ const STATE_PART_NAMES := [
 	"тик", "исследования",
 	"постройки планеты", "предметы на лентах планеты", "враги планеты",
 	"постройки базы", "предметы на лентах базы", "враги базы",
+	"постройки этажа добычи", "предметы на лентах этажа добычи", "враги этажа добычи",
 	"игроки"]
 
 
@@ -394,7 +435,7 @@ func state_parts() -> PackedInt64Array:
 	var parts := PackedInt64Array()
 	parts.append(get_tick())
 	parts.append(research.done.size() * 1000 + research.manual_queue)
-	for world in [planet, base]:
+	for world in [planet, base, mining]:
 		if world == null or world.buildings == null:
 			parts.append(0)
 			parts.append(0)
@@ -663,6 +704,7 @@ func step() -> void:
 	_balance_power()
 	planet.simulation.step()
 	base.simulation.step()
+	mining.simulation.step()
 	research.step(_manual_kits())
 	if planet.breached:
 		emergency_teleport()
@@ -687,6 +729,8 @@ func get_gateway(world: GameWorld) -> GatewayBuilding:
 func get_world_title(world: GameWorld) -> String:
 	if world == base:
 		return TranslationServer.translate(Registry.base_def.title_key)
+	if world == mining:
+		return TranslationServer.translate(Registry.mining_def.title_key)
 	var node := star_map.get_current()
 	var level := Registry.get_level(level_id) if level_id != &"" else null
 	if level != null and node.id == 0:
@@ -718,6 +762,10 @@ func get_passage(who: Drone = null) -> Building:
 	var lift := d.world.buildings.get_at(d.get_tile()) as Lift
 	if lift != null and lift.pair != null:
 		return lift
+	# Шахта на этаж добычи.
+	var shaft := d.world.buildings.get_at(d.get_tile()) as Shaft
+	if shaft != null and shaft.pair != null:
+		return shaft
 	# Пульт в комнате и якорь на развёрнутой платформе — такой же проход между мирами.
 	var platform_end := d.world.buildings.get_at(d.get_tile()) as PlatformEnd
 	return platform_end if platform_end != null and platform_end.is_linked() else null
@@ -745,19 +793,26 @@ func can_use_gateway(who: Drone = null) -> bool:
 	return is_over_gateway(who) and is_underground_open()
 
 
+## Здание на другом конце прохода (шлюз, лифт, шахта, платформа) — или null.
+func passage_target(from: Building) -> Building:
+	if from is Lift:
+		return (from as Lift).pair
+	if from is Shaft:
+		return (from as Shaft).pair
+	if from is PlatformEnd:
+		return (from as PlatformEnd).other_end()
+	if from is GatewayBuilding:
+		return get_gateway(base if from.world == planet else planet)
+	return null
+
+
 ## Переносит дрона через шлюз или лифт: он оказывается над парой на другом этаже в той же точке.
 func use_gateway(who: Drone = null) -> bool:
 	var d := who if who != null else drone
 	if not can_use_gateway(d):
 		return false
 	var from := get_passage(d)
-	var to: Building = null
-	if from is Lift:
-		to = (from as Lift).pair
-	elif from is PlatformEnd:
-		to = (from as PlatformEnd).other_end()
-	else:
-		to = get_gateway(base if d.world == planet else planet)
+	var to := passage_target(from)
 	if to == null or to.world == null:
 		return false
 	var to_world := to.world
@@ -1107,29 +1162,64 @@ func relink_lifts() -> void:
 
 ## Пульт и якорь комнаты: ставятся вместе с комнатой и дальше живут сами.
 ## Повторный вызов ничего не делает — только следит, что оба на месте и связаны.
-func _ensure_platform(index: int) -> void:
-	var base_def := Registry.base_def
+func _ensure_platform(index: int, notify: bool = true) -> void:
+	var mining_def := Registry.mining_def
 	var console_def := Registry.get_building(&"platform_console") as PlatformDef
 	var core_def := Registry.get_building(&"platform_core") as PlatformDef
-	if console_def == null or core_def == null:
+	if console_def == null or core_def == null or mining == null:
 		return
-	var console := base.buildings.get_at(base_def.console_origin(index)) as PlatformConsole
+	var console := mining.buildings.get_at(mining_def.console_origin(index)) as PlatformConsole
 	if console == null:
-		console = base.buildings.place(console_def, base_def.console_origin(index), 0, true) as PlatformConsole
+		console = mining.buildings.place(console_def, mining_def.console_origin(index), 0, true) as PlatformConsole
 		if console == null:
 			return
 		console.room = index
 	var core := find_platform_core(index)
 	if core == null:
-		core = base.buildings.place(core_def, base_def.core_origin(index), 0, true) as PlatformCore
+		core = mining.buildings.place(core_def, mining_def.core_origin(index), 0, true) as PlatformCore
 		if core == null:
 			return
 		core.room = index
-	_link_platform(console, core)
+	_link_platform(console, core, notify)
+
+
+## Шахта вниз: пара зданий в середине подземного этажа и центральной комнаты этажа добычи.
+func _ensure_shaft(notify: bool = true) -> void:
+	var def := Registry.get_building(&"shaft") as LiftDef
+	if def == null or base == null or mining == null:
+		return
+	var base_origin := _shaft_origin(base, Registry.base_def, def.size)
+	var mining_origin := _shaft_origin(mining, Registry.mining_def, def.size)
+	if shaft_base == null or shaft_base.world != base:
+		shaft_base = base.buildings.get_at(base_origin) as Shaft
+	if shaft_base == null:
+		shaft_base = base.buildings.place(def, base_origin, 0, true) as Shaft
+	if shaft_mining == null or shaft_mining.world != mining:
+		shaft_mining = mining.buildings.get_at(mining_origin) as Shaft
+	if shaft_mining == null:
+		shaft_mining = mining.buildings.place(def, mining_origin, 0, true) as Shaft
+	if shaft_base != null and shaft_mining != null:
+		shaft_base.pair = shaft_mining
+		shaft_mining.pair = shaft_base
+		shaft_mining.direction = shaft_base.direction
+		if notify:
+			shaft_base.wake()
+			shaft_mining.wake()
+
+
+## Шахта стоит в середине этажа, рядом с центром: место постоянное, чтобы пара всегда сходилась.
+func _shaft_origin(world: GameWorld, plan: BaseDef, size: int) -> Vector2i:
+	var center := Vector2i(plan.size / 2, plan.size / 2)
+	# На подземном этаже в центре стоит пара шлюза — шахту ставим слева от неё, в трёх тайлах,
+	# чтобы она не отнимала место у портов. На этаже добычи она ровно в середине комнаты.
+	var offset := Vector2i(-6, -1) if world == base else Vector2i(-size / 2, -size / 2)
+	return center + offset
 
 
 ## Связать пульт с якорем (вместимость очереди — из данных пульта).
-func _link_platform(console: PlatformConsole, core: PlatformCore) -> void:
+## notify = false — после загрузки: связь восстанавливается, но здания не будятся, иначе список
+## бодрствующих разойдётся с сохранённым.
+func _link_platform(console: PlatformConsole, core: PlatformCore, notify: bool = true) -> void:
 	if console == null or core == null:
 		return
 	if console.link != null and console.link.core == core and core.link == console.link:
@@ -1140,13 +1230,14 @@ func _link_platform(console: PlatformConsole, core: PlatformCore) -> void:
 	platform_link.capacity = console.get_platform_def().buffer_capacity
 	console.link = platform_link
 	core.link = platform_link
-	console.wake()
-	core.wake()
+	if notify:
+		console.wake()
+		core.wake()
 
 
 ## Якорь комнаты, где бы он ни был: в комнате или уже на планете.
 func find_platform_core(index: int) -> PlatformCore:
-	for world in [base, planet]:
+	for world in [mining, planet]:
 		if world == null or world.buildings == null:
 			continue
 		for b in world.buildings.get_all():
@@ -1158,9 +1249,9 @@ func find_platform_core(index: int) -> PlatformCore:
 ## Пульты всех открытых комнат.
 func platform_consoles() -> Array[PlatformConsole]:
 	var result: Array[PlatformConsole] = []
-	if base == null or base.buildings == null:
+	if mining == null or mining.buildings == null:
 		return result
-	for b in base.buildings.get_all():
+	for b in mining.buildings.get_all():
 		if b is PlatformConsole:
 			result.append(b as PlatformConsole)
 	return result
@@ -1214,12 +1305,12 @@ func platform_deploy(console: PlatformConsole, tile: Vector2i) -> bool:
 	if not can_place_platform(tile, console.room):
 		Events.toast(tr("TOAST_PLATFORM_BLOCKED"), Events.ToastKind.WARNING)
 		return false
-	var from := Registry.base_def.platform_rect(console.room)
+	var from := Registry.mining_def.platform_rect(console.room)
 	var offset := platform_target_rect(tile).position - from.position
-	if _carry_buildings(base, planet, from, offset) == 0:
+	if _carry_buildings(mining, planet, from, offset) == 0:
 		return false
 	# Место платформы в комнате становится пустотой: пока её нет, там не строят.
-	base.set_platform_open(from, false)
+	mining.set_platform_open(from, false)
 	_after_platform_move(console)
 	Events.toast(tr("TOAST_PLATFORM_DEPLOYED"), Events.ToastKind.SUCCESS)
 	return true
@@ -1229,10 +1320,10 @@ func platform_deploy(console: PlatformConsole, tile: Vector2i) -> bool:
 func platform_fold(console: PlatformConsole) -> void:
 	if console == null or console.deployed_at == PlatformConsole.NO_TILE:
 		return
-	var to := Registry.base_def.platform_rect(console.room)
+	var to := Registry.mining_def.platform_rect(console.room)
 	var from := platform_target_rect(console.deployed_at)
-	base.set_platform_open(to, true)
-	_carry_buildings(planet, base, from, to.position - from.position)
+	mining.set_platform_open(to, true)
+	_carry_buildings(planet, mining, from, to.position - from.position)
 	_after_platform_move(console)
 	Events.toast(tr("TOAST_PLATFORM_FOLDED"), Events.ToastKind.SUCCESS)
 
@@ -1240,7 +1331,7 @@ func platform_fold(console: PlatformConsole) -> void:
 ## Переезд платформы меняет состав сетей в обоих мирах и пару «пульт — якорь».
 func _after_platform_move(console: PlatformConsole) -> void:
 	_link_platform(console, find_platform_core(console.room))
-	for world in [planet, base]:
+	for world in [planet, mining]:
 		world.power.mark_dirty()
 		world.fluids.mark_dirty()
 
@@ -1292,6 +1383,8 @@ func _floor_links() -> Array:
 func _balance_power() -> void:
 	planet.power.prepare()
 	base.power.prepare()
+	if mining != null:
+		mining.power.update()
 	var nets: Array[PowerGraph.PowerNetwork] = []
 	nets.append_array(planet.power.networks)
 	nets.append_array(base.power.networks)
@@ -1337,6 +1430,8 @@ static func _root(parent: PackedInt32Array, i: int) -> int:
 func _balance_fluids() -> void:
 	planet.fluids.update()
 	base.fluids.update()
+	if mining != null:
+		mining.fluids.update()
 	var limit := FLUID_LINK_RATE * GameConst.TICK_DT
 	for pair in _floor_links():
 		var a: Building = pair[0]

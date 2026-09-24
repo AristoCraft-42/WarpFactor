@@ -72,7 +72,8 @@ var _waiting_snapshot: bool = false
 var cursors: Dictionary[int, Dictionary] = {}
 ## Когда последний раз отправляли свой курсор (мс) и в каком мире он тогда был.
 var _cursor_sent_msec: int = 0
-var _cursor_sent_base: bool = false
+## Этаж, на котором в последний раз показали свой курсор (0 — планета, 1 — база, 2 — добыча).
+var _cursor_sent_base: int = -1
 
 ## Клиент: когда началось подключение (мс) — чтобы не ждать мир хоста вечно.
 var _join_started_msec: int = 0
@@ -573,17 +574,17 @@ func _args_brief(cmd: Command) -> String:
 
 
 ## Показать напарникам, где мой курсор. Шлётся не чаще CURSOR_EVERY_MS и только в сетевой игре.
-func send_cursor(pos: Vector2, in_base: bool) -> void:
+func send_cursor(pos: Vector2, floor_level: int) -> void:
 	if role == Role.OFFLINE or transport == null or run == null:
 		return
 	var now := Time.get_ticks_msec()
-	# Переход между планетой и этажом шлём сразу: иначе курсор напарника ещё десятую секунды
+	# Переход между этажами шлём сразу: иначе курсор напарника ещё десятую секунды
 	# висит там, где его уже нет.
-	if now - _cursor_sent_msec < NetProtocol.CURSOR_EVERY_MS and in_base == _cursor_sent_base:
+	if now - _cursor_sent_msec < NetProtocol.CURSOR_EVERY_MS and floor_level == _cursor_sent_base:
 		return
 	_cursor_sent_msec = now
-	_cursor_sent_base = in_base
-	var body := {"i": run.local_player, "x": pos.x, "y": pos.y, "b": in_base}
+	_cursor_sent_base = floor_level
+	var body := {"i": run.local_player, "x": pos.x, "y": pos.y, "b": floor_level}
 	if role == Role.HOST:
 		transport.broadcast(NetProtocol.pack(NetProtocol.Kind.CURSOR, body))
 	else:
@@ -591,14 +592,14 @@ func send_cursor(pos: Vector2, in_base: bool) -> void:
 
 
 ## Курсоры напарников в нужном мире: id игрока → положение. Устаревшие не отдаём.
-func cursors_in(in_base: bool) -> Dictionary[int, Vector2]:
+func cursors_in(floor_level: int) -> Dictionary[int, Vector2]:
 	var out: Dictionary[int, Vector2] = {}
 	if run == null:
 		return out
 	var now := Time.get_ticks_msec()
 	for id in cursors:
 		var entry: Dictionary = cursors[id]
-		if id == run.local_player or bool(entry["b"]) != in_base:
+		if id == run.local_player or int(entry["b"]) != floor_level:
 			continue
 		if now - int(entry["at"]) > NetProtocol.CURSOR_STALE_MS:
 			continue

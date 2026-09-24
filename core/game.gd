@@ -11,6 +11,7 @@ var world: GameWorld
 var clock: SimClock
 var planet_view: WorldView
 var base_view: WorldView
+var mining_view: WorldView
 var active_view: WorldView
 var preview: PlacementPreview
 var drone_view: DroneView
@@ -184,9 +185,9 @@ func save_named(file_id: String, display_name: String, announce: bool) -> void:
 		Events.toast(tr("TOAST_SAVED") % display_name, Events.ToastKind.SUCCESS)
 
 
-## Мир базы открыт на экране.
+## Один из этажей базы открыт на экране (подземный или добычи).
 func is_in_base() -> bool:
-	return world == run.base
+	return world == run.base or world == run.mining
 
 
 func _build_scene() -> void:
@@ -223,11 +224,16 @@ func _build_scene() -> void:
 	base_view.name = "BaseView"
 	add_child(base_view)
 	base_view.setup(run.base, camera, clock)
+	mining_view = WorldView.new()
+	mining_view.name = "MiningView"
+	add_child(mining_view)
+	mining_view.setup(run.mining, camera, clock)
 	run.base.bounds_changed.connect(_on_bounds_changed.bind(run.base))
+	run.mining.bounds_changed.connect(_on_bounds_changed.bind(run.mining))
 	run.planet.bounds_changed.connect(_on_bounds_changed.bind(run.planet))
 	active_view = _view_of(world)
-	planet_view.set_active(active_view == planet_view)
-	base_view.set_active(active_view == base_view)
+	for view in [planet_view, base_view, mining_view]:
+		view.set_active(view == active_view)
 
 	preview = PlacementPreview.new()
 	preview.name = "Preview"
@@ -453,7 +459,7 @@ func _process(_delta: float) -> void:
 	if tools == null:
 		return
 	if Session.net.is_networked():
-		Session.net.send_cursor(camera.get_mouse_world(), world == run.base)
+		Session.net.send_cursor(camera.get_mouse_world(), run.floor_of(world))
 	if Session.net.is_networked() and Time.get_ticks_msec() - _last_log_msec > 5000:
 		_last_log_msec = Time.get_ticks_msec()
 		_log_state()
@@ -579,7 +585,11 @@ func _on_bounds_changed(changed: GameWorld) -> void:
 
 
 func _view_of(target: GameWorld) -> WorldView:
-	return base_view if target == run.base else planet_view
+	if target == run.base:
+		return base_view
+	if target == run.mining:
+		return mining_view
+	return planet_view
 
 
 func _on_view_changed() -> void:

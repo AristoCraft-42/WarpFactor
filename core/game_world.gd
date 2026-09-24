@@ -52,6 +52,8 @@ var rng := RandomNumberGenerator.new()
 var creative: bool = false
 ## Мир мобильной базы (иначе — планета).
 var is_base: bool = false
+## Описание этажа, если это этаж базы: по нему открываются части, кладётся пол и считаются комнаты.
+var floor_plan: BaseDef
 ## Площадка центрального шлюза на планете (size 0 — нет): переезжает вместе с базой.
 var pad_rect: Rect2i = Rect2i()
 ## Открытая часть мира, тайлов: дрон и камера не выходят за неё (size 0 — вся карта).
@@ -137,11 +139,14 @@ static func create(level_def: LevelDef, map: LevelMap, p_creative: bool, shared_
 
 ## Подземный этаж базы: карта наибольшего размера, заполненная пустотой; открытая часть — start_size
 ## в центре (пока этаж не открыт исследованием, дрон туда не попадает).
+## Этаж базы по описанию: подземный этаж или этаж добычи. Карта сразу наибольшего размера,
+## открыта только центральная часть — остальное открывают исследования.
 static func create_base(base_def: BaseDef, p_creative: bool) -> GameWorld:
 	var void_def := Registry.get_floor(base_def.void_floor_id)
 	var map := LevelMap.new(base_def.size, base_def.size, void_def.index if void_def != null else 0)
 	var world := GameWorld.create(null, map, p_creative, null, false)
 	world.is_base = true
+	world.floor_plan = base_def
 	world.rng.seed = hash(String(base_def.id))
 	world.open_area(base_rect(base_def, base_def.start_size), false)
 	return world
@@ -181,8 +186,9 @@ func open_room(rect: Rect2i, tunnel: Rect2i, notify: bool = true) -> void:
 
 
 func _open_tiles(rect: Rect2i) -> void:
-	var open_def := Registry.get_floor(Registry.base_def.floor_id)
-	var void_def := Registry.get_floor(Registry.base_def.void_floor_id)
+	var plan := floor_plan if floor_plan != null else Registry.base_def
+	var open_def := Registry.get_floor(plan.floor_id)
+	var void_def := Registry.get_floor(plan.void_floor_id)
 	if open_def == null or void_def == null:
 		return
 	for y in range(rect.position.y, rect.end.y):
@@ -209,7 +215,8 @@ func _refresh_play_rect(changed: Rect2i, notify: bool) -> void:
 ## Место платформы в комнате: пока платформа на планете, там пустота (строить нельзя),
 ## когда вернулась — обычный пол этажа.
 func set_platform_open(rect: Rect2i, open: bool) -> void:
-	var def := Registry.get_floor(Registry.base_def.floor_id if open else Registry.base_def.void_floor_id)
+	var plan := floor_plan if floor_plan != null else Registry.base_def
+	var def := Registry.get_floor(plan.floor_id if open else plan.void_floor_id)
 	if def == null:
 		return
 	for y in range(rect.position.y, rect.end.y):

@@ -11,7 +11,7 @@
 | `core/` | Каркас: `game.gd` (сцена и аргументы), `run.gd` (забег: планета + подземный этаж + дрон), `game_world.gd` (мир, тайлы, границы), `simulation.gd` + `scheduler.gd` (тик, сон и пробуждение), `building_manager.gd` (проверки постройки), `registry.gd` (загрузка всех данных), `star_map.gd`, `gateway_link.gd`, `session.gd`, `settings.gd`, `camera_controller.gd` |
 | `buildings/` | `building.gd` / `building_def.gd` + логика по группам: `transport/`, `production/`, `storage/`, `power/`, `fluid/`, `gateway/`, `defense/`. Данные построек — `buildings/defs/*.tres`. `window_section.gd` описывает панель окна здания |
 | `items/` | Предметы, стаки, инвентарь, рецепты (`items/recipes/`), типы (`items/types/`) |
-| `world/` | Генерация и карты: `world_gen.gd`, `level_map.gd`, руды (`ores/`), полы (`floors/`), типы планет (`planet_types/`), `run.tres` (забег и площадка), `base.tres` (подземный этаж) |
+| `world/` | Генерация и карты: `world_gen.gd`, `level_map.gd`, руды (`ores/`), полы (`floors/`), типы планет (`planet_types/`), `run.tres` (забег и площадка), `base.tres` (подземный этаж), `mining.tres` (этаж добычи) |
 | `power/` | `power_graph.gd`: сети, баланс спроса и выработки, аккумуляторы, история для графиков |
 | `fluids/` | `fluid_graph.gd`: трубы, порты построек, сети жидкостей |
 | `research/` | `research_state.gd`, `research_def.gd`, дерево и эффекты — `research/defs/*.tres` |
@@ -46,7 +46,7 @@ python tools/data/check_strings.py
 # Настоящая игровая сцена в роли клиента: снимок, починка, сверка состояний
 & $g --headless --path D:\Mind res://tests/net_scene_check.tscn
 
-# Логические тесты (сейчас 1796 проверок)
+# Логические тесты (сейчас 1808 проверок)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 
 # Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 199 проверок, ~150 с)

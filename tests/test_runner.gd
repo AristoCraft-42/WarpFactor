@@ -72,6 +72,7 @@ func _ready() -> void:
 	_test_move_group()
 	_test_autobuild()
 	_test_mining_platform()
+	_test_shaft()
 	_test_cheats()
 	_test_warp_time_unlimited()
 	_test_save_roundtrip_and_determinism()
@@ -205,16 +206,18 @@ func _test_registry() -> void:
 	Registry.ensure_loaded()
 	_check(Registry.ores.size() == 5, "ожидалось 5 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 36,
-		"ожидалось 36 зданий (28 обычных, 4 творческих, шлюз с парой, пульт и якорь платформы), есть %d"
+	_check(Registry.buildings.size() == 37,
+		"ожидалось 37 зданий (28 обычных, 4 творческих, шлюз с парой, шахта, пульт и якорь платформы), есть %d"
 		% Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
 	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 39 and Registry.researches.size() == 67,
-		"39 рецептов и 67 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
-	_check(Registry.base_def != null and Registry.base_def.center_max == 46 and Registry.base_def.start_size == 16
-		and Registry.base_def.size_step == 6 and Registry.base_def.size > Registry.base_def.center_max,
-		"параметры подземного этажа загружены (центр 16 → 46 шагами по 6, карта больше под комнаты)")
+	_check(Registry.recipes.size() == 39 and Registry.researches.size() == 68,
+		"39 рецептов и 68 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16
+		and Registry.base_def.size_step == 6, "параметры подземного этажа загружены (16 → 46 шагами по 6)")
+	var mining_def := Registry.mining_def
+	_check(mining_def != null and mining_def.id == &"mining" and mining_def.room_size > 0
+		and mining_def.size > mining_def.center_max, "этаж добычи: своя карта с местом под комнаты")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
 	_check(Registry.items.size() == 17 + 32, "ожидалось 17 предметов и 32 предмета-постройки, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
@@ -3916,8 +3919,12 @@ func _test_autobuild() -> void:
 ## появляются сами, платформа уезжает на планету со всем, что на ней стоит, и возвращается назад.
 func _test_mining_platform() -> void:
 	var run := Run.create_new(4242, false)
-	var base_def := Registry.base_def
+	var base_def := Registry.mining_def
 	run.research.done[&"underground"] = true
+	run.research.done[&"mining_floor"] = true
+	run.apply_research_effects()
+	_check(run.is_mining_open() and run.shaft_base != null and run.shaft_mining != null
+		and run.shaft_base.pair == run.shaft_mining, "этаж добычи открыт, шахта связала его с базой")
 	run.research.done[&"mining_room_1"] = true
 	run.apply_research_effects()
 	_check(run.get_mining_rooms() == 1, "открыта одна комната добычи (%d)" % run.get_mining_rooms())
@@ -3925,24 +3932,24 @@ func _test_mining_platform() -> void:
 	var room := base_def.room_rect(0)
 	var tunnel := base_def.tunnel_rect(0)
 	var void_floor := Registry.get_floor(&"void").index
-	_check(run.base.grid.get_floor(room.position.x + 1, room.position.y + 1) != void_floor, "комната открыта")
-	_check(run.base.grid.get_floor(tunnel.get_center().x, tunnel.get_center().y) != void_floor, "туннель открыт")
-	_check(run.base.play_rect.encloses(room), "комната попала в открытую часть этажа")
+	_check(run.mining.grid.get_floor(room.position.x + 1, room.position.y + 1) != void_floor, "комната открыта")
+	_check(run.mining.grid.get_floor(tunnel.get_center().x, tunnel.get_center().y) != void_floor, "туннель открыт")
+	_check(run.mining.play_rect.encloses(room), "комната попала в открытую часть этажа")
 	var second := base_def.room_rect(1)
-	_check(run.base.grid.get_floor(second.get_center().x, second.get_center().y) == void_floor,
+	_check(run.mining.grid.get_floor(second.get_center().x, second.get_center().y) == void_floor,
 		"вторая комната ещё закрыта")
 
 	var console := run.get_platform_console(0)
 	var core := run.find_platform_core(0)
 	_check(console != null and core != null and console.link != null and console.link.core == core,
 		"пульт и якорь стоят и связаны")
-	_check(core.world == run.base and not console.is_deployed(), "платформа пока в комнате")
+	_check(core.world == run.mining and not console.is_deployed(), "платформа пока в комнате")
 	_check(not console.is_linked(), "пока платформа в комнате, связь не работает")
 
 	# Ставим на платформу угольный бур: он и есть то, ради чего платформу возят на планету.
 	var plat := base_def.platform_rect(0)
 	var spot := plat.position + Vector2i(1, 1)
-	_check(_place(run.base, &"coal_drill", spot) != null, "бур встал на платформу")
+	_check(_place(run.mining, &"coal_drill", spot) != null, "бур встал на платформу")
 
 	# Ищем на планете место, куда платформа помещается.
 	var target := Vector2i(-1, -1)
@@ -3967,17 +3974,17 @@ func _test_mining_platform() -> void:
 	_check(moved_core != null and moved_core.world == run.planet, "якорь уехал на планету")
 	_check(run.planet.buildings.get_at(target - Vector2i.ONE * (base_def.platform_size / 2) + Vector2i(1, 1)) != null,
 		"бур теперь стоит на планете")
-	_check(run.base.buildings.get_at(spot) == null
-		and run.base.grid.get_floor(spot.x, spot.y) == void_floor, "на месте платформы в комнате пустота")
+	_check(run.mining.buildings.get_at(spot) == null
+		and run.mining.grid.get_floor(spot.x, spot.y) == void_floor, "на месте платформы в комнате пустота")
 	_check(console.is_linked() and core.link.console == console, "связь пульта с якорем работает")
 	var coal := _item(&"coal")
 	_check(moved_core.accept_item(null, coal), "якорь принимает добытое для отправки в комнату")
 
 	# Добытое едет с платформы в комнату: кладём предмет в якорь и ждём его в ящике у пульта.
 	var box_tile := console.origin + Vector2i(2, 0)
-	if run.base.buildings.get_at(box_tile) != null:
+	if run.mining.buildings.get_at(box_tile) != null:
 		box_tile = console.origin + Vector2i(-1, 0)
-	var box := run.base.buildings.place(Registry.get_building(&"container"), box_tile, 0, true) as StorageBuilding
+	var box := run.mining.buildings.place(Registry.get_building(&"container"), box_tile, 0, true) as StorageBuilding
 	moved_core.handle_item(null, coal)
 	for i in 5 * GameConst.TICK_RATE:
 		run.step()
@@ -3986,11 +3993,11 @@ func _test_mining_platform() -> void:
 	_check(box.inventory.count(coal) == 1, "добытое доехало с платформы в комнату (%d)" % box.inventory.count(coal))
 
 	# Дрон переходит на платформу через пульт и возвращается через якорь.
-	run.drone.move_to_world(run.base)
+	run.drone.move_to_world(run.mining)
 	run.drone.position = console.get_world_center()
 	_check(run.get_passage() == console and run.use_gateway(), "по пульту дрон уходит на платформу")
 	_check(run.drone.world == run.planet, "дрон оказался на планете")
-	_check(run.use_gateway() and run.drone.world == run.base, "и вернулся через якорь")
+	_check(run.use_gateway() and run.drone.world == run.mining, "и вернулся через якорь")
 
 	# Отзыв: платформа возвращается в комнату вместе с буром.
 	console.set_aim(PlatformConsole.NO_TILE)
@@ -3999,8 +4006,8 @@ func _test_mining_platform() -> void:
 		if not console.is_busy():
 			break
 	_check(console.state == PlatformConsole.State.DOCKED, "платформа вернулась в комнату (%d)" % console.state)
-	_check(run.base.buildings.get_at(spot) != null, "бур вернулся на своё место")
-	_check(run.base.grid.get_floor(spot.x, spot.y) != void_floor, "пол платформы вернулся")
+	_check(run.mining.buildings.get_at(spot) != null, "бур вернулся на своё место")
+	_check(run.mining.grid.get_floor(spot.x, spot.y) != void_floor, "пол платформы вернулся")
 
 	# Перелёт: платформу нельзя бросить на старой планете.
 	console.set_aim(target)
@@ -4019,7 +4026,9 @@ func _test_mining_platform() -> void:
 		and loaded_console.deployed_at == target, "после загрузки платформа всё ещё на планете")
 	_check(loaded_core != null and loaded_core.world == loaded.planet and loaded_console.is_linked()
 		and loaded_core.link == loaded_console.link, "пульт и якорь снова связаны")
-	_check(var_to_bytes(SaveIO.run_to_dict(loaded)) == var_to_bytes(saved), "состояние сходится байт в байт")
+	var resaved := SaveIO.run_to_dict(loaded)
+	_check(var_to_bytes(resaved) == var_to_bytes(saved),
+		"состояние сходится байт в байт (отличие: %s)" % _first_diff(saved, resaved))
 	loaded.dispose()
 
 	var next := run.star_map.get_next()
@@ -4031,7 +4040,7 @@ func _test_mining_platform() -> void:
 			break
 	var after := run.get_platform_console(0)
 	_check(after != null and after.state == PlatformConsole.State.DOCKED, "после перелёта платформа в комнате")
-	_check(run.base.buildings.get_at(spot) != null, "и бур вместе с ней")
+	_check(run.mining.buildings.get_at(spot) != null, "и бур вместе с ней")
 	run.dispose()
 
 
@@ -4045,6 +4054,48 @@ func _test_warp_time_unlimited() -> void:
 		run.research.done[StringName("warp_time_%d" % i)] = true
 	run.apply_research_effects()
 	_check(not run.has_time_limit(), "после последней ступени на планете можно сидеть сколько угодно")
+	run.dispose()
+
+
+## Шахта между подземным этажом и этажом добычи: предметы едут по ней в обе стороны,
+## дрон переходит по F, а сбоку она ничего не берёт.
+func _test_shaft() -> void:
+	var run := Run.create_new(31, false)
+	run.research.done[&"underground"] = true
+	run.research.done[&"mining_floor"] = true
+	run.apply_research_effects()
+	var up := run.shaft_base
+	var down := run.shaft_mining
+	_check(up != null and down != null and up.pair == down and down.pair == up, "шахта стоит парой")
+	if up == null or down == null:
+		run.dispose()
+		return
+	_check(up.get_size() == 3 and up.get_input_tile() == up.origin + Vector2i(-1, 1),
+		"шахта 3×3 с одним входом")
+
+	# Вниз: кладём в шахту базы, забираем на этаже добычи.
+	var hematite := _item(&"hematite")
+	var source := run.base.buildings.place(Worlds.source_def(), up.get_input_tile(), 0, true)
+	source.set("items", PackedInt32Array([hematite]))
+	var side := run.base.buildings.place(Worlds.source_def(), up.origin + Vector2i(-1, 0), 0, true)
+	side.set("items", PackedInt32Array([hematite]))
+	var sink := run.mining.buildings.place(Worlds.sink_def(), down.get_output_tile(), 0, true)
+	for i in 5 * GameConst.TICK_RATE:
+		run.step()
+	_check(sink.received > 20, "предметы спускаются по шахте (%d)" % sink.received)
+	_check(not up.accept_item(side, hematite), "сбоку шахта предметы не принимает")
+
+	# Дрон переходит по шахте и возвращается.
+	run.drone.move_to_world(run.base)
+	run.drone.position = up.get_world_center()
+	_check(run.get_passage() == up and run.use_gateway() and run.drone.world == run.mining,
+		"дрон спустился по шахте на этаж добычи")
+	_check(run.use_gateway() and run.drone.world == run.base, "и поднялся обратно")
+
+	# Направление — общая настройка пары.
+	run.mining.configure(down, Shaft.Direction.UP)
+	_check(up.direction == Shaft.Direction.UP and down.is_source() and not up.is_source(),
+		"направление шахты — общая настройка пары")
 	run.dispose()
 
 
@@ -5443,9 +5494,10 @@ func _test_research_effects_and_floors() -> void:
 	var creative := Run.create(null, LevelMap.new(64, 64, Registry.get_floor(&"stone").index), true)
 	# В творческом режиме открыто всё: центральная часть 46×46 и все комнаты добычи,
 	# поэтому общая рамка этажа больше самой центральной части.
-	_check(creative.get_pad_size() == 40 and creative.base.open_rects[0].size == Vector2i(46, 46)
-		and creative.base.play_rect.size.x > 46 and creative.can_use_gateway(),
-		"в творческом режиме площадка 40, центр этажа 46, комнаты открыты и проход работает")
+	_check(creative.get_pad_size() == 40 and creative.base.play_rect.size == Vector2i(46, 46)
+		and creative.is_mining_open() and creative.get_mining_rooms() == GameConst.MINING_ROOMS
+		and creative.can_use_gateway(),
+		"в творческом режиме площадка 40, этаж 46, все комнаты добычи открыты и проход работает")
 	creative.dispose()
 
 

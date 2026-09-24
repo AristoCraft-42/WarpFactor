@@ -1907,21 +1907,25 @@ func _run_lift(game: Game) -> void:
 func _run_mining_platform(game: Game) -> void:
 	var run := game.run
 	run.research.done[&"underground"] = true
+	run.research.done[&"underground_1"] = true
+	run.research.done[&"mining_floor"] = true
 	run.research.done[&"mining_room_1"] = true
 	run.apply_research_effects()
 	await _frames(5)
 	var console := run.get_platform_console(0)
 	_expect(console != null, "комната добычи открылась вместе с пультом")
+	_expect(run.shaft_base != null and run.shaft_mining != null and run.shaft_base.pair == run.shaft_mining,
+		"шахта связала подземный этаж с этажом добычи")
 	if console == null:
 		return
-	var base_def := Registry.base_def
-	var plat := base_def.platform_rect(0)
+	var mining_def := Registry.mining_def
+	var plat := mining_def.platform_rect(0)
 
 	# Ставим на платформу угольный бур — ради него платформу и возят на планету.
 	var drill_def := Registry.get_building(&"coal_drill")
-	run.base.buildings.place(drill_def, plat.position + Vector2i(2, 2), 0, true)
-	if game.world != run.base:
-		run.drone.move_to_world(run.base)
+	run.mining.buildings.place(drill_def, plat.position + Vector2i(2, 2), 0, true)
+	if game.world != run.mining:
+		run.drone.move_to_world(run.mining)
 		game.call("_on_drone_changed_world")
 	await _drone_to(game, GameConst.world_to_tile(console.get_world_center()))
 	game.camera.focus_on(run.drone.position, 0.7)

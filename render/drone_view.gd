@@ -159,7 +159,7 @@ func _draw_cursors() -> void:
 	if not Session.net.is_networked():
 		return
 	var font := ThemeDB.fallback_font
-	var cursors := Session.net.cursors_in(_world == _run.base)
+	var cursors := Session.net.cursors_in(_run.floor_of(_world))
 	for id in cursors:
 		var player := _run.get_player(id)
 		if player == null:

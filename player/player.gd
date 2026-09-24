@@ -37,6 +37,7 @@ static func color_for(p_id: int) -> Color:
 	return COLORS[posmod(p_id - 1, COLORS.size())]
 
 
-func save_data(base_world: GameWorld) -> Dictionary:
-	return {"id": id, "name": name, "in_base": drone != null and drone.world == base_world,
+## floor_of: 0 — планета, 1 — подземный этаж, 2 — этаж добычи.
+func save_data(floor_of: int) -> Dictionary:
+	return {"id": id, "name": name, "in_base": floor_of == 1, "floor": floor_of,
 		"drone": drone.save_data()}
