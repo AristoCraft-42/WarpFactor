@@ -7,8 +7,9 @@
 [ext_resource type="Resource" path="res://items/recipes/smelt_iron.tres" id="recipe_smelt_iron"]
 [ext_resource type="Resource" path="res://items/recipes/smelt_brick.tres" id="recipe_smelt_brick"]
 [ext_resource type="Resource" path="res://items/recipes/smelt_copper.tres" id="recipe_smelt_copper"]
+[ext_resource type="Resource" path="res://items/recipes/smelt_zinc.tres" id="recipe_smelt_zinc"]
 [ext_resource type="Resource" path="res://items/types/brick.tres" id="item_brick"]
-[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/galvanized_steel.tres" id="item_galvanized_steel"]
 [ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
 
 [sub_resource type="Resource" id="cost_0"]
@@ -18,8 +19,8 @@ amount = 20
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_iron_ingot")
-amount = 20
+item = ExtResource("item_galvanized_steel")
+amount = 10
 
 [sub_resource type="Resource" id="cost_2"]
 script = ExtResource("2_stack")
@@ -45,7 +46,7 @@ solid = true
 color = Color(0.647, 0.443, 0.310, 1)
 glyph = 11
 logic_script = ExtResource("3_logic")
-recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_smelt_iron"), ExtResource("recipe_smelt_brick"), ExtResource("recipe_smelt_copper")])
+recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_smelt_iron"), ExtResource("recipe_smelt_brick"), ExtResource("recipe_smelt_copper"), ExtResource("recipe_smelt_zinc")])
 recipe_mode = 1
 item_capacity = 20
 craft_speed = 2.0

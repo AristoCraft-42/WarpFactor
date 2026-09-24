@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/steel_conveyor.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"steel_conveyor"
+name_key = "BUILDING_STEEL_CONVEYOR"
+color = Color(0.553, 0.600, 0.651, 1)
+sort_order = 1011
+stack_size = 100
+building = ExtResource("2_building")

@@ -3,18 +3,18 @@
 [ext_resource type="Script" path="res://buildings/storage/storage_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/storage/storage_building.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://items/types/galvanized_steel.tres" id="item_galvanized_steel"]
 [ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
-[ext_resource type="Resource" path="res://items/types/brick.tres" id="item_brick"]
 
 [sub_resource type="Resource" id="cost_0"]
 script = ExtResource("2_stack")
-item = ExtResource("item_iron_ingot")
-amount = 20
+item = ExtResource("item_galvanized_steel")
+amount = 8
 
 [sub_resource type="Resource" id="cost_1"]
 script = ExtResource("2_stack")
-item = ExtResource("item_brick")
-amount = 8
+item = ExtResource("item_iron_ingot")
+amount = 12
 
 [resource]
 script = ExtResource("1_def")

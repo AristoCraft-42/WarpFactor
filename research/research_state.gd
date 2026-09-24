@@ -27,7 +27,8 @@ var creative: bool = false
 ## Забег творческий: доступен полигон и кнопки управления деревом.
 var sandbox: bool = false
 var done: Dictionary[StringName, bool] = {}
-var progress: Dictionary[StringName, int] = {}
+## Прогресс по каждому виду набора: [сдано наборов первого уровня, второго, ...].
+var progress: Dictionary[StringName, PackedInt32Array] = {}
 var active: StringName = &""
 ## Очередь следующих исследований (id, по порядку).
 var queue: Array[StringName] = []
@@ -49,8 +50,34 @@ func is_done(id: StringName) -> bool:
 	return done.has(id)
 
 
+## Сколько наборов всего сдано в исследование (для полоски).
 func get_progress(research: ResearchDef) -> int:
-	return research.cost_amount if is_done(research.id) else int(progress.get(research.id, 0))
+	if is_done(research.id):
+		return research.total_cost()
+	var sum := 0
+	for value in _progress_of(research):
+		sum += value
+	return sum
+
+
+## Сколько сдано наборов вида k.
+func get_progress_of(research: ResearchDef, k: int) -> int:
+	if is_done(research.id):
+		var costs := research.costs()
+		return costs[k].amount if k < costs.size() else 0
+	var values := _progress_of(research)
+	return values[k] if k < values.size() else 0
+
+
+## Прогресс исследования по видам наборов (нужной длины).
+func _progress_of(research: ResearchDef) -> PackedInt32Array:
+	var values: PackedInt32Array = progress.get(research.id, PackedInt32Array())
+	var needed := research.costs().size()
+	if values.size() < needed:
+		values = values.duplicate()
+		values.resize(needed)
+		progress[research.id] = values
+	return values
 
 
 func get_active() -> ResearchDef:
@@ -204,8 +231,26 @@ func speed_factor() -> float:
 	return 1.0 + 0.25 * count_effect(&"science_speed")
 
 
+## Сколько наборов ещё нужно всего.
 func get_needed(research: ResearchDef) -> int:
-	return maxi(research.cost_amount - get_progress(research), 0)
+	return maxi(research.total_cost() - get_progress(research), 0)
+
+
+## Сколько ещё нужно наборов вида k.
+func get_needed_of(research: ResearchDef, k: int) -> int:
+	var costs := research.costs()
+	if k >= costs.size():
+		return 0
+	return maxi(costs[k].amount - get_progress_of(research, k), 0)
+
+
+## Какой вид наборов ждёт предмет item (−1 — исследованию он не нужен).
+func cost_index_of(research: ResearchDef, item: int) -> int:
+	var costs := research.costs()
+	for k in costs.size():
+		if costs[k].item.index == item and get_needed_of(research, k) > 0:
+			return k
+	return -1
 
 
 ## Отдать исследованию наборы первого уровня из инвентаря игрока. Наборы остаются у него
@@ -214,7 +259,8 @@ func deposit_manual(inventory: Inventory, player_id: int) -> int:
 	var research := get_active()
 	if research == null or research.cost_item == null or research.cost_item.science_tier != 1:
 		return 0
-	var room := get_needed(research) - manual_queue
+	# Руками сдают только наборы первого уровня: остальные уровни — через научный цех.
+	var room := get_needed_of(research, 0) - manual_queue
 	var promised := mini(maxi(room, 0), inventory.count(research.cost_item.index))
 	if promised <= 0:
 		return 0
@@ -227,18 +273,19 @@ func deposit_manual(inventory: Inventory, player_id: int) -> int:
 ## Научный цех отдаёт один набор. true — набор принят выбранным исследованием.
 func add_kit(item: int) -> bool:
 	var research := get_active()
-	if research == null or research.cost_item == null or research.cost_item.index != item:
+	if research == null:
 		return false
-	if get_needed(research) <= 0:
+	var k := cost_index_of(research, item)
+	if k < 0:
 		return false
-	_advance(research)
+	_advance(research, k)
 	return true
 
 
 ## Нужен ли выбранному исследованию набор item (для научного цеха).
 func wants_kit(item: int) -> bool:
 	var research := get_active()
-	return research != null and research.cost_item != null and research.cost_item.index == item and get_needed(research) > 0
+	return research != null and cost_index_of(research, item) >= 0
 
 
 ## Тик забега: ручная сдача. Набор уходит из инвентаря игрока в тот момент, когда его
@@ -260,16 +307,20 @@ func step(inventory: Inventory = null) -> void:
 		manual_ticks = 0
 		manual_queue -= 1
 		inventory.remove(research.cost_item.index, 1)
-		_advance(research)
+		_advance(research, 0)
 
 
 func get_manual_fraction() -> float:
 	return float(manual_ticks) / roundi(MANUAL_SECONDS * GameConst.TICK_RATE)
 
 
-func _advance(research: ResearchDef) -> void:
-	progress[research.id] = int(progress.get(research.id, 0)) + 1
-	if int(progress[research.id]) >= research.cost_amount:
+func _advance(research: ResearchDef, k: int) -> void:
+	var values := _progress_of(research)
+	if k < 0 or k >= values.size():
+		return
+	values[k] += 1
+	progress[research.id] = values
+	if get_needed(research) <= 0:
 		done[research.id] = true
 		progress.erase(research.id)
 		if active == research.id:
@@ -284,10 +335,11 @@ func save_data() -> Dictionary:
 	for id in done:
 		done_ids.append(String(id))
 	var progress_ids := PackedStringArray()
-	var progress_values := PackedInt32Array()
+	# По виду наборов на исследование: [первого уровня, второго, ...].
+	var progress_values: Array = []
 	for id in progress:
 		progress_ids.append(String(id))
-		progress_values.append(progress[id])
+		progress_values.append((progress[id] as PackedInt32Array).duplicate())
 	return {"done": done_ids, "progress_ids": progress_ids, "progress_values": progress_values,
 		"active": String(active), "manual_queue": manual_queue, "manual_ticks": manual_ticks,
 		"manual_player": manual_player,
@@ -308,10 +360,13 @@ func load_data(data: Dictionary) -> void:
 		if Registry.get_research(StringName(id)) != null:
 			done[StringName(id)] = true
 	var ids: PackedStringArray = data.get("progress_ids", PackedStringArray())
-	var values: PackedInt32Array = data.get("progress_values", PackedInt32Array())
+	var values: Array = data.get("progress_values", [])
 	for i in mini(ids.size(), values.size()):
-		if Registry.get_research(StringName(ids[i])) != null:
-			progress[StringName(ids[i])] = values[i]
+		if Registry.get_research(StringName(ids[i])) == null:
+			continue
+		# В старых сохранениях на исследование хранилось одно число — это наборы первого уровня.
+		var value: Variant = values[i]
+		progress[StringName(ids[i])] = value if value is PackedInt32Array else PackedInt32Array([int(value)])
 	active = StringName(data.get("active", ""))
 	if active != &"" and Registry.get_research(active) == null:
 		active = &""

@@ -241,7 +241,7 @@ func _make_card(research: ResearchDef) -> Control:
 	bar.custom_minimum_size = Vector2(0, 8)
 	bar.show_percentage = false
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.max_value = research.cost_amount
+	bar.max_value = research.total_cost()
 	column.add_child(bar)
 	var icons := UiUtil.hbox(4)
 	icons.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -298,7 +298,13 @@ func refresh() -> void:
 			status.text = tr("RESEARCH_REQUIRES") % ", ".join(missing)
 			button.modulate = Color(1, 1, 1, 0.5)
 		else:
-			status.text = tr("RESEARCH_COST") % [progress, research.cost_amount, tr(research.cost_item.name_key)]
+			# У мидгейма стоимость в двух видах наборов — показываем каждый отдельно.
+			var parts := PackedStringArray()
+			var costs := research.costs()
+			for k in costs.size():
+				parts.append(tr("RESEARCH_COST") % [state.get_progress_of(research, k), costs[k].amount,
+					tr(costs[k].item.name_key)])
+			status.text = "  ·  ".join(parts)
 			if state.active == research.id:
 				status.text = tr("RESEARCH_ACTIVE") + " · " + status.text
 			button.modulate = Color.WHITE
@@ -308,7 +314,8 @@ func refresh() -> void:
 			button.modulate = Color(0.85, 0.95, 1.0)
 	var active := state.get_active()
 	var kits := _game.run.drone.inventory.count(active.cost_item.index) if active != null and active.cost_item != null else 0
-	var room := state.get_needed(active) - state.manual_queue if active != null else 0
+	# Руками сдают только наборы первого уровня.
+	var room := state.get_needed_of(active, 0) - state.manual_queue if active != null else 0
 	_deposit_button.disabled = active == null or kits == 0 or room <= 0 or active.cost_item.science_tier != 1
 	_deposit_button.text = tr("RESEARCH_DEPOSIT") % kits
 	_queue_label.text = tr("RESEARCH_QUEUE") % [state.manual_queue, ResearchState.MANUAL_SECONDS]

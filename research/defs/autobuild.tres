@@ -10,6 +10,9 @@
 [ext_resource type="Resource" path="res://items/recipes/build_sorter.tres" id="r_build_sorter"]
 [ext_resource type="Resource" path="res://items/recipes/build_bridge_conveyor.tres" id="r_build_bridge_conveyor"]
 [ext_resource type="Resource" path="res://items/recipes/build_unloader.tres" id="r_build_unloader"]
+[ext_resource type="Resource" path="res://items/recipes/build_steel_conveyor.tres" id="r_build_steel_conveyor"]
+[ext_resource type="Resource" path="res://items/recipes/build_steel_junction.tres" id="r_build_steel_junction"]
+[ext_resource type="Resource" path="res://items/recipes/build_steel_router.tres" id="r_build_steel_router"]
 [ext_resource type="Resource" path="res://items/recipes/build_lift.tres" id="r_build_lift"]
 [ext_resource type="Resource" path="res://items/recipes/build_container.tres" id="r_build_container"]
 [ext_resource type="Resource" path="res://items/recipes/build_large_container.tres" id="r_build_large_container"]
@@ -41,5 +44,5 @@ cost_item = ExtResource("2_kit")
 cost_amount = 40
 prerequisites = Array[StringName]([&"industry"])
 unlock_buildings = Array[ExtResource("3_building_script")]([])
-unlock_recipes = Array[ExtResource("4_recipe_script")]([ExtResource("r_build_conveyor"), ExtResource("r_build_junction"), ExtResource("r_build_router"), ExtResource("r_build_sorter"), ExtResource("r_build_bridge_conveyor"), ExtResource("r_build_unloader"), ExtResource("r_build_lift"), ExtResource("r_build_container"), ExtResource("r_build_large_container"), ExtResource("r_build_furnace"), ExtResource("r_build_coal_drill"), ExtResource("r_build_drill"), ExtResource("r_build_smeltery"), ExtResource("r_build_fast_drill"), ExtResource("r_build_science_workshop"), ExtResource("r_build_small_power_pole"), ExtResource("r_build_thermal_generator"), ExtResource("r_build_pipe"), ExtResource("r_build_underground_pipe"), ExtResource("r_build_water_tank"), ExtResource("r_build_pump"), ExtResource("r_build_boiler"), ExtResource("r_build_steam_generator"), ExtResource("r_build_accumulator"), ExtResource("r_build_stone_wall"), ExtResource("r_build_machine_gun")])
+unlock_recipes = Array[ExtResource("4_recipe_script")]([ExtResource("r_build_conveyor"), ExtResource("r_build_junction"), ExtResource("r_build_router"), ExtResource("r_build_sorter"), ExtResource("r_build_bridge_conveyor"), ExtResource("r_build_unloader"), ExtResource("r_build_steel_conveyor"), ExtResource("r_build_steel_junction"), ExtResource("r_build_steel_router"), ExtResource("r_build_lift"), ExtResource("r_build_container"), ExtResource("r_build_large_container"), ExtResource("r_build_furnace"), ExtResource("r_build_coal_drill"), ExtResource("r_build_drill"), ExtResource("r_build_smeltery"), ExtResource("r_build_fast_drill"), ExtResource("r_build_science_workshop"), ExtResource("r_build_small_power_pole"), ExtResource("r_build_thermal_generator"), ExtResource("r_build_pipe"), ExtResource("r_build_underground_pipe"), ExtResource("r_build_water_tank"), ExtResource("r_build_pump"), ExtResource("r_build_boiler"), ExtResource("r_build_steam_generator"), ExtResource("r_build_accumulator"), ExtResource("r_build_stone_wall"), ExtResource("r_build_machine_gun")])
 effects = Array[StringName]([])

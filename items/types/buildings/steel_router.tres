@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/steel_router.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"steel_router"
+name_key = "BUILDING_STEEL_ROUTER"
+color = Color(0.651, 0.690, 0.729, 1)
+sort_order = 1031
+stack_size = 50
+building = ExtResource("2_building")

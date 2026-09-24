@@ -6,19 +6,19 @@
 [ext_resource type="Script" path="res://items/produce.gd" id="4_produce"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]
 [ext_resource type="Script" path="res://items/produce_items.gd" id="6_produce_items"]
+[ext_resource type="Resource" path="res://items/types/galvanized_steel.tres" id="item_galvanized_steel"]
 [ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
-[ext_resource type="Resource" path="res://items/types/brick.tres" id="item_brick"]
 [ext_resource type="Resource" path="res://items/types/buildings/large_container.tres" id="item_large_container"]
 
 [sub_resource type="Resource" id="in_0"]
 script = ExtResource("5_stack")
-item = ExtResource("item_iron_ingot")
-amount = 20
+item = ExtResource("item_galvanized_steel")
+amount = 8
 
 [sub_resource type="Resource" id="in_1"]
 script = ExtResource("5_stack")
-item = ExtResource("item_brick")
-amount = 8
+item = ExtResource("item_iron_ingot")
+amount = 12
 
 [sub_resource type="Resource" id="consume_0"]
 script = ExtResource("3_consume_items")

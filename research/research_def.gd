@@ -18,9 +18,11 @@ extends Resource
 @export var name_key: String
 @export var description_key: String
 @export var sort_order: int = 0
-## Научный набор и сколько наборов нужно.
+## Научный набор первого уровня и сколько их нужно (основная стоимость).
 @export var cost_item: ItemType
 @export var cost_amount: int = 10
+## Наборы других уровней, которые нужны вдобавок: мидгейм требует и второй уровень.
+@export var extra_costs: Array[ItemStack] = []
 ## id исследований, которые должны быть завершены раньше.
 @export var prerequisites: Array[StringName] = []
 @export var unlock_buildings: Array[BuildingDef] = []
@@ -30,3 +32,26 @@ extends Resource
 @export var creative_only: bool = false
 
 var index: int = -1
+
+
+## Все стоимости подряд: первая — наборы первого уровня, дальше — остальные уровни.
+## Прогресс считается по каждой отдельно (ResearchState).
+func costs() -> Array[ItemStack]:
+	var list: Array[ItemStack] = []
+	if cost_item != null and cost_amount > 0:
+		var first := ItemStack.new()
+		first.item = cost_item
+		first.amount = cost_amount
+		list.append(first)
+	for extra in extra_costs:
+		if extra != null and extra.item != null and extra.amount > 0:
+			list.append(extra)
+	return list
+
+
+## Сколько всего наборов нужно (для полоски прогресса).
+func total_cost() -> int:
+	var sum := 0
+	for stack in costs():
+		sum += stack.amount
+	return sum

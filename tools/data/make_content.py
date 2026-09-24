@@ -42,12 +42,17 @@ ITEMS = [
     ("stone", 4, "8b8a84", 20, 50, 0.0, 0),
     ("coal", 1, "2e2b2a", 30, 50, 4000.0, 0),
     ("malachite", 2, "2f8f5b", 40, 50, 0.0, 0),
+    ("sphalerite", 2, "6b5f7a", 50, 50, 0.0, 0),
     ("iron_ingot", 10, "a3adb5", 100, 100, 0.0, 0),
     ("brick", 7, "a4553a", 110, 100, 0.0, 0),
     ("copper_ingot", 10, "d7843f", 120, 100, 0.0, 0),
     ("gear", 8, "8d969d", 200, 100, 0.0, 0),
     ("copper_cable", 6, "e0914c", 210, 200, 0.0, 0),
+    ("zinc_plate", 10, "9aa7b5", 130, 100, 0.0, 0),
+    ("galvanized_steel", 7, "b5c0cc", 220, 100, 0.0, 0),
+    ("microchip", 9, "5f9e7a", 230, 100, 0.0, 0),
     ("science_kit", 9, "d9534f", 300, 100, 0.0, 1),
+    ("science_kit_2", 9, "5f7fd9", 301, 100, 0.0, 2),
     ("resistor", 7, "c8b27a", 310, 100, 0.0, 0),
     ("casing_mg", 3, "c9a227", 400, 100, 0.0, 0),
     ("cartridge_stone", 3, "9a998f", 410, 200, 0.0, 0),
@@ -63,6 +68,7 @@ ORES = [
     ("stone", ("item", "stone"), 1, 20),
     ("coal", ("item", "coal"), 1, 30),
     ("malachite", ("item", "malachite"), 2, 40),
+    ("sphalerite", ("item", "sphalerite"), 2, 45),
     ("water", ("fluid", "water"), 0, 50),
 ]
 
@@ -77,6 +83,10 @@ RECIPES = [
     ("copper_cable", [("copper_ingot", 1)], [("copper_cable", 2)], 0.5, True, 110),
     ("science_kit", [("iron_ingot", 1), ("gear", 1)], [("science_kit", 1)], 5.0, True, 120),
     ("resistor", [("iron_ingot", 1), ("copper_cable", 3)], [("resistor", 1)], 2.0, True, 130),
+    ("smelt_zinc", [("sphalerite", 1)], [("zinc_plate", 1)], 3.2, False, 40),
+    ("galvanized_steel", [("iron_ingot", 2), ("zinc_plate", 1)], [("galvanized_steel", 1)], 1.5, False, 140),
+    ("microchip", [("galvanized_steel", 1), ("copper_cable", 4), ("resistor", 2)], [("microchip", 1)], 3.0, False, 150),
+    ("science_kit_2", [("microchip", 1), ("galvanized_steel", 2)], [("science_kit_2", 1)], 6.0, False, 160),
     ("casing_mg", [("copper_ingot", 1)], [("casing_mg", 2)], 1.0, True, 200),
 ] + [(out, [("casing_mg", 1), (filler, 1)], [(out, 4)], 2.0, True, 210 + i) for i, (filler, out) in enumerate(FILLERS)]
 RECIPE_IDS = {r[0] for r in RECIPES}
@@ -155,15 +165,22 @@ BUILDINGS = [
      {"transfer_ticks": 6, "capacity": 10, "link_range": 4, "throughput": "conveyor"}, (70, False), (1.0, 2, 50)),
     ("unloader", "logistic", "unloader", 0, 1, False, True, True, 7, "4f7272", 60, [("copper_cable", 4), ("conveyor", 1), ("gear", 2)],
      {"throughput": "conveyor"}, (70, False), (1.0, 1, 50)),
+    ("steel_conveyor", "conveyor", "conveyor", 0, 1, True, True, True, 1, "8d99a6", 11,
+     [("galvanized_steel", 1), ("gear", 1)], {"tiles_per_second": 4.8}, (70, False), (0.5, 2, 100)),
+    ("steel_junction", "logistic", "junction", 0, 1, False, True, True, 2, "9aa6b2", 21,
+     [("steel_conveyor", 2), ("galvanized_steel", 2)],
+     {"transfer_ticks": 4, "capacity": 8, "throughput": "steel_conveyor"}, (90, False), (0.5, 1, 50)),
+    ("steel_router", "logistic", "router", 0, 1, False, True, True, 3, "a6b0ba", 31,
+     [("steel_conveyor", 1), ("gear", 2)], {"capacity": 1, "throughput": "steel_conveyor"}, (90, False), (0.5, 1, 50)),
     ("lift", "lift", "lift", 0, 3, False, True, True, 28, "6a6f7a", 80, [("iron_ingot", 30), ("gear", 15), ("resistor", 6)],
      {"buffer_capacity": 10, "throughput": "conveyor"}, (600, True), (5.0, 1, 10)),
     ("container", "storage", "storage", 0, 1, False, True, True, 14, "6a6a5a", 70, [("iron_ingot", 12)],
      {"slots": 16}, (180, True), (1.5, 1, 20)),
     ("large_container", "storage", "storage", 0, 1, False, True, True, 14, "8a8560", 75,
-     [("iron_ingot", 20), ("brick", 8)], {"slots": 32}, (300, True), (3.0, 1, 20)),
+     [("galvanized_steel", 8), ("iron_ingot", 12)], {"slots": 32}, (300, True), (3.0, 1, 20)),
     # Производство
     ("furnace", "crafter", "crafter", 1, 2, False, True, True, 11, "7a5a48", 10, [("stone", 10)],
-     {"recipes": ["smelt_iron", "smelt_brick", "smelt_copper"], "recipe_mode": 1, "item_capacity": 10,
+     {"recipes": ["smelt_iron", "smelt_brick", "smelt_copper", "smelt_zinc"], "recipe_mode": 1, "item_capacity": 10,
       "fuel_use": 90.0, "fuel_capacity": 10}, (200, True), (1.0, 1, 20)),
     ("coal_drill", "drill", "drill", 1, 1, False, True, True, 8, "5f4a38", 15, [("iron_ingot", 6)],
      {"tier": 1, "base_seconds": 6.0, "hardness_seconds": 1.5, "item_capacity": 10,
@@ -171,19 +188,21 @@ BUILDINGS = [
     ("drill", "drill", "drill", 1, 2, False, True, True, 8, "8a6d4e", 20, [("iron_ingot", 8), ("gear", 4)],
      {"tier": 2, "base_seconds": 6.0, "hardness_seconds": 1.5, "item_capacity": 10, "power_use": 90.0}, (180, True), (2.0, 1, 20)),
     ("assembler", "crafter", "crafter", 1, 2, False, True, True, 9, "5e6670", 30, [("resistor", 4), ("gear", 6), ("copper_ingot", 10)],
-     {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg"] + [out for _, out in FILLERS],
+     {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg",
+                  "galvanized_steel", "microchip", "science_kit_2"] + [out for _, out in FILLERS],
       "recipe_mode": 2, "item_capacity": 20, "power_use": 75.0}, (220, True), (3.0, 1, 20)),
     ("smeltery", "crafter", "crafter", 1, 2, False, True, True, 11, "a5714f", 11,
-     [("brick", 20), ("iron_ingot", 20), ("gear", 10)],
-     {"recipes": ["smelt_iron", "smelt_brick", "smelt_copper"], "recipe_mode": 1, "item_capacity": 20,
+     [("brick", 20), ("galvanized_steel", 10), ("gear", 10)],
+     {"recipes": ["smelt_iron", "smelt_brick", "smelt_copper", "smelt_zinc"], "recipe_mode": 1, "item_capacity": 20,
       "craft_speed": 2.0, "fuel_use": 270.0, "fuel_capacity": 20}, (320, True), (4.0, 1, 20)),
     ("fast_drill", "drill", "drill", 1, 2, False, True, True, 8, "b0894f", 21,
-     [("iron_ingot", 20), ("gear", 10), ("resistor", 4)],
+     [("galvanized_steel", 12), ("gear", 10), ("microchip", 2)],
      {"tier": 2, "base_seconds": 3.0, "hardness_seconds": 0.75, "item_capacity": 20, "power_use": 270.0},
      (260, True), (4.0, 1, 20)),
     ("fabricator", "crafter", "crafter", 1, 2, False, True, True, 9, "7b8796", 31,
-     [("resistor", 10), ("gear", 20), ("copper_cable", 20)],
-     {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg"] + [out for _, out in FILLERS],
+     [("microchip", 4), ("gear", 20), ("galvanized_steel", 12)],
+     {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg",
+                  "galvanized_steel", "microchip", "science_kit_2"] + [out for _, out in FILLERS],
       "recipe_mode": 2, "item_capacity": 30, "craft_speed": 2.0, "power_use": 225.0}, (300, True), (5.0, 1, 20)),
     ("science_workshop", "workshop", "workshop", 1, 2, False, True, True, 24, "6a5a7a", 40,
      [("copper_cable", 10), ("iron_ingot", 10), ("resistor", 5)],
@@ -300,8 +319,11 @@ RESEARCH = [
     ("industry", 70, 30, ["mining"], ["assembler"], [], []),
     ("science_automation", 80, 35, ["industry"], ["science_workshop"], [], []),
     ("autobuild", 85, 40, ["industry"], [], BUILD_RECIPE_IDS, []),
-    ("mining_floor", 169, 50, ["underground_1", "industry"], [], [], ["mining_floor"]),
-    ("compact_production", 86, 45, ["industry"], ["smeltery", "fabricator", "fast_drill", "large_container"], [], []),
+    ("sphalerite", 86, 35, ["industry"], [], ["smelt_zinc", "galvanized_steel"], []),
+    ("microchips", 87, 40, ["sphalerite", "science_automation"], [], ["microchip", "science_kit_2"], []),
+    ("steel_logistics", 88, 45, ["microchips"], ["steel_conveyor", "steel_junction", "steel_router"], [], []),
+    ("mining_floor", 169, 50, ["underground_1", "microchips"], [], [], ["mining_floor"]),
+    ("compact_production", 89, 45, ["microchips"], ["smeltery", "fabricator", "fast_drill", "large_container"], [], []),
     # Оборона
     ("defense", 90, 25, ["electricity"], ["machine_gun"], ["casing_mg"] + [out for _, out in FILLERS], []),
     # База: этажи, шлюз, лифты
@@ -502,6 +524,22 @@ def write_building_item(b):
     write(f"items/types/buildings/{bid}.tres", out)
 
 
+# Исследования, которым вдобавок нужны наборы второго уровня: всё, что идёт после «Микросхем».
+# Раньше них наборы второго уровня негде делать — это и задаёт порядок мидгейма.
+KIT2_AFTER = {"steel_logistics", "compact_production", "mining_floor", "accumulators", "lift"}
+KIT2_PREFIXES = ("mining_room_", "science_speed_", "gateway_speed_", "star_depth_")
+KIT2_EXACT = {"warp_time_4", "warp_time_5", "warp_charge_3", "underground_4", "underground_5",
+              "pad_4", "pad_5", "drone_speed_3", "drone_mining_3", "drone_health_3",
+              "drone_gun_3", "drone_repair_3"}
+
+
+def kit2_amount(rid, amount):
+    """Сколько наборов второго уровня нужно исследованию (0 — не нужны)."""
+    if rid in KIT2_AFTER or rid in KIT2_EXACT or rid.startswith(KIT2_PREFIXES):
+        return max(5, amount // 2)
+    return 0
+
+
 def write_research():
     clear("research/defs/*.tres")
     for rid, order, amount, prereqs, buildings, recipes, effects in RESEARCH:
@@ -513,10 +551,19 @@ def write_research():
             ext.append(f'[ext_resource type="Resource" path="res://buildings/defs/{bid}.tres" id="b_{bid}"]')
         for rec in recipes:
             ext.append(f'[ext_resource type="Resource" path="res://items/recipes/{rec}.tres" id="r_{rec}"]')
-        out = ['[gd_resource type="Resource" script_class="ResearchDef" format=3]', ""] + ext + ["", "[resource]",
+        kit2 = kit2_amount(rid, amount)
+        subs = []
+        if kit2 > 0:
+            ext.append('[ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]')
+            ext.append('[ext_resource type="Resource" path="res://items/types/science_kit_2.tres" id="6_kit2"]')
+            subs = ['[sub_resource type="Resource" id="kit2"]', 'script = ExtResource("5_stack")',
+                    'item = ExtResource("6_kit2")', f"amount = {kit2}", ""]
+        out = ['[gd_resource type="Resource" script_class="ResearchDef" format=3]', ""] + ext + [""] + subs + ["[resource]",
                'script = ExtResource("1_def")', f'id = &"{rid}"', f'name_key = "RESEARCH_{rid.upper()}"',
                f'description_key = "RESEARCH_{rid.upper()}_DESC"', f"sort_order = {order}",
                'cost_item = ExtResource("2_kit")', f"cost_amount = {amount}"]
+        if kit2 > 0:
+            out.append('extra_costs = Array[ExtResource("5_stack")]([SubResource("kit2")])')
         pre = ", ".join(f'&"{p}"' for p in prereqs)
         out.append(f"prerequisites = Array[StringName]([{pre}])")
         subs = ", ".join(f'ExtResource("b_{bid}")' for bid in buildings)
@@ -573,9 +620,10 @@ def patch_planet_types():
     lines = s.split("\n")
     for i, line in enumerate(lines):
         if line.startswith("ore_ids = "):
-            lines[i] = 'ore_ids = Array[StringName]([&"hematite", &"stone", &"coal", &"malachite", &"water"])'
+            lines[i] = ('ore_ids = Array[StringName]([&"hematite", &"stone", &"coal", &"malachite",'
+                        ' &"sphalerite", &"water"])')
         elif line.startswith("ore_chances = "):
-            lines[i] = "ore_chances = PackedFloat32Array(1, 1, 1, 0.9, 0.8)"
+            lines[i] = "ore_chances = PackedFloat32Array(1, 1, 1, 0.9, 0.75, 0.8)"
     open(p, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
 
 

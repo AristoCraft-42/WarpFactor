@@ -6,15 +6,15 @@
 [ext_resource type="Script" path="res://items/produce.gd" id="4_produce"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]
 [ext_resource type="Script" path="res://items/produce_items.gd" id="6_produce_items"]
-[ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
+[ext_resource type="Resource" path="res://items/types/galvanized_steel.tres" id="item_galvanized_steel"]
 [ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
-[ext_resource type="Resource" path="res://items/types/resistor.tres" id="item_resistor"]
+[ext_resource type="Resource" path="res://items/types/microchip.tres" id="item_microchip"]
 [ext_resource type="Resource" path="res://items/types/buildings/fast_drill.tres" id="item_fast_drill"]
 
 [sub_resource type="Resource" id="in_0"]
 script = ExtResource("5_stack")
-item = ExtResource("item_iron_ingot")
-amount = 20
+item = ExtResource("item_galvanized_steel")
+amount = 12
 
 [sub_resource type="Resource" id="in_1"]
 script = ExtResource("5_stack")
@@ -23,8 +23,8 @@ amount = 10
 
 [sub_resource type="Resource" id="in_2"]
 script = ExtResource("5_stack")
-item = ExtResource("item_resistor")
-amount = 4
+item = ExtResource("item_microchip")
+amount = 2
 
 [sub_resource type="Resource" id="consume_0"]
 script = ExtResource("3_consume_items")

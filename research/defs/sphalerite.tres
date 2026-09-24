@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ResearchDef" format=3]
+
+[ext_resource type="Script" path="res://research/research_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://items/types/science_kit.tres" id="2_kit"]
+[ext_resource type="Script" path="res://buildings/building_def.gd" id="3_building_script"]
+[ext_resource type="Script" path="res://items/recipe.gd" id="4_recipe_script"]
+[ext_resource type="Resource" path="res://items/recipes/smelt_zinc.tres" id="r_smelt_zinc"]
+[ext_resource type="Resource" path="res://items/recipes/galvanized_steel.tres" id="r_galvanized_steel"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"sphalerite"
+name_key = "RESEARCH_SPHALERITE"
+description_key = "RESEARCH_SPHALERITE_DESC"
+sort_order = 86
+cost_item = ExtResource("2_kit")
+cost_amount = 35
+prerequisites = Array[StringName]([&"industry"])
+unlock_buildings = Array[ExtResource("3_building_script")]([])
+unlock_recipes = Array[ExtResource("4_recipe_script")]([ExtResource("r_smelt_zinc"), ExtResource("r_galvanized_steel")])
+effects = Array[StringName]([])

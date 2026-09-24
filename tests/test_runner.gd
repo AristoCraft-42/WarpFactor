@@ -73,6 +73,7 @@ func _ready() -> void:
 	_test_autobuild()
 	_test_mining_platform()
 	_test_shaft()
+	_test_midgame_chain()
 	_test_cheats()
 	_test_warp_time_unlimited()
 	_test_save_roundtrip_and_determinism()
@@ -204,22 +205,22 @@ func _collect(dir: String, out: PackedStringArray) -> void:
 
 func _test_registry() -> void:
 	Registry.ensure_loaded()
-	_check(Registry.ores.size() == 5, "ожидалось 5 месторождений, есть %d" % Registry.ores.size())
+	_check(Registry.ores.size() == 6, "ожидалось 6 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 37,
-		"ожидалось 37 зданий (28 обычных, 4 творческих, шлюз с парой, шахта, пульт и якорь платформы), есть %d"
+	_check(Registry.buildings.size() == 40,
+		"ожидалось 40 зданий (31 обычное, 4 творческих, шлюз с парой, шахта, пульт и якорь платформы), есть %d"
 		% Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
 	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 39 and Registry.researches.size() == 68,
-		"39 рецептов и 68 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 46 and Registry.researches.size() == 71,
+		"46 рецептов и 71 исследование (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16
 		and Registry.base_def.size_step == 6, "параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	var mining_def := Registry.mining_def
 	_check(mining_def != null and mining_def.id == &"mining" and mining_def.room_size > 0
 		and mining_def.size > mining_def.center_max, "этаж добычи: своя карта с местом под комнаты")
 	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 17 + 32, "ожидалось 17 предметов и 32 предмета-постройки, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 22 + 35, "ожидалось 22 предмета и 35 предметов-построек, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
 	for def in Registry.buildings:
@@ -1162,11 +1163,11 @@ func _test_recipes_data() -> void:
 			_check(not def.get_stat_lines().is_empty(), "характеристики завода %s для меню" % def.id)
 	_check(crafters == 4, "заводов 4: печь, плавильня, сборщик и фабрикатор (%d)" % crafters)
 	var furnace := Registry.get_building(&"furnace") as CrafterDef
-	_check(furnace.recipe_mode == CrafterDef.RecipeMode.AUTO and furnace.fuel_use > 0.0 and furnace.power_use == 0.0 and furnace.recipes.size() == 3,
-		"печь: три переплавки на топливе, рецепт по сырью")
+	_check(furnace.recipe_mode == CrafterDef.RecipeMode.AUTO and furnace.fuel_use > 0.0 and furnace.power_use == 0.0
+		and furnace.recipes.size() == 4, "печь: четыре переплавки на топливе, рецепт по сырью (%d)" % furnace.recipes.size())
 	var assembler := Registry.get_building(&"assembler") as CrafterDef
-	_check(assembler.recipe_mode == CrafterDef.RecipeMode.SELECT and assembler.power_use > 0.0 and assembler.recipes.size() == 36,
-		"сборщик: 10 рецептов компонентов и 26 построек на выбор (%d)" % assembler.recipes.size())
+	_check(assembler.recipe_mode == CrafterDef.RecipeMode.SELECT and assembler.power_use > 0.0 and assembler.recipes.size() == 42,
+		"сборщик: 13 рецептов компонентов и 29 построек на выбор (%d)" % assembler.recipes.size())
 	# Улучшенные версии занимают ту же клетку, но выдают больше — на это и опирается ветка уплотнения.
 	var smeltery := Registry.get_building(&"smeltery") as CrafterDef
 	var furnace_def := Registry.get_building(&"furnace") as CrafterDef
@@ -1746,7 +1747,7 @@ func _build_save_run() -> Run:
 	world_to_gateway(run, gate, hematite)
 	# Исследования посреди ручной сдачи.
 	run.research.set_active(&"mining")
-	run.research.progress[&"mining"] = 3
+	run.research.progress[&"mining"] = PackedInt32Array([3])
 	run.research.manual_queue = 2
 	# Дрон: инвентарь и очередь крафта.
 	run.drone.inventory.add(_item(&"iron_ingot"), 50)
@@ -4055,6 +4056,71 @@ func _test_warp_time_unlimited() -> void:
 	run.apply_research_effects()
 	_check(not run.has_time_limit(), "после последней ступени на планете можно сидеть сколько угодно")
 	run.dispose()
+
+
+## Мидгейм: сфалерит → цинк → оцинкованная сталь → микросхема → набор II, а вся прокачка
+## после «Микросхем» требует оба вида наборов, причём второй сдаёт только научный цех.
+func _test_midgame_chain() -> void:
+	var sphalerite := Registry.get_ore(&"sphalerite")
+	_check(sphalerite != null and sphalerite.hardness == 2 and sphalerite.item != null,
+		"сфалерит — руда для электробура")
+	var on_normal := false
+	for type in Registry.planet_types:
+		if type.id == &"normal":
+			on_normal = type.ore_ids.has(&"sphalerite")
+	_check(on_normal, "сфалерит встречается на обычных планетах")
+	for id in [&"zinc_plate", &"galvanized_steel", &"microchip", &"science_kit_2"]:
+		_check(Registry.get_item(id) != null, "предмет %s есть в данных" % id)
+	_check(Registry.get_item(&"science_kit_2").science_tier == 2, "набор II — второго уровня")
+	var steel := Registry.get_building(&"steel_conveyor") as ConveyorDef
+	var plain := Registry.get_building(&"conveyor") as ConveyorDef
+	_check(steel != null and steel.tiles_per_second > plain.tiles_per_second * 1.9,
+		"стальная лента вдвое быстрее обычной")
+
+	# Цепочка работает: печь плавит цинк, сборщик делает сталь, микросхему и набор II.
+	var world := Worlds.empty_world(32, 20)
+	var furnace := _place(world, &"furnace", Vector2i(6, 6)) as Crafter
+	for i in 5:
+		furnace.handle_item(null, _item(&"sphalerite"))
+	for i in 3:
+		furnace.handle_item(null, _item(&"coal"))
+	Worlds.run_ticks(world, 8 * GameConst.TICK_RATE)
+	_check(furnace.outputs[_item(&"zinc_plate")] > 0, "печь выплавила цинковую пластину")
+	var assembler := _place(world, &"assembler", Vector2i(10, 6)) as Crafter
+	world.configure(assembler, &"galvanized_steel")
+	_check(assembler.get_recipe() != null and assembler.get_recipe().id == &"galvanized_steel",
+		"сборщик берёт рецепт оцинкованной стали")
+	world.dispose()
+
+	# Исследования: «Микросхемы» ещё на одних наборах, всё после — на двух.
+	var chips := Registry.get_research(&"microchips")
+	var steel_research := Registry.get_research(&"steel_logistics")
+	_check(chips != null and chips.extra_costs.is_empty(), "«Микросхемы» стоят только наборов первого уровня")
+	_check(steel_research != null and steel_research.extra_costs.size() == 1
+		and steel_research.extra_costs[0].item.science_tier == 2, "«Стальная логистика» требует и наборы II")
+
+	var state := ResearchState.new()
+	state.done[&"electricity"] = true
+	state.done[&"mining"] = true
+	state.done[&"industry"] = true
+	state.done[&"science_automation"] = true
+	state.done[&"sphalerite"] = true
+	state.done[&"microchips"] = true
+	state.set_active(steel_research.id)
+	var kit1 := _item(&"science_kit")
+	var kit2 := _item(&"science_kit_2")
+	_check(state.wants_kit(kit1) and state.wants_kit(kit2), "цех может сдавать оба вида наборов")
+	for i in steel_research.cost_amount:
+		state.add_kit(kit1)
+	_check(not state.is_done(steel_research.id) and not state.wants_kit(kit1),
+		"наборов первого уровня уже хватает, а исследование ещё не готово")
+	_check(state.wants_kit(kit2), "ждёт наборы второго уровня")
+	var inventory := Inventory.new(10)
+	inventory.add(kit2, 50)
+	_check(state.deposit_manual(inventory, 1) == 0, "руками наборы второго уровня не сдать")
+	for i in steel_research.extra_costs[0].amount:
+		state.add_kit(kit2)
+	_check(state.is_done(steel_research.id), "с наборами обоих уровней исследование завершилось")
 
 
 ## Шахта между подземным этажом и этажом добычи: предметы едут по ней в обе стороны,
