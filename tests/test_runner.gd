@@ -4382,6 +4382,12 @@ func _test_teleport_timers() -> void:
 	_check(run.last_summary != null and run.last_summary.emergency, "прыжок отмечен как аварийный")
 	_check(run.get_planet_seconds_left() > 0.0 and not run.is_teleport_ready(),
 		"на новой планете сроки отсчитываются заново")
+	# Последняя ступень разгона снимает перезарядку совсем.
+	for step in range(1, ResearchState.max_effect(&"teleport_charge") + 1):
+		run.research.done[StringName("warp_charge_%d" % step)] = true
+	run.apply_research_effects()
+	_check(run.get_teleport_cooldown_ticks() == 0 and run.is_teleport_ready(),
+		"на последней ступени перезарядки нет вовсе")
 	run.dispose()
 
 ## Курсоры напарников: идут мимо тиков (на мир не влияют), хост пересказывает их остальным

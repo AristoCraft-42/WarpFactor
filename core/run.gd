@@ -877,10 +877,14 @@ func get_planet_time_ticks() -> int:
 	return maxi(1, roundi(seconds * GameConst.TICK_RATE))
 
 
-## Перезарядка телепорта после прибытия (тиков). Исследования «Разгон телепорта» сокращают.
+## Перезарядка телепорта после прибытия (тиков). Исследования «Разгон телепорта» сокращают,
+## а на последней ступени перезарядки нет вовсе — как и срока пребывания на планете.
 func get_teleport_cooldown_ticks() -> int:
+	var steps := research.count_effect(&"teleport_charge") if research != null else 0
+	if steps >= ResearchState.max_effect(&"teleport_charge"):
+		return 0
 	var seconds := run_def.teleport_cooldown_seconds \
-		- run_def.teleport_cooldown_step_seconds * research.count_effect(&"teleport_charge")
+		- run_def.teleport_cooldown_step_seconds * steps
 	return maxi(0, roundi(maxf(seconds, run_def.teleport_cooldown_min_seconds) * GameConst.TICK_RATE))
 
 

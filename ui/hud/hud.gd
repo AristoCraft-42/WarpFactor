@@ -10,7 +10,11 @@ const HINT_WIDTH := 720
 var _game: Game
 var _root: Control
 var _info_label: Label
+## Панель «что под курсором» — часть отладки (F3), в обычной игре её нет.
+var _info_panel: PanelContainer
 var _hint_label: Label
+## Подсказка о клавишах сверху: выключается настройкой game/show_hints.
+var _hint_panel: PanelContainer
 var _problem_label: Label
 var _paused_badge: Label
 var _fps_label: Label
@@ -86,6 +90,7 @@ func setup(game: Game) -> void:
 	_update_problem()
 	_update_paused_badge()
 	_on_setting_changed(&"graphics/show_fps")
+	_on_setting_changed(&"game/show_hints")
 
 
 func set_ore_legend_visible(value: bool) -> void:
@@ -122,8 +127,11 @@ func _make_belt_legend() -> PanelContainer:
 	return panel
 
 
+## F3: отладочный оверлей и панель «что под курсором» показываются вместе.
 func toggle_debug() -> bool:
 	_debug.visible = not _debug.visible
+	if _info_panel != null:
+		_info_panel.visible = _debug.visible
 	return _debug.visible
 
 
@@ -248,6 +256,8 @@ func _build_bottom_left() -> void:
 	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	panel.offset_left = 16
 	panel.offset_bottom = -16
+	panel.visible = false
+	_info_panel = panel
 	_root.add_child(panel)
 	_info_label = Label.new()
 	_info_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
@@ -268,6 +278,7 @@ func _build_top_center() -> void:
 	hint_panel.theme_type_variation = &"HudPanel"
 	hint_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	hint_panel.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_hint_panel = hint_panel
 	column.add_child(hint_panel)
 	var hint_column := UiUtil.vbox(2)
 	hint_panel.add_child(hint_column)
@@ -597,6 +608,10 @@ func _update_problem() -> void:
 				key = "PROBLEM_OUT_OF_BOUNDS"
 	_problem_label.text = tr(key) if not key.is_empty() else ""
 	_problem_label.visible = not key.is_empty()
+	# Подсказку о клавишах можно выключить настройкой, но сообщение «почему нельзя строить»
+	# остаётся: без него непонятно, что мешает.
+	if _hint_panel != null:
+		_hint_panel.visible = _hint_label.visible or _problem_label.visible
 
 
 func _update_paused_badge() -> void:
@@ -617,6 +632,9 @@ func _on_delete_confirmed() -> void:
 func _on_setting_changed(key: StringName) -> void:
 	if key == &"graphics/show_fps":
 		_fps_label.visible = Settings.get_bool(key)
+	elif key == &"game/show_hints" and _hint_label != null:
+		_hint_label.visible = Settings.get_bool(key)
+		_update_problem()
 
 
 func _notification(what: int) -> void:

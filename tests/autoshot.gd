@@ -76,13 +76,27 @@ func _run_game(game: Game) -> void:
 	game.ore_overlay.visible = false
 	game.hud.set_ore_legend_visible(false)
 
+	# Панель «что под курсором» — часть отладки: в обычной игре её нет, по F3 появляется.
+	var info_panel: Control = game.hud.get("_info_panel")
+	_expect(info_panel != null and not info_panel.visible, "в обычной игре панели о тайле нет")
 	game.hud.toggle_debug()
 	game.grid_overlay.set_chunk_lines_visible(true)
 	game.camera.focus_on(game.world.drone.position, 0.8)
 	await _frames(20)
+	_expect(info_panel.visible, "F3 показывает панель о тайле")
 	await _shot("g05_debug.png")
 	game.hud.toggle_debug()
 	game.grid_overlay.set_chunk_lines_visible(false)
+	_expect(not info_panel.visible, "F3 снова её прячет")
+
+	# Подсказку о клавишах сверху можно выключить настройкой.
+	var hint_label: Control = game.hud.get("_hint_label")
+	Settings.set_value(&"game/show_hints", false)
+	await _frames(5)
+	_expect(not hint_label.visible, "настройка убирает подсказку о клавишах")
+	Settings.set_value(&"game/show_hints", true)
+	await _frames(5)
+	_expect(hint_label.visible, "и возвращает её обратно")
 
 	await _run_teleport(game)
 	_hold_threat(game)
@@ -900,6 +914,14 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	if ore_tile == Vector2i(-1, -1):
 		return
 	await _drone_to(game, ore_tile + Vector2i(-3, 1))
+	# Подсказка у курсора: по руде такая же, как по зданию.
+	var tooltip := _find_child_of_type(game.hud, "BuildingTooltip") as Control
+	await _mouse_move(game, ore_tile)
+	await _frames(40)
+	_expect(tooltip != null and tooltip.visible, "наведение на руду показывает подсказку")
+	await _shot("d00b_ore_tooltip.png")
+	await _mouse_move(game, ore_tile + Vector2i(-3, -3))
+	await _frames(5)
 	var copper := Registry.get_item(&"hematite").index
 	var copper_before := inv.count(copper)
 	await _mouse_move(game, ore_tile)

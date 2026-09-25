@@ -850,6 +850,15 @@ rows = [
 ("RESEARCH_BOILER_FLOOR","Boiler Room","Котельная"),
 ("RESEARCH_BOILER_FLOOR_DESC","A fourth floor with its own underground lake: pumps stand right on the water, and the shaft carries power and fluids up.","Четвёртый этаж со своим подземным озером: насосы ставятся прямо на воду, а шахта поднимает наверх ток и жидкости."),
 ("BUILD_ALL_LOCKED", "Nothing here is researched yet — look at the research window (J).", "Здесь пока ничего не открыто — загляните в исследования (J)."),
+("SET_SHOW_HINTS", "Key hints at the top", "Подсказка о клавишах сверху"),
+("SET_SHOW_HINTS_HINT", "The line with controls above the screen. The building problem message stays either way.", "Строка с управлением над экраном. Сообщение о том, почему нельзя строить, остаётся в любом случае."),
+("TOOLTIP_ORE_HARDNESS", "Hardness %d", "Твёрдость %d"),
+("TOOLTIP_ORE_DRONE", "Drone: %.1f s per item", "Дрон: %.1f с на предмет"),
+("TOOLTIP_ORE_DRONE_NO", "Too hard for the drone — drill only", "Дрону не по зубам — только буром"),
+("TOOLTIP_ORE_DRILL", "%s: %.2f items/s per ore tile", "%s: %.2f предм./с с тайла руды"),
+("TOOLTIP_ORE_DRILL_NO", "No drill handles this hardness yet", "Ни один бур такую твёрдость пока не берёт"),
+("TOOLTIP_FLUID_PUMP", "%s: %.0f units/s per water tile", "%s: %.0f ед./с с тайла воды"),
+("TOOLTIP_FLUID_BUILD", "Only pipes, pumps and tanks stand on water", "На воде стоят только трубы, насосы и баки"),
 ("ACTION_OVERLAY_POWER", "Power networks overlay", "Оверлей электросетей"),
 ]
 

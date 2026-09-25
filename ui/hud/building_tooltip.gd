@@ -2,6 +2,8 @@ class_name BuildingTooltip
 extends PanelContainer
 ## Подсказка у курсора для здания под мышью (пустой рукой): название, рецепт (вход → выход),
 ## статус (работает / нет сырья / выход забит / нет руды), прогресс цикла и буферы.
+## Если здания нет, но под курсором руда или вода — показывает их: твёрдость, чем добывать
+## и с какой скоростью.
 ## Появляется после короткой задержки, обновляется несколько раз в секунду.
 
 const DELAY := 0.35
@@ -11,6 +13,8 @@ const ICON := 22
 
 var _game: Game
 var _building: Building
+## Руда под курсором, когда здания нет.
+var _ore: OreDef
 var _delay: float = 0.0
 var _refresh: float = 0.0
 
@@ -51,13 +55,20 @@ func _process(delta: float) -> void:
 	var tools := _game.tools
 	var over_ui := get_viewport().gui_get_hovered_control() != null
 	var candidate: Building = null
+	var ore: OreDef = null
 	if tools.input_enabled and tools.mode == ToolController.Mode.NONE and not tools.is_dragging() and not over_ui:
 		candidate = tools.hover_building
-	if candidate != _building:
+		if candidate == null and tools.hover_in_bounds:
+			var grid := _game.world.grid
+			var t := tools.hover_tile
+			if grid.in_bounds_v(t):
+				ore = grid.get_ore_def(t.x, t.y)
+	if candidate != _building or ore != _ore:
 		_building = candidate
+		_ore = ore
 		_delay = DELAY
 		visible = false
-	if _building == null or _building.world == null:
+	if (_building == null or _building.world == null) and _ore == null:
 		visible = false
 		return
 	if not visible:
@@ -75,6 +86,9 @@ func _process(delta: float) -> void:
 
 
 func _rebuild() -> void:
+	if _building == null:
+		_rebuild_ore()
+		return
 	_title.text = tr(_building.def.name_key)
 	# Удаляем сразу (а не в конце кадра), чтобы панель ужалась под новое содержимое.
 	for child in _recipe_row.get_children():
@@ -101,7 +115,58 @@ func _rebuild() -> void:
 	_update_dynamic()
 
 
+## Подсказка по руде или воде: то же окошко, что и у зданий.
+func _rebuild_ore() -> void:
+	_title.text = tr(_ore.get_name_key())
+	for child in _recipe_row.get_children():
+		_recipe_row.remove_child(child)
+		child.queue_free()
+	_recipe_row.visible = false
+	_progress.visible = false
+	_status.visible = false
+	var lines := PackedStringArray()
+	if _ore.fluid != null:
+		var pump := Registry.get_building(&"pump") as FluidBuildingDef
+		if pump != null:
+			lines.append(tr("TOOLTIP_FLUID_PUMP") % [tr(pump.name_key), pump.pump_per_tile])
+		lines.append(tr("TOOLTIP_FLUID_BUILD"))
+	else:
+		lines.append(tr("TOOLTIP_ORE_HARDNESS") % _ore.hardness)
+		var drone_def := Registry.drone_def
+		if _ore.item != null and drone_def != null and _ore.hardness <= drone_def.mine_tier:
+			lines.append(tr("TOOLTIP_ORE_DRONE") % (float(drone_def.mine_ticks(_ore)) / GameConst.TICK_RATE))
+		else:
+			lines.append(tr("TOOLTIP_ORE_DRONE_NO"))
+		var drill := _best_drill()
+		if drill != null:
+			# Скорость считаем по буру целиком на руде: столько предметов в секунду он даст.
+			var tiles := drill.size * drill.size
+			lines.append(tr("TOOLTIP_ORE_DRILL") % [tr(drill.name_key), 1.0 / drill.seconds_per_item(_ore, tiles)])
+		else:
+			lines.append(tr("TOOLTIP_ORE_DRILL_NO"))
+	_lines.text = "
+".join(lines)
+	_lines.visible = true
+
+
+## Самый доступный бур для этой руды: открытый исследованием и берущий её твёрдость.
+func _best_drill() -> DrillDef:
+	var best: DrillDef = null
+	var research := _game.world.research if _game.world != null else null
+	for def in Registry.buildings:
+		var drill := def as DrillDef
+		if drill == null or drill.tier < _ore.hardness:
+			continue
+		if research != null and not research.is_building_unlocked(drill):
+			continue
+		if best == null or drill.seconds_per_item(_ore, 1) < best.seconds_per_item(_ore, 1):
+			best = drill
+	return best
+
+
 func _update_dynamic() -> void:
+	if _building == null:
+		return
 	var status := _building.get_status()
 	var color := UiTheme.FG4
 	var text := ""

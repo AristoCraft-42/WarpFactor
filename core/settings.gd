@@ -273,6 +273,7 @@ func _build_entries() -> void:
 	_add(zoom)
 	_add(SettingEntry.make_bool(&"game/smooth_zoom", TAB_GAME, true, "SET_SMOOTH_ZOOM"))
 	_add(SettingEntry.make_bool(&"game/show_grid", TAB_GAME, true, "SET_SHOW_GRID"))
+	_add(SettingEntry.make_bool(&"game/show_hints", TAB_GAME, true, "SET_SHOW_HINTS", "SET_SHOW_HINTS_HINT"))
 	_add(SettingEntry.make_bool(&"game/confirm_mass_delete", TAB_GAME, true, "SET_CONFIRM_MASS_DELETE", "SET_CONFIRM_MASS_DELETE_HINT"))
 	var autosave := SettingEntry.make_choice(&"game/autosave", TAB_GAME, 5, "SET_AUTOSAVE",
 		[[0, "SET_AUTOSAVE_OFF"], [2, "SET_AUTOSAVE_2"], [5, "SET_AUTOSAVE_5"], [10, "SET_AUTOSAVE_10"]], "SET_AUTOSAVE_HINT")
