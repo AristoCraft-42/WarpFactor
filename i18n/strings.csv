@@ -236,14 +236,14 @@ INFO_INVERTED,Inverted,Инверсия
 BUILD_BUTTON_HINT,"LMB — take in hand, RMB — craft 1, Shift+RMB — craft 5","ЛКМ — взять в руку, ПКМ — скрафтить 1, Shift+ПКМ — 5"
 BUILDING_CENTRAL_GATEWAY,Central Gateway,Центральный шлюз
 BUILDING_CENTRAL_GATEWAY_DESC,The heart of the mobile base on the planet. Its ports pass items to the underground floor and back (after research). R rotates the ports. Fly over it and press F to go down; click it to open the star map and teleport.,"Сердце мобильной базы на планете. Порты передают предметы на подземный этаж и обратно (после исследования). R поворачивает порты. Зависните над ним и нажмите F, чтобы спуститься; клик — звёздная карта и телепорт."
-BUILDING_BASE_GATEWAY,Gateway pair,Пара шлюза
-BUILDING_BASE_GATEWAY_DESC,"The pair of the central gateway on the underground floor: items from the pad leave through one side, items entering the other go up. R rotates the ports.","Пара центрального шлюза на подземном этаже: предметы с площадки выходят с одной стороны, вошедшие с другой уходят наверх. R поворачивает порты."
+BUILDING_BASE_GATEWAY,Central Gateway,Центральный шлюз
+BUILDING_BASE_GATEWAY_DESC,"The same central gateway, seen from the underground floor: items from the pad leave through one side, items entering the other go up. It stands north of the middle, so the middle of the floor is free for the factory. R rotates the ports.","Тот же центральный шлюз, только на подземном этаже: предметы с площадки выходят с одной стороны, вошедшие с другой уходят наверх. Стоит севернее середины, чтобы середина этажа осталась под завод. R поворачивает порты."
 INFO_GATEWAY_TO_BASE,Down: %d / %d,Вниз: %d / %d
 INFO_GATEWAY_TO_PLANET,Up: %d / %d,Вверх: %d / %d
 LOCATION_BASE,Underground floor,Подземный этаж
 LOCATION_MINING,Mining floor,Этаж добычи
 BUILDING_SHAFT,Shaft,Шахта
-BUILDING_SHAFT_DESC,The only way down to the mining floor: items go through it and the drone rides it with F.,"Единственный путь на этаж добычи: по ней идут предметы, и по F спускается дрон."
+BUILDING_SHAFT_DESC,"The only way down to the mining floor: four inputs on one side and four outputs on the other, each output gives what entered its own input. The drone rides it with F.","Единственный путь на этаж добычи: четыре входа с одной стороны и четыре выхода с другой, каждый выход отдаёт то, что вошло в его вход. По F спускается дрон."
 INFO_SHAFT_QUEUE,Waiting in the shaft: %d / %d,В шахте ждёт: %d из %d
 RESEARCH_MINING_FLOOR,Mining floor,Этаж добычи
 RESEARCH_MINING_FLOOR_DESC,Digs a floor below the base: a central room with a shaft down and room for four mining rooms around it.,Прокапывает этаж под базой: центральная комната с шахтой вниз и место для четырёх комнат добычи вокруг.
@@ -810,7 +810,13 @@ STAT_TURRET_SPRAY,"Splash %.1f tiles: water slows for %.0f s, steam burns %d/s",
 STATUS_NO_FLUID,No fluid,Нет жидкости
 LOCATION_BOILER,Boiler Room,Котельная
 BUILDING_BOILER_SHAFT,Boiler Shaft,Шахта котельной
-BUILDING_BOILER_SHAFT_DESC,"The way down to the boiler room. Carries items like the mining shaft, and power and pipes on top of that — that is what the floor is for.","Путь вниз, в котельную. Возит предметы, как шахта добычи, а ещё проводит ток и трубы — ради этого этаж и нужен."
+BUILDING_BOILER_SHAFT_DESC,"The way down to the boiler room: four inputs and four outputs like the mining shaft, and power and pipes on top of that — that is what the floor is for.","Путь вниз, в котельную: четыре входа и четыре выхода, как у шахты добычи, а ещё ток и трубы — ради этого этаж и нужен."
+RESEARCH_BOILER_SIZE_1,Boiler room expansion I,Расширение котельной I
+RESEARCH_BOILER_SIZE_1_DESC,"The boiler room grows by 8 tiles per side, and the water band moves out to the new edge.","Котельная вырастает на 8 тайлов по стороне, а полоса воды переезжает к новому краю."
+RESEARCH_BOILER_SIZE_2,Boiler room expansion II,Расширение котельной II
+RESEARCH_BOILER_SIZE_2_DESC,"The boiler room grows by 8 tiles per side, and the water band moves out to the new edge.","Котельная вырастает на 8 тайлов по стороне, а полоса воды переезжает к новому краю."
+RESEARCH_BOILER_SIZE_3,Boiler room expansion III,Расширение котельной III
+RESEARCH_BOILER_SIZE_3_DESC,"The boiler room grows by 8 tiles per side, and the water band moves out to the new edge.","Котельная вырастает на 8 тайлов по стороне, а полоса воды переезжает к новому краю."
 RESEARCH_BOILER_FLOOR,Boiler Room,Котельная
 RESEARCH_BOILER_FLOOR_DESC,"A fourth floor with its own underground lake: pumps stand right on the water, and the shaft carries power and fluids up.","Четвёртый этаж со своим подземным озером: насосы ставятся прямо на воду, а шахта поднимает наверх ток и жидкости."
 BUILD_ALL_LOCKED,Nothing here is researched yet — look at the research window (J).,Здесь пока ничего не открыто — загляните в исследования (J).

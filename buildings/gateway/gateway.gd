@@ -45,11 +45,11 @@ func get_output_side() -> int:
 
 
 func get_input_tile() -> Vector2i:
-	return get_gateway_def().get_port_tile(origin, get_size(), get_input_side())
+	return GatewayDef.get_port_tile(origin, get_size(), get_input_side())
 
 
 func get_output_tile() -> Vector2i:
-	return get_gateway_def().get_port_tile(origin, get_size(), get_output_side())
+	return GatewayDef.get_port_tile(origin, get_size(), get_output_side())
 
 
 ## Шлюз начинает забег стороной start_size и вырастает до grown_size, когда открыты все «Порты шлюза».
@@ -108,11 +108,11 @@ func get_fluid_ports() -> Array[FluidGraph.Port]:
 
 
 func get_input_tiles() -> Array[Vector2i]:
-	return get_gateway_def().get_port_tiles(origin, get_size(), get_input_side(), port_count())
+	return GatewayDef.get_port_tiles(origin, get_size(), get_input_side(), port_count())
 
 
 func get_output_tiles() -> Array[Vector2i]:
-	return get_gateway_def().get_port_tiles(origin, get_size(), get_output_side(), port_count())
+	return GatewayDef.get_port_tiles(origin, get_size(), get_output_side(), port_count())
 
 
 func on_placed() -> void:

@@ -33,14 +33,14 @@ func get_ticks_per_item() -> int:
 
 
 ## Тайл снаружи середины стороны side для здания размером gate_size с левым верхним тайлом origin.
-func get_port_tile(origin: Vector2i, gate_size: int, side: int) -> Vector2i:
+static func get_port_tile(origin: Vector2i, gate_size: int, side: int) -> Vector2i:
 	var tiles := get_port_tiles(origin, gate_size, side, 1)
 	return tiles[0] if not tiles.is_empty() else origin
 
 
 ## Тайлы снаружи стороны side в порядке «от середины к краям», первые count штук.
 ## При чётном размере середин две — сначала они, потом по краям.
-func get_port_tiles(origin: Vector2i, gate_size: int, side: int, count: int) -> Array[Vector2i]:
+static func get_port_tiles(origin: Vector2i, gate_size: int, side: int, count: int) -> Array[Vector2i]:
 	var dir := GameConst.dir_vector(side)
 	var outside := origin
 	if dir.x > 0:

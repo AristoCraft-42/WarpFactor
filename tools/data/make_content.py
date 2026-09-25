@@ -268,9 +268,9 @@ BUILDINGS = [
     ("creative_void", "creative", "creative", 0, 1, False, True, True, 31, "504945", 901, [],
      {"kind": 3, "rates": [100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0, 10000.0, 25000.0], "default_rate": 2,
       "rotatable": False, "creative_only": True, "power_use": 1.0}, (400, True), (0.5, 1, 20)),
-    ("shaft", "lift", "shaft", 0, 3, False, False, False, 28, "7a7f8a", 4, [],
+    ("shaft", "lift", "shaft", 0, 4, False, False, False, 28, "7a7f8a", 4, [],
      {"buffer_capacity": 20, "throughput": "conveyor"}, (2000, True), None),
-    ("boiler_shaft", "lift", "shaft", 0, 3, False, False, False, 28, "8a7a6a", 5, [],
+    ("boiler_shaft", "lift", "shaft", 0, 4, False, False, False, 28, "8a7a6a", 5, [],
      {"buffer_capacity": 20, "throughput": "conveyor", "energy_link": True}, (2000, True), None),
     # Платформа добычи: пульт в комнате и якорь на платформе (ставятся сами вместе с комнатой)
     ("platform_console", "platform", "platform_console", 0, 2, False, False, False, 28, "4f7a6a", 2, [],
@@ -345,6 +345,9 @@ RESEARCH = [
     ("steel_logistics", 88, 45, ["microchips"], ["steel_conveyor", "steel_junction", "steel_router"], [], []),
     ("mining_floor", 169, 50, ["underground_1", "microchips"], [], [], ["mining_floor"]),
     ("boiler_floor", 180, 55, ["mining_floor", "steam_power"], [], [], ["boiler_floor"]),
+] + [("boiler_size_%d" % i, 180 + i, 40 + 20 * i,
+      ["boiler_size_%d" % (i - 1)] if i > 1 else ["boiler_floor"], [], [], ["boiler_size"])
+     for i in range(1, 4)] + [
     ("compact_production", 89, 45, ["microchips"], ["smeltery", "fabricator", "fast_drill", "large_container"], [], []),
     # Оборона
     ("defense", 90, 25, ["electricity"], ["machine_gun"], ["casing_mg"] + [out for _, out in FILLERS], []),
@@ -392,7 +395,7 @@ LEVELS = [
 # Раньше них наборы второго уровня негде делать — это и задаёт порядок мидгейма.
 KIT2_AFTER = {"steel_logistics", "compact_production", "mining_floor", "accumulators", "lift",
               "advanced_defense", "boiler_floor"}
-KIT2_PREFIXES = ("mining_room_", "science_speed_", "gateway_speed_", "star_depth_")
+KIT2_PREFIXES = ("mining_room_", "science_speed_", "gateway_speed_", "star_depth_", "boiler_size_")
 KIT2_EXACT = {"warp_time_4", "warp_time_5", "warp_charge_3", "underground_4", "underground_5",
               "pad_4", "pad_5", "drone_speed_3", "drone_mining_3", "drone_health_3",
               "drone_gun_3", "drone_repair_3"}

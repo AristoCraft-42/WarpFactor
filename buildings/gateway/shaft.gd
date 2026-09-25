@@ -1,23 +1,38 @@
 class_name Shaft
 extends Building
-## Шахта между подземным этажом и этажом добычи: пара зданий в середине обоих этажей.
-## Ставится сама, когда открыт этаж добычи, и не сносится — это единственный путь вниз.
+## Шахта с подземного этажа вниз: на этаж добычи и в котельную. Пара зданий 4×4, стоит сама,
+## когда этаж открыт исследованием, и не сносится — это единственный путь туда.
 ##
-## Как лифт: один вход и один выход (середины противоположных сторон), направление —
-## общая настройка пары (вниз, на этаж добычи, или вверх, к базе). Дрон переходит по F.
-## Ток и жидкости через шахту не идут: этаж добычи живёт на своих проводах и трубах.
+## Порты как у центрального шлюза: четыре входа на одной стороне и четыре выхода на противоположной,
+## k-й выход отдаёт то, что вошло в k-й вход пары. Направление (вниз или вверх) — общая настройка пары,
+## дрон переходит по F. Ток и жидкости идут только через шахту котельной (LiftDef.energy_link):
+## этаж добычи живёт на своих проводах и трубах.
 
 enum Direction { DOWN, UP }
 
 var pair: Shaft
 var direction: int = Direction.DOWN
-## Предметы, ждущие перехода (хранятся в шахте исходного этажа).
-var buffer := PackedInt32Array()
-var _next_out: int = 0
+## Очереди по портам (хранятся в шахте исходного этажа): buffers[k] — то, что вошло в k-й вход.
+var buffers: Array[PackedInt32Array] = []
+## Тик, не раньше которого отдаёт каждый выходной порт.
+var _next_out := PackedInt32Array()
 
 
 func get_shaft_def() -> LiftDef:
 	return def as LiftDef
+
+
+## Сколько портов у шахты — по тайлу на сторону.
+func port_count() -> int:
+	return get_size()
+
+
+func _ensure_buffers() -> void:
+	if buffers.size() == port_count():
+		return
+	while buffers.size() < port_count():
+		buffers.append(PackedInt32Array())
+	buffers.resize(port_count())
 
 
 ## Этот конец принимает предметы: вниз грузят наверху, вверх — внизу.
@@ -37,26 +52,33 @@ func get_output_side() -> int:
 	return rotation
 
 
+func get_input_tiles() -> Array[Vector2i]:
+	return GatewayDef.get_port_tiles(origin, get_size(), get_input_side(), port_count())
+
+
+func get_output_tiles() -> Array[Vector2i]:
+	return GatewayDef.get_port_tiles(origin, get_size(), get_output_side(), port_count())
+
+
 func get_input_tile() -> Vector2i:
-	return _side_tile(get_input_side())
+	var tiles := get_input_tiles()
+	return tiles[0] if not tiles.is_empty() else origin
 
 
 func get_output_tile() -> Vector2i:
-	return _side_tile(get_output_side())
+	var tiles := get_output_tiles()
+	return tiles[0] if not tiles.is_empty() else origin
 
 
-func _side_tile(side: int) -> Vector2i:
-	var size := get_size()
-	var middle := size / 2
-	match posmod(side, 4):
-		GameConst.Dir.RIGHT:
-			return origin + Vector2i(size, middle)
-		GameConst.Dir.DOWN:
-			return origin + Vector2i(middle, size)
-		GameConst.Dir.LEFT:
-			return origin + Vector2i(-1, middle)
-		_:
-			return origin + Vector2i(middle, -1)
+## Номер порта, к которому примыкает сосед (−1 — сосед не у порта).
+func input_port_of(source: Building) -> int:
+	if source == null:
+		return -1
+	var tiles := get_input_tiles()
+	for k in tiles.size():
+		if source.occupies(tiles[k]):
+			return k
+	return -1
 
 
 ## Шахта котельной проводит ток: её концы сшивают электросети своих этажей.
@@ -75,6 +97,7 @@ func get_fluid_ports() -> Array[FluidGraph.Port]:
 
 
 func on_placed() -> void:
+	_ensure_buffers()
 	wake()
 
 
@@ -92,38 +115,64 @@ func on_rotated(_old_rotation: int) -> void:
 func accept_item(source: Building, _item: int) -> bool:
 	if pair == null or source is Shaft or not is_source():
 		return false
-	if not source.occupies(get_input_tile()):
+	var port := input_port_of(source)
+	if port < 0:
 		return false
-	return buffer.size() < get_shaft_def().buffer_capacity
+	_ensure_buffers()
+	return buffers[port].size() < get_shaft_def().buffer_capacity
 
 
-func handle_item(_source: Building, item: int) -> void:
-	buffer.append(item)
+func handle_item(source: Building, item: int) -> void:
+	_ensure_buffers()
+	buffers[maxi(input_port_of(source), 0)].append(item)
 	if pair != null:
 		pair.wake()
 
 
 func update_tick(tick: int) -> bool:
-	if pair == null or is_source() or pair.buffer.is_empty():
+	if pair == null or is_source():
 		return false
-	if tick < _next_out:
-		sleep_until(_next_out)
+	pair._ensure_buffers()
+	if pair.total_waiting() == 0:
+		# Проснёмся, когда на том конце что-нибудь положат в очередь.
 		return false
-	var target := world.buildings.get_at(get_output_tile())
-	var item: int = pair.buffer[0]
-	if target == null or not target.accept_item(self, item):
-		if target != null:
-			wait_for(target)
-		else:
-			wait_for_proximity()
-		return false
-	target.handle_item(self, item)
-	pair.buffer.remove_at(0)
-	pair.notify_space()
-	_next_out = tick + get_shaft_def().get_ticks_per_item()
-	if not pair.buffer.is_empty():
-		sleep_until(_next_out)
+	var tiles := get_output_tiles()
+	if _next_out.size() != tiles.size():
+		_next_out.resize(tiles.size())
+	var soonest := 1 << 30
+	var gave := false
+	# У каждого порта своя очередь: k-й выход отдаёт то, что вошло в k-й вход пары.
+	for k in tiles.size():
+		if k >= pair.buffers.size() or pair.buffers[k].is_empty():
+			continue
+		if tick < _next_out[k]:
+			soonest = mini(soonest, _next_out[k])
+			continue
+		var target := world.buildings.get_at(tiles[k])
+		var item: int = pair.buffers[k][0]
+		if target == null or not target.accept_item(self, item):
+			if target != null:
+				wait_for(target)
+			else:
+				wait_for_proximity()
+			continue
+		target.handle_item(self, item)
+		pair.buffers[k].remove_at(0)
+		pair.notify_space()
+		_next_out[k] = tick + get_shaft_def().get_ticks_per_item()
+		soonest = mini(soonest, _next_out[k])
+		gave = true
+	if gave or soonest < 1 << 30:
+		sleep_until(soonest if soonest < 1 << 30 else tick + 1)
 	return false
+
+
+## Сколько предметов ждёт перехода в этой шахте.
+func total_waiting() -> int:
+	var sum := 0
+	for queue in buffers:
+		sum += queue.size()
+	return sum
 
 
 # --- Настройка ---
@@ -136,7 +185,7 @@ func get_config() -> Variant:
 	return direction
 
 
-## Направление пары: при смене буфер переезжает в шахту нового исходного этажа.
+## Направление пары: при смене очереди переезжают в шахту нового исходного этажа.
 func set_config(value: Variant) -> void:
 	var next := clampi(int(value), Direction.DOWN, Direction.UP) if value is int else Direction.DOWN
 	if next == direction:
@@ -144,13 +193,19 @@ func set_config(value: Variant) -> void:
 	direction = next
 	if pair != null and pair.direction != next:
 		pair.direction = next
-		var waiting := PackedInt32Array()
-		waiting.append_array(buffer)
-		waiting.append_array(pair.buffer)
-		buffer.clear()
-		pair.buffer.clear()
+		_ensure_buffers()
+		pair._ensure_buffers()
+		var waiting: Array[PackedInt32Array] = []
+		for k in port_count():
+			var queue := PackedInt32Array()
+			queue.append_array(buffers[k])
+			if k < pair.buffers.size():
+				queue.append_array(pair.buffers[k])
+			waiting.append(queue)
+			buffers[k] = PackedInt32Array()
+			pair.buffers[k] = PackedInt32Array()
 		var source := self if is_source() else pair
-		source.buffer = waiting
+		source.buffers = waiting
 		pair.wake()
 		pair.notify_space()
 		if pair.world != null:
@@ -164,21 +219,33 @@ func has_player_window() -> bool:
 
 
 func collect_contents(out: PackedInt32Array) -> void:
-	for item in buffer:
-		out[item] += 1
+	for queue in buffers:
+		for item in queue:
+			out[item] += 1
 
 
 func save_state() -> Dictionary:
-	return {"buffer": buffer.duplicate(), "next_out": _next_out, "direction": direction}
+	var queues: Array[PackedInt32Array] = []
+	for queue in buffers:
+		queues.append(queue.duplicate())
+	return {"buffers": queues, "next_out": _next_out.duplicate(), "direction": direction}
 
 
 func load_state(state: Dictionary) -> void:
-	buffer = SaveContext.items(state.get("buffer", PackedInt32Array()))
-	_next_out = int(state.get("next_out", 0))
+	buffers.clear()
+	if state.has("buffers"):
+		for queue in (state.get("buffers") as Array):
+			buffers.append(SaveContext.items(queue))
+	elif state.has("buffer"):
+		# Старое сохранение: очередь была одна на шахту — отдаём её первому порту.
+		buffers.append(SaveContext.items(state.get("buffer", PackedInt32Array())))
+	_ensure_buffers()
+	var value: Variant = state.get("next_out", PackedInt32Array())
+	_next_out = value if value is PackedInt32Array else PackedInt32Array()
 	direction = clampi(int(state.get("direction", Direction.DOWN)), Direction.DOWN, Direction.UP)
 	wake()
 
 
 func get_info_lines() -> PackedStringArray:
-	var waiting := buffer.size() if is_source() else (pair.buffer.size() if pair != null else 0)
-	return PackedStringArray([tr("INFO_SHAFT_QUEUE") % [waiting, get_shaft_def().buffer_capacity]])
+	var waiting := total_waiting() if is_source() else (pair.total_waiting() if pair != null else 0)
+	return PackedStringArray([tr("INFO_SHAFT_QUEUE") % [waiting, get_shaft_def().buffer_capacity * port_count()]])

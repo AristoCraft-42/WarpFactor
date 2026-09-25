@@ -138,10 +138,8 @@ func _setup(level: LevelDef, map: LevelMap) -> void:
 	var spawn := drone.get_tile()
 	var planet_def := Registry.get_building(&"central_gateway") as GatewayDef
 	var planet_gate := planet.place_gateway(planet_def, GameWorld.gateway_origin(planet_def, spawn))
-	var base_size := base.grid.width
 	var base_def := Registry.get_building(&"base_gateway") as GatewayDef
-	var base_gate := base.place_gateway(base_def,
-		GameWorld.gateway_origin(base_def, Vector2i(base_size / 2, base_size / 2)))
+	var base_gate := base.place_gateway(base_def, GameWorld.gateway_origin(base_def, base_gateway_center()))
 	if planet_gate == null or base_gate == null:
 		return
 	link.planet_gateway = planet_gate
@@ -350,6 +348,13 @@ func is_boiler_open() -> bool:
 	return research != null and research.has_effect(&"boiler_floor")
 
 
+## Сторона открытой части котельной: стартовая плюс шаг за каждое «Расширение котельной».
+func get_boiler_size() -> int:
+	var plan := Registry.boiler_def
+	var steps := research.count_effect(&"boiler_size") if research != null else 0
+	return mini(plan.start_size + plan.size_step * steps, plan.center_max)
+
+
 ## Сколько комнат добычи открыто исследованиями (каждая — со своим туннелем и платформой).
 func get_mining_rooms() -> int:
 	if not is_mining_open():
@@ -386,6 +391,9 @@ func apply_research_effects(notify: bool = true) -> void:
 			if console != null and console.is_deployed():
 				mining.set_platform_open(mining_def.platform_rect(i), false)
 	if boiler != null and is_boiler_open():
+		# Полоса воды переезжает к новому краю раньше открытия пола: одно уведомление на оба.
+		boiler.paint_water(Registry.boiler_def, get_boiler_size())
+		boiler.open_area(GameWorld.base_rect(Registry.boiler_def, get_boiler_size()), notify)
 		_ensure_boiler_shaft(notify)
 	for p in players:
 		p.drone.apply_upgrades(research, notify)
@@ -1101,11 +1109,24 @@ func _other_world(world: GameWorld) -> GameWorld:
 
 ## Где на другом этаже стоит пара здания с левым верхним тайлом origin (относительно шлюза).
 func pair_origin(world: GameWorld, origin: Vector2i) -> Vector2i:
-	var from := get_gateway(world)
-	var to := get_gateway(_other_world(world))
-	if from == null or to == null:
+	var from := _pair_anchor(world)
+	var to := _pair_anchor(_other_world(world))
+	if from == Vector2i.MAX or to == Vector2i.MAX:
 		return origin
-	return to.origin + (origin - from.origin)
+	return origin - from + to
+
+
+## Точка, вокруг которой совпадают площадка и подземный этаж: на планете — середина шлюза,
+## на этаже — середина самого этажа. Считать от шлюза нельзя: он стоит севернее середины,
+## и тогда северная половина площадки отображалась бы в пустоту.
+func _pair_anchor(world: GameWorld) -> Vector2i:
+	if world == base:
+		var plan := Registry.base_def
+		return Vector2i(plan.size / 2, plan.size / 2)
+	var gate := get_gateway(world)
+	if gate == null:
+		return Vector2i.MAX
+	return gate.origin + Vector2i.ONE * (gate.get_size() / 2)
 
 
 ## Место лифта: этаж открыт и лифт изучен; на площадке (планета) или в открытой части этажа, и пара
@@ -1240,17 +1261,26 @@ func _ensure_shaft(notify: bool = true) -> void:
 			shaft_mining.wake()
 
 
+## Середина центрального шлюза на подземном этаже: севернее середины этажа, чтобы под завод
+## оставалась вся его середина, а шахты встали по бокам.
+static func base_gateway_center() -> Vector2i:
+	var plan := Registry.base_def
+	return Vector2i(plan.size / 2, plan.size / 2 - 5)
+
+
 ## Шахта стоит в середине этажа, рядом с центром: место постоянное, чтобы пара всегда сходилась.
 ## На подземном этаже в центре стоит пара шлюза — шахты ставим по бокам от неё, не задевая порты:
 ## слева вниз, на этаж добычи, справа — в котельную. На нижнем этаже шахта ровно в середине.
 func _shaft_origin(world: GameWorld, plan: BaseDef, size: int, to_boiler: bool = false) -> Vector2i:
 	var center := Vector2i(plan.size / 2, plan.size / 2)
 	if world == boiler:
-		# В середине котельной озеро — шахта стоит у северного края открытой части.
+		# Вода котельной идёт по краю — шахта стоит чуть внутри, у северного края.
 		return Vector2i(center.x - size / 2, (plan.size - plan.start_size) / 2 + 2)
 	if world != base:
 		return center + Vector2i(-size / 2, -size / 2)
-	return center + (Vector2i(4, -1) if to_boiler else Vector2i(-6, -1))
+	# На подземном этаже: добыча — у западного края, котельная — у восточного,
+	# по обе стороны от шлюза, который стоит севернее середины.
+	return center + (Vector2i(3, -2) if to_boiler else Vector2i(-7, -2))
 
 
 ## Шахта в котельную: пара зданий на подземном этаже и в середине котельной.

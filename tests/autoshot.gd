@@ -1962,12 +1962,18 @@ func _run_lift(game: Game) -> void:
 		return
 	run.drone.inventory.add(lift_def.item.index, 1)
 	tools.select_building(lift_def)
-	await _mouse_move(game, spot)
-	await _mouse_button(game, spot, MOUSE_BUTTON_LEFT, true)
-	await _mouse_button(game, spot, MOUSE_BUTTON_LEFT, false)
+	# Камера доезжает плавно, а тайл клика считается по её положению: пока она едет,
+	# нажатие попадает на соседний тайл.
+	# Курсор наводится на середину постройки: у лифта 3×3 это левый верхний тайл плюс один.
+	var cursor := spot + Vector2i(1, 1)
+	await _mouse_move(game, cursor)
+	await _mouse_button(game, cursor, MOUSE_BUTTON_LEFT, true)
+	await _mouse_button(game, cursor, MOUSE_BUTTON_LEFT, false)
+	await _settle(game)
 	await _key(KEY_ESCAPE)
 	var lift := planet.buildings.get_at(spot) as Lift
-	_expect(lift != null and lift.pair != null and lift.pair.world == run.base, "лифт поставлен кликом, пара — на подземном этаже")
+	_expect(lift != null and lift.pair != null and lift.pair.world == run.base,
+		"лифт поставлен кликом, пара — на подземном этаже (место %s, проблема %d)" % [spot, tools.plan_problem])
 	if lift == null or lift.pair == null:
 		return
 	await _drone_to(game, spot)

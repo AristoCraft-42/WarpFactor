@@ -6,10 +6,10 @@
 script = ExtResource("1_def")
 id = &"boiler"
 title_key = "LOCATION_BOILER"
-size = 40
-start_size = 32
-size_step = 0
-center_max = 40
+size = 48
+start_size = 16
+size_step = 8
+center_max = 48
 floor_id = &"dark_stone"
 void_floor_id = &"void"
 water_ore_id = &"water"

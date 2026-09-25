@@ -220,13 +220,20 @@ func _test_registry() -> void:
 		% Registry.buildings.size())
 	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
 	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 49 and Registry.researches.size() == 73,
-		"49 рецептов и 73 исследования (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 49 and Registry.researches.size() == 76,
+		"49 рецептов и 76 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16
 		and Registry.base_def.size_step == 6, "параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	var mining_def := Registry.mining_def
 	_check(mining_def != null and mining_def.id == &"mining" and mining_def.room_size > 0
 		and mining_def.size > mining_def.center_max, "этаж добычи: своя карта с местом под комнаты")
+	var tunnel := mining_def.tunnel_rect(0)
+	_check(mining_def.tunnel_width == 6 and mini(tunnel.size.x, tunnel.size.y) == 6
+		and maxi(tunnel.size.x, tunnel.size.y) >= mining_def.room_gap,
+		"туннель шириной 6 и длиной от центра до комнаты (%s)" % tunnel.size)
+	for i in GameConst.MINING_ROOMS:
+		_check(Rect2i(Vector2i.ZERO, Vector2i(mining_def.size, mining_def.size)).encloses(mining_def.room_rect(i)),
+			"комната %d помещается на карту этажа" % i)
 	_check(Registry.planet_types.size() == 3 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
 	_check(Registry.items.size() == 22 + 38, "ожидалось 22 предмета и 38 предметов-построек, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
@@ -4278,20 +4285,36 @@ func _test_shaft() -> void:
 	if up == null or down == null:
 		run.dispose()
 		return
-	_check(up.get_size() == 3 and up.get_input_tile() == up.origin + Vector2i(-1, 1),
-		"шахта 3×3 с одним входом")
+	_check(up.get_size() == 4 and up.get_input_tiles().size() == 4 and up.get_output_tiles().size() == 4,
+		"шахта 4×4: четыре входа и четыре выхода")
+	var west := up.get_input_tiles()
+	var east := up.get_output_tiles()
+	_check(west.all(func(t: Vector2i) -> bool: return t.x == up.origin.x - 1)
+		and east.all(func(t: Vector2i) -> bool: return t.x == up.origin.x + 4),
+		"входы на одной стороне, выходы на противоположной")
 
-	# Вниз: кладём в шахту базы, забираем на этаже добычи.
+	# Вниз: кладём в каждый вход шахты базы, забираем у каждого выхода на этаже добычи.
 	var hematite := _item(&"hematite")
-	var source := run.base.buildings.place(Worlds.source_def(), up.get_input_tile(), 0, true)
-	source.set("items", PackedInt32Array([hematite]))
-	var side := run.base.buildings.place(Worlds.source_def(), up.origin + Vector2i(-1, 0), 0, true)
-	side.set("items", PackedInt32Array([hematite]))
-	var sink := run.mining.buildings.place(Worlds.sink_def(), down.get_output_tile(), 0, true)
+	var coal := _item(&"coal")
+	var sinks: Array = []
+	for k in 4:
+		var feeder := run.base.buildings.place(Worlds.source_def(), up.get_input_tiles()[k], 0, true)
+		feeder.set("items", PackedInt32Array([hematite if k == 0 else coal]))
+		sinks.append(run.mining.buildings.place(Worlds.sink_def(), down.get_output_tiles()[k], 0, true))
+	var blocked := run.base.buildings.place(Worlds.source_def(), up.origin + Vector2i(1, -1), 0, true)
+	blocked.set("items", PackedInt32Array([hematite]))
 	for i in 5 * GameConst.TICK_RATE:
 		run.step()
-	_check(sink.received > 20, "предметы спускаются по шахте (%d)" % sink.received)
-	_check(not up.accept_item(side, hematite), "сбоку шахта предметы не принимает")
+	var received := 0
+	var busy_ports := 0
+	for sink in sinks:
+		received += sink.received
+		busy_ports += 1 if sink.received > 0 else 0
+	_check(received > 40 and busy_ports == 4, "предметы спускаются всеми четырьмя портами (%d из 4, всего %d)"
+		% [busy_ports, received])
+	_check(sinks[0].count_of(hematite) > 0 and sinks[0].count_of(coal) == 0,
+		"k-й выход отдаёт то, что вошло в k-й вход")
+	_check(not up.accept_item(blocked, hematite), "сбоку шахта предметы не принимает")
 
 	# Дрон переходит по шахте и возвращается.
 	run.drone.move_to_world(run.base)
@@ -6045,7 +6068,7 @@ func _test_boiler_floor() -> void:
 			if closed.boiler.grid.get_ore(x, y) > 0:
 				water += 1
 	var middle := plan.size / 2
-	_check(water > 100 and plan.water_border > 0 and closed.boiler.grid.get_ore(middle, middle) == 0,
+	_check(water >= plan.start_size * 4 - 4 and plan.water_border > 0 and closed.boiler.grid.get_ore(middle, middle) == 0,
 		"вода идёт полосой по краю котельной, середина свободна (%d тайлов)" % water)
 	closed.dispose()
 
@@ -6116,6 +6139,19 @@ func _test_boiler_floor() -> void:
 	_check(top_net != null and top_net.fluid == Registry.get_fluid(&"water").index and top_net.amount > 20.0,
 		"вода из озера поднялась по шахте (%.0f; внизу %.0f из %.0f)" % [top_net.amount if top_net != null else -1.0,
 			down_net.amount if down_net != null else -1.0, down_net.capacity if down_net != null else -1.0])
+
+	# Расширение котельной: этаж растёт, полоса воды переезжает к новому краю, а вода
+	# под насосом остаётся — иначе он оказался бы на сухом месте.
+	var before_side := run.get_boiler_size()
+	var old_edge := plan.water_rect(before_side).position
+	run.research.done[&"boiler_size_1"] = true
+	run.apply_research_effects()
+	var grown := run.get_boiler_size()
+	var new_edge := plan.water_rect(grown).position
+	_check(grown == before_side + plan.size_step, "«Расширение котельной» увеличивает этаж (%d → %d)" % [before_side, grown])
+	_check(boiler.grid.get_ore(new_edge.x, new_edge.y + plan.size_step) > 0, "полоса воды появилась у нового края")
+	_check(boiler.grid.get_ore(old_edge.x, old_edge.y + plan.size_step) == 0, "старая полоса убрана")
+	_check(pump != null and boiler.grid.get_ore(pump.origin.x, pump.origin.y) > 0, "вода под насосом осталась")
 
 	# Сохранение: этаж и его шахта переживают круг (тестовый источник в сохранение не входит).
 	base.buildings.remove(source, true)

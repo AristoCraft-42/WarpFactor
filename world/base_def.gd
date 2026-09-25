@@ -31,16 +31,17 @@ extends Resource
 @export_group("Комнаты добычи")
 ## Сторона комнаты и ширина туннеля до центра, тайлов.
 @export var room_size: int = 16
-@export var tunnel_width: int = 3
-## Зазор между наибольшей центральной частью и комнатой, тайлов.
-@export var room_gap: int = 6
+@export var tunnel_width: int = 6
+## Длина туннеля от края наибольшей центральной части до комнаты, тайлов.
+@export var room_gap: int = 42
 ## Сторона платформы в комнате: всё, что стоит на ней, уезжает на планету.
 @export var platform_size: int = 10
 
 
 ## Полоса воды котельной: рамка толщиной water_border по краю открытой части этажа.
-func water_rect() -> Rect2i:
-	var side := clampi(start_size, 0, size)
+## open_side — нынешняя сторона открытой части (0 — стартовая).
+func water_rect(open_side: int = 0) -> Rect2i:
+	var side := clampi(open_side if open_side > 0 else start_size, 0, size)
 	var corner := (size - side) / 2
 	return Rect2i(corner, corner, side, side)
 
@@ -50,7 +51,8 @@ static func room_dir(index: int) -> Vector2i:
 	return GameConst.dir_vector(posmod(index + 3, 4))
 
 
-## Комната добычи: квадрат room_size на расстоянии room_gap от наибольшей центральной части.
+## Комната добычи: квадрат room_size на расстоянии room_gap (длина туннеля) от наибольшей
+## центральной части.
 func room_rect(index: int) -> Rect2i:
 	var center := Vector2i(size / 2, size / 2)
 	var dir := room_dir(index)

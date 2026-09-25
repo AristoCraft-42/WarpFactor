@@ -157,13 +157,19 @@ static func create_base(base_def: BaseDef, p_creative: bool) -> GameWorld:
 ## прямо на неё, поэтому воду на этом этаже не нужно возить с планеты, а середина этажа
 ## остаётся свободной под котлы. Полоса ровная, без случайностей: иначе этаж расходился бы
 ## у участников сетевой игры.
-func paint_water(plan: BaseDef) -> void:
+## При расширении этажа полоса переезжает к новому краю; вода под постройками остаётся,
+## чтобы уже поставленный насос не оказался на сухом месте.
+func paint_water(plan: BaseDef, open_side: int = 0) -> void:
 	if plan == null or plan.water_border <= 0:
 		return
 	var ore := Registry.get_ore(plan.water_ore_id)
 	if ore == null:
 		return
-	var rect := plan.water_rect()
+	var value := ore.index + 1
+	for i in grid.ores.size():
+		if grid.ores[i] == value and grid.building_ids[i] == 0:
+			grid.ores[i] = 0
+	var rect := plan.water_rect(open_side)
 	var band := mini(plan.water_border, rect.size.x / 2)
 	for y in range(rect.position.y, rect.end.y):
 		for x in range(rect.position.x, rect.end.x):
@@ -172,7 +178,7 @@ func paint_water(plan: BaseDef) -> void:
 			var inside := x >= rect.position.x + band and x < rect.end.x - band \
 					and y >= rect.position.y + band and y < rect.end.y - band
 			if not inside:
-				grid.ores[grid.index_of(x, y)] = ore.index + 1
+				grid.ores[grid.index_of(x, y)] = value
 
 
 ## Прямоугольник открытой части этажа стороной side в центре карты.

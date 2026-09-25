@@ -6,13 +6,13 @@
 script = ExtResource("1_def")
 id = &"mining"
 title_key = "LOCATION_MINING"
-size = 96
+size = 152
 start_size = 20
 size_step = 0
 center_max = 20
 floor_id = &"metal_plates"
 void_floor_id = &"void"
 room_size = 16
-tunnel_width = 3
-room_gap = 6
+tunnel_width = 6
+room_gap = 42
 platform_size = 10
