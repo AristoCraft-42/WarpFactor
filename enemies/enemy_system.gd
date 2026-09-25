@@ -48,6 +48,19 @@ const SPEED_SPREAD := 0.15
 ## Своя дорожка: к цели каждый идёт со своим поперечным смещением (тайлы в каждую сторону).
 ## Из-за него стая идёт полосой, а не колонной по одному следу.
 const LANE_TILES := 2.6
+## У самой цели дорожка сходит на нет: ближе LANE_FADE_NEAR смещения нет вовсе, дальше
+## LANE_FADE_NEAR + LANE_FADE_SPAN оно полное. Без этого поперечное смещение у цели
+## разворачивало врага боком, и он наматывал вокруг неё круги.
+const LANE_FADE_NEAR := 1.5
+const LANE_FADE_SPAN := 4.0
+## На сколько поводков от средней по стае может отстать замыкающий, которого ещё ждут.
+## Один застрявший не должен останавливать всю волну.
+const PACK_TAIL := 2.0
+## Застревание: раз в PROGRESS_EVERY тиков смотрим, сократилось ли расстояние до цели.
+## Не сократилось STUCK_CHECKS раз подряд — враг считается застрявшим: он идёт к цели
+## напрямую (без своей дорожки и виляния), и стая его больше не ждёт.
+const PROGRESS_EVERY := 30
+const STUCK_CHECKS := 3
 ## Рывки и передышки: раз в DASH_PERIOD тиков враг ускоряется на DASH_TICKS, а половина ещё
 ## и замирает на PAUSE_TICKS — со стороны это выглядит живым роем, а не строем машин.
 const DASH_PERIOD := 210
@@ -112,6 +125,9 @@ var path_version := PackedInt32Array()
 ## и глубине звёздной карты (ThreatDef), дальше едет с ним и сохраняется.
 var power_health := PackedFloat32Array()
 var power_damage := PackedFloat32Array()
+## Застревание: расстояние до цели на прошлой проверке и сколько проверок подряд оно не падало.
+var last_dist := PackedInt32Array()
+var stuck_score := PackedInt32Array()
 var burn_dps := PackedFloat32Array()
 var burn_until := PackedInt32Array()
 ## Замедление (жидкостная турель): доля скорости и тик, до которого оно держится.
@@ -245,6 +261,8 @@ func spawn(def: EnemyDef, position: Vector2, tick: int, squad_id: int = 0, squad
 	blocker[i] = 0
 	next_tile[i] = -1
 	path_version[i] = -1
+	last_dist[i] = FlowField.INF
+	stuck_score[i] = 0
 	burn_dps[i] = 0.0
 	burn_until[i] = 0
 	slow_factor[i] = 1.0
@@ -293,6 +311,12 @@ func slow(i: int, factor: float, until_tick: int) -> void:
 
 func is_slowed(i: int, tick: int) -> bool:
 	return tick < slow_until[i]
+
+
+## Враг застрял: расстояние до цели не сокращается уже несколько проверок подряд.
+## Такой идёт к цели напрямую, и стая его не ждёт.
+func is_stuck(i: int) -> bool:
+	return i >= 0 and i < count and stuck_score[i] >= STUCK_CHECKS
 
 
 ## Урон без удаления (снаряды): погибший остаётся до remove_dead. true — враг погиб этим уроном.
@@ -467,6 +491,8 @@ func remove_at(i: int) -> void:
 		power_health[i] = power_health[last]
 		power_damage[i] = power_damage[last]
 		burn_dps[i] = burn_dps[last]
+		last_dist[i] = last_dist[last]
+		stuck_score[i] = stuck_score[last]
 		burn_until[i] = burn_until[last]
 		slow_factor[i] = slow_factor[last]
 		slow_until[i] = slow_until[last]
@@ -577,6 +603,15 @@ func update(tick: int) -> void:
 							mood[i] = Mood.GATE
 							chase_ticks[i] = 0
 							chase_best[i] = INF
+		# Застревание: раз в PROGRESS_EVERY тиков смотрим, стало ли ближе до цели.
+		if (i + tick) % PROGRESS_EVERY == 0:
+			var now_dist := dist[tile] if tile >= 0 and tile < dist.size() else FlowField.INF
+			if now_dist < last_dist[i]:
+				stuck_score[i] = 0
+			else:
+				stuck_score[i] = mini(stuck_score[i] + 1, STUCK_CHECKS)
+			last_dist[i] = now_dist
+		var stuck := stuck_score[i] >= STUCK_CHECKS
 		var block := 0
 		# Внутри твёрдой постройки (её поставили поверх врага) — бьём её, но выйти можно.
 		if blocked[tile] == FlowField.SOLID:
@@ -600,14 +635,15 @@ func update(tick: int) -> void:
 
 		# Своя дорожка: цель сдвигается поперёк пути, у каждого по-своему. Охотник бежит прямо
 		# на жертву — ему вилять незачем.
-		if has_goal and not hunting:
+		if has_goal and not hunting and not stuck:
 			var lane := _trait_lane[i]
 			var ldx := goal_x - x
 			var ldy := goal_y - y
 			var llen := sqrt(ldx * ldx + ldy * ldy)
 			if llen > t * 0.5:
-				goal_x += -ldy / llen * lane
-				goal_y += ldx / llen * lane
+				var fade := clampf((llen - t * LANE_FADE_NEAR) / (t * LANE_FADE_SPAN), 0.0, 1.0)
+				goal_x += -ldy / llen * lane * fade
+				goal_y += ldx / llen * lane * fade
 		if has_goal:
 			var vx := goal_x - x
 			var vy := goal_y - y
@@ -616,7 +652,7 @@ func update(tick: int) -> void:
 				vx /= length
 				vy /= length
 				# Виляние: враг не идёт по идеальной прямой, и след стаи получается полосой.
-				if length > t * 1.5:
+				if length > t * 1.5 and not stuck:
 					var turn := wander(i, tick)
 					var cs := cos(turn)
 					var sn := sin(turn)
@@ -629,12 +665,15 @@ func update(tick: int) -> void:
 					step *= slow_factor[i]
 				# Стая идёт вместе: тот, кто вырвался вперёд, придерживает шаг, пока остальные
 				# не подтянутся. У самой цели все бегут в полную силу — тут скорость и решает.
-				if not hunting:
+				if not hunting and not stuck:
 					var slot := _slot_of[i]
 					if slot >= 0 and _sq_count[slot] > 1 and _sq_min_dist[slot] > CHARGE_TILES:
 						# Поводок у каждого свой (±40 %): иначе стая идёт ровной шеренгой.
 						var leash := PACK_LEASH * (0.6 + 0.8 * trait01(uid[i], 3))
-						var rear: float = _sq_max_dist[slot]
+						# Замыкающий считается по основной части стаи: если кто-то застрял далеко позади,
+						# остальные его не ждут — иначе вся волна ползёт со скоростью одного невезучего.
+						var average: float = _sq_dist_sum[slot] / float(_sq_count[slot])
+						var rear: float = minf(_sq_max_dist[slot], average + PACK_TAIL * leash)
 						var mine: float = float(dist[tile]) if dist[tile] < FlowField.INF else rear
 						if mine < rear - leash * 2.0:
 							# Ушёл слишком далеко — стоит и ждёт своих.
@@ -812,12 +851,17 @@ func _collect_squads(dist: PackedInt32Array, w: int, inv_t: float) -> void:
 		var d: float = float(dist[tile]) if tile >= 0 and tile < dist.size() else INF
 		if d >= FlowField.INF:
 			d = _sq_min_dist[slot] if _sq_count[slot] > 0 else 0.0
+		_slot_of[i] = slot
+		# Застрявший в сводку не идёт вовсе: стая не должна ждать того, кто не двигается.
+		if stuck_score[i] >= STUCK_CHECKS:
+			last_sid = sid
+			last_slot = slot
+			continue
 		_sq_count[slot] += 1
 		_sq_dist_sum[slot] += d
 		_sq_min_dist[slot] = minf(_sq_min_dist[slot], d)
 		_sq_max_dist[slot] = maxf(_sq_max_dist[slot], d)
 		_sq_min_speed[slot] = minf(_sq_min_speed[slot], _speed[types[i]] * _trait_speed[i])
-		_slot_of[i] = slot
 		last_sid = sid
 		last_slot = slot
 
@@ -985,6 +1029,8 @@ func _ensure_capacity(wanted: int) -> void:
 	path_version.resize(_capacity)
 	power_health.resize(_capacity)
 	power_damage.resize(_capacity)
+	last_dist.resize(_capacity)
+	stuck_score.resize(_capacity)
 	burn_dps.resize(_capacity)
 	burn_until.resize(_capacity)
 	slow_factor.resize(_capacity)
@@ -1007,6 +1053,7 @@ func save_data() -> Dictionary:
 		"blocker": blocker.slice(0, count), "next_tile": next_tile.slice(0, count),
 		"path_version": path_version.slice(0, count),
 		"burn_dps": burn_dps.slice(0, count), "burn_until": burn_until.slice(0, count),
+		"last_dist": last_dist.slice(0, count), "stuck_score": stuck_score.slice(0, count),
 		"slow_factor": slow_factor.slice(0, count), "slow_until": slow_until.slice(0, count),
 		"power_health": power_health.slice(0, count), "power_damage": power_damage.slice(0, count),
 	}
@@ -1040,6 +1087,8 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 	var s_power_damage: PackedFloat32Array = data.get("power_damage", PackedFloat32Array())
 	var s_slow_factor: PackedFloat32Array = data.get("slow_factor", PackedFloat32Array())
 	var s_slow_until: PackedInt32Array = data.get("slow_until", PackedInt32Array())
+	var s_last_dist: PackedInt32Array = data.get("last_dist", PackedInt32Array())
+	var s_stuck: PackedInt32Array = data.get("stuck_score", PackedInt32Array())
 	var s_burn_dps: PackedFloat32Array = data.get("burn_dps", PackedFloat32Array())
 	var s_burn_until: PackedInt32Array = data.get("burn_until", PackedInt32Array())
 	for k in [s_uid.size(), s_types.size(), s_px.size(), s_py.size(), s_prx.size(), s_pry.size(), s_facing.size(),
@@ -1077,5 +1126,7 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 		power_damage[i] = s_power_damage[j] if j < s_power_damage.size() else 1.0
 		slow_factor[i] = s_slow_factor[j] if j < s_slow_factor.size() else 1.0
 		slow_until[i] = s_slow_until[j] if j < s_slow_until.size() else 0
+		last_dist[i] = s_last_dist[j] if j < s_last_dist.size() else FlowField.INF
+		stuck_score[i] = s_stuck[j] if j < s_stuck.size() else 0
 		burn_dps[i] = s_burn_dps[j] if j < s_burn_dps.size() else 0.0
 		burn_until[i] = s_burn_until[j] if j < s_burn_until.size() else 0

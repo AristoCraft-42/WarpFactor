@@ -4195,6 +4195,15 @@ func _test_enemy_progression() -> void:
 	_check(run.planet.enemies.power_damage[strong] > run.planet.enemies.power_damage[0],
 		"и урон у него выше")
 	_check(threat.def.get_health_scale(1000, 10) <= threat.def.max_health_scale, "сила упирается в потолок")
+	# Прогрессия заметна на глаз: к десятой волне враг крепче в полтора раза, к двадцатой — вдвое,
+	# и волна вырастает в числе (бюджет считается по очкам угрозы).
+	_check(threat.def.get_health_scale(10, 0) >= 1.5 and threat.def.get_health_scale(20, 0) >= 2.5,
+		"к 10-й волне крепче в %.2f, к 20-й — в %.2f раза"
+			% [threat.def.get_health_scale(10, 0), threat.def.get_health_scale(20, 0)])
+	_check(threat.def.get_damage_scale(20, 0) >= 2.0, "и бьёт вдвое больнее (%.2f)" % threat.def.get_damage_scale(20, 0))
+	var wave_1 := threat.def.get_budget(1, 0.0)
+	var wave_10 := threat.def.get_budget(10, 0.0)
+	_check(wave_10 > wave_1 * 6.0, "десятая волна вшестеро гуще первой (%.0f против %.0f очков)" % [wave_10, wave_1])
 
 	# Сохранение: множители едут с врагами.
 	var saved := SaveIO.run_to_dict(run)
@@ -4598,6 +4607,67 @@ func _test_enemy_pack() -> void:
 	var side_by_side := twins.planet.enemies.get_position(0).distance_to(twins.planet.enemies.get_position(1))
 	_check(side_by_side > 1.0, "одинаковые враги не идут след в след (разошлись на %.1f px)" % side_by_side)
 	twins.dispose()
+
+	# Никто не наматывает круги у цели: своя дорожка сходит на нет вблизи, поэтому расстояние
+	# до шлюза не перестаёт сокращаться.
+	var circles := _enemy_run()
+	circles.drone.position = Vector2(2, 2) * GameConst.TILE_SIZE
+	var circles_gate := circles.planet.gateway
+	circles_gate.health = 1.0e9
+	var ring := circles_gate.get_world_center() + Vector2(-12, 0) * GameConst.TILE_SIZE
+	for k in 6:
+		circles.planet.enemies.spawn(fast, ring + Vector2(0, (k - 3) * 20), 0, 13, EnemySystem.Mood.GATE)
+	for k in circles.planet.enemies.count:
+		circles.planet.enemies.next_attack[k] = 1000000
+	var reached := 0
+	for i in 600:
+		circles.step()
+		reached = 0
+		for k in circles.planet.enemies.count:
+			var to_gate := circles.planet.enemies.get_position(k).distance_to(circles_gate.get_world_center())
+			if to_gate < circles_gate.get_size() * GameConst.TILE_SIZE:
+				reached += 1
+		if reached >= circles.planet.enemies.count:
+			break
+	_check(reached >= circles.planet.enemies.count, "все дошли до шлюза, а не кружат вокруг (%d из %d)"
+		% [reached, circles.planet.enemies.count])
+	circles.dispose()
+
+	# Застрявший не держит стаю: один никуда не идёт, остальные уходят вперёд.
+	var stuck := _enemy_run(200, 40)
+	stuck.drone.position = Vector2(2, 2) * GameConst.TILE_SIZE
+	stuck.planet.gateway.health = 1.0e9
+	var stuck_gate := stuck.planet.gateway.get_world_center()
+	var march := stuck_gate + Vector2(-80, 0) * GameConst.TILE_SIZE
+	for k in 5:
+		stuck.planet.enemies.spawn(fast, march + Vector2(0, (k - 2) * 24), 0, 17, EnemySystem.Mood.GATE)
+	# Шестой стоит на месте — так выглядит тот, кто застрял между скал.
+	var frozen := march + Vector2(-25, 0) * GameConst.TILE_SIZE
+	var straggler := stuck.planet.enemies.spawn(fast, frozen, 0, 17, EnemySystem.Mood.GATE)
+	var start_x := stuck.planet.enemies.get_position(0).x
+	for i in 300:
+		stuck.planet.enemies.pos_x[straggler] = frozen.x
+		stuck.planet.enemies.pos_y[straggler] = frozen.y
+		stuck.step()
+	var moved := (stuck.planet.enemies.get_position(0).x - start_x) / GameConst.TILE_SIZE
+	_check(stuck.planet.enemies.is_stuck(straggler), "стоящий на месте считается застрявшим")
+	# И сам застрявший идёт к цели напрямую: без своей дорожки и виляния. Рядом ставим такого же
+	# новичка — он ещё не застрял, и его как раз водит из стороны в сторону.
+	var aim := (stuck_gate - frozen).normalized()
+	var twin := stuck.planet.enemies.spawn(fast, frozen, 0, 17, EnemySystem.Mood.GATE)
+	var wobble := 0.0
+	var twin_wobble := 0.0
+	for i in 20:
+		for who in [straggler, twin]:
+			stuck.planet.enemies.pos_x[who] = frozen.x
+			stuck.planet.enemies.pos_y[who] = frozen.y
+		stuck.step()
+		wobble = maxf(wobble, absf(Vector2.from_angle(stuck.planet.enemies.facing[straggler]).angle_to(aim)))
+		twin_wobble = maxf(twin_wobble, absf(Vector2.from_angle(stuck.planet.enemies.facing[twin]).angle_to(aim)))
+	_check(wobble < 0.15 and wobble < twin_wobble - 0.1,
+		"застрявший идёт прямее обычного (%.2f против %.2f рад)" % [wobble, twin_wobble])
+	_check(moved > 25.0, "стая не ждёт застрявшего и идёт дальше (%.1f тайла за 300 тиков)" % moved)
+	stuck.dispose()
 
 
 ## Разрыв между быстрым и медленным врагом через ticks тиков, в тайлах. same_squad — рождены

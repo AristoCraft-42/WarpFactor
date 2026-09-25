@@ -36,7 +36,8 @@ os.makedirs(os.path.join(ROOT, "enemies", "threats"), exist_ok=True)
 THREATS = {
     "normal": {},
     "rich": {"first_wave_seconds": 420.0, "first_gap_seconds": 180.0, "budget_base": 5.0,
-             "budget_per_wave": 3.4, "budget_per_minute": 0.55, "spawn_point_count": 4},
+             "budget_per_wave": 4.2, "budget_per_minute": 0.7, "health_per_wave": 0.12,
+             "damage_per_wave": 0.09, "spawn_point_count": 4},
 }
 
 threat = """[gd_resource type="Resource" script_class="ThreatDef" format=3]
@@ -53,9 +54,15 @@ spawn_seconds = 8.0
 spawn_seconds_per_wave = 2.5
 max_spawn_seconds = 45.0
 warning_seconds = 15.0
+health_per_wave = 0.09
+health_per_depth = 0.25
+damage_per_wave = 0.07
+damage_per_depth = 0.2
+max_health_scale = 8.0
+max_damage_scale = 5.0
 budget_base = 4.0
-budget_per_wave = 2.6
-budget_per_minute = 0.4
+budget_per_wave = 3.4
+budget_per_minute = 0.5
 enemy_ids = Array[StringName]([&"crawler", &"soldier", &"brute"])
 enemy_from_wave = PackedInt32Array(1, 4, 8)
 enemy_weights = PackedFloat32Array(3, 2, 1)

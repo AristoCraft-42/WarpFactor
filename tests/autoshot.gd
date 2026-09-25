@@ -420,20 +420,41 @@ func _run_enemies(game: Game, base: Vector2i) -> void:
 	await _measure_frames("враги")
 
 	# Дрона сбивают: груз на месте гибели, отсчёт до появления, затем подбор.
-	var drone := run.drone
+	# Врагов убираем (иначе они добивают дрона второй раз прямо на грузе), а заодно и чужие
+	# грузы: после выхода напарника его вещи остаются лежать, и проверка считала бы их.
+	planet.enemies.clear()
+	# Именно тот дрон, которого собьём: интерфейс и мир берут «дрона по умолчанию».
+	var drone := planet.drone
+	# Волна могла сбить дрона ещё до этого места — дожидаемся его и лечим, иначе «гибель»
+	# ниже ничего не меняет и проверять нечего.
+	if drone.dead:
+		await _wait_ticks(planet, drone.def.get_respawn_ticks() + 2)
+	drone.health = drone.get_max_health()
+	# После появления дрон несколько секунд неуязвим — иначе «гибель» ниже просто не случится.
+	await _wait_ticks(planet, drone.def.get_invulnerable_ticks() + 2)
+	planet.crates.clear()
 	var death_tile := GameConst.world_to_tile(gate.get_world_center()) + Vector2i(-9, 0)
 	await _drone_to(game, death_tile)
 	drone.inventory.add(Registry.get_item(&"hematite").index, 25)
-	planet.damage_drone(planet.drone, 100000.0, planet.simulation.tick)
+	planet.damage_drone(drone, 100000.0, planet.simulation.tick)
 	await _frames(6)
 	var respawn_label: Label = game.hud.get("_respawn_label")
-	_expect(drone.dead and respawn_label.visible and planet.crates.size() == 1, "дрон сбит: груз выпал, показан отсчёт")
+	_expect(drone.dead and respawn_label.visible and planet.crates.size() == 1,
+		"дрон сбит: груз выпал, показан отсчёт (ящиков %d)" % planet.crates.size())
 	await _shot("e02_drone_down.png")
 	await _wait_ticks(planet, drone.def.get_respawn_ticks() + 2)
 	_expect(not drone.dead and drone.position == gate.get_world_center(), "дрон появился у шлюза")
+	var crate_before := planet.crates[0].total() if not planet.crates.is_empty() else 0
 	await _drone_to(game, death_tile)
-	await _wait_ticks(planet, 2)
-	_expect(planet.crates.is_empty() and drone.inventory.count(Registry.get_item(&"hematite").index) >= 25, "груз подобран")
+	for i in 60:
+		if planet.crates.is_empty():
+			break
+		await _wait_ticks(planet, 1)
+	# В груз уходит и отменённая очередь крафта, поэтому в инвентарь он помещается не всегда:
+	# проверяем, что дрон забрал своё, а в грузе стало меньше.
+	var crate_after := planet.crates[0].total() if not planet.crates.is_empty() else 0
+	_expect(drone.inventory.count(Registry.get_item(&"hematite").index) >= 25 and crate_after < crate_before,
+		"груз подобран (в ящике осталось %d из %d)" % [crate_after, crate_before])
 
 	# Отладка: F3 и N вызывают волну.
 	var wave := planet.threat.wave
@@ -1510,7 +1531,16 @@ func _run_power(game: Game, base: Vector2i) -> void:
 	var water_net := world.fluids.get_pipe_network(bm.get_at(layout + Vector2i(-5, 0)))
 	_expect(pump != null and water_net != null and water_net.fluid == Registry.get_fluid(&"water").index and water_net.amount > 0.0,
 		"насос качает воду в трубы")
-	_expect(boiler.last_steam_rate > 0.0 and generator.last_output_kw > 0.0, "бойлер делает пар, паровой генератор выдаёт ток (%.0f кВт)" % generator.last_output_kw)
+	# Цепочка «насос → бойлер → генератор» раскручивается не мгновенно: ждём первый ток,
+	# а не проверяем ровно через десять секунд.
+	for i in 20 * GameConst.TICK_RATE:
+		if generator.last_output_kw > 0.0:
+			break
+		await _wait_ticks(world, 1)
+	_expect(boiler.last_steam_rate > 0.0 and generator.last_output_kw > 0.0,
+		"бойлер делает пар, паровой генератор выдаёт ток (%.0f кВт; пар %.1f, топливо %d, статус котла %d, статус генератора %d, сеть %s)"
+			% [generator.last_output_kw, boiler.last_steam_rate, boiler.total_fuel(), boiler.get_status(),
+				generator.get_status(), "есть" if generator.power_net != null else "нет"])
 	_expect(assembler.power_net != null and assembler.power_net.generators.has(generator), "сборщик в сети парового генератора")
 	_expect(assembler.outputs[Registry.get_item(&"gear").index] > 0 or assembler.get_status() == Building.Status.WORKING, "сборщик работает от пара")
 	await _frames(5)
