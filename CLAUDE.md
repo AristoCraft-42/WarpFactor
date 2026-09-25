@@ -94,7 +94,7 @@ python tools/data/check_strings.py
 - Тесты, автопрогон, бенчмарки: [docs/TESTING.md](docs/TESTING.md)
 - Дизайн-документ: [docs/GDD.md](docs/GDD.md)
 - План этапов: [docs/ROADMAP.md](docs/ROADMAP.md)
-- Таблицы контента (генерируются по данным): [docs/CONTENT.md](docs/CONTENT.md)
+- Таблицы контента (генерируются по данным, весь файл — таблицы; у построек есть id и размер полосы спрайта): [docs/CONTENT.md](docs/CONTENT.md)
 - Управление и запуск для игрока: [README.md](README.md)
 - Заметки и гайд по правке данных для автора: `D:\obsidian\obsi\WarpFactor\`
 - Общая база знаний: `D:\obsidian\obsi\LoreBase\` (страница проекта — `wiki/projects/warpfactor.md`)
