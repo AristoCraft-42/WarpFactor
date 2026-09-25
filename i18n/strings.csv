@@ -260,6 +260,8 @@ NEW_RUN_REROLL,Random,Случайный
 NEW_RUN_START,Start,Начать
 PLANET_NORMAL,Planet,Планета
 PLANET_NORMAL_DESC,A world with deposits. The enemy will look for the base here.,Мир с месторождениями. Здесь враг будет искать базу.
+PLANET_RICH,Ore World,Рудный мир
+PLANET_RICH_DESC,Deposits everywhere and rock ridges between them — but the waves come earlier and harder.,"Месторождения повсюду, между ними — скальные гряды. Зато волны приходят раньше и злее."
 PLANET_WASTELAND,Wasteland,Пустошь
 PLANET_WASTELAND_DESC,"Nothing useful here, but the enemy does not attack: time to rebuild and catch your breath.","Ничего полезного, но враг не нападает: время перестроить базу и перевести дух."
 STARMAP_SIZE,Size: %d × %d,Размер: %d × %d

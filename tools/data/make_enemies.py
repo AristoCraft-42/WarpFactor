@@ -1,6 +1,8 @@
 """Генерирует .tres врагов и кривых угрозы (dev-скрипт, этап 9)."""
 import os
 
+NL = chr(10)
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 
@@ -30,6 +32,13 @@ for e in ENEMIES:
         f.write("\n".join(out))
 
 os.makedirs(os.path.join(ROOT, "enemies", "threats"), exist_ok=True)
+# Кривые угрозы: обычная планета и рудная (богаче, но волны идут раньше и злее).
+THREATS = {
+    "normal": {},
+    "rich": {"first_wave_seconds": 420.0, "first_gap_seconds": 180.0, "budget_base": 5.0,
+             "budget_per_wave": 3.4, "budget_per_minute": 0.55, "spawn_point_count": 4},
+}
+
 threat = """[gd_resource type="Resource" script_class="ThreatDef" format=3]
 
 [ext_resource type="Script" path="res://enemies/threat_def.gd" id="1_def"]
@@ -53,8 +62,15 @@ enemy_weights = PackedFloat32Array(3, 2, 1)
 spawn_point_count = 3
 max_alive = 1500
 """
-with open(os.path.join(ROOT, "enemies", "threats", "normal.tres"), "w", encoding="utf-8", newline="\n") as f:
-    f.write(threat)
+for name, overrides in THREATS.items():
+    text = threat
+    for key, value in overrides.items():
+        start = text.index(NL + "%s = " % key) + 1
+        end = text.index(NL, start) + 1
+        text = text[:start] + "%s = %r" % (key, value) + NL + text[end:]
+    path = os.path.join(ROOT, "enemies", "threats", "%s.tres" % name)
+    with open(path, "w", encoding="utf-8", newline=NL) as f:
+        f.write(text)
 
 # Тип «обычная» ссылается на кривую угрозы.
 p = os.path.join(ROOT, "world", "planet_types", "normal.tres")

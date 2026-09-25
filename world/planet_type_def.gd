@@ -17,10 +17,25 @@ extends Resource
 
 @export_group("Рельеф")
 @export var base_floor: StringName = &"stone"
-## Пятна другого пола поверх основного.
+## Полы областей поверх основного: крупный шум делит карту на зоны и выбирает из этого списка.
 @export var patch_floors: Array[StringName] = []
+## Какую долю карты занимает основной пол (остальное — области из patch_floors).
+@export_range(0.2, 0.95) var base_floor_share: float = 0.55
+## Частота шума областей: чем меньше, тем крупнее зоны.
+@export var region_frequency: float = 0.004
 ## Доля карты под скалами (0..1).
 @export_range(0.0, 0.6) var rock_density: float = 0.18
+## Частота шума гряд: чем меньше, тем длиннее и ровнее хребты.
+@export var ridge_frequency: float = 0.01
+
+@export_group("Озёра")
+## Сколько озёр на 10 000 тайлов карты (0 — озёр нет) и их размеры, тайлов.
+## Озеро появляется, только если этому узлу выпала вода среди руд.
+@export var lakes_per_10k: float = 0.35
+@export var lake_min_radius: float = 6.0
+@export var lake_max_radius: float = 12.0
+## Пол полосы берега вокруг озера.
+@export var shore_floor: StringName = &"gravel"
 
 @export_group("Руды")
 ## Руды, которые могут встретиться, и шанс каждой (0..1). Пустой список — руды нет вовсе.
@@ -28,6 +43,8 @@ extends Resource
 @export var ore_chances: PackedFloat32Array = PackedFloat32Array()
 ## Сколько залежей каждой руды на 10 000 тайлов карты.
 @export var deposits_per_10k: float = 3.0
+## По сколько залежей в одном рудном поле: поле — это «своя сторона карты» для руды.
+@export var ore_cluster_size: int = 3
 
 @export_group("Внешний вид")
 ## Цвет узла на звёздной карте.

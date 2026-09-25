@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="PlanetTypeDef" format=3]
+
+[ext_resource type="Script" path="res://world/planet_type_def.gd" id="1_def"]
+[ext_resource type="Resource" path="res://enemies/threats/rich.tres" id="2_threat"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"rich"
+name_key = "PLANET_RICH"
+description_key = "PLANET_RICH_DESC"
+safe = false
+threat = ExtResource("2_threat")
+weight = 1.2
+min_size = Vector2i(288, 216)
+max_size = Vector2i(384, 288)
+base_floor = &"dark_stone"
+patch_floors = Array[StringName]([&"stone", &"gravel"])
+base_floor_share = 0.5
+region_frequency = 0.0055
+rock_density = 0.22
+ridge_frequency = 0.013
+lakes_per_10k = 0.2
+lake_min_radius = 5.0
+lake_max_radius = 9.0
+shore_floor = &"gravel"
+ore_ids = Array[StringName]([&"hematite", &"stone", &"coal", &"malachite", &"sphalerite", &"water"])
+ore_chances = PackedFloat32Array(1, 1, 1, 1, 1, 0.6)
+deposits_per_10k = 1.3
+ore_cluster_size = 4
+map_color = Color(0.72, 0.45, 0.31, 1)

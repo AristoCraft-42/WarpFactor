@@ -16,16 +16,23 @@ const CORRIDOR_HALF := 1
 const EDGE := 2
 
 
+## Карта достижимости по земле от точки: 1 — дойти можно, 0 — нельзя. Нужна и генератору,
+## и проверкам («к каждой руде есть проход»).
+static func reachable(width: int, height: int, floors: PackedByteArray, from: Vector2i) -> PackedByteArray:
+	var reach := PackedByteArray()
+	reach.resize(width * height)
+	reach.fill(0)
+	_flood(width, height, floors, reach, from)
+	return reach
+
+
 ## floors изменяется, только если carve_floor >= 0 (прорубание коридоров).
 static func find(width: int, height: int, floors: PackedByteArray, center: Vector2i, count: int,
 		rng: RandomNumberGenerator, carve_floor: int = -1) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
 	if count <= 0 or width <= INSET * 2 or height <= INSET * 2:
 		return result
-	var reach := PackedByteArray()
-	reach.resize(width * height)
-	reach.fill(0)
-	_flood(width, height, floors, reach, center)
+	var reach := reachable(width, height, floors, center)
 	var base_angle := rng.randf() * TAU
 	for k in count:
 		var angle := base_angle + TAU * k / count + rng.randf_range(-0.35, 0.35)
@@ -44,6 +51,26 @@ static func find(width: int, height: int, floors: PackedByteArray, center: Vecto
 		if not too_close:
 			result.append(found)
 	return result
+
+
+## Прорубить проход от каждой точки до центра, если его нет. Нужно генератору: скальные гряды
+## не должны запирать рудное поле внутри скал. Заливка считается один раз и дополняется
+## по мере прорубания — иначе на большой карте это десятки проходов по всем тайлам.
+## Возвращает, сколько коридоров пришлось прорубить.
+static func connect_all(width: int, height: int, floors: PackedByteArray, points: Array[Vector2i],
+		center: Vector2i, carve_floor: int) -> int:
+	if points.is_empty():
+		return 0
+	var reach := reachable(width, height, floors, center)
+	var carved := 0
+	for point in points:
+		if point.x < 0 or point.y < 0 or point.x >= width or point.y >= height:
+			continue
+		if reach[point.y * width + point.x] == 1:
+			continue
+		_carve(width, height, floors, reach, point, center, carve_floor)
+		carved += 1
+	return carved
 
 
 static func _passable(floors: PackedByteArray, index: int) -> bool:

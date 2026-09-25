@@ -227,7 +227,7 @@ func _test_registry() -> void:
 	var mining_def := Registry.mining_def
 	_check(mining_def != null and mining_def.id == &"mining" and mining_def.room_size > 0
 		and mining_def.size > mining_def.center_max, "этаж добычи: своя карта с местом под комнаты")
-	_check(Registry.planet_types.size() == 2 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
+	_check(Registry.planet_types.size() == 3 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
 	_check(Registry.items.size() == 22 + 38, "ожидалось 22 предмета и 38 предметов-построек, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
@@ -1564,6 +1564,51 @@ func _test_planet_generator() -> void:
 	_check(near_ore > 40, "у обычной планеты руда недалеко от посадки (%d тайлов)" % near_ore)
 	_check(node.size.x >= 336 and node.size.x <= 480 and node.size.y >= 252 and node.size.y <= 360,
 		"обычная планета втрое больше прежней по стороне (%d×%d)" % [node.size.x, node.size.y])
+	# Области: каждый пол палитры занимает заметную часть карты — видно зоны, а не крошку.
+	var floor_counts: Dictionary[int, int] = {}
+	for v in map_a.floors:
+		floor_counts[v] = int(floor_counts.get(v, 0)) + 1
+	var tiles := float(map_a.width * map_a.height)
+	var zones := 0
+	for id: StringName in [node.type.base_floor] + node.type.patch_floors:
+		var index := Registry.get_floor(id).index
+		if float(int(floor_counts.get(index, 0))) / tiles > 0.05:
+			zones += 1
+	_check(zones == node.type.patch_floors.size() + 1, "на карте есть зона каждого пола типа (%d)" % zones)
+
+	# Скалы: гряды занимают примерно ту долю карты, что задана типу.
+	var rock_share := float(int(floor_counts.get(Registry.get_floor(&"rock").index, 0))) / tiles
+	_check(absf(rock_share - node.type.rock_density) < node.type.rock_density * 0.45,
+		"скал примерно столько, сколько задано типу (%.2f против %.2f)" % [rock_share, node.type.rock_density])
+
+	# Озёра: вода лежит крупными пятнами и не подходит к площадке вплотную.
+	var water_index := Registry.get_ore(&"water").index + 1
+	var water_tiles := 0
+	var water_near_pad := 0
+	for y in map_a.height:
+		for x in map_a.width:
+			if map_a.get_ore(x, y) != water_index:
+				continue
+			water_tiles += 1
+			if absi(x - center.x) <= half + 6 and absi(y - center.y) <= half + 6:
+				water_near_pad += 1
+	_check(water_tiles > 150 and water_near_pad == 0,
+		"озёра есть и не наезжают на площадку (%d тайлов воды)" % water_tiles)
+
+	# К каждой руде есть проход по земле: гряды не запирают залежи в скалах.
+	var reach := SpawnPoints.reachable(map_a.width, map_a.height, map_a.floors, center)
+	var reachable_ores := {}
+	for y in map_a.height:
+		for x in map_a.width:
+			var ore_value := map_a.get_ore(x, y)
+			if ore_value > 0 and reach[y * map_a.width + x] == 1:
+				reachable_ores[ore_value] = true
+	var ore_kinds := 0
+	for ore_index in node.ores:
+		if Registry.ores[ore_index].fluid == null:
+			ore_kinds += 1
+	_check(reachable_ores.size() >= ore_kinds, "к каждой руде можно дойти по земле (%d из %d)" % [reachable_ores.size(), ore_kinds])
+
 	var started := Time.get_ticks_msec()
 	PlanetGenerator.generate(node, Registry.run_def.pad_start_size)
 	print("Генерация планеты %d×%d: %d мс" % [node.size.x, node.size.y, Time.get_ticks_msec() - started])
@@ -1571,6 +1616,10 @@ func _test_planet_generator() -> void:
 	var drill := Registry.get_building(&"drill")
 	_check(world.buildings.check_place(Registry.get_building(&"container"), center + Vector2i(3, 3), 0) == BuildingManager.Check.OK, "на площадке можно строить")
 	world.dispose()
+	var rich := Registry.get_planet_type(&"rich")
+	_check(rich != null and not rich.safe and rich.deposits_per_10k > Registry.get_planet_type(&"normal").deposits_per_10k
+		and rich.threat != null and rich.threat.first_wave_seconds < Registry.get_planet_type(&"normal").threat.first_wave_seconds,
+		"рудный мир: руды больше, а волны раньше")
 	for id in star_map.nodes.size():
 		var n := star_map.get_node(id)
 		if n.type.safe:

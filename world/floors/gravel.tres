@@ -6,7 +6,7 @@
 script = ExtResource("1_script")
 id = &"gravel"
 name_key = "FLOOR_GRAVEL"
-color = Color(0.341, 0.314, 0.290, 1)
+color = Color(0.369, 0.329, 0.271, 1)
 buildable = true
 pattern = 1
 sort_order = 30

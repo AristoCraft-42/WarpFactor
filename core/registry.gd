@@ -218,6 +218,14 @@ static func get_ore(id: StringName) -> OreDef:
 	return _ores_by_id.get(id)
 
 
+## Тип планеты по id (типов мало, поэтому без словаря).
+static func get_planet_type(id: StringName) -> PlanetTypeDef:
+	for t in planet_types:
+		if t.id == id:
+			return t
+	return null
+
+
 static func get_building(id: StringName) -> BuildingDef:
 	return _buildings_by_id.get(id)
 

@@ -6,7 +6,7 @@
 script = ExtResource("1_script")
 id = &"dark_stone"
 name_key = "FLOOR_DARK_STONE"
-color = Color(0.227, 0.212, 0.196, 1)
+color = Color(0.204, 0.204, 0.216, 1)
 buildable = true
 pattern = 2
 sort_order = 20
