@@ -7,6 +7,9 @@ extends RefCounted
 ## Каждая ячейка — 34x34 с 1px «выдавленным» краем, чтобы при линейной фильтрации не было швов.
 ## Спрайты зданий (и плейсхолдеры, и готовые PNG) тоже упаковываются в один атлас:
 ## одна текстура на все здания позволяет рендеру объединять их в батчи.
+## У здания три кадра состояния (работа, простой, выключено) — в атласе они лежат подряд,
+## а полоса кадров берётся из BuildingDef.sprite (меньше трёх кадров — недостающие
+## повторяют первый).
 
 const VARIANTS := 4
 const CELL := 34
@@ -14,6 +17,8 @@ const TERRAIN_SOURCE_ID := 0
 const BUILDING_ATLAS_WIDTH := 512
 const BUILDING_ATLAS_PADDING := 2
 const ENEMY_CELL := 48
+## Сколько кадров состояния у здания (Building.ArtState).
+const BUILDING_STATES := 3
 
 static var terrain_tileset: TileSet
 ## Иконки всех предметов в одну полосу (ячейка на индекс предмета) — для MultiMesh предметов.
@@ -22,7 +27,8 @@ static var item_atlas: Texture2D
 static var enemy_atlas: Texture2D
 static var _floor_row_offset: int = 0
 static var _ore_row_offset: int = 0
-static var _building_textures: Dictionary[StringName, Texture2D] = {}
+## id здания → кадры состояний (BUILDING_STATES штук).
+static var _building_textures: Dictionary[StringName, Array] = {}
 static var _item_icons: Dictionary[StringName, Texture2D] = {}
 ## Цвет пола/руды для обзорной карты и оверлеев.
 static var floor_colors: PackedColorArray = PackedColorArray()
@@ -41,15 +47,17 @@ static func ensure_built() -> void:
 	_build_enemy_atlas()
 
 
-## Текстура здания — область общего атласа (AtlasTexture).
-static func get_building_texture(def: BuildingDef) -> Texture2D:
+## Текстура здания в состоянии state (Building.ArtState) — область общего атласа.
+static func get_building_texture(def: BuildingDef, state: int = 0) -> Texture2D:
 	ensure_built()
-	var tex: Texture2D = _building_textures.get(def.id)
-	if tex == null:
-		# Здание добавлено после сборки атласа — отдельная текстура (без батчинга).
-		tex = ImageTexture.create_from_image(_building_image(def))
-		_building_textures[def.id] = tex
-	return tex
+	var frames: Array = _building_textures.get(def.id, [])
+	if frames.is_empty():
+		# Здание добавлено после сборки атласа — отдельные текстуры (без батчинга).
+		frames = []
+		for k in BUILDING_STATES:
+			frames.append(ImageTexture.create_from_image(_building_image(def, k)))
+		_building_textures[def.id] = frames
+	return frames[clampi(state, 0, frames.size() - 1)]
 
 
 static func get_item_icon(item: ItemType) -> Texture2D:
@@ -142,15 +150,17 @@ static func _build_building_atlas() -> void:
 	var cursor := Vector2i(BUILDING_ATLAS_PADDING, BUILDING_ATLAS_PADDING)
 	var row_height := 0
 	for def in defs:
-		var img := _building_image(def)
-		var w := img.get_width()
-		if cursor.x + w + BUILDING_ATLAS_PADDING > BUILDING_ATLAS_WIDTH:
-			cursor = Vector2i(BUILDING_ATLAS_PADDING, cursor.y + row_height + BUILDING_ATLAS_PADDING)
-			row_height = 0
-		positions[def.id] = cursor
-		images[def.id] = img
-		cursor.x += w + BUILDING_ATLAS_PADDING
-		row_height = maxi(row_height, img.get_height())
+		for state in BUILDING_STATES:
+			var key := _state_key(def.id, state)
+			var img := _building_image(def, state)
+			var w := img.get_width()
+			if cursor.x + w + BUILDING_ATLAS_PADDING > BUILDING_ATLAS_WIDTH:
+				cursor = Vector2i(BUILDING_ATLAS_PADDING, cursor.y + row_height + BUILDING_ATLAS_PADDING)
+				row_height = 0
+			positions[key] = cursor
+			images[key] = img
+			cursor.x += w + BUILDING_ATLAS_PADDING
+			row_height = maxi(row_height, img.get_height())
 	var height := nearest_po2(cursor.y + row_height + BUILDING_ATLAS_PADDING)
 	var atlas := Image.create_empty(BUILDING_ATLAS_WIDTH, height, false, Image.FORMAT_RGBA8)
 	atlas.fill(Color(0, 0, 0, 0))
@@ -158,23 +168,38 @@ static func _build_building_atlas() -> void:
 		var img := images[id]
 		atlas.blit_rect(img, Rect2i(Vector2i.ZERO, img.get_size()), positions[id])
 	var atlas_texture := ImageTexture.create_from_image(atlas)
-	for id in images:
-		var region := AtlasTexture.new()
-		region.atlas = atlas_texture
-		region.region = Rect2(positions[id], images[id].get_size())
-		_building_textures[id] = region
+	for def in defs:
+		var frames: Array = []
+		for state in BUILDING_STATES:
+			var key := _state_key(def.id, state)
+			var region := AtlasTexture.new()
+			region.atlas = atlas_texture
+			region.region = Rect2(positions[key], images[key].get_size())
+			frames.append(region)
+		_building_textures[def.id] = frames
 
 
-## Изображение здания: готовый спрайт (приводится к size*32) или процедурный плейсхолдер.
-static func _building_image(def: BuildingDef) -> Image:
+static func _state_key(id: StringName, state: int) -> StringName:
+	return StringName("%s#%d" % [id, state])
+
+
+## Кадр здания в состоянии state: из полосы кадров спрайта (приводится к size*32)
+## или процедурный плейсхолдер. Кадров в полосе может быть меньше — берётся первый.
+static func _building_image(def: BuildingDef, state: int = 0) -> Image:
 	var target := def.size * GameConst.TILE_SIZE
 	if def.sprite != null:
-		var img := def.sprite.get_image()
-		if img != null:
-			if img.is_compressed():
-				img.decompress()
-			img.convert(Image.FORMAT_RGBA8)
-			if img.get_width() != target or img.get_height() != target:
+		var src := def.sprite.get_image()
+		if src != null:
+			if src.is_compressed():
+				src.decompress()
+			src.convert(Image.FORMAT_RGBA8)
+			# Кадры квадратные и лежат в ряд: сколько их, видно по ширине полосы.
+			var side := src.get_height()
+			var frames := maxi(src.get_width() / maxi(side, 1), 1)
+			var frame := clampi(state, 0, frames - 1)
+			var img := Image.create_empty(side, side, false, Image.FORMAT_RGBA8)
+			img.blit_rect(src, Rect2i(frame * side, 0, side, side), Vector2i.ZERO)
+			if side != target:
 				img.resize(target, target, Image.INTERPOLATE_NEAREST)
 			return img
 	return PlaceholderArt.make_building(def)

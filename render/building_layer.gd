@@ -133,8 +133,8 @@ static func draw_port_arrow(canvas: CanvasItem, port: Vector2i, side: int, incom
 ## Рисует здание (или «призрак» при размещении) на произвольном CanvasItem.
 ## size — занимаемый размер в тайлах (0 — взять из данных): шлюз рисуется по своему текущему размеру.
 static func draw_building(canvas: CanvasItem, def: BuildingDef, origin: Vector2i, rotation: int,
-		modulate: Color = Color.WHITE, size: int = 0) -> void:
-	var texture := ArtRegistry.get_building_texture(def)
+		modulate: Color = Color.WHITE, size: int = 0, art_state: int = Building.ArtState.WORK) -> void:
+	var texture := ArtRegistry.get_building_texture(def, art_state)
 	var size_px := Vector2.ONE * (size * GameConst.TILE_SIZE) if size > 0 else def.get_pixel_size()
 	var top_left := Vector2(origin * GameConst.TILE_SIZE)
 	if def.rotatable and posmod(rotation, 4) != 0:

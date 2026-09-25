@@ -17,6 +17,9 @@ enum ConfigKind { NONE, ITEM, BRIDGE, MODE, ROUTER, RECIPE, SOURCE }
 enum Status { NONE, WORKING, IDLE, NO_INPUT, OUTPUT_BLOCKED, NO_ORE, NO_AMMO, NO_POWER, NO_FUEL, NO_RECIPE,
 	NO_RESEARCH, NO_FLUID }
 
+## Какой кадр спрайта показывать. Состояний три, и они же — порядок кадров в полосе.
+enum ArtState { WORK, IDLE, OFF }
+
 ## Уникальный id в BuildingManager (0 — «нет здания»).
 var id: int = 0
 var def: BuildingDef
@@ -34,6 +37,9 @@ var awake: bool = false
 var health: float = 0.0
 ## Запрос электричества на этот тик, кВт (выставляет само здание-потребитель).
 var power_request: float = 0.0
+## Кадр спрайта, показанный в прошлый раз: по нему симуляция понимает, что чанк надо
+## перерисовать. На ход игры не влияет и в сохранение не идёт.
+var shown_art_state: int = -1
 ## Электросеть, к которой подключено здание (null — вне зон опор). Назначает PowerGraph.
 var power_net: PowerGraph.PowerNetwork
 
@@ -300,6 +306,18 @@ func get_info_lines() -> PackedStringArray:
 
 func get_status() -> Status:
 	return Status.NONE
+
+
+## Кадр спрайта по состоянию: работает, простаивает (всё есть, но некуда отдать)
+## или выключено (нет топлива, тока, сырья, патронов, рецепта). Только для отрисовки.
+func get_art_state() -> int:
+	match get_status():
+		Status.WORKING, Status.NONE:
+			return ArtState.WORK
+		Status.IDLE, Status.OUTPUT_BLOCKED:
+			return ArtState.IDLE
+		_:
+			return ArtState.OFF
 
 
 # --- Источники для разгрузчика (склады, продукция заводов, буфер буров) ---

@@ -478,10 +478,20 @@ def write_recipes():
         write(f"items/recipes/{rid}.tres", out)
 
 
+# Нарисованные спрайты: art/buildings/<id>.png — полоса кадров состояний (работа, простой,
+# выключено). Файла нет — здание рисуется процедурным плейсхолдером, как раньше.
+def sprite_path(bid):
+    rel = "art/buildings/%s.png" % bid
+    return "res://" + rel if os.path.exists(os.path.join(ROOT, rel)) else None
+
+
 def write_building(b):
     bid, kind, logic, cat, size, line, removable, player, glyph, col, order, cost, params, health, craft = b
     cls, script = DEF_SCRIPTS[kind]
     ext = [("Script", script, "1_def")]
+    sprite = sprite_path(bid)
+    if sprite:
+        ext.append(("Texture2D", sprite, "9_sprite"))
     if cost:
         ext.append(("Script", "res://items/item_stack.gd", "2_stack"))
     if logic:
@@ -535,6 +545,8 @@ def write_building(b):
     out += [f"health = {fmt(float(hp))}", f"solid = {fmt(solid)}", f"color = {color(col)}", f"glyph = {glyph}"]
     if logic:
         out.append('logic_script = ExtResource("3_logic")')
+    if sprite:
+        out.append('sprite = ExtResource("9_sprite")')
     for k, v in params.items():
         if k == "ammo":
             subs = ", ".join(f'SubResource("ammo_{i}")' for i in range(len(v)))

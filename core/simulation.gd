@@ -72,8 +72,16 @@ func step() -> void:
 		b.awake = false
 	var buildings_started := Time.get_ticks_usec()
 	for b in current:
-		if b.world != null and b.update_tick(tick):
+		if b.world == null:
+			continue
+		if b.update_tick(tick):
 			wake(b)
+		# Спрайт зависит от состояния: сменилось — перерисовываем чанк. Проверяем только
+		# бодрствующих: у спящих состояние меняться неоткуда.
+		var art := b.get_art_state()
+		if art != b.shown_art_state:
+			b.shown_art_state = art
+			_world.buildings.notify_changed(b)
 	last_buildings_usec = Time.get_ticks_usec() - buildings_started
 	last_awake_buildings = current.size()
 

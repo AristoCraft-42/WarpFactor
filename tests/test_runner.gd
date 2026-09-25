@@ -58,6 +58,7 @@ func _ready() -> void:
 	_test_gateway_rotation()
 	_test_star_map()
 	_test_planet_generator()
+	_test_building_art_states()
 	_test_building_state_roundtrip()
 	_test_teleport()
 	_test_teleport_keeps_own_drone()
@@ -268,6 +269,26 @@ func _test_registry() -> void:
 	for item in Registry.items:
 		_check(ArtRegistry.get_item_icon(item) != null, "иконка предмета %s" % item.id)
 	_check(ArtRegistry.item_atlas.get_width() == Registry.items.size() * GameConst.TILE_SIZE, "атлас предметов включает постройки")
+	# Полоса кадров состояний: работа, простой, выключено — по цвету видно, что кадры разные.
+	var strip: Texture2D = load("res://art/buildings/_sample_states.png")
+	var sample := BuildingDef.new()
+	sample.id = &"_sample_states"
+	sample.size = 1
+	sample.sprite = strip
+	var colors := PackedColorArray()
+	for state in ArtRegistry.BUILDING_STATES:
+		var tex := ArtRegistry.get_building_texture(sample, state)
+		_check(tex != null and tex.get_width() == GameConst.TILE_SIZE, "кадр состояния %d — отдельная картинка" % state)
+		colors.append(tex.get_image().get_pixel(GameConst.TILE_SIZE / 2, GameConst.TILE_SIZE / 2))
+	_check(colors.size() == 3 and colors[0] != colors[1] and colors[1] != colors[2] and colors[0] != colors[2],
+		"три кадра полосы читаются по отдельности")
+	# Один кадр в полосе — здание выглядит одинаково во всех состояниях (так было до состояний).
+	var single := BuildingDef.new()
+	single.id = &"_sample_single"
+	single.size = 1
+	single.sprite = ImageTexture.create_from_image(strip.get_image().get_region(Rect2i(0, 0, 32, 32)))
+	_check(ArtRegistry.get_building_texture(single, 2).get_image().get_pixel(16, 16) == colors[0],
+		"из одного кадра берутся все состояния")
 
 
 # --- Геометрия протягивания ---
@@ -1636,6 +1657,29 @@ func _test_planet_generator() -> void:
 				ores += 1 if v != 0 else 0
 			_check(ores == 0, "в пустоше ни одного тайла руды")
 			break
+
+
+## Кадр спрайта по состоянию: работает, простаивает (выход забит), выключено (нет сырья).
+## Смена кадра помечает чанк на перерисовку — иначе картинка осталась бы старой.
+func _test_building_art_states() -> void:
+	var world := Worlds.empty_world(16, 12)
+	var furnace := _place(world, &"furnace", Vector2i(4, 4)) as Crafter
+	var changes := [0]
+	world.buildings.building_changed.connect(func(_b: Building) -> void: changes[0] += 1)
+	Worlds.run_ticks(world, 2)
+	_check(furnace.get_art_state() == Building.ArtState.OFF, "без сырья печь показывает «выключено»")
+	for i in 20:
+		furnace.handle_item(null, _item(&"hematite"))
+	for i in 3:
+		furnace.handle_item(null, _item(&"coal"))
+	Worlds.run_ticks(world, 30)
+	_check(furnace.get_art_state() == Building.ArtState.WORK, "с сырьём и топливом — «работает»")
+	_check(changes[0] > 0, "смена кадра помечает чанк на перерисовку (%d раз)" % changes[0])
+	# Отдавать продукцию некуда: буфер печи заполняется, и она встаёт с забитым выходом.
+	Worlds.run_ticks(world, 60 * GameConst.TICK_RATE)
+	_check(furnace.get_art_state() == Building.ArtState.IDLE,
+		"выход забит — «простой» (статус %d)" % furnace.get_status())
+	world.dispose()
 
 
 ## Состояние зданий переносится в новое здание того же типа.

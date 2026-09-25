@@ -23,6 +23,7 @@
 | `net/` | Сетевая игра: `net_transport.gd` (интерфейс доставки), `enet_transport.gd`, `net_protocol.gd` (пакеты), `net_session.gd` (lockstep), `lan_discovery.gd`; Steam — `steam_service.gd`, `steam_transport.gd`, `steam_lobbies.gd` |
 | `i18n/` | `strings.csv` — все тексты RU/EN (переводы пересобираются при импорте) |
 | `levels/` | Тестовые карты и их содержимое |
+| `art/buildings/` | Нарисованные спрайты зданий: `<id>.png` — полоса из трёх кадров (работа, простой, выключено). Формат и экспорт из Aseprite — `art/buildings/README.md` |
 | `tools/data/` | Python-генераторы данных: `make_content.py` (постройки, предметы, рецепты, исследования), `make_csv.py` (`i18n/strings.csv`), `make_content_doc.py` (`docs/CONTENT.md`), `make_enemies.py`. Правки контента делаются в них, а не в `.tres` руками |
 | `tests/` | `test_runner.tscn` (логические тесты), `autoshot.gd` (автопрогон со скриншотами), `bench_*.tscn` |
 | `docs/` | Уровень 2 — подробности по запросу (ссылки внизу) |
@@ -46,7 +47,7 @@ python tools/data/check_strings.py
 # Настоящая игровая сцена в роли клиента: снимок, починка, сверка состояний
 & $g --headless --path D:\Mind res://tests/net_scene_check.tscn
 
-# Логические тесты (сейчас 1951 проверка)
+# Логические тесты (сейчас 1960 проверок)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 
 # Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 199 проверок, ~150 с)
