@@ -47,7 +47,7 @@ python tools/data/check_strings.py
 # Настоящая игровая сцена в роли клиента: снимок, починка, сверка состояний
 & $g --headless --path D:\Mind res://tests/net_scene_check.tscn
 
-# Логические тесты (сейчас 1960 проверок)
+# Логические тесты (сейчас 1962 проверки)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 
 # Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 199 проверок, ~150 с)

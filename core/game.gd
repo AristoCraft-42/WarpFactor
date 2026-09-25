@@ -142,6 +142,10 @@ func _start() -> void:
 		if players_script != null:
 			add_child(players_script.new())
 	for arg in args:
+		if arg.begins_with("--stress-turrets="):
+			var turret_stress: Script = load("res://tests/stress_turrets.gd")
+			if turret_stress != null:
+				add_child(turret_stress.new())
 		if arg.begins_with("--stress="):
 			var stress_script: Script = load("res://tests/stress_render.gd")
 			if stress_script != null:

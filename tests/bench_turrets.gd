@@ -56,9 +56,9 @@ func _ready() -> void:
 	var fight_redraws := _redraws(planet)
 
 	print("Бенчмарк турелей: %d турелей, %d врагов, тик = 1/%d с" % [turrets.size(), spawned, GameConst.TICK_RATE])
-	print("  без врагов: %.3f мс/тик (турели спят), перерисовок стволов за %d кадров: %d"
+	print("  без врагов: %.3f мс/тик (турели спят), перерисовок участков за %d тиков: %d"
 		% [idle, TICKS, idle_redraws])
-	print("  в бою: %.3f мс/тик, перерисовок стволов за %d кадров: %d" % [fight, TICKS, fight_redraws])
+	print("  в бою: %.3f мс/тик, перерисовок участков за %d тиков: %d" % [fight, TICKS, fight_redraws])
 	print("    из них враги %.3f мс, снаряды %.3f мс, здания %.3f мс (%.0f бодрствует, %.0f снарядов в воздухе)"
 		% [last_enemy_ms, last_shot_ms, last_build_ms, last_awake, last_projectiles])
 	print("  живых врагов осталось: %d" % planet.enemies.count)
@@ -103,20 +103,23 @@ func _measure(run: Run, turrets: Array[Turret], ammo: int) -> float:
 	return total / 1000.0 / TICKS
 
 
-## Сколько кадров подряд слою турелей пришлось бы перерисовываться: считаем по той же подписи,
-## по которой он и решает (углы стволов, выстрелы, статусы).
+## Сколько участков слою турелей пришлось бы перерисовать за TICKS тиков (все участки считаются
+## видимыми): по той же подписи участка, по которой слой и решает (углы стволов, выстрелы, статусы).
 func _redraws(world: GameWorld) -> int:
 	var view := TurretView.new()
 	add_child(view)
 	view.setup(world, _camera())
+	view.call("_sync_cells")
+	var cells: Dictionary = view.get("_cells")
+	var last: Dictionary = {}
 	var redraws := 0
-	var last := INF
 	for i in TICKS:
 		world.simulation.step()
-		var signature: float = view.call("_current_signature")
-		if not is_equal_approx(signature, last):
-			last = signature
-			redraws += 1
+		for key in cells:
+			var signature: float = view.call("_signature_of", cells[key], world.simulation.tick)
+			if not is_equal_approx(signature, float(last.get(key, INF))):
+				last[key] = signature
+				redraws += 1
 	view.queue_free()
 	return redraws
 

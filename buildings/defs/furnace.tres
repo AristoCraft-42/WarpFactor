@@ -1,6 +1,7 @@
 [gd_resource type="Resource" script_class="CrafterDef" format=3]
 
 [ext_resource type="Script" path="res://buildings/production/crafter_def.gd" id="1_def"]
+[ext_resource type="Texture2D" path="res://art/buildings/furnace.png" id="9_sprite"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/production/crafter.gd" id="3_logic"]
 [ext_resource type="Script" path="res://items/recipe.gd" id="7_recipe_script"]
@@ -34,6 +35,7 @@ solid = true
 color = Color(0.478, 0.353, 0.282, 1)
 glyph = 11
 logic_script = ExtResource("3_logic")
+sprite = ExtResource("9_sprite")
 recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_smelt_iron"), ExtResource("recipe_smelt_brick"), ExtResource("recipe_smelt_copper"), ExtResource("recipe_smelt_zinc")])
 recipe_mode = 1
 item_capacity = 10

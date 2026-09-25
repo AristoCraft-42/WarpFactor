@@ -235,8 +235,8 @@ func _run_research(game: Game) -> void:
 	state.active = &""
 	state.changed.emit()
 	run.apply_research_effects()
-	# Меню обновляет кнопки раз в 0.2 с.
-	await _frames(40)
+	# Меню обновляет кнопки раз в 0.2 с — ждём по времени, а не по кадрам.
+	await _seconds(0.5)
 	_expect(drill_button.modulate.r > 0.9 and state.is_building_unlocked(drill_def), "после исследования электробур открыт в меню")
 	# «Порты шлюза II» открыты — шлюз вырос до 4×4, центр остался на месте.
 	var grown := run.get_gateway(run.planet)
@@ -938,7 +938,9 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	# Подсказка у курсора: по руде такая же, как по зданию.
 	var tooltip := _find_child_of_type(game.hud, "BuildingTooltip") as Control
 	await _mouse_move(game, ore_tile)
-	await _frames(40)
+	# Подсказка появляется через 0.35 с: ждём по времени, а не по кадрам — при высоком FPS
+	# сорок кадров оказывались короче задержки.
+	await _seconds(0.7)
 	_expect(tooltip != null and tooltip.visible, "наведение на руду показывает подсказку")
 	await _shot("d00b_ore_tooltip.png")
 	await _mouse_move(game, ore_tile + Vector2i(-3, -3))
@@ -1388,7 +1390,7 @@ func _run_factory(game: Game, base: Vector2i) -> void:
 	await _wait_ticks(world, 10)
 	_expect(assembler.get_status() == Building.Status.NO_RECIPE, "сборщик без рецепта в статусе «нет рецепта»")
 	await _mouse_move(game, assembler.origin)
-	await _frames(40)
+	await _seconds(0.7)
 	await _shot("g11_tooltip_assembler.png")
 
 	# Рецепт сборщика — кликом в панели настройки.
@@ -1418,7 +1420,7 @@ func _run_factory(game: Game, base: Vector2i) -> void:
 	game.clock.set_speed_index(0)
 	_expect(output.inventory.count(gear) > 0, "шестерни из сборщика дошли до склада (%d)" % output.inventory.count(gear))
 	await _mouse_move(game, furnace.origin)
-	await _frames(40)
+	await _seconds(0.7)
 	await _shot("g12_tooltip_furnace.png")
 	await _mouse_button(game, furnace.origin, MOUSE_BUTTON_LEFT, true)
 	await _mouse_button(game, furnace.origin, MOUSE_BUTTON_LEFT, false)
@@ -1600,7 +1602,7 @@ func _run_power(game: Game, base: Vector2i) -> void:
 		await _shot("p06_network_window.png")
 		await _key(KEY_ESCAPE)
 	await _mouse_move(game, boiler.origin)
-	await _frames(40)
+	await _seconds(0.7)
 	await _shot("p03_tooltip_boiler.png")
 	await _mouse_button(game, boiler.origin, MOUSE_BUTTON_LEFT, true)
 	await _mouse_button(game, boiler.origin, MOUSE_BUTTON_LEFT, false)
@@ -2421,6 +2423,13 @@ func _right_click_control(control: Control) -> void:
 	await _mouse_move_screen(pos)
 	await _mouse_button_screen(pos, MOUSE_BUTTON_RIGHT, true)
 	await _mouse_button_screen(pos, MOUSE_BUTTON_RIGHT, false)
+
+
+## Подождать настоящее время: задержки интерфейса (подсказки, обновление меню) заданы
+## в секундах, и при высоком FPS ожидание в кадрах оказывается короче них.
+func _seconds(value: float) -> void:
+	await get_tree().create_timer(value).timeout
+	await _frames(2)
 
 
 func _key(code: Key) -> void:
