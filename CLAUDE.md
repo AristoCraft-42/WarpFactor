@@ -50,7 +50,7 @@ python tools/data/check_strings.py
 # Логические тесты (сейчас 1976 проверок)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 
-# Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 232 проверки, ~8 мин)
+# Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 233 проверки, ~8 мин)
 & $g --path D:\Mind res://core/game.tscn -- --autoshot --autoshot-dir=D:/shots
 & $g --path D:\Mind res://ui/menu/main_menu.tscn -- --autoshot --autoshot-dir=D:/shots
 

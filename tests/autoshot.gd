@@ -1311,6 +1311,17 @@ func _run_production_chain(game: Game, base: Vector2i) -> void:
 	game.clock.set_speed_index(0)
 	await _frames(20)
 	await _shot("g02_items_on_belts.png")
+	# Предметы повёрнуты по движению: на горизонтальной ленте ось спрайта вдоль X, на вертикальной — вдоль Y.
+	var along_x := 0
+	var along_y := 0
+	var items_view := game.item_renderer
+	for i in items_view.drawn_count:
+		var o := i * ItemRenderer.STRIDE
+		if absf(items_view._buffer[o + 1]) < 0.01 and absf(items_view._buffer[o]) > ItemRenderer.ITEM_PX * 0.99:
+			along_x += 1
+		elif absf(items_view._buffer[o]) < 0.01 and absf(items_view._buffer[o + 1]) > ItemRenderer.ITEM_PX * 0.99:
+			along_y += 1
+	_expect(along_x > 0 and along_y > 0, "предметы повёрнуты по ленте (вдоль X: %d, вдоль Y: %d)" % [along_x, along_y])
 	var stored := container.inventory.count(copper)
 	_expect(stored > 0, "гематит дошёл до контейнера (%d)" % stored)
 	await _measure_frames("работающая цепочка")

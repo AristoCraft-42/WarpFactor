@@ -3,7 +3,10 @@ extends Node2D
 ## Отрисовка предметов на лентах одним MultiMeshInstance2D.
 ## Каждый кадр обходятся только ленты видимых чанков; позиция интерполируется между тиками
 ## (прогресс − сдвиг за тик × (1 − alpha)), поэтому движение плавное при любом FPS и скорости.
-## Постоянные поля буфера (масштаб, нули) заполнены заранее — на предмет пишутся 3 числа.
+## Предмет повёрнут по движению: при движении вправо спрайт как нарисован (как у зданий),
+## на ленте вниз — на четверть оборота по часовой и т. д. Вошедший сбоку (поворот ленты, выход
+## здания) доворачивается со стороны, откуда пришёл, пока съезжает к середине ленты.
+## Постоянные поля буфера (нули) заполнены заранее — на предмет пишутся 7 чисел.
 
 const ITEM_PX := 15.0
 ## Ниже этого масштаба предметы не рисуются (LOD).
@@ -11,6 +14,7 @@ const MIN_ZOOM := 0.4
 const STRIDE := 12
 const INITIAL_CAPACITY := 2048
 const SHADER := preload("res://render/shaders/items.gdshader")
+const HALF_PI := PI * 0.5
 
 var drawn_count: int = 0
 
@@ -91,14 +95,29 @@ func _process(_delta: float) -> void:
 				var d := dirs[c]
 				var dx := 1.0 if d == 0 else (-1.0 if d == 2 else 0.0)
 				var dy := 1.0 if d == 1 else (-1.0 if d == 3 else 0.0)
+				var angle := d * HALF_PI
 				var center_x := tiles_x[c] * tile + half
 				var center_y := tiles_y[c] * tile + half
 				var base := c * cap
 				for s in count:
 					var k := base + s
 					var p := (prog[k] - dprog[k] * inv_alpha) / units - 0.5
-					var l := lat[k] * half
+					var side := lat[k]
+					var l := side * half
 					var o := n * STRIDE
+					# Поворот: оси спрайта (cos, sin) и (−sin, cos); по Y масштаб отрицательный.
+					var rc := dx
+					var rs := dy
+					if side != 0.0:
+						# Вошёл сбоку: side = 1 — пришёл с боковой стороны «по часовой» от движения,
+						# то есть ехал на четверть оборота раньше; доворачивается, пока съезжает к середине.
+						var a := angle - side * HALF_PI
+						rc = cos(a)
+						rs = sin(a)
+					_buffer[o] = rc * ITEM_PX
+					_buffer[o + 1] = rs * ITEM_PX
+					_buffer[o + 4] = rs * ITEM_PX
+					_buffer[o + 5] = -rc * ITEM_PX
 					# Ось движения (dx, dy), боковая ось (−dy, dx).
 					_buffer[o + 3] = center_x + dx * p * tile - dy * l
 					_buffer[o + 7] = center_y + dy * p * tile + dx * l
