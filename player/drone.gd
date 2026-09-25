@@ -109,9 +109,13 @@ func get_repair_per_second() -> float:
 	return def.repair_per_second + def.repair_step * upgrade_repair
 
 
-## Тиков на один предмет с учётом улучшений добычи.
-func get_mine_ticks(ore: OreDef) -> int:
-	return maxi(1, roundi(def.mine_ticks(ore) / (1.0 + def.mine_speed_step * upgrade_mining)))
+## Тиков на один предмет с учётом улучшений добычи и богатства клетки tile (богатая клетка
+## отдаёт руду быстрее, бедная — медленнее).
+func get_mine_ticks(ore: OreDef, tile: Vector2i = NO_TILE) -> int:
+	var rate := 1.0 + def.mine_speed_step * upgrade_mining
+	if tile != NO_TILE and world != null and world.grid.in_bounds_v(tile):
+		rate *= world.grid.get_yield(tile.x, tile.y)
+	return maxi(1, roundi(def.mine_ticks(ore) / rate))
 
 
 ## Переезд в другой мир: мир держит список своих дронов, поэтому менять world напрямую нельзя.
@@ -192,7 +196,7 @@ func get_mine_fraction() -> float:
 	var ore := get_mineable_ore(mine_tile) if is_mining() else null
 	if ore == null:
 		return 0.0
-	return clampf(float(mine_progress) / get_mine_ticks(ore), 0.0, 1.0)
+	return clampf(float(mine_progress) / get_mine_ticks(ore, mine_tile), 0.0, 1.0)
 
 
 func save_data() -> Dictionary:
@@ -332,7 +336,7 @@ func _mine() -> void:
 	if mine_blocked:
 		return
 	mine_progress += 1
-	if mine_progress >= get_mine_ticks(ore):
+	if mine_progress >= get_mine_ticks(ore, mine_tile):
 		mine_progress = 0
 		inventory.add(ore.item.index, 1)
 		last_mined_item = ore.item.index

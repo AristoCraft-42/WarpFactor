@@ -16,8 +16,20 @@ extends BuildingDef
 @export var fuel_capacity: int = 5
 
 
-func seconds_per_item(ore: OreDef, tiles: int) -> float:
-	return (base_seconds + hardness_seconds * ore.hardness) / maxi(tiles, 1)
+## Секунд на предмет. yield_tiles — сколько «средних клеток» руды под буром: сумма множителей
+## богатства (бедная клетка — половина, ультра — две с половиной).
+func seconds_per_item(ore: OreDef, yield_tiles: float) -> float:
+	return (base_seconds + hardness_seconds * ore.hardness) / maxf(yield_tiles, 0.25)
+
+
+## Выход руды ore_value под буром в «средних клетках»: у каждой клетки свой множитель богатства.
+func ore_yield(grid: WorldGrid, origin: Vector2i, ore_value: int) -> float:
+	var total := 0.0
+	for y in range(origin.y, origin.y + size):
+		for x in range(origin.x, origin.x + size):
+			if grid.in_bounds(x, y) and grid.get_ore(x, y) == ore_value:
+				total += grid.get_yield(x, y)
+	return total
 
 
 ## Самая частая доступная руда под буром: Vector2i(значение слоя руды, число тайлов).

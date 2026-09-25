@@ -261,21 +261,47 @@ static func _place_ores(map: LevelMap, node: StarMap.StarNode, character: Charac
 			var spread := 0.0 if d == 0 else rng.randf_range(4.0, 14.0)
 			var at := field_at + Vector2.from_angle(rng.randf() * TAU) * spread
 			var radius := rng.randf_range(6.0, 11.0) * (1.0 if ore.hardness <= 2 else 0.85)
-			_blob(map, at, radius, ore_index + 1, rng.randf() * TAU)
+			_blob(map, at, radius, ore_index + 1, rng.randf() * TAU, node.type.ore_richness, rng.randi() & 0xffff)
 	SpawnPoints.connect_all(map.width, map.height, map.floors, fields, center, carve_floor)
 
 
-static func _blob(map: LevelMap, center: Vector2, radius: float, ore_value: int, phase: float) -> void:
+## Залежь: клякса руды. У каждой клетки своё богатство (OreDef.Richness): к центру жилы и у крупных
+## залежей хорошие клетки чаще, тип планеты добавляет свой сдвиг (richness_bonus), а хеш тайла
+## перемешивает, чтобы богатые клетки не лежали ровными кольцами.
+static func _blob(map: LevelMap, center: Vector2, radius: float, ore_value: int, phase: float,
+		richness_bonus: float = 0.0, richness_seed: int = 0) -> void:
 	var rock := _floor_index(&"rock", &"rock")
 	var r := ceili(radius * 1.4)
+	var size_bonus := clampf((radius - 6.0) / 6.0, 0.0, 1.0)
 	for y in range(floori(center.y) - r, floori(center.y) + r + 1):
 		for x in range(floori(center.x) - r, floori(center.x) + r + 1):
 			if not map.in_bounds(x, y) or map.get_floor(x, y) == rock:
 				continue
 			var offset := Vector2(x, y) - center
 			var wobble := 1.0 + 0.3 * sin(3.0 * offset.angle() + phase) + 0.15 * sin(5.0 * offset.angle() + phase * 1.7)
-			if offset.length() <= radius * wobble:
+			var edge := radius * wobble
+			if offset.length() <= edge:
+				var closeness := 1.0 - clampf(offset.length() / maxf(edge, 0.001), 0.0, 1.0)
+				var score := 0.65 * closeness + 0.25 * size_bonus + richness_bonus + 0.15 * _tile_jitter(x, y, richness_seed)
+				var level := richness_for(score)
+				# Залежи одной руды, наложившись, не беднеют: клетке остаётся лучшее из двух богатств.
+				if map.get_ore(x, y) == ore_value and OreDef.yield_of(map.get_richness(x, y)) > OreDef.yield_of(level):
+					level = map.get_richness(x, y)
 				map.set_ore(x, y, ore_value)
+				map.set_richness(x, y, level)
+
+
+## Богатство клетки по её оценке: чем выше, тем лучше. Пороги подобраны так, что у средней
+## залежи обычной планеты больше всего средних клеток, по краю — бедные, в середине — богатые,
+## а ультра — редкая удача в сердце крупной жилы.
+static func richness_for(score: float) -> int:
+	if score > 0.75:
+		return OreDef.Richness.ULTRA
+	if score > 0.5:
+		return OreDef.Richness.RICH
+	if score > 0.15:
+		return OreDef.Richness.MEDIUM
+	return OreDef.Richness.POOR
 
 
 static func _floor_index(id: StringName, fallback: StringName) -> int:

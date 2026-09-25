@@ -14,7 +14,9 @@ func _init() -> void:
 			var ore := Registry.get_ore(ore_id)
 			if ore != null:
 				node.ores.append(ore.index)
+		var started := Time.get_ticks_usec()
 		var map := PlanetGenerator.generate(node, Registry.run_def.pad_start_size, 40)
+		var gen_ms := (Time.get_ticks_usec() - started) / 1000.0
 		var image := Image.create_empty(map.width, map.height, false, Image.FORMAT_RGB8)
 		for y in map.height:
 			for x in map.width:
@@ -22,9 +24,17 @@ func _init() -> void:
 				var ore_value := map.get_ore(x, y)
 				if ore_value > 0:
 					color = Registry.ores[ore_value - 1].get_color()
+					# Богатство клетки: бедная темнее, богатая и ультра светлее.
+					match map.get_richness(x, y):
+						OreDef.Richness.POOR:
+							color = color.darkened(0.45)
+						OreDef.Richness.RICH:
+							color = color.lightened(0.3)
+						OreDef.Richness.ULTRA:
+							color = color.lightened(0.65)
 				image.set_pixel(x, y, color)
 		for point in map.spawn_points:
 			image.set_pixel(point.x, point.y, Color(1, 0, 1))
 		image.save_png("D:/shots/gen_%s.png" % type.id)
-		print("gen_%s.png %d×%d" % [type.id, map.width, map.height])
+		print("gen_%s.png %d×%d, %.0f мс" % [type.id, map.width, map.height, gen_ms])
 	quit()

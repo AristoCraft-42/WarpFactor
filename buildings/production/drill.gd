@@ -11,6 +11,8 @@ extends Building
 
 var ore: OreDef
 var ore_tiles: int = 0
+## Выход руды в «средних клетках» (сумма множителей богатства клеток под буром).
+var ore_yield: float = 0.0
 var ticks_per_item: int = 0
 var buffer: int = 0
 var blocked: bool = false
@@ -33,8 +35,9 @@ func on_placed() -> void:
 		return
 	ore = Registry.ores[found.x - 1]
 	ore_tiles = found.y
+	ore_yield = d.ore_yield(world.grid, origin, found.x)
 	_item = ore.item.index
-	ticks_per_item = maxi(1, roundi(d.seconds_per_item(ore, ore_tiles) * GameConst.TICK_RATE))
+	ticks_per_item = maxi(1, roundi(d.seconds_per_item(ore, ore_yield) * GameConst.TICK_RATE))
 	wake()
 
 
@@ -250,6 +253,9 @@ func get_info_lines() -> PackedStringArray:
 		lines.append(tr("INFO_DRILL_NO_ORE"))
 		return lines
 	lines.append(tr("INFO_DRILL_ORE") % [tr(ore.item.name_key), ore_tiles, def.size * def.size])
+	# Богатство клеток: сколько «средних клеток» они дают вместе.
+	if not is_equal_approx(ore_yield, float(ore_tiles)):
+		lines.append(tr("INFO_DRILL_YIELD") % ore_yield)
 	lines.append(tr("INFO_RATE") % get_items_per_second())
 	lines.append(tr("INFO_BUFFER") % [buffer, (def as DrillDef).item_capacity])
 	if def.power_use > 0.0:

@@ -8,6 +8,8 @@ var height: int = 0
 var floors: PackedByteArray
 ## 0 — нет руды, иначе индекс OreDef + 1.
 var ores: PackedByteArray
+## Богатство клетки руды (OreDef.Richness; 0 — средняя).
+var richness: PackedByteArray
 ## 0 — пусто, иначе id здания.
 var building_ids: PackedInt32Array
 
@@ -17,6 +19,8 @@ func _init(p_width: int, p_height: int) -> void:
 	height = p_height
 	floors.resize(width * height)
 	ores.resize(width * height)
+	richness.resize(width * height)
+	richness.fill(0)
 	building_ids.resize(width * height)
 	building_ids.fill(0)
 
@@ -25,6 +29,8 @@ static func from_level_map(map: LevelMap) -> WorldGrid:
 	var grid := WorldGrid.new(map.width, map.height)
 	grid.floors = map.floors.duplicate()
 	grid.ores = map.ores.duplicate()
+	if map.richness.size() == map.width * map.height:
+		grid.richness = map.richness.duplicate()
 	return grid
 
 
@@ -51,6 +57,15 @@ func get_floor(x: int, y: int) -> int:
 
 func get_ore(x: int, y: int) -> int:
 	return ores[y * width + x]
+
+
+func get_richness(x: int, y: int) -> int:
+	return richness[y * width + x]
+
+
+## Во сколько раз клетка даёт больше руды в секунду, чем средняя.
+func get_yield(x: int, y: int) -> float:
+	return OreDef.yield_of(richness[y * width + x])
 
 
 func get_building_id(x: int, y: int) -> int:

@@ -29,4 +29,5 @@ ore_ids = Array[StringName]([&"hematite", &"stone", &"coal", &"malachite", &"sph
 ore_chances = PackedFloat32Array(1, 1, 1, 1, 1, 0.6)
 deposits_per_10k = 1.3
 ore_cluster_size = 4
+ore_richness = 0.15
 map_color = Color(0.72, 0.45, 0.31, 1)

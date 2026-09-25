@@ -13,8 +13,9 @@ const ICON := 22
 
 var _game: Game
 var _building: Building
-## Руда под курсором, когда здания нет.
+## Руда под курсором, когда здания нет, и её клетка (по ней видно богатство).
 var _ore: OreDef
+var _ore_tile: Vector2i = Vector2i(-1, -1)
 var _delay: float = 0.0
 var _refresh: float = 0.0
 
@@ -68,6 +69,11 @@ func _process(delta: float) -> void:
 		_ore = ore
 		_delay = DELAY
 		visible = false
+	elif _ore != null and tools.hover_tile != _ore_tile and visible:
+		# Та же руда, другая клетка: у неё может быть другое богатство — пересобираем сразу.
+		_ore_tile = tools.hover_tile
+		_rebuild()
+	_ore_tile = tools.hover_tile
 	if (_building == null or _building.world == null) and _ore == null:
 		visible = false
 		return
@@ -132,16 +138,21 @@ func _rebuild_ore() -> void:
 		lines.append(tr("TOOLTIP_FLUID_BUILD"))
 	else:
 		lines.append(tr("TOOLTIP_ORE_HARDNESS") % _ore.hardness)
+		# Богатство клетки под курсором: множитель к скорости добычи с неё.
+		var grid := _game.world.grid
+		var richness := grid.get_richness(_ore_tile.x, _ore_tile.y) if grid.in_bounds_v(_ore_tile) else 0
+		var tile_yield := OreDef.yield_of(richness)
+		lines.append(tr("TOOLTIP_ORE_RICHNESS") % [tr(OreDef.RICHNESS_KEYS[richness]), tile_yield])
 		var drone_def := Registry.drone_def
 		if _ore.item != null and drone_def != null and _ore.hardness <= drone_def.mine_tier:
-			lines.append(tr("TOOLTIP_ORE_DRONE") % (float(drone_def.mine_ticks(_ore)) / GameConst.TICK_RATE))
+			lines.append(tr("TOOLTIP_ORE_DRONE") % (float(drone_def.mine_ticks(_ore)) / GameConst.TICK_RATE / tile_yield))
 		else:
 			lines.append(tr("TOOLTIP_ORE_DRONE_NO"))
 		var drill := _best_drill()
 		if drill != null:
-			# Скорость считаем по буру целиком на руде: столько предметов в секунду он даст.
+			# Скорость считаем по буру целиком на руде такого же богатства: столько предметов в секунду он даст.
 			var tiles := drill.size * drill.size
-			lines.append(tr("TOOLTIP_ORE_DRILL") % [tr(drill.name_key), 1.0 / drill.seconds_per_item(_ore, tiles)])
+			lines.append(tr("TOOLTIP_ORE_DRILL") % [tr(drill.name_key), 1.0 / drill.seconds_per_item(_ore, tiles * tile_yield)])
 		else:
 			lines.append(tr("TOOLTIP_ORE_DRILL_NO"))
 	_lines.text = "

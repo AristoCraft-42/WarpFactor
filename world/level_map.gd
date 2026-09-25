@@ -21,6 +21,8 @@ var height: int = 0
 var floors: PackedByteArray = PackedByteArray()
 ## 0 — нет руды, иначе индекс OreDef + 1.
 var ores: PackedByteArray = PackedByteArray()
+## Богатство клетки руды (OreDef.Richness; 0 — средняя, так у всех старых карт).
+var richness: PackedByteArray = PackedByteArray()
 var placements: Array[Placement] = []
 ## Точки появления врагов (генератор планет; у готовых карт ищутся при запуске).
 var spawn_points: Array[Vector2i] = []
@@ -33,6 +35,8 @@ func _init(p_width: int = 0, p_height: int = 0, fill_floor: int = 0) -> void:
 	floors.fill(fill_floor)
 	ores.resize(width * height)
 	ores.fill(0)
+	richness.resize(width * height)
+	richness.fill(0)
 
 
 func in_bounds(x: int, y: int) -> bool:
@@ -56,6 +60,15 @@ func get_ore(x: int, y: int) -> int:
 func set_ore(x: int, y: int, ore_value: int) -> void:
 	if in_bounds(x, y):
 		ores[y * width + x] = ore_value
+
+
+func get_richness(x: int, y: int) -> int:
+	return richness[y * width + x]
+
+
+func set_richness(x: int, y: int, value: int) -> void:
+	if in_bounds(x, y):
+		richness[y * width + x] = value
 
 
 func add_placement(def: BuildingDef, origin: Vector2i, rotation: int = 0) -> void:

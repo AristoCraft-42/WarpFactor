@@ -47,10 +47,10 @@ python tools/data/check_strings.py
 # Настоящая игровая сцена в роли клиента: снимок, починка, сверка состояний
 & $g --headless --path D:\Mind res://tests/net_scene_check.tscn
 
-# Логические тесты (сейчас 1962 проверки)
+# Логические тесты (сейчас 1976 проверок)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 
-# Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 199 проверок, ~150 с)
+# Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 232 проверки, ~8 мин)
 & $g --path D:\Mind res://core/game.tscn -- --autoshot --autoshot-dir=D:/shots
 & $g --path D:\Mind res://ui/menu/main_menu.tscn -- --autoshot --autoshot-dir=D:/shots
 

@@ -50,6 +50,8 @@ extends Resource
 @export var deposits_per_10k: float = 3.0
 ## По сколько залежей в одном рудном поле: поле — это «своя сторона карты» для руды.
 @export var ore_cluster_size: int = 3
+## Сдвиг богатства клеток руды: плюс — больше богатых и ультра, минус — больше бедных.
+@export_range(-0.5, 0.5) var ore_richness: float = 0.0
 
 @export_group("Внешний вид")
 ## Цвет узла на звёздной карте.

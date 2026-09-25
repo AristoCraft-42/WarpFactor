@@ -526,6 +526,8 @@ func _update_info() -> void:
 			lines.append(tr("HUD_INFO_FLUID") % tr(ore.get_name_key()))
 		else:
 			lines.append(tr("HUD_INFO_ORE") % [tr(ore.get_name_key()), ore.hardness])
+			var richness := grid.get_richness(t.x, t.y)
+			lines.append(tr("TOOLTIP_ORE_RICHNESS") % [tr(OreDef.RICHNESS_KEYS[richness]), OreDef.yield_of(richness)])
 	else:
 		lines.append(tr("HUD_INFO_NO_ORE"))
 	var b := tools.hover_building

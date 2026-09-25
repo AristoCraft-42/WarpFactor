@@ -113,6 +113,7 @@ func _ready() -> void:
 	_test_water_placement()
 	_test_belt_drag_obstacles()
 	_test_drill_front_output()
+	_test_ore_richness()
 	_test_underground_pipes()
 	_test_pole_drag_and_camera()
 	_test_building_windows()
@@ -5841,6 +5842,121 @@ func _test_drill_front_output() -> void:
 	Worlds.run_ticks(world, 20 * GameConst.TICK_RATE)
 	_check(unloader != null and side_sink.received > 5, "разгрузчик сбоку забирает добычу бура (%d)" % side_sink.received)
 	world.dispose()
+
+
+## Богатство клеток руды: генерация (центр и крупные жилы богаче, рудный мир богаче обычного),
+## скорость бура и дрона от богатства, сохранение слоя и старые сохранения без него.
+func _test_ore_richness() -> void:
+	var hematite := Registry.get_ore(&"hematite")
+	var value := hematite.index + 1
+	_check(OreDef.yield_of(OreDef.Richness.POOR) < OreDef.yield_of(OreDef.Richness.MEDIUM)
+		and OreDef.yield_of(OreDef.Richness.MEDIUM) < OreDef.yield_of(OreDef.Richness.RICH)
+		and OreDef.yield_of(OreDef.Richness.RICH) < OreDef.yield_of(OreDef.Richness.ULTRA)
+		and is_equal_approx(OreDef.yield_of(OreDef.Richness.MEDIUM), 1.0), "бедная < средняя (×1) < богатая < ультра")
+
+	# Одна залежь: середина богаче края, крупная жила богаче мелкой, бонус планеты поднимает всё.
+	var big := _richness_blob(11.0, 0.0)
+	var small := _richness_blob(6.0, 0.0)
+	var bonus := _richness_blob(11.0, 0.15)
+	_check(big.x > big.y + 0.5, "середина жилы богаче края (×%.2f против ×%.2f)" % [big.x, big.y])
+	_check(big.z > small.z, "крупная жила в среднем богаче мелкой (×%.2f против ×%.2f)" % [big.z, small.z])
+	_check(bonus.z > big.z, "на рудном мире клетки богаче (×%.2f против ×%.2f)" % [bonus.z, big.z])
+
+	# Сгенерированная обычная планета: встречаются все четыре уровня, средних и бедных больше, чем ультра.
+	var star_map := StarMap.new(777, Registry.run_def, Registry.planet_types)
+	var map := PlanetGenerator.generate(star_map.get_current(), Registry.run_def.pad_start_size)
+	var water := Registry.get_ore(&"water").index + 1
+	var levels := PackedInt32Array([0, 0, 0, 0])
+	for i in map.ores.size():
+		if map.ores[i] != 0 and map.ores[i] != water:
+			levels[map.richness[i]] += 1
+	_check(levels[0] > 0 and levels[1] > 0 and levels[2] > 0 and levels[3] > 0,
+		"на планете все уровни богатства (средн. %d, бедн. %d, богат. %d, ультра %d)" % [levels[0], levels[1], levels[2], levels[3]])
+	_check(levels[3] < levels[0] and levels[3] < levels[1], "ультра-клеток меньше, чем средних и бедных")
+	print("Богатство руды обычной планеты: средн. %d, бедн. %d, богат. %d, ультра %d; жила r11: середина ×%.2f, край ×%.2f, вся ×%.2f; r6 ×%.2f; рудный мир ×%.2f"
+		% [levels[0], levels[1], levels[2], levels[3], big.x, big.y, big.z, small.z, bonus.z])
+
+	# Бур: одинаковая руда, разное богатство — разная скорость.
+	var poor_drill := _richness_drill(OreDef.Richness.POOR)
+	var medium_drill := _richness_drill(OreDef.Richness.MEDIUM)
+	var ultra_drill := _richness_drill(OreDef.Richness.ULTRA)
+	_check(is_equal_approx(medium_drill.ore_yield, float(medium_drill.ore_tiles))
+		and is_equal_approx(poor_drill.ore_yield, 0.5 * poor_drill.ore_tiles)
+		and is_equal_approx(ultra_drill.ore_yield, 2.5 * ultra_drill.ore_tiles), "выход бура — сумма множителей клеток")
+	_check(ultra_drill.get_items_per_second() > medium_drill.get_items_per_second() * 2.0
+		and poor_drill.get_items_per_second() < medium_drill.get_items_per_second() * 0.6,
+		"бур на ультра-клетках быстрее, на бедных медленнее (%.2f / %.2f / %.2f в с)"
+		% [poor_drill.get_items_per_second(), medium_drill.get_items_per_second(), ultra_drill.get_items_per_second()])
+	for d in [poor_drill, medium_drill, ultra_drill]:
+		d.world.dispose()
+
+	# Дрон: копает богатую клетку быстрее средней, бедную — медленнее.
+	var level_map := LevelMap.new(48, 32, Registry.get_floor(&"stone").index)
+	for x in range(5, 8):
+		level_map.set_ore(x, 5, value)
+	level_map.set_richness(5, 5, OreDef.Richness.POOR)
+	level_map.set_richness(7, 5, OreDef.Richness.RICH)
+	var run := Run.create(null, level_map, false)
+	var drone := run.drone
+	var poor_ticks := drone.get_mine_ticks(hematite, Vector2i(5, 5))
+	var medium_ticks := drone.get_mine_ticks(hematite, Vector2i(6, 5))
+	var rich_ticks := drone.get_mine_ticks(hematite, Vector2i(7, 5))
+	_check(rich_ticks < medium_ticks and medium_ticks < poor_ticks and medium_ticks == drone.get_mine_ticks(hematite),
+		"дрон: богатая %d, средняя %d, бедная %d тиков" % [rich_ticks, medium_ticks, poor_ticks])
+
+	# Сохранение: слой богатства переживает загрузку; в старом сохранении его нет — все клетки средние.
+	var saved := SaveIO.run_to_dict(run)
+	var loaded := SaveIO.run_from_dict(bytes_to_var(var_to_bytes(saved)))
+	_check(loaded.planet.grid.get_richness(5, 5) == OreDef.Richness.POOR and loaded.planet.grid.get_richness(7, 5) == OreDef.Richness.RICH,
+		"богатство клеток сохраняется")
+	var old := bytes_to_var(var_to_bytes(saved)) as Dictionary
+	(old["planet"] as Dictionary).erase("richness")
+	var old_run := SaveIO.run_from_dict(old)
+	var all_medium := true
+	for r in old_run.planet.grid.richness:
+		all_medium = all_medium and r == OreDef.Richness.MEDIUM
+	_check(all_medium, "старое сохранение без слоя богатства: все клетки средние")
+	run.dispose()
+	loaded.dispose()
+	old_run.dispose()
+
+
+## Средний множитель клеток одной залежи: Vector3(середина, край, вся залежь).
+func _richness_blob(radius: float, richness_bonus: float) -> Vector3:
+	var total := Vector3.ZERO
+	var counts := Vector3.ZERO
+	# Несколько залежей с разными сидами, чтобы случайный разброс клеток не решал исход.
+	for s in 8:
+		var map := LevelMap.new(64, 64, Registry.get_floor(&"stone").index)
+		var center := Vector2(32, 32)
+		PlanetGenerator._blob(map, center, radius, 1, 0.0, richness_bonus, 101 + s * 37)
+		for y in map.height:
+			for x in map.width:
+				if map.get_ore(x, y) == 0:
+					continue
+				var tile_yield := OreDef.yield_of(map.get_richness(x, y))
+				var dist := Vector2(x, y).distance_to(center)
+				if dist <= radius * 0.3:
+					total.x += tile_yield
+					counts.x += 1.0
+				elif dist >= radius * 0.85:
+					total.y += tile_yield
+					counts.y += 1.0
+				total.z += tile_yield
+				counts.z += 1.0
+	return Vector3(total.x / maxf(counts.x, 1.0), total.y / maxf(counts.y, 1.0), total.z / maxf(counts.z, 1.0))
+
+
+## Бур на гематите заданного богатства (со своим миром и питанием).
+func _richness_drill(richness: int) -> Drill:
+	var map := LevelMap.new(24, 16, Registry.get_floor(&"stone").index)
+	var drill_def := Registry.get_building(&"drill")
+	for y in range(6, 6 + drill_def.size):
+		for x in range(6, 6 + drill_def.size):
+			map.set_ore(x, y, Registry.get_ore(&"hematite").index + 1)
+			map.set_richness(x, y, richness)
+	var world := GameWorld.create(null, map, true)
+	return world.buildings.place(drill_def, Vector2i(6, 6), GameConst.Dir.RIGHT, true) as Drill
 
 
 ## Подземные трубы: пара через препятствие, разворот выхода, закрытые стороны, дальность.

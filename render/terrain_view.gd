@@ -141,7 +141,7 @@ func _set_tile(x: int, y: int, i: int) -> void:
 	_floor_layer.set_cell(coords, ArtRegistry.TERRAIN_SOURCE_ID, ArtRegistry.floor_atlas_coords(_grid.floors[i], x, y))
 	var ore := _grid.ores[i]
 	if ore != 0:
-		_ore_layer.set_cell(coords, ArtRegistry.TERRAIN_SOURCE_ID, ArtRegistry.ore_atlas_coords(ore, x, y))
+		_ore_layer.set_cell(coords, ArtRegistry.TERRAIN_SOURCE_ID, ArtRegistry.ore_atlas_coords(ore, x, y, _grid.richness[i]))
 	else:
 		_ore_layer.erase_cell(coords)
 

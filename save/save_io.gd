@@ -296,6 +296,7 @@ static func world_to_dict(world: GameWorld) -> Dictionary:
 	var result := {
 		"width": world.grid.width, "height": world.grid.height,
 		"floors": world.grid.floors.duplicate(), "ores": world.grid.ores.duplicate(),
+		"richness": world.grid.richness.duplicate(),
 		"is_base": world.is_base, "creative": world.creative, "pad": world.pad_rect, "play": world.play_rect,
 		"level": String(world.level.id) if world.level != null else "",
 		"rng_seed": world.rng.seed, "rng_state": world.rng.state,
@@ -344,6 +345,10 @@ static func world_from_dict(d: Dictionary, drone: Drone) -> GameWorld:
 	var map := LevelMap.new(w, h, 0)
 	map.floors = _remap_layer(d.get("floors", PackedByteArray()), _floor_map, w * h, 0)
 	map.ores = _remap_layer(d.get("ores", PackedByteArray()), _ore_map, w * h, 1)
+	# Богатства в старых сохранениях нет — все клетки средние (значение 0).
+	var saved_richness: PackedByteArray = d.get("richness", PackedByteArray())
+	if saved_richness.size() == w * h:
+		map.richness = saved_richness.duplicate()
 	var level := Registry.get_level(StringName(d.get("level", ""))) if String(d.get("level", "")) != "" else null
 	var world := GameWorld.create(level, map, bool(d.get("creative", false)), drone, false)
 	world.is_base = bool(d.get("is_base", false))

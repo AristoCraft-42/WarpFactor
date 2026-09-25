@@ -17,6 +17,8 @@ const TERRAIN_SOURCE_ID := 0
 const BUILDING_ATLAS_WIDTH := 512
 const BUILDING_ATLAS_PADDING := 2
 const ENEMY_CELL := 48
+## Строк атласа на руду: по одной на богатство клетки (OreDef.Richness).
+const RICHNESS_LEVELS := 4
 ## Сколько кадров состояния у здания (Building.ArtState).
 const BUILDING_STATES := 3
 
@@ -128,9 +130,11 @@ static func floor_atlas_coords(floor_index: int, x: int, y: int) -> Vector2i:
 	return Vector2i(PlaceholderArt.hash3(x, y, 17) % VARIANTS, _floor_row_offset + floor_index)
 
 
-## ore_value — значение слоя руды (индекс OreDef + 1).
-static func ore_atlas_coords(ore_value: int, x: int, y: int) -> Vector2i:
-	return Vector2i(PlaceholderArt.hash3(x, y, 23) % VARIANTS, _ore_row_offset + ore_value - 1)
+## ore_value — значение слоя руды (индекс OreDef + 1), richness — богатство клетки (OreDef.Richness):
+## у каждой руды по строке атласа на богатство.
+static func ore_atlas_coords(ore_value: int, x: int, y: int, richness: int = 0) -> Vector2i:
+	var level := clampi(richness, 0, RICHNESS_LEVELS - 1)
+	return Vector2i(PlaceholderArt.hash3(x, y, 23) % VARIANTS, _ore_row_offset + (ore_value - 1) * RICHNESS_LEVELS + level)
 
 
 ## Цвет руды для оверлея: тёмные руды (уголь) осветляются, чтобы читаться на затемнённом фоне.
@@ -206,7 +210,7 @@ static func _building_image(def: BuildingDef, state: int = 0) -> Image:
 
 
 static func _build_terrain() -> void:
-	var rows := Registry.floors.size() + Registry.ores.size()
+	var rows := Registry.floors.size() + Registry.ores.size() * RICHNESS_LEVELS
 	var atlas := Image.create_empty(CELL * VARIANTS, CELL * maxi(rows, 1), false, Image.FORMAT_RGBA8)
 	atlas.fill(Color(0, 0, 0, 0))
 
@@ -225,11 +229,12 @@ static func _build_terrain() -> void:
 	ore_colors.resize(Registry.ores.size())
 	for o in Registry.ores:
 		ore_colors[o.index] = o.get_color()
-		for v in VARIANTS:
-			var img := _variant_from_texture(o.texture, v)
-			if img == null:
-				img = PlaceholderArt.make_ore(o, v)
-			_blit_cell(atlas, img, v, _ore_row_offset + o.index)
+		for level in RICHNESS_LEVELS:
+			for v in VARIANTS:
+				var img := _variant_from_texture(o.texture, v)
+				if img == null:
+					img = PlaceholderArt.make_ore(o, v, level)
+				_blit_cell(atlas, img, v, _ore_row_offset + o.index * RICHNESS_LEVELS + level)
 
 	var source := TileSetAtlasSource.new()
 	source.texture = ImageTexture.create_from_image(atlas)

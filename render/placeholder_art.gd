@@ -211,23 +211,39 @@ static func make_floor(def: FloorDef, variant: int) -> Image:
 
 # --- Руда ---
 
-static func make_ore(def: OreDef, variant: int) -> Image:
+## Клетка руды: самородки цвета руды. richness (OreDef.Richness) меняет их число и яркость —
+## бедная клетка — пара тусклых камешков, ультра — плотная россыпь со светлыми бликами.
+static func make_ore(def: OreDef, variant: int, richness: int = 0) -> Image:
 	if def.fluid != null:
 		return _make_fluid_ore(def, variant)
 	var img := _blank(T, T)
 	var col := def.get_color()
+	var count := 4
+	var min_gap := 9.0
+	match richness:
+		OreDef.Richness.POOR:
+			col = col.darkened(0.3)
+			count = 2
+		OreDef.Richness.RICH:
+			col = col.lightened(0.12)
+			count = 6
+			min_gap = 7.5
+		OreDef.Richness.ULTRA:
+			col = col.lightened(0.25)
+			count = 8
+			min_gap = 6.5
 	var outline := col.darkened(0.55)
-	var highlight := col.lightened(0.35)
+	var highlight := col.lightened(0.35 if richness != OreDef.Richness.ULTRA else 0.6)
 	var seed_base := hash3(def.index, variant, 31)
 	var placed: Array[Vector2] = []
 	var attempts := 0
-	while placed.size() < 4 and attempts < 40:
+	while placed.size() < count and attempts < 60:
 		var h := hash3(attempts, variant, seed_base)
 		attempts += 1
 		var c := Vector2(6 + h % 20, 6 + (h >> 8) % 20)
 		var ok := true
 		for other in placed:
-			if other.distance_to(c) < 9.0:
+			if other.distance_to(c) < min_gap:
 				ok = false
 				break
 		if not ok:

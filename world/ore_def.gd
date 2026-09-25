@@ -15,8 +15,21 @@ extends Resource
 ## Готовая текстура 32x32 с прозрачностью. Пусто — плейсхолдер цвета предмета.
 @export var texture: Texture2D
 
+## Богатство клетки руды (отдельный слой карты). Порядок значений выбран так, чтобы ноль —
+## значение по умолчанию у старых сохранений и готовых уровней — был обычной, средней клеткой.
+enum Richness { MEDIUM, POOR, RICH, ULTRA }
+## Во сколько раз клетка даёт больше руды в секунду, чем средняя (по значению Richness).
+const RICHNESS_YIELD: PackedFloat32Array = [1.0, 0.5, 1.6, 2.5]
+## Названия богатства по значению Richness.
+const RICHNESS_KEYS: PackedStringArray = ["ORE_RICHNESS_MEDIUM", "ORE_RICHNESS_POOR", "ORE_RICHNESS_RICH", "ORE_RICHNESS_ULTRA"]
+
 ## Плотный индекс; в сетке хранится index + 1 (0 — руды нет).
 var index: int = -1
+
+
+## Множитель выхода клетки с богатством richness (неизвестное значение — как средняя).
+static func yield_of(richness: int) -> float:
+	return RICHNESS_YIELD[richness] if richness >= 0 and richness < RICHNESS_YIELD.size() else 1.0
 
 
 func get_name_key() -> String:
