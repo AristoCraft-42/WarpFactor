@@ -21,6 +21,37 @@ const EDGE := 2
 const ROCK_SAMPLE_STEP := 4
 
 
+## Характер одной планеты: значения типа, сдвинутые в пределах разброса по сиду узла.
+## Считается отдельным генератором случайных чисел, чтобы не сбивать остальную генерацию.
+class Character:
+	var region_frequency: float
+	var ridge_frequency: float
+	var rock_density: float
+	var ridge_breakup: float
+	var lakes_per_10k: float
+	var lake_min_radius: float
+	var lake_max_radius: float
+	var deposits_per_10k: float
+
+
+static func character_of(node: StarMap.StarNode) -> Character:
+	var type := node.type
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([node.planet_seed, "character"])
+	var spread := type.character_spread
+	var c := Character.new()
+	c.region_frequency = type.region_frequency * rng.randf_range(1.0 - spread, 1.0 + spread)
+	c.ridge_frequency = type.ridge_frequency * rng.randf_range(1.0 - spread, 1.0 + spread)
+	c.rock_density = clampf(type.rock_density * rng.randf_range(1.0 - spread, 1.0 + spread), 0.0, 0.6)
+	c.ridge_breakup = maxf(type.ridge_breakup + rng.randf_range(-spread, spread), 0.0)
+	c.lakes_per_10k = type.lakes_per_10k * rng.randf_range(1.0 - spread * 1.5, 1.0 + spread * 1.5)
+	var lake_scale := rng.randf_range(1.0 - spread, 1.0 + spread)
+	c.lake_min_radius = type.lake_min_radius * lake_scale
+	c.lake_max_radius = type.lake_max_radius * lake_scale
+	c.deposits_per_10k = type.deposits_per_10k * rng.randf_range(1.0 - spread * 0.7, 1.0 + spread * 0.7)
+	return c
+
+
 ## pad_size — сторона площадки (платформа), clear_size — под какую площадку расчистить землю от скал
 ## (наибольшую после расширений, чтобы расширение не упёрлось в скалы).
 static func generate(node: StarMap.StarNode, pad_size: int, clear_size: int = 0) -> LevelMap:
@@ -38,17 +69,18 @@ static func generate(node: StarMap.StarNode, pad_size: int, clear_size: int = 0)
 	# расчистке её углы оставались скалой — плитка туда не ложилась, и площадка выглядела кривой.
 	var clear_half := maxi(pad_size, clear_size) / 2 + LANDING_MARGIN
 	var clear_radius := float(clear_half)
+	var character := character_of(node)
 
-	_paint_regions(map, type, rng)
-	_paint_ridges(map, type, rng, center, clear_half)
-	_place_lakes(map, node, rng, center, clear_radius)
+	_paint_regions(map, type, character, rng)
+	_paint_ridges(map, character, rng, center, clear_half)
+	_place_lakes(map, node, character, rng, center, clear_radius)
 
 	if not type.safe and type.threat != null:
 		var spawn_rng := RandomNumberGenerator.new()
 		spawn_rng.seed = hash([node.planet_seed, "spawns"])
 		map.spawn_points = SpawnPoints.find(w, h, map.floors, center, type.threat.spawn_point_count, spawn_rng, base_floor)
 
-	_place_ores(map, node, rng, center, clear_radius)
+	_place_ores(map, node, character, rng, center, clear_radius)
 
 	# Площадка — металлическая платформа без руды.
 	var half := pad_size / 2
@@ -62,13 +94,13 @@ static func generate(node: StarMap.StarNode, pad_size: int, clear_size: int = 0)
 
 ## Области: крупный шум делит карту на зоны, мелкий размывает их границы. Основной пол типа
 ## занимает примерно base_floor_share карты, полы из patch_floors — свои зоны.
-static func _paint_regions(map: LevelMap, type: PlanetTypeDef, rng: RandomNumberGenerator) -> void:
+static func _paint_regions(map: LevelMap, type: PlanetTypeDef, character: Character, rng: RandomNumberGenerator) -> void:
 	var base_floor := _floor_index(type.base_floor, &"stone")
 	if type.patch_floors.is_empty():
 		return
 	var regions := FastNoiseLite.new()
 	regions.seed = rng.randi()
-	regions.frequency = type.region_frequency
+	regions.frequency = character.region_frequency
 	var speckle := FastNoiseLite.new()
 	speckle.seed = rng.randi()
 	speckle.frequency = 0.07
@@ -87,47 +119,85 @@ static func _paint_regions(map: LevelMap, type: PlanetTypeDef, rng: RandomNumber
 
 
 ## Скальные гряды: скала там, где шум близок к нулю, — получаются длинные хребты с проходами,
-## а не круглые пятна. Порог — квантиль по выборке значений, поэтому доля скал совпадает
-## с rock_density, как бы ни выглядел сам шум.
-static func _paint_ridges(map: LevelMap, type: PlanetTypeDef, rng: RandomNumberGenerator,
+## а не круглые пятна. Второй шум рвёт их: пробивает бреши (гряда распадается на цепочку
+## обломков), мелкий — делает край зубчатым. Насколько сильно — ridge_breakup.
+## Порог — квантиль по выборке всей этой смеси, поэтому доля скал всё равно совпадает с заданной.
+static func _paint_ridges(map: LevelMap, character: Character, rng: RandomNumberGenerator,
 		center: Vector2i, clear_half: int) -> void:
 	var rock := _floor_index(&"rock", &"rock")
 	var w := map.width
 	var h := map.height
 	var ridges := FastNoiseLite.new()
 	ridges.seed = rng.randi()
-	ridges.frequency = type.ridge_frequency
+	ridges.frequency = character.ridge_frequency
 	ridges.fractal_octaves = 2
-	var threshold := 0.0
-	if type.rock_density > 0.0:
+	var breaks := FastNoiseLite.new()
+	breaks.seed = rng.randi()
+	breaks.frequency = character.ridge_frequency * 3.5
+	var jitter_seed := rng.randi() & 0xffff
+	var breakup := character.ridge_breakup
+	var threshold := -INF
+	if character.rock_density > 0.0:
 		var samples := PackedFloat32Array()
 		for y in range(0, h, ROCK_SAMPLE_STEP):
 			for x in range(0, w, ROCK_SAMPLE_STEP):
-				samples.append(absf(ridges.get_noise_2d(x, y)))
+				samples.append(_ridge_value(ridges, breaks, jitter_seed, breakup, x, y))
 		samples.sort()
-		threshold = samples[clampi(roundi(samples.size() * type.rock_density), 0, samples.size() - 1)]
+		threshold = samples[clampi(roundi(samples.size() * character.rock_density), 0, samples.size() - 1)]
+	# Зубцы края могут опустить значение не больше чем на это: всё, что выше порога и с таким
+	# запасом, — точно не скала, и остальные шумы для него можно не считать. Таких тайлов
+	# подавляющее большинство, поэтому рваные гряды почти не стоят времени.
+	var slack := 0.08 * breakup
 	for y in h:
 		for x in w:
 			var at_edge := x < EDGE or y < EDGE or x >= w - EDGE or y >= h - EDGE
-			var near_landing := absi(x - center.x) <= clear_half and absi(y - center.y) <= clear_half
-			if at_edge or (not near_landing and threshold > 0.0 and absf(ridges.get_noise_2d(x, y)) <= threshold):
+			if at_edge:
 				map.set_floor(x, y, rock)
+				continue
+			if threshold == -INF or (absi(x - center.x) <= clear_half and absi(y - center.y) <= clear_half):
+				continue
+			var ridge := absf(ridges.get_noise_2d(x, y))
+			if ridge - slack > threshold:
+				continue
+			var value := ridge
+			if breakup > 0.0:
+				value += breakup * (0.5 * maxf(breaks.get_noise_2d(x, y), 0.0) + 0.08 * _tile_jitter(x, y, jitter_seed))
+			if value <= threshold:
+				map.set_floor(x, y, rock)
+
+
+## Зубцы края: случайное число от −1 до 1 на тайл (целочисленный хеш — дешевле шума,
+## а мелкая зубчатость и есть «шум с частотой в тайл»).
+static func _tile_jitter(x: int, y: int, seed_value: int) -> float:
+	var h := (x * 374761393 + y * 668265263 + seed_value * 2246822519) & 0x7fffffff
+	h = ((h ^ (h >> 13)) * 1274126177) & 0x7fffffff
+	return float(h & 1023) / 511.5 - 1.0
+
+
+## Насколько тайл «не скала»: у гребня около нуля, бреши и зубцы по краю его поднимают.
+## Та же формула, что и в основном проходе _paint_ridges, — по ней считается порог.
+static func _ridge_value(ridges: FastNoiseLite, breaks: FastNoiseLite, jitter_seed: int,
+		breakup: float, x: int, y: int) -> float:
+	var value := absf(ridges.get_noise_2d(x, y))
+	if breakup > 0.0:
+		value += breakup * (0.5 * maxf(breaks.get_noise_2d(x, y), 0.0) + 0.08 * _tile_jitter(x, y, jitter_seed))
+	return value
 
 
 ## Озёра: кляксы месторождения воды с полосой берега вокруг. Строить на воде нельзя (кроме насоса
 ## и бака), так что озеро — это ещё и естественная преграда. Появляются, только если вода выпала
 ## этому узлу среди руд.
-static func _place_lakes(map: LevelMap, node: StarMap.StarNode, rng: RandomNumberGenerator,
+static func _place_lakes(map: LevelMap, node: StarMap.StarNode, character: Character, rng: RandomNumberGenerator,
 		center: Vector2i, clear_radius: float) -> void:
 	var type := node.type
 	var water := -1
 	for ore_index in node.ores:
 		if Registry.ores[ore_index].fluid != null:
 			water = ore_index
-	if water < 0 or type.lakes_per_10k <= 0.0:
+	if water < 0 or character.lakes_per_10k <= 0.0:
 		return
 	var area := float(map.width * map.height)
-	var count := maxi(1, roundi(type.lakes_per_10k * area / 10000.0))
+	var count := maxi(1, roundi(character.lakes_per_10k * area / 10000.0))
 	var shore := _floor_index(type.shore_floor, type.base_floor)
 	var reach := Vector2(map.width, map.height).length() * 0.45
 	for i in count:
@@ -135,7 +205,7 @@ static func _place_lakes(map: LevelMap, node: StarMap.StarNode, rng: RandomNumbe
 		var min_dist := clear_radius + 16.0
 		var dist := rng.randf_range(min_dist, maxf(min_dist + 1.0, reach))
 		var at := Vector2(center) + Vector2.from_angle(angle) * dist
-		var radius := rng.randf_range(type.lake_min_radius, maxf(type.lake_min_radius, type.lake_max_radius))
+		var radius := rng.randf_range(character.lake_min_radius, maxf(character.lake_min_radius, character.lake_max_radius))
 		_lake(map, at, radius, water + 1, shore, rng.randf() * TAU)
 
 
@@ -160,11 +230,12 @@ static func _lake(map: LevelMap, center: Vector2, radius: float, ore_value: int,
 ## Руды полями: каждой руде выпадает своя сторона карты, вокруг неё ложатся несколько залежей
 ## разного размера. Первая залежь каждой руды — рядом с посадкой, иначе начинать забег нечем.
 ## К каждому полю прорубается проход, чтобы гряды не заперли руду внутри скал.
-static func _place_ores(map: LevelMap, node: StarMap.StarNode, rng: RandomNumberGenerator, center: Vector2i, clear_radius: float) -> void:
+static func _place_ores(map: LevelMap, node: StarMap.StarNode, character: Character, rng: RandomNumberGenerator,
+		center: Vector2i, clear_radius: float) -> void:
 	if node.ores.is_empty():
 		return
 	var area := float(map.width * map.height)
-	var per_ore := maxi(1, roundi(node.type.deposits_per_10k * area / 10000.0))
+	var per_ore := maxi(1, roundi(character.deposits_per_10k * area / 10000.0))
 	var max_reach := Vector2(map.width, map.height).length() * 0.45
 	var cluster := maxi(node.type.ore_cluster_size, 1)
 	var carve_floor := _floor_index(node.type.base_floor, &"stone")

@@ -1604,10 +1604,11 @@ func _test_planet_generator() -> void:
 			zones += 1
 	_check(zones == node.type.patch_floors.size() + 1, "на карте есть зона каждого пола типа (%d)" % zones)
 
-	# Скалы: гряды занимают примерно ту долю карты, что задана типу.
+	# Скалы: гряды занимают примерно ту долю карты, что задана характером этой планеты.
 	var rock_share := float(int(floor_counts.get(Registry.get_floor(&"rock").index, 0))) / tiles
-	_check(absf(rock_share - node.type.rock_density) < node.type.rock_density * 0.45,
-		"скал примерно столько, сколько задано типу (%.2f против %.2f)" % [rock_share, node.type.rock_density])
+	var planned_rock := PlanetGenerator.character_of(node).rock_density
+	_check(absf(rock_share - planned_rock) < planned_rock * 0.45,
+		"скал примерно столько, сколько задано планете (%.2f против %.2f)" % [rock_share, planned_rock])
 
 	# Озёра: вода лежит крупными пятнами и не подходит к площадке вплотную.
 	var water_index := Registry.get_ore(&"water").index + 1
@@ -1648,6 +1649,24 @@ func _test_planet_generator() -> void:
 	_check(rich != null and not rich.safe and rich.deposits_per_10k > Registry.get_planet_type(&"normal").deposits_per_10k
 		and rich.threat != null and rich.threat.first_wave_seconds < Registry.get_planet_type(&"normal").threat.first_wave_seconds,
 		"рудный мир: руды больше, а волны раньше")
+	# Характер планеты: у планет одного типа свои доля скал, озёра и густота руды,
+	# но в пределах разброса типа; у одной и той же планеты — всегда одинаковый.
+	var normal := Registry.get_planet_type(&"normal")
+	var characters: Array = []
+	for n in star_map.nodes:
+		if n.type == normal:
+			characters.append(PlanetGenerator.character_of(n))
+	var distinct := {}
+	var within := true
+	for c in characters:
+		distinct[snappedf(c.rock_density, 0.0001)] = true
+		within = within and c.rock_density >= normal.rock_density * (1.0 - normal.character_spread) - 0.0001 \
+			and c.rock_density <= normal.rock_density * (1.0 + normal.character_spread) + 0.0001
+	_check(characters.size() < 2 or distinct.size() > 1, "у планет одного типа разный характер (%d разных из %d)"
+		% [distinct.size(), characters.size()])
+	_check(within, "характер не выходит за разброс типа")
+	_check(is_equal_approx(PlanetGenerator.character_of(node).ridge_frequency, PlanetGenerator.character_of(node).ridge_frequency),
+		"характер планеты повторяется от сида")
 	for id in star_map.nodes.size():
 		var n := star_map.get_node(id)
 		if n.type.safe:
