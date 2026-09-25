@@ -23,6 +23,7 @@
 | `net/` | Сетевая игра: `net_transport.gd` (интерфейс доставки), `enet_transport.gd`, `net_protocol.gd` (пакеты), `net_session.gd` (lockstep), `lan_discovery.gd`; Steam — `steam_service.gd`, `steam_transport.gd`, `steam_lobbies.gd` |
 | `i18n/` | `strings.csv` — все тексты RU/EN (переводы пересобираются при импорте) |
 | `levels/` | Тестовые карты и их содержимое |
+| `audio/` | Звук: `audio_director.gd` (автозагрузка `Audio`: звуки мира из `GameWorld.sounds`, интерфейс, музыка по обстановке), `sound_log.gd`, синтез заглушек (`synth.gd`, `placeholder_sounds.gd`, `placeholder_music.gd`). Свои файлы — `audio/sfx/`, `audio/music/`, формат в `audio/README.md` |
 | `art/buildings/` | Нарисованные спрайты зданий: `<id>.png` — полоса из трёх кадров (работа, простой, выключено). Формат и экспорт из Aseprite — `art/buildings/README.md` |
 | `tools/data/` | Python-генераторы данных: `make_content.py` (постройки, предметы, рецепты, исследования), `make_csv.py` (`i18n/strings.csv`), `make_content_doc.py` (`docs/CONTENT.md`), `make_enemies.py`. Правки контента делаются в них, а не в `.tres` руками |
 | `tests/` | `test_runner.tscn` (логические тесты), `autoshot.gd` (автопрогон со скриншотами), `bench_*.tscn` |
@@ -47,10 +48,10 @@ python tools/data/check_strings.py
 # Настоящая игровая сцена в роли клиента: снимок, починка, сверка состояний
 & $g --headless --path D:\Mind res://tests/net_scene_check.tscn
 
-# Логические тесты (сейчас 1976 проверок)
+# Логические тесты (сейчас 2002 проверки)
 & $g --headless --path D:\Mind res://tests/test_runner.tscn
 
-# Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 233 проверки, ~8 мин)
+# Автопрогон со скриншотами (НЕ headless, нужно видимое неперекрытое окно; 237 проверок, ~8 мин)
 & $g --path D:\Mind res://core/game.tscn -- --autoshot --autoshot-dir=D:/shots
 & $g --path D:\Mind res://ui/menu/main_menu.tscn -- --autoshot --autoshot-dir=D:/shots
 
@@ -59,6 +60,9 @@ python tools/data/check_strings.py
 & $g --headless --path D:\Mind res://tests/bench_saves.tscn       # сохранения
 & $g --headless --path D:\Mind res://tests/bench_enemies.tscn     # бой
 & $g --headless --path D:\Mind res://tests/bench_turrets.tscn     # турели (тик и перерисовки)
+
+# Послушать звуки и музыку без игры (WAV в D:/shots/audio)
+& $g --headless --path D:\Mind --script res://tools/preview_audio.gd
 
 # Игра с готовой картой или сгенерированным забегом
 & $g --path D:\Mind res://core/game.tscn -- --level=rift
@@ -84,6 +88,7 @@ python tools/data/check_strings.py
 - **Тексты** добавляются в `i18n/strings.csv` (ключ, EN, RU), иначе в интерфейсе появится сырой ключ.
 - **Парсер GDScript:** метод не может называться как поле класса; типизированные массивы не складываются через `+`; целочисленное деление обрезает.
 - **Ссылки на сети** (`PowerNetwork`, сети жидкостей) пересоздаются при пересборке — перечитывать после тиков.
+- **Звук только читает мир.** Новые звуки мира — `world.sounds.push(SoundLog.Kind…)` в симуляции плюс строка в `AudioDirector.KIND_SOUNDS` и рецепт в `PlaceholderSounds`; из звука в симуляцию ничего не возвращается.
 - **Размер здания** берётся из `Building.get_size()`, а не из `def.size`: шлюз растёт по исследованиям.
 - `.godot/` и `/builds/` в `.gitignore`; коммиты — по одному на этап.
 

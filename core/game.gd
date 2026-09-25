@@ -169,6 +169,7 @@ func _on_teleport_starting() -> void:
 
 
 func _exit_tree() -> void:
+	Audio.detach(self)
 	if run != null:
 		run.dispose()
 		run = null
@@ -276,6 +277,8 @@ func _build_scene() -> void:
 	hud.name = "Hud"
 	add_child(hud)
 	hud.setup(self)
+	# Звуки мира и музыка по обстановке берутся из этой сцены.
+	Audio.attach(self)
 
 	pause_menu = PauseMenu.new()
 	pause_menu.name = "PauseMenu"

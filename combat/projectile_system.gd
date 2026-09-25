@@ -124,6 +124,7 @@ func update(tick: int) -> void:
 				else:
 					_apply_hit(enemies, i, hit, tick)
 					_push_blast(hx, hy, 0.0, tick, color[i])
+					_world.sounds.push(SoundLog.Kind.HIT, Vector2(hx, hy))
 				_remove(i)
 				continue
 			pos_x[i] = nx
@@ -172,6 +173,7 @@ func _explode(enemies: EnemySystem, i: int, tick: int) -> void:
 
 func _explode_at(enemies: EnemySystem, i: int, x: float, y: float, tick: int) -> void:
 	_push_blast(x, y, splash[i], tick, color[i])
+	_world.sounds.push(SoundLog.Kind.EXPLOSION, Vector2(x, y))
 	if enemies.count == 0:
 		return
 	_candidates.clear()
@@ -220,6 +222,8 @@ func _add(p_kind: Kind, from: Vector2, velocity: Vector2, p_damage: float, splas
 	burn_dps[i] = 0.0
 	burn_ticks[i] = 0
 	fired += 1
+	if _world != null:
+		_world.sounds.push(SoundLog.Kind.SHOT if p_kind == Kind.BULLET else SoundLog.Kind.SHELL, from)
 	return i
 
 

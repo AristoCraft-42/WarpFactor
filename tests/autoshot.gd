@@ -15,6 +15,8 @@ func _ready() -> void:
 		if arg.begins_with("--autoshot-dir="):
 			_dir = arg.substr("--autoshot-dir=".length())
 	DirAccess.make_dir_recursive_absolute(_dir)
+	# Звук работает как обычно (проверки считают сыгранное), но прогон идёт молча.
+	AudioServer.set_bus_mute(AudioServer.get_bus_index(&"Master"), true)
 	var parent := get_parent()
 	if parent is Game:
 		_run_game(parent as Game)
@@ -27,6 +29,7 @@ func _ready() -> void:
 func _run_menu(menu: MainMenu) -> void:
 	await _frames(40)
 	await _shot("m01_menu.png")
+	_expect(Audio.music_state == AudioDirector.MusicState.MENU, "в меню музыка меню")
 	menu.call("_show_new_run")
 	await _frames(10)
 	await _shot("m02_levels.png")
@@ -36,7 +39,7 @@ func _run_menu(menu: MainMenu) -> void:
 	menu.call("_show_saves")
 	await _frames(10)
 	await _shot("m04_saves.png")
-	get_tree().quit()
+	_report()
 
 
 # --- Игра ---
@@ -48,6 +51,14 @@ func _run_game(game: Game) -> void:
 	await _frames(30)
 	await _measure_frames("старт")
 	await _shot("g01_start.png")
+	# Звуки и музыка синтезируются в фоне при запуске: дожидаемся и смотрим, что музыка идёт.
+	var audio_wait := 0
+	while not Audio.is_ready and audio_wait < 900:
+		await get_tree().process_frame
+		audio_wait += 1
+	await _seconds(1.2)
+	_expect(Audio.is_ready, "звуки и музыка готовы (через %d кадров)" % audio_wait)
+	_expect(Audio.music_state == AudioDirector.MusicState.CALM, "в спокойной игре спокойная музыка (%d)" % Audio.music_state)
 
 	_hold_threat(game)
 	await _run_research(game)
@@ -66,6 +77,11 @@ func _run_game(game: Game) -> void:
 	await _run_logistics(game, base)
 	await _run_enemies(game, base)
 	await _run_defense(game)
+	var heard := PackedStringArray()
+	for id: StringName in [&"build", &"ui_click", &"shot", &"enemy_death", &"mine"]:
+		if Audio.played.get(id, 0) == 0:
+			heard.append(id)
+	_expect(heard.is_empty(), "звучат стройка, кнопки, выстрелы, гибель врагов, добыча (молчат: %s)" % ", ".join(heard))
 
 	await _drone_to(game, base)
 	game.ore_overlay.visible = true
@@ -120,7 +136,11 @@ func _run_game(game: Game) -> void:
 	await _shot("g08_settings_other_language.png")
 	Settings.set_value(&"game/language", original_language)
 	Settings.save_now()
+	_report()
 
+
+## Итоги прогона в журнал и выход.
+func _report() -> void:
 	var failed := 0
 	for line in _results:
 		if line.begins_with("FAIL"):
@@ -429,6 +449,7 @@ func _run_enemies(game: Game, base: Vector2i) -> void:
 	var gate_row: HBoxContainer = panel.get("_gate_row")
 	_expect(gate_row.visible, "повреждённый шлюз виден в панели угрозы")
 	await _shot("e01_enemies.png")
+	_expect(Audio.music_state == AudioDirector.MusicState.COMBAT, "враги на экране — боевая музыка (%d)" % Audio.music_state)
 	await _measure_frames("враги")
 
 	# Дрона сбивают: груз на месте гибели, отсчёт до появления, затем подбор.

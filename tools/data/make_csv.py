@@ -97,7 +97,8 @@ rows = [
 ("SET_VOLUME_MASTER","Master volume","Общая громкость"),
 ("SET_VOLUME_MUSIC","Music","Музыка"),
 ("SET_VOLUME_SFX","Effects","Эффекты"),
-("SET_AUDIO_NOTE","There are no sounds in the game yet; volume will apply once they appear.","Звуков в игре пока нет — громкость применится, когда они появятся."),
+("SET_VOLUME_AMBIENCE","Factory ambience","Фон цеха"),
+("SET_AUDIO_NOTE","Sounds and music are synthesized placeholders for now: the music follows the situation — calm, a wave approaching, combat.","Звуки и музыка пока синтезированные заглушки. Музыка следует за обстановкой: спокойно, приближается волна, бой."),
 # Управление
 ("CONTROLS_HINT","Click a slot and press a key or mouse button. Esc cancels. A key already used by another action is moved.","Нажмите на слот, затем клавишу или кнопку мыши. Esc — отмена. Клавиша, занятая другим действием, будет перенесена."),
 ("CONTROLS_CLEAR","Clear","Очистить"),

@@ -283,6 +283,7 @@ func _build_entries() -> void:
 	_add(SettingEntry.make_range(&"audio/master", TAB_AUDIO, 1.0, "SET_VOLUME_MASTER", 0.0, 1.0, 0.01, true))
 	_add(SettingEntry.make_range(&"audio/music", TAB_AUDIO, 0.8, "SET_VOLUME_MUSIC", 0.0, 1.0, 0.01, true))
 	_add(SettingEntry.make_range(&"audio/sfx", TAB_AUDIO, 0.8, "SET_VOLUME_SFX", 0.0, 1.0, 0.01, true))
+	_add(SettingEntry.make_range(&"audio/ambience", TAB_AUDIO, 0.6, "SET_VOLUME_AMBIENCE", 0.0, 1.0, 0.01, true))
 
 
 func _add(entry: SettingEntry) -> void:

@@ -114,6 +114,7 @@ func _ready() -> void:
 	_test_belt_drag_obstacles()
 	_test_drill_front_output()
 	_test_ore_richness()
+	_test_sound()
 	_test_underground_pipes()
 	_test_pole_drag_and_camera()
 	_test_building_windows()
@@ -5919,6 +5920,102 @@ func _test_ore_richness() -> void:
 	run.dispose()
 	loaded.dispose()
 	old_run.dispose()
+
+
+## Звук: журнал событий мира (что пишет симуляция), заглушки звуков и музыки, логика режиссёра.
+func _test_sound() -> void:
+	var sound_log := SoundLog.new()
+	for k in SoundLog.CAPACITY + 10:
+		sound_log.push(SoundLog.Kind.HIT, Vector2(k, 0))
+	_check(sound_log.written == SoundLog.CAPACITY + 10 and sound_log.oldest() == 10
+		and sound_log.xs[(SoundLog.CAPACITY + 9) % SoundLog.CAPACITY] == SoundLog.CAPACITY + 9,
+		"журнал звуков: кольцо, старые события вытесняются")
+
+	# Бой: выстрелы, попадания и гибель врагов попадают в журнал планеты.
+	var run := _defense_run()
+	var planet := run.planet
+	var gate := planet.gateway
+	var gun := planet.buildings.place(Registry.get_building(&"machine_gun"), gate.origin + Vector2i(-2, 1), 0, true) as Turret
+	for i in 10:
+		gun.handle_item(null, _item(&"cartridge_iron"))
+	planet.spawn_enemy(Registry.get_enemy(&"crawler"), gate.get_world_center() + Vector2(-14, 0) * GameConst.TILE_SIZE)
+	var before := planet.sounds.written
+	for i in 600:
+		run.step()
+		if planet.enemies.count == 0:
+			break
+	var kinds := _sound_kinds(planet.sounds, before)
+	_check(kinds.has(SoundLog.Kind.SHOT) and kinds.has(SoundLog.Kind.HIT) and kinds.has(SoundLog.Kind.ENEMY_DEATH),
+		"бой звучит: выстрелы, попадания, гибель врага (%s)" % [kinds.keys()])
+	var saved := SaveIO.run_to_dict(run)
+	_check(not var_to_str(saved).contains("sounds"), "журнал звуков не попадает в сохранение")
+	run.dispose()
+
+	# Стройка, поворот и снос, добыча дроном.
+	var map := LevelMap.new(32, 16, Registry.get_floor(&"stone").index)
+	map.set_ore(18, 8, Registry.get_ore(&"hematite").index + 1)
+	var world := GameWorld.create(null, map, true)
+	before = world.sounds.written
+	var belt := world.build(Registry.get_building(&"conveyor"), Vector2i(14, 8), 0)
+	world.rotate_building(belt, 1)
+	world.demolish(belt)
+	world.drone.set_mine_target(Vector2i(18, 8))
+	Worlds.run_ticks(world, world.drone.def.mine_ticks(Registry.get_ore(&"hematite")) + 2)
+	kinds = _sound_kinds(world.sounds, before)
+	_check(kinds.has(SoundLog.Kind.BUILD) and kinds.has(SoundLog.Kind.ROTATE) and kinds.has(SoundLog.Kind.DECONSTRUCT)
+		and kinds.has(SoundLog.Kind.MINE), "стройка, поворот, снос и добыча звучат (%s)" % [kinds.keys()])
+	world.dispose()
+	_check(AudioDirector.KIND_SOUNDS.size() == SoundLog.Kind.size(), "у каждого события мира есть свой звук")
+
+	# Заглушки: каждый звук не пустой, не громче предела, петли ровно по длине.
+	var started := Time.get_ticks_msec()
+	var bad := PackedStringArray()
+	for id in PlaceholderSounds.IDS:
+		var buf := PlaceholderSounds.make(id)
+		var peak := Synth.peak_of(buf)
+		if buf.size() < 100 or peak < 0.05 or peak > 0.91 or is_nan(peak):
+			bad.append("%s (%.2f)" % [id, peak])
+	_check(bad.is_empty(), "звуки-заглушки слышны и не перегружены (плохие: %s)" % ", ".join(bad))
+	for id in AudioDirector.KIND_SOUNDS:
+		if not PlaceholderSounds.IDS.has(id):
+			bad.append(id)
+	_check(bad.is_empty(), "у каждого звука мира есть заглушка")
+	var sounds_ms := Time.get_ticks_msec() - started
+	started = Time.get_ticks_msec()
+	var layers := PlaceholderMusic.make_layers()
+	var music_ms := Time.get_ticks_msec() - started
+	var layers_ok := layers.size() == PlaceholderMusic.LAYER_COUNT
+	for buf in layers:
+		layers_ok = layers_ok and buf.size() == PlaceholderMusic.length_samples() and Synth.peak_of(buf) > 0.1 \
+			and Synth.peak_of(buf) <= 0.851
+	_check(layers_ok, "музыка: четыре слоя одной длины (%.1f с), слышны и не перегружены"
+		% (float(PlaceholderMusic.length_samples()) / Synth.RATE))
+	# Петля без щелчка: конец слоя переходит в начало без скачка.
+	var seam_ok := true
+	for buf in layers:
+		seam_ok = seam_ok and absf(buf[buf.size() - 1] - buf[0]) < 0.2
+	_check(seam_ok, "слои музыки сшиваются в петлю без скачка")
+	var stream := Synth.to_stream(layers[0], true)
+	_check(stream.loop_mode == AudioStreamWAV.LOOP_FORWARD and stream.loop_end == layers[0].size()
+		and stream.data.size() == layers[0].size() * 2, "слой превращается в петлю AudioStreamWAV")
+	print("Синтез звука: %d звуков за %d мс, музыка (4 слоя) за %d мс" % [PlaceholderSounds.IDS.size(), sounds_ms, music_ms])
+
+	# Режиссёр: вверх по напряжению — сразу, вниз — только после выдержки.
+	var S := AudioDirector.MusicState
+	_check(AudioDirector.next_state(S.CALM, S.COMBAT, 0.0) == S.COMBAT
+		and AudioDirector.next_state(S.COMBAT, S.CALM, 2.0) == S.COMBAT
+		and AudioDirector.next_state(S.COMBAT, S.CALM, AudioDirector.CALM_DOWN_SECONDS) == S.CALM,
+		"музыка: в бой сразу, из боя — с выдержкой")
+	_check(AudioDirector._base_id("shot_2") == "shot" and AudioDirector._base_id("wave_start") == "wave_start",
+		"варианты звука: shot_2 → shot, wave_start остаётся собой")
+
+
+## Какие виды событий журнал записал начиная с номера from.
+func _sound_kinds(sound_log: SoundLog, from: int) -> Dictionary:
+	var kinds := {}
+	for n in range(maxi(from, sound_log.oldest()), sound_log.written):
+		kinds[int(sound_log.kinds[n % SoundLog.CAPACITY])] = true
+	return kinds
 
 
 ## Средний множитель клеток одной залежи: Vector3(середина, край, вся залежь).

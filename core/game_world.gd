@@ -95,6 +95,8 @@ var damaged: Dictionary[int, bool] = {}
 var destroyed_count: int = 0
 ## Шлюз планеты разрушен — нужна аварийная телепортация.
 var breached: bool = false
+## Звуковые события для режиссёра звука (не сохраняются, на симуляцию не влияют).
+var sounds := SoundLog.new()
 
 
 ## Создаёт мир из карты уровня: копирует слои, ставит предустановленные здания, создаёт дрона
@@ -379,6 +381,7 @@ func destroy_building(building: Building) -> void:
 	var rect := building.get_rect()
 	if buildings.remove(building, true):
 		destroyed_count += 1
+		sounds.push(SoundLog.Kind.DESTROYED, Vector2(rect.get_center()) * GameConst.TILE_SIZE)
 		building_destroyed.emit(def, rect)
 
 
@@ -409,6 +412,7 @@ func kill_drone(drone: Drone, tick: int) -> void:
 	drone.health = 0.0
 	drone.dead = true
 	drone.respawn_tick = tick + drone.def.get_respawn_ticks()
+	sounds.push(SoundLog.Kind.DRONE_DOWN, drone.position)
 	drone_destroyed.emit()
 
 
@@ -450,6 +454,7 @@ func respawn_drone(drone: Drone, tick: int) -> void:
 	if gateway != null and gateway.world == self:
 		drone.position = gateway.get_world_center()
 	drone.prev_position = drone.position
+	sounds.push(SoundLog.Kind.DRONE_RESPAWN, drone.position)
 	drone_respawned.emit()
 
 
@@ -477,6 +482,7 @@ func _pickup_for(drone: Drone) -> int:
 		if crate.is_empty():
 			crates.remove_at(i)
 	if moved > 0:
+		sounds.push(SoundLog.Kind.CRATE, drone.position)
 		crate_picked.emit(moved)
 	return moved
 
@@ -565,6 +571,8 @@ func build(def: BuildingDef, origin: Vector2i, rotation: int, config: Variant = 
 		power.auto_link(building)
 	if building != null and config != null:
 		configure(building, config)
+	if building != null:
+		sounds.push(SoundLog.Kind.BUILD, building.get_world_center())
 	return building
 
 
@@ -616,6 +624,7 @@ func demolish(building: Building) -> bool:
 	for i in contents.size():
 		if contents[i] > 0:
 			last_lost_items += contents[i] - acting_drone().inventory.add(i, contents[i])
+	sounds.push(SoundLog.Kind.DECONSTRUCT, building.get_world_center())
 	return true
 
 
@@ -726,7 +735,10 @@ func move_group(ids: PackedInt32Array, offset: Vector2i) -> int:
 func rotate_building(building: Building, delta: int = 1) -> bool:
 	if not can_interact(building):
 		return false
-	return buildings.rotate(building, building.rotation + delta)
+	if not buildings.rotate(building, building.rotation + delta):
+		return false
+	sounds.push(SoundLog.Kind.ROTATE, building.get_world_center())
+	return true
 
 
 ## Забрать предметы из здания в инвентарь дрона. Возвращает, сколько забрано.

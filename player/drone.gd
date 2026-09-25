@@ -343,3 +343,4 @@ func _mine() -> void:
 		last_mined_count = inventory.count(ore.item.index)
 		last_mined_tile = mine_tile
 		last_mined_tick = world.simulation.tick
+		world.sounds.push(SoundLog.Kind.MINE, (Vector2(mine_tile) + Vector2(0.5, 0.5)) * GameConst.TILE_SIZE)

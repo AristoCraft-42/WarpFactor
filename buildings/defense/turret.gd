@@ -215,6 +215,7 @@ func _tick_chain(tick: int) -> bool:
 		index = enemies.find_nearest(to.x, to.y, d.chain_jump * GameConst.TILE_SIZE)
 		if index >= 0 and hit.has(enemies.uid[index]):
 			index = -1
+	world.sounds.push(SoundLog.Kind.ZAP, center)
 	# Погибших убирает симуляция в конце тика, как после снарядов: find_nearest их уже не видит.
 	reload_until = tick + maxi(roundi(d.reload_seconds * GameConst.TICK_RATE / maxf(rate, 0.05)), 1)
 	return true
@@ -240,6 +241,7 @@ func _tick_repair(tick: int) -> bool:
 	if tick < reload_until:
 		return true
 	var amount := d.repair_amount * rate
+	world.sounds.push(SoundLog.Kind.REPAIR, center)
 	if target_building != null:
 		world.repair_building(target_building, amount)
 		world.projectiles.push_beam(center, target_building.get_world_center(), tick, Color(0.55, 0.9, 0.55))
@@ -292,6 +294,7 @@ func _tick_spray(tick: int) -> bool:
 	var color := fluid.color if fluid != null else Color(0.4, 0.7, 1.0)
 	world.projectiles.push_beam(center, at, tick, color)
 	world.projectiles.push_splash(at, d.spray_radius * GameConst.TILE_SIZE, tick, color)
+	world.sounds.push(SoundLog.Kind.SPRAY, center)
 	last_shot_tick = tick
 	reload_until = tick + maxi(roundi(d.reload_seconds * GameConst.TICK_RATE), 1)
 	return true

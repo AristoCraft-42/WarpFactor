@@ -460,6 +460,8 @@ func _push_death(i: int) -> void:
 	deaths[o + 3] = types[i]
 	death_cursor = (death_cursor + 1) % DEATH_CAPACITY
 	last_death_tick = int(deaths[o + 2])
+	if _world != null:
+		_world.sounds.push(SoundLog.Kind.ENEMY_DEATH, Vector2(pos_x[i], pos_y[i]))
 
 
 func remove_at(i: int) -> void:
@@ -951,6 +953,8 @@ func _push_event(x0: float, y0: float, x1: float, y1: float, tick: int, type: in
 	events[o + 4] = tick
 	events[o + 5] = EventKind.SHOT if _ranged[type] == 1 else EventKind.MELEE
 	event_cursor = (event_cursor + 1) % EVENT_CAPACITY
+	if _world != null:
+		_world.sounds.push(SoundLog.Kind.ENEMY_SHOT if _ranged[type] == 1 else SoundLog.Kind.ENEMY_MELEE, Vector2(x0, y0))
 
 
 ## Раздвигание толпы: враг отталкивается от пересекающихся соседей по своему и соседним тайлам.
