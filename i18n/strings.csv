@@ -537,6 +537,10 @@ RESEARCH_HINT,"Left click a research to select it, right click to put it in the 
 RESEARCH_QUEUED,In queue: %d,В очереди: %d
 RESEARCH_QUEUE_LIST,Queue: %s,Очередь: %s
 RESEARCH_QUEUE_EMPTY,Queue is empty,Очередь пуста
+RESEARCH_NOW,Researching now,Сейчас изучается
+RESEARCH_NOTHING,Nothing selected — left click an available card,Ничего не выбрано — ЛКМ по доступной карточке
+RESEARCH_QUEUE_TITLE,Queue (%d of %d),Очередь (%d из %d)
+RESEARCH_QUEUE_REMOVE,Remove from the queue,Убрать из очереди
 RESEARCH_QUEUE_FULL,The research queue is full (%d),Очередь исследований заполнена (%d)
 TOAST_RESEARCH_NEXT,Next research: %s,Следующее исследование: %s
 RESEARCH_DEPOSIT,Hand in kits (%d),Сдать наборы (%d)

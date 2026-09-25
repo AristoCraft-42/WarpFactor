@@ -1,20 +1,32 @@
 class_name ResearchTreeView
 extends Control
 ## Дерево исследований: карточки по столбцам глубины (столбец — длина самой длинной цепочки предшественников),
-## линии от предшественника к следующему. Цвет линии: завершено — зелёный, доступно — жёлтый, закрыто — серый.
-## Карточки создаёт окно исследований и отдаёт сюда вместе с их id.
+## связи от предшественника к следующему. Карточки создаёт окно исследований и отдаёт сюда вместе с их id.
+##
+## Связи — плавные кривые, а не ступеньки: у ступенек вертикальные отрезки от разных
+## предшественников ложились на одну линию посреди промежутка, и было не понять, что куда ведёт.
+## Толщина и яркость говорят о состоянии: следующие шаги (доступно) — ярче и толще,
+## изученное — спокойным зелёным, закрытое — тонко и бледно. При наведении на карточку
+## подсвечивается её цепочка: всё, что нужно до неё, и что она открывает; остальное гаснет.
 
 const CARD_SIZE := Vector2(272, 124)
-const COLUMN_GAP := 64.0
-const ROW_GAP := 14.0
+const COLUMN_GAP := 84.0
+const ROW_GAP := 18.0
+## Точек на кривой связи.
+const CURVE_POINTS := 18
 
 const LINE_DONE := Color(0.72, 0.73, 0.15)
 const LINE_AVAILABLE := Color(0.98, 0.74, 0.18)
 const LINE_LOCKED := Color(0.4, 0.37, 0.33)
+const LINE_FOCUS := Color(0.99, 0.93, 0.7)
 
 var state: ResearchState
+## Карточка под мышью (пусто — ничего не подсвечено).
+var hovered: StringName = &""
 
 var _cells: Dictionary[StringName, Vector2i] = {}
+## Цепочка карточки под мышью: её предшественники (все уровни) и те, что она открывает сразу.
+var _focus: Dictionary[StringName, bool] = {}
 
 
 ## Столбец и ряд каждого исследования. Ряд — не выше ряда первого предшественника, чтобы ветка шла прямо.
@@ -75,23 +87,79 @@ static func cell_position(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * (CARD_SIZE.x + COLUMN_GAP), cell.y * (CARD_SIZE.y + ROW_GAP))
 
 
+## Подсветить цепочку карточки id (пусто — снять подсветку).
+func set_hovered(id: StringName) -> void:
+	if id == hovered:
+		return
+	hovered = id
+	_focus.clear()
+	if id != &"":
+		_focus[id] = true
+		_collect_ancestors(id)
+		for r in Registry.researches:
+			if r.prerequisites.has(id):
+				_focus[r.id] = true
+	queue_redraw()
+
+
+## Входит ли исследование в подсвеченную цепочку (когда ничего не подсвечено — входят все).
+func in_focus(id: StringName) -> bool:
+	return hovered == &"" or _focus.has(id)
+
+
+func _collect_ancestors(id: StringName) -> void:
+	var research := Registry.get_research(id)
+	if research == null:
+		return
+	for p in research.prerequisites:
+		if not _focus.has(p):
+			_focus[p] = true
+			_collect_ancestors(p)
+
+
 func _draw() -> void:
-	for r in Registry.researches:
-		if not _cells.has(r.id):
-			continue
-		var to := cell_position(_cells[r.id]) + Vector2(0.0, CARD_SIZE.y * 0.5)
-		for p in r.prerequisites:
-			if not _cells.has(p):
+	# Сначала обычные связи, поверх — подсвеченные, чтобы их ничто не перекрывало.
+	for pass_focus in [false, true]:
+		for r in Registry.researches:
+			if not _cells.has(r.id):
 				continue
-			var from := cell_position(_cells[p]) + Vector2(CARD_SIZE.x, CARD_SIZE.y * 0.5)
-			var mid_x := from.x + COLUMN_GAP * 0.5
-			var col := LINE_LOCKED
-			if state != null:
-				if state.is_done(r.id):
-					col = LINE_DONE
-				elif state.is_available(r):
-					col = LINE_AVAILABLE
-			var points := PackedVector2Array([from, Vector2(mid_x, from.y), Vector2(mid_x, to.y), to])
-			draw_polyline(points, Color(0, 0, 0, 0.5), 5.0)
-			draw_polyline(points, col, 3.0)
-			draw_colored_polygon(PackedVector2Array([to, to + Vector2(-9, -6), to + Vector2(-9, 6)]), col)
+			var to := cell_position(_cells[r.id]) + Vector2(0.0, CARD_SIZE.y * 0.5)
+			for p in r.prerequisites:
+				if not _cells.has(p):
+					continue
+				var focused := hovered != &"" and _focus.has(r.id) and _focus.has(p)
+				if focused != pass_focus:
+					continue
+				var from := cell_position(_cells[p]) + Vector2(CARD_SIZE.x, CARD_SIZE.y * 0.5)
+				_draw_link(from, to, r, focused)
+
+
+## Одна связь: плавная кривая от правого края предшественника к левому краю следующего.
+func _draw_link(from: Vector2, to: Vector2, r: ResearchDef, focused: bool) -> void:
+	var col := LINE_LOCKED
+	var width := 1.5
+	if state != null:
+		if state.is_done(r.id):
+			col = LINE_DONE
+			width = 2.0
+		elif state.is_available(r):
+			col = LINE_AVAILABLE
+			width = 3.0
+	if focused:
+		col = LINE_FOCUS
+		width = 3.5
+	elif hovered != &"":
+		col = Color(col, 0.18)
+	elif col == LINE_LOCKED:
+		col = Color(col, 0.7)
+	var bend := maxf((to.x - from.x) * 0.5, 24.0)
+	var points := PackedVector2Array()
+	points.resize(CURVE_POINTS + 1)
+	for i in CURVE_POINTS + 1:
+		var t := float(i) / CURVE_POINTS
+		points[i] = from.bezier_interpolate(from + Vector2(bend, 0.0), to - Vector2(bend, 0.0), to, t)
+	if col.a > 0.5:
+		draw_polyline(points, Color(0, 0, 0, 0.45 * col.a), width + 2.0, true)
+	draw_polyline(points, col, width, true)
+	var tip := 6.0 + width
+	draw_colored_polygon(PackedVector2Array([to, to + Vector2(-tip, -tip * 0.6), to + Vector2(-tip, tip * 0.6)]), col)

@@ -1,24 +1,28 @@
 class_name ResearchWindow
 extends PanelContainer
-## Окно исследований (J или кнопка в HUD): дерево карточек с прогрессом, стоимостью и тем,
-## что они открывают; линии ведут от предшественника к следующему. ЛКМ по доступному исследованию
-## делает его текущим, ПКМ ставит в очередь (ResearchState.QUEUE_MAX штук; ПКМ по стоящему
-## в очереди убирает его). Колесо мыши над деревом приближает и отдаляет его. Кнопка «Сдать наборы»
+## Окно исследований (J или кнопка в HUD): на весь экран поверх игры, фон полупрозрачный — мир
+## видно сквозь него. Слева дерево карточек с прогрессом, стоимостью и тем, что они открывают;
+## справа — что изучается сейчас и очередь по порядку, у каждого пункта свой прогресс и крестик.
+##
+## ЛКМ по доступному исследованию делает его текущим, ПКМ ставит в очередь (ResearchState.QUEUE_MAX
+## штук; ПКМ по стоящему в очереди убирает его). Наведение на карточку подсвечивает её цепочку.
+## Колесо мыши над деревом приближает и отдаляет его, средняя кнопка тащит. Кнопка «Сдать наборы»
 ## кладёт научные наборы первого уровня из инвентаря дрона в ручную очередь — она обрабатывается
 ## медленно (ResearchState.MANUAL_SECONDS на набор); научный цех работает быстрее.
 
 const REFRESH := 0.25
-## Дерево больше этого прокручивается.
-const MAX_TREE_SIZE := Vector2(1330, 560)
+## Отступ окна от краёв экрана и ширина панели очереди.
+const MARGIN := 24
+const SIDE_WIDTH := 330.0
 ## Пределы и шаг приближения дерева колесом.
-const ZOOM_MIN := 0.5
+const ZOOM_MIN := 0.4
 const ZOOM_MAX := 1.6
 const ZOOM_STEP := 1.1
+## Насколько гаснут карточки вне подсвеченной цепочки.
+const DIM := 0.35
 
 var _game: Game
-var _list: VBoxContainer
 var _queue_label: Label
-var _queue_list: Label
 var _deposit_button: Button
 var _creative_row: HBoxContainer
 var _manual_bar: ProgressBar
@@ -33,34 +37,58 @@ var _tree_zoom: float = 1.0
 ## Дерево тащат средней кнопкой мыши.
 var _tree_panning: bool = false
 var _timer: float = 0.0
+## Панель справа: текущее исследование и очередь.
+var _now_name: Label
+var _now_status: Label
+var _now_bar: ProgressBar
+var _queue_title: Label
+var _queue_rows: VBoxContainer
+## Подпись очереди при прошлой сборке строк: строки пересобираются, только когда очередь сменилась.
+var _queue_signature: String = "-"
 
 
 func setup(game: Game) -> void:
 	_game = game
-	theme_type_variation = &"CardPanel"
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	visible = false
-	set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	grow_horizontal = Control.GROW_DIRECTION_BOTH
-	grow_vertical = Control.GROW_DIRECTION_BOTH
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	offset_left = MARGIN
+	offset_top = MARGIN
+	offset_right = -MARGIN
+	offset_bottom = -MARGIN
+	# Полупрозрачный фон: мир видно сквозь окно, но подсказки игры под ним уже не спорят с деревом.
+	var box := StyleBoxFlat.new()
+	box.bg_color = Color(UiTheme.BG_HARD, 0.93)
+	box.border_color = Color(UiTheme.BG2, 0.9)
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(6)
+	box.set_content_margin_all(16)
+	add_theme_stylebox_override("panel", box)
+
 	var column := UiUtil.vbox(10)
 	add_child(column)
 	var header := UiUtil.hbox(10)
 	column.add_child(header)
 	var title := UiUtil.label("RESEARCH_TITLE", &"HeaderLabel")
-	title.add_theme_font_size_override("font_size", 20)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	title.add_theme_font_size_override("font_size", 22)
 	header.add_child(title)
-	var close := UiUtil.button("✕", close_window)
-	close.focus_mode = Control.FOCUS_NONE
-	close.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	header.add_child(close)
 	var hint := Label.new()
 	hint.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	hint.theme_type_variation = &"DimLabel"
 	hint.text = tr("RESEARCH_HINT") % ResearchState.QUEUE_MAX
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	column.add_child(hint)
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	header.add_child(hint)
+	var close := UiUtil.button("✕", close_window)
+	close.focus_mode = Control.FOCUS_NONE
+	close.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	header.add_child(close)
+
+	var body := UiUtil.hbox(16)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	column.add_child(body)
+
 	_tree = ResearchTreeView.new()
 	var cards: Dictionary[StringName, Control] = {}
 	for research in Registry.researches:
@@ -73,16 +101,63 @@ func setup(game: Game) -> void:
 	_tree_wrap.add_child(_tree)
 	var scroll := ScrollContainer.new()
 	_scroll = scroll
-	scroll.custom_minimum_size = Vector2(minf(_tree_size.x, MAX_TREE_SIZE.x) + 12.0,
-		minf(_tree_size.y, MAX_TREE_SIZE.y) + 12.0)
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(_tree_wrap)
 	scroll.gui_input.connect(_on_tree_scroll.bind(scroll))
-	column.add_child(scroll)
-	hint.custom_minimum_size = Vector2(scroll.custom_minimum_size.x, 0)
-	var footer := UiUtil.hbox(10)
-	column.add_child(footer)
+	body.add_child(scroll)
+
+	body.add_child(_build_side())
+
+
+## Правая панель: что изучается, очередь по порядку и сдача наборов вручную.
+func _build_side() -> Control:
+	var side := UiUtil.vbox(8)
+	side.custom_minimum_size = Vector2(SIDE_WIDTH, 0)
+	side.add_child(UiUtil.label("RESEARCH_NOW", &"DimLabel"))
+	_now_name = Label.new()
+	_now_name.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_now_name.add_theme_font_size_override("font_size", 18)
+	_now_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(_now_name)
+	_now_status = Label.new()
+	_now_status.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_now_status.theme_type_variation = &"DimLabel"
+	_now_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(_now_status)
+	_now_bar = ProgressBar.new()
+	_now_bar.custom_minimum_size = Vector2(0, 10)
+	_now_bar.show_percentage = false
+	side.add_child(_now_bar)
+
+	side.add_child(HSeparator.new())
+	_queue_title = Label.new()
+	_queue_title.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_queue_title.theme_type_variation = &"DimLabel"
+	side.add_child(_queue_title)
+	_queue_rows = UiUtil.vbox(6)
+	side.add_child(_queue_rows)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	side.add_child(spacer)
+	side.add_child(HSeparator.new())
+	_deposit_button = UiUtil.button("RESEARCH_DEPOSIT", _deposit, &"AccentButton")
+	_deposit_button.focus_mode = Control.FOCUS_NONE
+	_deposit_button.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	side.add_child(_deposit_button)
+	_queue_label = Label.new()
+	_queue_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+	_queue_label.theme_type_variation = &"DimLabel"
+	_queue_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(_queue_label)
+	_manual_bar = ProgressBar.new()
+	_manual_bar.custom_minimum_size = Vector2(0, 8)
+	_manual_bar.show_percentage = false
+	_manual_bar.max_value = 1.0
+	side.add_child(_manual_bar)
 	_creative_row = UiUtil.hbox(6)
-	column.add_child(_creative_row)
+	side.add_child(_creative_row)
 	var reset := UiUtil.button("RESEARCH_RESET", func() -> void:
 		_game.run.submit(Command.Kind.RESEARCH_RESET)
 		refresh())
@@ -93,26 +168,7 @@ func setup(game: Game) -> void:
 		refresh())
 	unlock.focus_mode = Control.FOCUS_NONE
 	_creative_row.add_child(unlock)
-	_deposit_button = UiUtil.button("RESEARCH_DEPOSIT", _deposit, &"AccentButton")
-	_deposit_button.focus_mode = Control.FOCUS_NONE
-	_deposit_button.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	footer.add_child(_deposit_button)
-	var queue_column := UiUtil.vbox(4)
-	queue_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	footer.add_child(queue_column)
-	_queue_list = Label.new()
-	_queue_list.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	_queue_list.clip_text = true
-	queue_column.add_child(_queue_list)
-	_queue_label = Label.new()
-	_queue_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	_queue_label.theme_type_variation = &"DimLabel"
-	queue_column.add_child(_queue_label)
-	_manual_bar = ProgressBar.new()
-	_manual_bar.custom_minimum_size = Vector2(200, 8)
-	_manual_bar.show_percentage = false
-	_manual_bar.max_value = 1.0
-	queue_column.add_child(_manual_bar)
+	return side
 
 
 ## Колесо над деревом меняет масштаб, а не прокручивает список.
@@ -188,6 +244,7 @@ func toggle() -> void:
 
 func close_window() -> void:
 	visible = false
+	_tree.set_hovered(&"")
 
 
 func _process(delta: float) -> void:
@@ -223,6 +280,14 @@ func _make_card(research: ResearchDef) -> Control:
 		if state.is_available(research):
 			_game.run.submit(Command.Kind.RESEARCH_SELECT, {"research": String(research.id) if state.active != research.id else ""})
 		refresh())
+	# Наведение подсвечивает цепочку: что нужно до этой карточки и что она открывает.
+	button.mouse_entered.connect(func() -> void:
+		_tree.set_hovered(research.id)
+		_apply_focus())
+	button.mouse_exited.connect(func() -> void:
+		if _tree.hovered == research.id:
+			_tree.set_hovered(&"")
+			_apply_focus())
 	var column := UiUtil.vbox(4)
 	column.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -263,7 +328,7 @@ func _make_card(research: ResearchDef) -> Control:
 	if not names.is_empty():
 		tips.append(tr("RESEARCH_UNLOCKS") % ", ".join(names))
 	button.tooltip_text = "\n".join(tips)
-	_cards[research.id] = {"button": button, "status": status, "bar": bar}
+	_cards[research.id] = {"button": button, "status": status, "bar": bar, "tint": Color.WHITE}
 	return button
 
 
@@ -287,48 +352,127 @@ func refresh() -> void:
 		var progress := state.get_progress(research)
 		bar.value = progress
 		button.set_pressed_no_signal(state.active == research.id)
+		var tint := Color.WHITE
 		if state.is_done(research.id):
 			status.text = tr("RESEARCH_DONE")
-			button.modulate = Color(0.75, 1.0, 0.75)
+			tint = Color(0.75, 1.0, 0.75)
 		elif not state.is_available(research):
 			var missing := PackedStringArray()
 			for id in research.prerequisites:
 				if not state.is_done(id):
 					missing.append(tr(Registry.get_research(id).name_key))
 			status.text = tr("RESEARCH_REQUIRES") % ", ".join(missing)
-			button.modulate = Color(1, 1, 1, 0.5)
+			tint = Color(1, 1, 1, 0.5)
 		else:
-			# У мидгейма стоимость в двух видах наборов — показываем каждый отдельно.
-			var parts := PackedStringArray()
-			var costs := research.costs()
-			for k in costs.size():
-				parts.append(tr("RESEARCH_COST") % [state.get_progress_of(research, k), costs[k].amount,
-					tr(costs[k].item.name_key)])
-			status.text = "  ·  ".join(parts)
+			status.text = _cost_text(state, research)
 			if state.active == research.id:
 				status.text = tr("RESEARCH_ACTIVE") + " · " + status.text
-			button.modulate = Color.WHITE
 		var place := state.queue_position(research.id)
 		if place > 0:
 			status.text = tr("RESEARCH_QUEUED") % place + " · " + status.text
-			button.modulate = Color(0.85, 0.95, 1.0)
+			tint = Color(0.85, 0.95, 1.0)
+		card["tint"] = tint
+	_apply_focus()
+	_refresh_side(state)
+	_tree.state = state
+	_tree.queue_redraw()
+
+
+## Стоимость по видам наборов: у мидгейма их два, показываем каждый отдельно.
+func _cost_text(state: ResearchState, research: ResearchDef) -> String:
+	var parts := PackedStringArray()
+	var costs := research.costs()
+	for k in costs.size():
+		parts.append(tr("RESEARCH_COST") % [state.get_progress_of(research, k), costs[k].amount,
+			tr(costs[k].item.name_key)])
+	return "  ·  ".join(parts)
+
+
+## Цвет карточки по состоянию и гашение всего, что вне подсвеченной цепочки.
+func _apply_focus() -> void:
+	for id in _cards:
+		var card: Dictionary = _cards[id]
+		var tint: Color = card["tint"]
+		if not _tree.in_focus(id):
+			tint = Color(tint, tint.a * DIM)
+		(card["button"] as Button).modulate = tint
+
+
+## Правая панель: текущее исследование, очередь по порядку, ручная сдача.
+func _refresh_side(state: ResearchState) -> void:
 	var active := state.get_active()
+	if active != null:
+		_now_name.text = tr(active.name_key)
+		_now_status.text = _cost_text(state, active)
+		_now_bar.max_value = active.total_cost()
+		_now_bar.value = state.get_progress(active)
+		_now_bar.visible = true
+	else:
+		_now_name.text = tr("RESEARCH_NOTHING")
+		_now_status.text = ""
+		_now_bar.visible = false
+	_queue_title.text = tr("RESEARCH_QUEUE_TITLE") % [state.queue.size(), ResearchState.QUEUE_MAX]
+	var signature := ",".join(state.queue)
+	if signature != _queue_signature:
+		_queue_signature = signature
+		_rebuild_queue_rows(state)
+	# Прогресс в строках очереди обновляется без пересборки.
+	for k in _queue_rows.get_child_count():
+		var row := _queue_rows.get_child(k)
+		if k < state.queue.size() and row.has_meta("bar"):
+			var research := Registry.get_research(state.queue[k])
+			(row.get_meta("bar") as ProgressBar).value = state.get_progress(research) if research != null else 0
 	var kits := _game.run.drone.inventory.count(active.cost_item.index) if active != null and active.cost_item != null else 0
 	# Руками сдают только наборы первого уровня.
 	var room := state.get_needed_of(active, 0) - state.manual_queue if active != null else 0
 	_deposit_button.disabled = active == null or kits == 0 or room <= 0 or active.cost_item.science_tier != 1
 	_deposit_button.text = tr("RESEARCH_DEPOSIT") % kits
 	_queue_label.text = tr("RESEARCH_QUEUE") % [state.manual_queue, ResearchState.MANUAL_SECONDS]
-	if state.queue.is_empty():
-		_queue_list.text = tr("RESEARCH_QUEUE_EMPTY")
-	else:
-		var names := PackedStringArray()
-		for id in state.queue:
-			names.append(tr(Registry.get_research(id).name_key))
-		_queue_list.text = tr("RESEARCH_QUEUE_LIST") % " → ".join(names)
-	_tree.state = state
-	_tree.queue_redraw()
 	_manual_bar.value = state.get_manual_fraction() if state.manual_queue > 0 else 0.0
+
+
+func _rebuild_queue_rows(state: ResearchState) -> void:
+	for child in _queue_rows.get_children():
+		_queue_rows.remove_child(child)
+		child.queue_free()
+	if state.queue.is_empty():
+		var empty := UiUtil.label("RESEARCH_QUEUE_EMPTY", &"DimLabel")
+		_queue_rows.add_child(empty)
+		return
+	for k in state.queue.size():
+		var research := Registry.get_research(state.queue[k])
+		if research == null:
+			continue
+		var row := UiUtil.vbox(2)
+		var line := UiUtil.hbox(6)
+		row.add_child(line)
+		var title_label := Label.new()
+		title_label.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		title_label.text = "%d. %s" % [k + 1, tr(research.name_key)]
+		title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		title_label.clip_text = true
+		line.add_child(title_label)
+		var remove := UiUtil.button("✕", _toggle_queue.bind(research))
+		remove.focus_mode = Control.FOCUS_NONE
+		remove.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
+		remove.tooltip_text = tr("RESEARCH_QUEUE_REMOVE")
+		line.add_child(remove)
+		var bar := ProgressBar.new()
+		bar.custom_minimum_size = Vector2(0, 6)
+		bar.show_percentage = false
+		bar.max_value = research.total_cost()
+		bar.value = state.get_progress(research)
+		row.add_child(bar)
+		row.set_meta("bar", bar)
+		# Строка очереди подсвечивает карточку в дереве, как и наведение на саму карточку.
+		row.mouse_entered.connect(func() -> void:
+			_tree.set_hovered(research.id)
+			_apply_focus())
+		row.mouse_exited.connect(func() -> void:
+			if _tree.hovered == research.id:
+				_tree.set_hovered(&"")
+				_apply_focus())
+		_queue_rows.add_child(row)
 
 
 ## ПКМ по карточке: поставить в очередь или убрать из неё.

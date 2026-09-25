@@ -176,6 +176,18 @@ func _run_research(game: Game) -> void:
 	await _mouse_button_screen(mining_center, MOUSE_BUTTON_RIGHT, false)
 	await _frames(5)
 	_expect(state.queue == [&"mining"], "ПКМ по карточке ставит «Электробур» в очередь")
+	# Окно на весь экран, справа — очередь по строкам; наведение подсвечивает цепочку карточки.
+	window.refresh()
+	var screen := get_viewport().get_visible_rect().size
+	_expect(window.size.x > screen.x * 0.9 and window.size.y > screen.y * 0.85, "окно исследований на весь экран")
+	var queue_rows: VBoxContainer = window.get("_queue_rows")
+	_expect(queue_rows.get_child_count() == 1, "в панели очереди строка на каждое исследование (%d)" % queue_rows.get_child_count())
+	await _mouse_move_screen(mining_center)
+	await _frames(3)
+	var tree: ResearchTreeView = window.get("_tree")
+	_expect(tree.hovered == &"mining" and tree.in_focus(&"electricity") and not tree.in_focus(&"defense"),
+		"наведение подсвечивает цепочку карточки, остальное гаснет")
+	await _shot("r00b_research_focus.png")
 	var defense_center: Vector2 = ((cards[&"defense"] as Dictionary)["button"] as Button).get_global_rect().get_center()
 	await _mouse_button_screen(defense_center, MOUSE_BUTTON_RIGHT, true)
 	await _mouse_button_screen(defense_center, MOUSE_BUTTON_RIGHT, false)
