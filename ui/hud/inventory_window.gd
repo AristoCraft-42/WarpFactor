@@ -53,6 +53,10 @@ var _timer: float = 0.0
 ## Кнопки облика дрона: цвета и значки.
 var _color_buttons: Array[Button] = []
 var _icon_buttons: Array[Button] = []
+## Группы делают выбор исключающим: нажатие само снимает отметку с прошлого варианта,
+## не дожидаясь, пока команда дойдёт до симуляции.
+var _color_group := ButtonGroup.new()
+var _icon_group := ButtonGroup.new()
 ## Кнопки облика дрона: цвета и значки.
 
 
@@ -295,7 +299,7 @@ func _build_style_row(parent: Control) -> void:
 	var colors := UiUtil.hbox(4)
 	parent.add_child(colors)
 	for k in Player.COLORS.size():
-		var b := _style_button()
+		var b := _style_button(_color_group)
 		b.self_modulate = Player.COLORS[k]
 		b.text = "■"
 		b.pressed.connect(_choose_style.bind(k, -1))
@@ -304,18 +308,19 @@ func _build_style_row(parent: Control) -> void:
 	var icons := UiUtil.hbox(4)
 	parent.add_child(icons)
 	for k in Player.ICONS:
-		var b := _style_button()
+		var b := _style_button(_icon_group)
 		b.text = ["●", "▲", "■", "◆", "✚", "★"][k]
 		b.pressed.connect(_choose_style.bind(-1, k))
 		icons.add_child(b)
 		_icon_buttons.append(b)
 
 
-func _style_button() -> Button:
+func _style_button(group: ButtonGroup) -> Button:
 	var b := Button.new()
 	b.theme_type_variation = &"SlotButton"
 	b.focus_mode = Control.FOCUS_NONE
 	b.toggle_mode = true
+	b.button_group = group
 	b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 	b.custom_minimum_size = Vector2(28, 28)
 	return b
@@ -392,10 +397,9 @@ func _refresh_recipes() -> void:
 		var unlocked := queue.is_available(recipe)
 		var craftable := (CRAFT_LIMIT if _world.creative else queue.max_craftable(recipe, CRAFT_LIMIT)) if unlocked else 0
 		slot.set_stack(item, craftable, true)
-		if not unlocked:
-			slot.modulate = Color(0.55, 0.45, 0.45, 0.6)
-		else:
-			slot.modulate = Color.WHITE if craftable > 0 else Color(1, 1, 1, 0.45)
+		# Незакрытые рецепты не показываются: список коротким остаётся до самого мидгейма.
+		slot.visible = unlocked
+		slot.modulate = Color.WHITE if craftable > 0 else Color(1, 1, 1, 0.45)
 		slot.tooltip_text = _recipe_tooltip(recipe, craftable)
 
 

@@ -80,6 +80,9 @@ func _draw() -> void:
 
 
 ## Маленькие стрелки к врагам за пределами экрана: по одной на сектор, с числом врагов.
+## Направление считается от середины экрана (а не от дрона — камера может смотреть в сторону)
+## и усредняется по врагам сектора, иначе стрелка показывала в сторону границы сектора,
+## где никого нет, и выглядела «криво».
 func _draw_enemy_arrows(planet: GameWorld) -> void:
 	var enemies := planet.enemies
 	if enemies == null or enemies.count == 0:
@@ -91,7 +94,7 @@ func _draw_enemy_arrows(planet: GameWorld) -> void:
 	# Окно меньше полей (headless, свёрнутое окно) — рисовать не по чему.
 	if inner.size.x <= 0.0 or inner.size.y <= 0.0:
 		return
-	var origin := planet.drone.position if planet.drone != null else camera.position
+	var origin := camera.position
 	var max_distance := ENEMY_RANGE_TILES * GameConst.TILE_SIZE
 	var counts := PackedInt32Array()
 	counts.resize(SECTORS)
@@ -99,6 +102,12 @@ func _draw_enemy_arrows(planet: GameWorld) -> void:
 	var nearest := PackedFloat32Array()
 	nearest.resize(SECTORS)
 	nearest.fill(max_distance)
+	var sum_x := PackedFloat32Array()
+	var sum_y := PackedFloat32Array()
+	sum_x.resize(SECTORS)
+	sum_y.resize(SECTORS)
+	sum_x.fill(0.0)
+	sum_y.fill(0.0)
 	for i in enemies.count:
 		var world_pos := Vector2(enemies.pos_x[i], enemies.pos_y[i])
 		var screen := (world_pos - camera.position) * camera.zoom + center
@@ -111,11 +120,16 @@ func _draw_enemy_arrows(planet: GameWorld) -> void:
 		var sector := posmod(roundi(offset.angle() / TAU * SECTORS), SECTORS)
 		counts[sector] += 1
 		nearest[sector] = minf(nearest[sector], distance)
+		var dir := offset / distance
+		sum_x[sector] += dir.x
+		sum_y[sector] += dir.y
 	var font := ThemeDB.fallback_font
 	for sector in SECTORS:
 		if counts[sector] == 0:
 			continue
-		var dir := Vector2.RIGHT.rotated(TAU * sector / SECTORS)
+		var dir := Vector2(sum_x[sector], sum_y[sector]).normalized()
+		if dir == Vector2.ZERO:
+			dir = Vector2.RIGHT.rotated(TAU * sector / SECTORS)
 		var t := INF
 		if absf(dir.x) > 0.001:
 			t = minf(t, (inner.size.x * 0.5) / absf(dir.x))
@@ -123,13 +137,16 @@ func _draw_enemy_arrows(planet: GameWorld) -> void:
 			t = minf(t, (inner.size.y * 0.5) / absf(dir.y))
 		var tip := center + dir * t
 		var side := Vector2(-dir.y, dir.x)
-		# Чем ближе враги, тем ярче стрелка.
+		# Чем ближе враги, тем ярче и крупнее стрелка.
 		var closeness := clampf(1.0 - nearest[sector] / max_distance, 0.0, 1.0)
 		var alpha := 0.35 + 0.5 * closeness
-		draw_colored_polygon(PackedVector2Array([tip + dir * 7.0, tip - dir * 5.0 + side * 5.0, tip - dir * 5.0 - side * 5.0]),
+		var length := 7.0 + 4.0 * closeness
+		draw_colored_polygon(PackedVector2Array([tip + dir * length, tip - dir * 5.0 + side * 5.0, tip - dir * 5.0 - side * 5.0]),
 			Color(UiTheme.RED, alpha))
 		if counts[sector] > 1 and font != null:
 			var label := str(counts[sector])
-			var at := tip - dir * 16.0 - Vector2(font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x * 0.5, -4.0)
+			var width := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+			# Подпись уводится внутрь экрана вдоль той же стрелки, поэтому не налезает на рамку.
+			var at := tip - dir * 18.0 - Vector2(width * 0.5, -4.0)
 			draw_string_outline(font, at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, 3, Color(0, 0, 0, alpha))
-			draw_string(font, at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(UiTheme.RED, alpha + 0.2))
+			draw_string(font, at, label, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(UiTheme.RED, minf(alpha + 0.2, 1.0)))

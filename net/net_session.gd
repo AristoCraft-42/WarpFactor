@@ -604,20 +604,25 @@ func send_cursor(pos: Vector2, floor_level: int, selection: Rect2i = Rect2i(), p
 
 
 ## Отправить сообщение в чат. Пустые и слишком длинные приводятся в порядок здесь же.
-func send_chat(text: String) -> void:
+## sender нужен в одиночной игре: там забег сессии не отдают (команды идут мимо неё),
+## поэтому отправителя называет тот, кто пишет.
+func send_chat(text: String, sender: int = 0) -> void:
 	var clean := text.strip_edges().substr(0, NetProtocol.CHAT_LIMIT)
-	if clean.is_empty() or run == null:
+	if clean.is_empty():
+		return
+	var player_id := sender if sender > 0 else (run.local_player if run != null else 0)
+	if player_id <= 0:
 		return
 	if role == Role.OFFLINE or transport == null:
 		# В одиночной игре чат — просто эхо самому себе: пусть работает и так.
-		chat_received.emit(run.local_player, clean)
+		chat_received.emit(player_id, clean)
 		return
-	var body := {"i": run.local_player, "t": clean}
+	var body := {"i": player_id, "t": clean}
 	if role == Role.HOST:
 		transport.broadcast(NetProtocol.pack(NetProtocol.Kind.CHAT, body))
 	else:
 		transport.send(NetTransport.HOST_ID, NetProtocol.pack(NetProtocol.Kind.CHAT, body))
-	chat_received.emit(run.local_player, clean)
+	chat_received.emit(player_id, clean)
 
 
 ## Выделения и чертежи напарников на этом этаже: id игрока → {"sel": Rect2i, "plan": Rect2i}.

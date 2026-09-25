@@ -93,6 +93,23 @@ for folder in CODE_DIRS:
                     errors.append("%s: в английской строке %d подстановок, в русской %d"
                                   % (key, placeholders(rows[key][0]), need))
 
+# Ключи из данных (.tres): у каждого описания должны быть название и пояснение в strings.csv.
+# Именно так пропали «Запас хода IV/V» — в игре они показывались сырым id.
+KEY_IN_RES = re.compile(r'(?:name_key|description_key|title_key)\s*=\s*"([A-Z0-9_]+)"')
+for dirpath, _dirnames, filenames in os.walk(ROOT):
+    rel_dir = os.path.relpath(dirpath, ROOT).replace("\\", "/")
+    if rel_dir.startswith(".") or rel_dir.startswith("builds"):
+        continue
+    for name in sorted(filenames):
+        if not name.endswith(".tres"):
+            continue
+        path = os.path.join(dirpath, name)
+        text = open(path, encoding="utf-8").read()
+        for key in KEY_IN_RES.findall(text):
+            seen.add(key)
+            if key not in rows:
+                errors.append("%s/%s: нет строки %s в strings.csv" % (rel_dir, name, key))
+
 for line in sorted(set(errors)):
     print(line)
 print("Проверено ключей в коде: %d, строк в файле: %d, ошибок: %d" % (len(seen), len(rows), len(errors)))

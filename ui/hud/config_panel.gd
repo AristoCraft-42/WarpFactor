@@ -254,10 +254,12 @@ func _build_recipe_picker() -> void:
 		var main := recipe.get_main_output()
 		if main == null:
 			continue
+		# Незакрытый рецепт в выбор не попадает: увидеть его можно в окне исследований.
+		if _world.research != null and not _world.research.is_recipe_unlocked(recipe):
+			continue
 		var b := _make_button(recipe == current)
 		b.icon = ArtRegistry.get_item_icon(main.item)
 		b.expand_icon = true
-		var unlocked := _world.research == null or _world.research.is_recipe_unlocked(recipe)
 		var tip := PackedStringArray(["%s ×%d" % [tr(main.item.name_key), main.amount]])
 		var parts := PackedStringArray()
 		for c in recipe.consumes:
@@ -265,9 +267,6 @@ func _build_recipe_picker() -> void:
 				parts.append("%s ×%d" % [tr(s.item.name_key), s.amount])
 		tip.append(tr("CRAFT_INGREDIENTS") % ", ".join(parts))
 		tip.append(tr("CRAFT_TIME") % recipe.craft_time)
-		if not unlocked:
-			tip.append(tr("CRAFT_LOCKED") % tr(Registry.get_recipe_research(recipe).name_key))
-			b.disabled = true
 		b.tooltip_text = "\n".join(tip)
 		b.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
 		b.pressed.connect(_world.configure.bind(crafter, recipe.id))

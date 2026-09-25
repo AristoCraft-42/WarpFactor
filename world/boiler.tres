@@ -12,5 +12,5 @@ size_step = 0
 center_max = 40
 floor_id = &"dark_stone"
 void_floor_id = &"void"
-lake_ore_id = &"water"
-lake_size = 14
+water_ore_id = &"water"
+water_border = 1

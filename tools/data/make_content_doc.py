@@ -273,8 +273,12 @@ EFFECT_TEXT = {
     "drone_gun": "больше урона автопушки",
     "drone_repair": "дрон быстрее чинит",
 }
+# Последняя ступень ветки делает больше, чем просто ещё один шаг.
+EFFECT_OVERRIDE = {"warp_time_5": "последняя ступень: время на планете больше не ограничено"}
 for rid, _, cost, pre, blds, recs, _effects in sorted(RESEARCH, key=lambda r: r[1]):
     opens = [building_name(b) for b in blds] + [item_name(r) for r in recs] + [EFFECT_TEXT[e] for e in _effects]
+    if rid in EFFECT_OVERRIDE:
+        opens = [EFFECT_OVERRIDE[rid]]
     price = "%d × %s" % (cost, item_name("science_kit"))
     kit2 = kit2_amount(rid, cost)
     if kit2 > 0:

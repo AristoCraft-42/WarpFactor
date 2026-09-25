@@ -49,7 +49,7 @@ func close_input() -> void:
 
 
 func _on_submitted(text: String) -> void:
-	Session.net.send_chat(text)
+	Session.net.send_chat(text, _game.run.local_player if _game != null and _game.run != null else 0)
 	close_input()
 
 
@@ -57,9 +57,10 @@ func _on_received(player_id: int, text: String) -> void:
 	var player := _game.run.get_player(player_id)
 	var line := Label.new()
 	line.auto_translate_mode = Node.AUTO_TRANSLATE_MODE_DISABLED
-	line.theme_type_variation = &"BadgeLabel"
+	line.theme_type_variation = &"ChatLabel"
 	line.text = "%s: %s" % [player.name if player != null else "?", text]
-	line.add_theme_color_override("font_color", player.color if player != null else Color.WHITE)
+	# Имя и текст пишутся цветом игрока, но на тёмной подложке — цвет чуть высветляем.
+	line.add_theme_color_override("font_color", player.color.lightened(0.25) if player != null else UiTheme.FG)
 	_list.add_child(line)
 	_shown.append(Time.get_ticks_msec() / 1000.0)
 	while _list.get_child_count() > HISTORY:

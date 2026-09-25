@@ -65,6 +65,11 @@ static func build() -> Theme:
 	t.set_font_size("font_size", "BadgeLabel", 13)
 	t.set_color("font_color", "BadgeLabel", BG_HARD)
 	t.set_stylebox("normal", "BadgeLabel", _box(YELLOW, YELLOW, 0, 4, 2, 6))
+	# Строка чата: на жёлтом бейдже цветное имя игрока не читалось, поэтому подложка тёмная.
+	t.set_type_variation("ChatLabel", "Label")
+	t.set_font_size("font_size", "ChatLabel", 14)
+	t.set_color("font_color", "ChatLabel", FG)
+	t.set_stylebox("normal", "ChatLabel", _box(Color(BG_HARD, 0.72), Color(BG2, 0.6), 1, 4, 3, 7))
 
 	# Кнопки
 	_style_button(t, "Button", BG1, BG2, BG3, BG0)

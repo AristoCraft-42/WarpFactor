@@ -128,15 +128,20 @@ func _run_research(game: Game) -> void:
 	await _click_control(production_tab)
 	await _frames(40)
 	var drill_button: Button = (menu.get("_building_buttons") as Dictionary)[&"drill"]
-	_expect(not state.is_building_unlocked(drill_def) and drill_button.modulate.r < 0.9, "бур закрыт исследованием — кнопка затемнена")
-	var units := run.drone.crafting.units.size()
-	var center := drill_button.get_global_rect().get_center()
-	await _mouse_move_screen(center)
-	await _frames(40)
+	_expect(not state.is_building_unlocked(drill_def) and not drill_button.visible,
+		"закрытая исследованием постройка в меню не показывается")
+	var visible_buttons := 0
+	var unlocked_buttons := 0
+	for id: StringName in (menu.get("_building_buttons") as Dictionary):
+		var button: Button = (menu.get("_building_buttons") as Dictionary)[id]
+		visible_buttons += 1 if button.visible else 0
+		unlocked_buttons += 1 if state.is_building_unlocked(Registry.get_building(id)) else 0
+	_expect(visible_buttons == unlocked_buttons, "в меню строительства видно ровно открытое (%d из %d)"
+		% [visible_buttons, unlocked_buttons])
+	await _frames(10)
 	await _shot("r00_locked_menu.png")
-	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, true)
-	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, false)
-	_expect(run.drone.crafting.units.size() == units, "закрытую постройку не скрафтить")
+	var drill_recipe := Registry.get_hand_recipe(drill_def.item.index)
+	_expect(not run.drone.crafting.is_available(drill_recipe), "закрытую постройку не скрафтить")
 	await _mouse_move_screen(Vector2(40, 300))
 
 	await _key(KEY_J)
@@ -303,6 +308,24 @@ func _run_players(game: Game) -> void:
 	await _key(KEY_U)
 	await _frames(10)
 	_expect(run.local_player == first.id, "обратное переключение вернуло своего дрона")
+
+	# Чат: Enter открывает строку, сообщение ложится на тёмную подложку цветом игрока.
+	var chat := game.hud.chat_panel
+	await _key(KEY_ENTER)
+	await _frames(5)
+	_expect(chat.is_typing(), "Enter открывает строку чата")
+	# Текст кладём прямо в строку и отправляем её сигналом: клавиша Enter внутри LineEdit
+	# зависит от раскладки и действий ввода, а проверяем мы сам чат.
+	var input: LineEdit = chat.get("_input")
+	input.text = "Нашёл уголь на юге"
+	await _frames(3)
+	input.text_submitted.emit(input.text)
+	await _frames(10)
+	var lines: VBoxContainer = chat.get("_list")
+	_expect(not chat.is_typing() and lines.get_child_count() > 0,
+		"сообщение ушло в чат (%d строк)" % lines.get_child_count())
+	await _shot("m03_chat.png")
+
 	run.remove_player(second.id)
 	await _frames(10)
 	_expect(run.players.size() == before, "напарник вышел из забега")
@@ -933,14 +956,15 @@ func _run_drone(game: Game, base: Vector2i) -> void:
 	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, true)
 	await _mouse_button_screen(center, MOUSE_BUTTON_RIGHT, false)
 	var queued := drone.crafting.units.size()
-	await _frames(3)
+	# Панель очереди пересобирается по таймеру, поэтому ждём её и берём строку прямо перед кликом.
+	await _frames(20)
 	var queue_panel := _find_child_of_type(game.hud, "CraftQueuePanel")
 	var queue_row: HBoxContainer = queue_panel.get("_row") if queue_panel != null else null
-	if queue_row != null and queue_row.get_child_count() > 0:
-		var group_center := (queue_row.get_child(0) as Control).get_global_rect().get_center()
-		await _mouse_move_screen(group_center)
-		await _mouse_button_screen(group_center, MOUSE_BUTTON_RIGHT, true)
-		await _mouse_button_screen(group_center, MOUSE_BUTTON_RIGHT, false)
+	var group: Control = queue_row.get_child(0) as Control if queue_row != null and queue_row.get_child_count() > 0 else null
+	_expect(group != null, "в панели очереди есть группа крафтов")
+	if group != null:
+		await _right_click_control(group)
+		await _frames(3)
 	_expect(drone.crafting.units.size() <= queued - 4, "ПКМ по группе в очереди отменяет 5 (%d → %d)" % [queued, drone.crafting.units.size()])
 	await _key(KEY_ESCAPE)
 	_expect(not window.visible, "Esc закрывает инвентарь")
@@ -2066,14 +2090,14 @@ func _run_boiler_floor(game: Game) -> void:
 	var plan := Registry.boiler_def
 	var column := down.origin.x + 1
 	var shore := -1
-	for y in range(down.origin.y + 3, plan.size):
+	for y in range(down.origin.y - 1, -1, -1):
 		if run.boiler.grid.get_ore(column, y) > 0:
 			shore = y
 			break
-	_expect(shore > 0, "под шахтой начинается озеро")
-	if shore > 0:
+	_expect(shore >= 0, "у края котельной идёт полоса воды")
+	if shore >= 0:
 		run.boiler.buildings.place(Registry.get_building(&"pump"), Vector2i(column, shore), 0, true)
-		for y in range(down.origin.y + 3, shore):
+		for y in range(shore + 1, down.origin.y):
 			run.boiler.buildings.place(Registry.get_building(&"pipe"), Vector2i(column, y), 0, true)
 	var top := run.base.buildings.place(Registry.get_building(&"pipe"), up.origin + Vector2i(1, -1), 0, true)
 
@@ -2086,7 +2110,7 @@ func _run_boiler_floor(game: Game) -> void:
 	await _key(KEY_F)
 	await _frames(5)
 	_expect(game.world == run.boiler, "F у шахты — спуск в котельную")
-	game.camera.focus_on(Vector2(plan.lake_rect().get_center()) * GameConst.TILE_SIZE, 0.6)
+	game.camera.focus_on(Vector2(plan.water_rect().get_center()) * GameConst.TILE_SIZE, 0.55)
 	await _frames(8)
 	await _shot("p05_boiler_lake.png")
 	await _wait_ticks(run.boiler, 8 * GameConst.TICK_RATE)
@@ -2318,11 +2342,27 @@ func _mouse_button_screen(pos: Vector2, button: MouseButton, pressed: bool) -> v
 	await _frames(2)
 
 
+## Клик по элементу интерфейса. Кадр ожидания перед вычислением точки — панели часто
+## пересобираются прямо перед кликом, и без него мышь уходила туда, где элемент был раньше.
 func _click_control(control: Control) -> void:
+	await get_tree().process_frame
+	if control == null or not control.is_inside_tree():
+		return
 	var pos := control.get_global_rect().get_center()
 	await _mouse_move_screen(pos)
 	await _mouse_button_screen(pos, MOUSE_BUTTON_LEFT, true)
 	await _mouse_button_screen(pos, MOUSE_BUTTON_LEFT, false)
+
+
+## ПКМ по элементу интерфейса — с тем же ожиданием кадра, что и обычный клик.
+func _right_click_control(control: Control) -> void:
+	await get_tree().process_frame
+	if control == null or not control.is_inside_tree():
+		return
+	var pos := control.get_global_rect().get_center()
+	await _mouse_move_screen(pos)
+	await _mouse_button_screen(pos, MOUSE_BUTTON_RIGHT, true)
+	await _mouse_button_screen(pos, MOUSE_BUTTON_RIGHT, false)
 
 
 func _key(code: Key) -> void:

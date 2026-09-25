@@ -6,7 +6,8 @@ extends PanelContainer
 ## только если сменилось само выбранное здание (например, пипеткой).
 ## На кнопке — сколько таких построек в инвентаре дрона; без построек кнопка приглушена.
 ## ЛКМ — взять в руку, ПКМ — скрафтить одну, Shift+ПКМ — пять.
-## Постройки, ещё не открытые исследованием, затемнены; в подсказке — нужное исследование.
+## Постройки, ещё не открытые исследованием, в меню не показываются: пустая вкладка подсказывает,
+## что смотреть в окне исследований (J).
 
 const CATEGORY_KEYS := ["CATEGORY_TRANSPORT", "CATEGORY_PRODUCTION", "CATEGORY_POWER", "CATEGORY_DEFENSE"]
 const COLUMNS := 8
@@ -27,6 +28,8 @@ var _inventory_revision: int = -1
 ## Число завершённых исследований при последнем обновлении (открытые постройки перестают быть тусклыми).
 var _research_done: int = -1
 var _timer: float = 0.0
+## Подсказка на вкладке, где ещё ничего не открыто.
+var _empty_hint: Label
 
 
 func setup(tools: ToolController, world: GameWorld) -> void:
@@ -65,6 +68,11 @@ func setup(tools: ToolController, world: GameWorld) -> void:
 	# Постоянная высота: панель не прыгает при смене вкладки.
 	_grid.custom_minimum_size = Vector2(COLUMNS * (BUTTON_SIZE + 4), ROWS * (BUTTON_SIZE + 4))
 	root.add_child(_grid)
+	_empty_hint = UiUtil.label("BUILD_ALL_LOCKED", &"DimLabel")
+	_empty_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_empty_hint.custom_minimum_size = Vector2(COLUMNS * (BUTTON_SIZE + 4), 0)
+	_empty_hint.visible = false
+	root.add_child(_empty_hint)
 
 	tools.mode_changed.connect(_sync_with_tool)
 	_select_category(_category)
@@ -185,11 +193,16 @@ func _update_counts() -> void:
 		var owned := inventory.count(def.item.index) if def.item != null else 0
 		_count_labels[id].text = str(owned) if owned > 0 and not _world.creative else ""
 		var available := _world.creative or owned > 0
-		if not _is_unlocked(def):
-			_building_buttons[id].modulate = Color(0.55, 0.45, 0.45, 0.6)
-		else:
-			_building_buttons[id].modulate = Color.WHITE if available else Color(1, 1, 1, 0.45)
+		# Незакрытые исследованием постройки в меню не показываются вовсе — что откроется
+		# дальше, видно в окне исследований.
+		_building_buttons[id].visible = _is_unlocked(def)
+		_building_buttons[id].modulate = Color.WHITE if available else Color(1, 1, 1, 0.45)
 		_building_buttons[id].tooltip_text = _tooltip_for(def, owned)
+	if _empty_hint != null:
+		var any := false
+		for id in _building_buttons:
+			any = any or _building_buttons[id].visible
+		_empty_hint.visible = not any
 
 
 func _tooltip_for(def: BuildingDef, owned: int) -> String:

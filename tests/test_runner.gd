@@ -4131,6 +4131,11 @@ func _test_chat() -> void:
 	Session.net.send_chat(long_text)
 	_check(got.size() == 2 and got[1].length() == NetProtocol.CHAT_LIMIT,
 		"длинное сообщение обрезается до предела (%d)" % got[1].length())
+	# В одиночной игре забег сессии не отдают (команды идут мимо неё), поэтому отправителя
+	# называет сам чат — без этого сообщения просто пропадали.
+	Session.net.run = null
+	Session.net.send_chat("одиночная", run.local_player)
+	_check(got.size() == 3 and got[2] == "одиночная", "чат работает и без забега в сессии")
 	Session.net.chat_received.disconnect(listener)
 	Session.net.run = previous
 	run.dispose()
@@ -6039,7 +6044,9 @@ func _test_boiler_floor() -> void:
 		for x in plan.size:
 			if closed.boiler.grid.get_ore(x, y) > 0:
 				water += 1
-	_check(water > 80 and plan.lake_size > 0, "в середине котельной озеро (%d тайлов)" % water)
+	var middle := plan.size / 2
+	_check(water > 100 and plan.water_border > 0 and closed.boiler.grid.get_ore(middle, middle) == 0,
+		"вода идёт полосой по краю котельной, середина свободна (%d тайлов)" % water)
 	closed.dispose()
 
 	var run := _floors_run([&"underground", &"underground_1", &"mining_floor", &"boiler_floor"])
@@ -6089,17 +6096,17 @@ func _test_boiler_floor() -> void:
 		"сборщик подземного этажа работает от генератора котельной (%d)" % assembler.outputs[_item(&"gear")])
 	_check(up.is_power_link() and run.shaft_base.is_power_link() == false, "ток проводит только шахта котельной")
 
-	# Трубы: вода из озера поднимается по шахте на подземный этаж. Насос стоит на берегу —
-	# по самому озеру труб не проложить, как и на планете.
+	# Трубы: вода с полосы у края поднимается по шахте на подземный этаж. Насос стоит на воде,
+	# между ним и шахтой — труба.
 	var column := down.origin.x + 1
 	var shore := -1
-	for y in range(down.origin.y + 3, plan.size):
+	for y in range(down.origin.y - 1, -1, -1):
 		if boiler.grid.get_ore(column, y) > 0:
 			shore = y
 			break
-	var pump := boiler.buildings.place(Registry.get_building(&"pump"), Vector2i(column, shore), 0, true) if shore > 0 else null
-	_check(pump != null and (pump as Pump).fluid != null, "насос ставится на озеро под шахтой")
-	for y in range(down.origin.y + 3, shore):
+	var pump := boiler.buildings.place(Registry.get_building(&"pump"), Vector2i(column, shore), 0, true) if shore >= 0 else null
+	_check(pump != null and (pump as Pump).fluid != null, "насос ставится на воду у края этажа")
+	for y in range(shore + 1, down.origin.y):
 		boiler.buildings.place(Registry.get_building(&"pipe"), Vector2i(column, y), 0, true)
 	var top := base.buildings.place(Registry.get_building(&"pipe"), up.origin + Vector2i(1, -1), 0, true)
 	for i in 8 * GameConst.TICK_RATE:

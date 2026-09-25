@@ -760,6 +760,10 @@ rows = [
 ("RESEARCH_WARP_CHARGE_2_DESC", "The teleport recharges 1 minute faster after arrival.", "Телепорт перезаряжается после прибытия на минуту быстрее."),
 ("RESEARCH_WARP_TIME_3", "Flight reserve III", "Запас хода III"),
 ("RESEARCH_WARP_TIME_3_DESC", "The warp platform holds the planet link 2 minutes longer before the forced jump.", "Варп-платформа держит связь с планетой на 2 минуты дольше до принудительного прыжка."),
+("RESEARCH_WARP_TIME_4", "Flight reserve IV", "Запас хода IV"),
+("RESEARCH_WARP_TIME_4_DESC", "The warp platform holds the planet link 2 minutes longer before the forced jump.", "Варп-платформа держит связь с планетой на 2 минуты дольше до принудительного прыжка."),
+("RESEARCH_WARP_TIME_5", "Flight reserve V", "Запас хода V"),
+("RESEARCH_WARP_TIME_5_DESC", "The last step: the link holds indefinitely — you leave a planet when you decide to.", "Последняя ступень: связь держится сколько угодно — планету покидаешь, когда сам решишь."),
 ("RESEARCH_WARP_CHARGE_3", "Teleport boost III", "Разгон телепорта III"),
 ("RESEARCH_WARP_CHARGE_3_DESC", "The teleport recharges 1 minute faster after arrival.", "Телепорт перезаряжается после прибытия на минуту быстрее."),
 ("TELEPORT_TIME_LEFT", "Forced jump in %s", "Принудительный прыжок через %s"),
@@ -839,6 +843,7 @@ rows = [
 ("BUILDING_BOILER_SHAFT_DESC","The way down to the boiler room. Carries items like the mining shaft, and power and pipes on top of that — that is what the floor is for.","Путь вниз, в котельную. Возит предметы, как шахта добычи, а ещё проводит ток и трубы — ради этого этаж и нужен."),
 ("RESEARCH_BOILER_FLOOR","Boiler Room","Котельная"),
 ("RESEARCH_BOILER_FLOOR_DESC","A fourth floor with its own underground lake: pumps stand right on the water, and the shaft carries power and fluids up.","Четвёртый этаж со своим подземным озером: насосы ставятся прямо на воду, а шахта поднимает наверх ток и жидкости."),
+("BUILD_ALL_LOCKED", "Nothing here is researched yet — look at the research window (J).", "Здесь пока ничего не открыто — загляните в исследования (J)."),
 ("ACTION_OVERLAY_POWER", "Power networks overlay", "Оверлей электросетей"),
 ]
 
