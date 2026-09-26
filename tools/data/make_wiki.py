@@ -1179,7 +1179,7 @@ def items_index():
 
 TURRET_KINDS = {0: "патронная", 1: "электрическая: молния по цепи", 2: "ремонтная", 3: "жидкостная: поливает область"}
 GENERATOR_KINDS = {0: "на топливе", 1: "на паре"}
-RECIPE_MODES = {1: "сама, по пришедшему сырью", 2: "в настройке постройки"}
+RECIPE_MODES = {0: "один рецепт", 1: "сама, по пришедшему сырью", 2: "в настройке постройки"}
 # Внутренние параметры, которые игроку ничего не говорят.
 PARAM_SKIP = {"rotatable", "role", "kind", "recipes", "ammo", "creative_only", "default_rate", "in_base",
               "inbound_side", "outbound_side", "is_core", "barrel_length", "shoot_cone", "artillery", "transfer_ticks",
@@ -1241,6 +1241,10 @@ def building_params(bid):
             rows.append(("КПД", pct(v)))
         elif key == "steam_energy":
             rows.append(("Энергия пара", "%s кДж за единицу" % fmt(v)))
+        elif key == "pump_fluid" and v in FLUID:
+            rows.append(("Качает только", chip("fluid", v)))
+        elif key == "damage_per_upgrade":
+            rows.append(("Урон за ступень исследования", "+%s (ветка «Урон турелей»)" % pct(v)))
         elif key.endswith(("fluid", "fluid_id")) and isinstance(v, str) and v in FLUID:
             role = dict(fluid_links(bid)).get(v, "in")
             rows.append(("Берёт" if role == "in" else "Отдаёт", chip("fluid", v)))
