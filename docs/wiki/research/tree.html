@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дерево исследований — WarpFactor вики</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%23282828' stroke='%23fabd2f' stroke-width='3'/%3E%3Cpath d='M9 10l3 12 4-8 4 8 3-12' fill='none' stroke='%23fe8019' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body data-root="../">
+<svg class="defs" aria-hidden="true"><defs>
+<symbol id="r-d9534f" viewBox="0 0 32 32"><path d="M12 4h8v2h-1.5v7.5l7 11.5a2 2 0 0 1-1.7 3H7.2a2 2 0 0 1-1.7-3l7-11.5V6H12Z" fill="#d9534f" stroke="#572120" stroke-width="2" stroke-linejoin="round"/><path d="M9 22h14" stroke="#eaa09e" stroke-width="2"/></symbol>
+</defs></svg>
+<header class="top">
+<div class="bar"><a class="logo" href="../index.html">WarpFactor <span>вики</span></a>
+<div class="search"><input type="search" placeholder="Поиск: предмет, постройка, исследование…" aria-label="Поиск по вики" autocomplete="off" data-search><ul class="results" hidden></ul></div></div>
+<nav class="sections"><a href="../items/index.html">Предметы</a><a href="../buildings/index.html">Постройки</a><a href="../research/index.html">Исследования</a><a href="../research/tree.html" class="on">Дерево</a><a href="../world/index.html">Мир</a><a href="../enemies/index.html">Враги</a><a href="../mechanics/index.html">Механики</a></nav>
+</header>
+<main class="wide">
+<nav class="crumbs"><a href="../index.html">Главная</a> <span class="sep">›</span> <a href="../research/index.html">Исследования</a> <span class="sep">›</span> <span aria-current="page">Дерево исследований</span></nav>
+<h1>Дерево исследований</h1>
+<p class="muted">Столбцы — шаги от корня: исследование стоит правее всех, без которых его не начать. Клик по узлу открывает страницу исследования, наведение подсвечивает связи. Точки справа — виды наборов, число внизу — их количество.</p>
+<p>Наборы: <span class="legend"><i style="background:#d9534f"></i>Научный набор</span> <span class="legend"><i style="background:#5f7fd9"></i>Научный набор II</span></p>
+<div class="treewrap">
+<svg class="tree" width="2390" height="910" viewBox="0 0 2390 910" role="img" aria-label="Дерево исследований">
+<g class="edges">
+<path class="edge" data-a="electricity" data-b="fluid_handling" d="M200 35C227 35 227 35 254 35"/>
+<path class="edge" data-a="fluid_handling" data-b="steam_power" d="M442 35C469 35 469 35 496 35"/>
+<path class="edge" data-a="steam_power" data-b="accumulators" d="M684 35C711 35 711 35 738 35"/>
+<path class="edge" data-a="electricity" data-b="mining" d="M200 35C227 35 227 91 254 91"/>
+<path class="edge" data-a="mining" data-b="logistics" d="M442 91C469 91 469 91 496 91"/>
+<path class="edge" data-a="mining" data-b="industry" d="M442 91C469 91 469 147 496 147"/>
+<path class="edge" data-a="industry" data-b="science_automation" d="M684 147C711 147 711 147 738 147"/>
+<path class="edge" data-a="science_automation" data-b="science_speed_1" d="M926 147C953 147 953 147 980 147"/>
+<path class="edge" data-a="science_speed_1" data-b="science_speed_2" d="M1168 147C1195 147 1195 147 1222 147"/>
+<path class="edge" data-a="science_speed_2" data-b="science_speed_3" d="M1410 147C1437 147 1437 147 1464 147"/>
+<path class="edge" data-a="industry" data-b="autobuild" d="M684 147C711 147 711 203 738 203"/>
+<path class="edge" data-a="science_speed_3" data-b="science_speed_4" d="M1652 147C1679 147 1679 147 1706 147"/>
+<path class="edge" data-a="industry" data-b="sphalerite" d="M684 147C711 147 711 259 738 259"/>
+<path class="edge" data-a="sphalerite" data-b="microchips" d="M926 259C953 259 953 203 980 203"/>
+<path class="edge" data-a="science_automation" data-b="microchips" d="M926 147C953 147 953 203 980 203"/>
+<path class="edge" data-a="microchips" data-b="steel_logistics" d="M1168 203C1195 203 1195 259 1222 259"/>
+<path class="edge" data-a="microchips" data-b="compact_production" d="M1168 203C1195 203 1195 315 1222 315"/>
+<path class="edge" data-a="electricity" data-b="defense" d="M200 35C227 35 227 147 254 147"/>
+<path class="edge" data-a="microchips" data-b="advanced_defense" d="M1168 203C1195 203 1195 203 1222 203"/>
+<path class="edge" data-a="defense" data-b="advanced_defense" d="M442 147C1195 147 1195 203 1222 203"/>
+<path class="edge" data-a="mining" data-b="pad_1" d="M442 91C469 91 469 203 496 203"/>
+<path class="edge" data-a="pad_1" data-b="pad_2" d="M684 203C711 203 711 315 738 315"/>
+<path class="edge" data-a="pad_2" data-b="pad_3" d="M926 315C953 315 953 315 980 315"/>
+<path class="edge" data-a="pad_3" data-b="pad_4" d="M1168 315C1195 315 1195 371 1222 371"/>
+<path class="edge" data-a="pad_4" data-b="pad_5" d="M1410 371C1437 371 1437 371 1464 371"/>
+<path class="edge" data-a="pad_1" data-b="warp_time_1" d="M684 203C711 203 711 371 738 371"/>
+<path class="edge" data-a="warp_time_1" data-b="warp_time_2" d="M926 371C953 371 953 371 980 371"/>
+<path class="edge" data-a="warp_time_2" data-b="warp_time_3" d="M1168 371C1195 371 1195 427 1222 427"/>
+<path class="edge" data-a="pad_1" data-b="warp_charge_1" d="M684 203C711 203 711 427 738 427"/>
+<path class="edge" data-a="warp_time_3" data-b="warp_time_4" d="M1410 427C1437 427 1437 427 1464 427"/>
+<path class="edge" data-a="mining" data-b="underground" d="M442 91C469 91 469 259 496 259"/>
+<path class="edge" data-a="warp_charge_1" data-b="warp_charge_2" d="M926 427C953 427 953 427 980 427"/>
+<path class="edge" data-a="warp_time_4" data-b="warp_time_5" d="M1652 427C1679 427 1679 427 1706 427"/>
+<path class="edge" data-a="warp_charge_2" data-b="warp_charge_3" d="M1168 427C1195 427 1195 539 1222 539"/>
+<path class="edge" data-a="pad_1" data-b="star_scan_1" d="M684 203C711 203 711 483 738 483"/>
+<path class="edge" data-a="star_scan_1" data-b="star_scan_2" d="M926 483C953 483 953 483 980 483"/>
+<path class="edge" data-a="star_scan_2" data-b="star_depth_1" d="M1168 483C1195 483 1195 595 1222 595"/>
+<path class="edge" data-a="star_depth_1" data-b="star_depth_2" d="M1410 595C1437 595 1437 595 1464 595"/>
+<path class="edge" data-a="underground" data-b="gateway_items" d="M684 259C711 259 711 539 738 539"/>
+<path class="edge" data-a="gateway_items" data-b="gateway_ports_1" d="M926 539C953 539 953 539 980 539"/>
+<path class="edge" data-a="gateway_ports_1" data-b="gateway_ports_2" d="M1168 539C1195 539 1195 651 1222 651"/>
+<path class="edge" data-a="gateway_items" data-b="gateway_speed_1" d="M926 539C953 539 953 595 980 595"/>
+<path class="edge" data-a="gateway_speed_1" data-b="gateway_speed_2" d="M1168 595C1195 595 1195 707 1222 707"/>
+<path class="edge" data-a="gateway_speed_2" data-b="gateway_speed_3" d="M1410 707C1437 707 1437 707 1464 707"/>
+<path class="edge" data-a="underground" data-b="underground_1" d="M684 259C711 259 711 595 738 595"/>
+<path class="edge" data-a="underground_1" data-b="underground_2" d="M926 595C953 595 953 651 980 651"/>
+<path class="edge" data-a="underground_2" data-b="underground_3" d="M1168 651C1195 651 1195 763 1222 763"/>
+<path class="edge" data-a="underground_3" data-b="underground_4" d="M1410 763C1437 763 1437 763 1464 763"/>
+<path class="edge" data-a="underground_4" data-b="underground_5" d="M1652 763C1679 763 1679 763 1706 763"/>
+<path class="edge" data-a="underground_1" data-b="lift" d="M926 595C953 595 953 707 980 707"/>
+<path class="edge" data-a="underground" data-b="gateway_power" d="M684 259C711 259 711 651 738 651"/>
+<path class="edge" data-a="gateway_power" data-b="gateway_fluids" d="M926 651C953 651 953 763 980 763"/>
+<path class="edge" data-a="underground_1" data-b="mining_floor" d="M926 595C1195 595 1195 483 1222 483"/>
+<path class="edge" data-a="microchips" data-b="mining_floor" d="M1168 203C1195 203 1195 483 1222 483"/>
+<path class="edge" data-a="mining_floor" data-b="mining_room_1" d="M1410 483C1437 483 1437 483 1464 483"/>
+<path class="edge" data-a="mining_room_1" data-b="mining_room_2" d="M1652 483C1679 483 1679 483 1706 483"/>
+<path class="edge" data-a="mining_room_2" data-b="mining_room_3" d="M1894 483C1921 483 1921 483 1948 483"/>
+<path class="edge" data-a="mining_room_3" data-b="mining_room_4" d="M2136 483C2163 483 2163 483 2190 483"/>
+<path class="edge" data-a="mining_floor" data-b="boiler_floor" d="M1410 483C1437 483 1437 259 1464 259"/>
+<path class="edge" data-a="steam_power" data-b="boiler_floor" d="M684 35C1437 35 1437 259 1464 259"/>
+<path class="edge" data-a="boiler_floor" data-b="boiler_size_1" d="M1652 259C1679 259 1679 259 1706 259"/>
+<path class="edge" data-a="boiler_size_1" data-b="boiler_size_2" d="M1894 259C1921 259 1921 259 1948 259"/>
+<path class="edge" data-a="boiler_size_2" data-b="boiler_size_3" d="M2136 259C2163 259 2163 259 2190 259"/>
+<path class="edge" data-a="drone_speed_1" data-b="drone_speed_2" d="M200 91C227 91 227 203 254 203"/>
+<path class="edge" data-a="drone_speed_2" data-b="drone_speed_3" d="M442 203C469 203 469 315 496 315"/>
+<path class="edge" data-a="drone_speed_1" data-b="drone_mining_1" d="M200 91C227 91 227 259 254 259"/>
+<path class="edge" data-a="drone_mining_1" data-b="drone_mining_2" d="M442 259C469 259 469 371 496 371"/>
+<path class="edge" data-a="drone_mining_2" data-b="drone_mining_3" d="M684 371C711 371 711 707 738 707"/>
+<path class="edge" data-a="drone_speed_1" data-b="drone_health_1" d="M200 91C227 91 227 315 254 315"/>
+<path class="edge" data-a="drone_health_1" data-b="drone_health_2" d="M442 315C469 315 469 427 496 427"/>
+<path class="edge" data-a="drone_health_2" data-b="drone_health_3" d="M684 427C711 427 711 763 738 763"/>
+<path class="edge" data-a="drone_speed_1" data-b="drone_gun_1" d="M200 91C227 91 227 371 254 371"/>
+<path class="edge" data-a="drone_gun_1" data-b="drone_gun_2" d="M442 371C469 371 469 483 496 483"/>
+<path class="edge" data-a="drone_gun_2" data-b="drone_gun_3" d="M684 483C711 483 711 819 738 819"/>
+<path class="edge" data-a="drone_speed_1" data-b="drone_repair_1" d="M200 91C227 91 227 427 254 427"/>
+<path class="edge" data-a="drone_repair_1" data-b="drone_repair_2" d="M442 427C469 427 469 539 496 539"/>
+<path class="edge" data-a="drone_repair_2" data-b="drone_repair_3" d="M684 539C711 539 711 875 738 875"/>
+</g>
+<g class="nodes">
+<a href="../research/electricity.html"><g class="tn" id="node-electricity" data-id="electricity"><rect x="12" y="12" width="188" height="46" rx="6"/><text x="22" y="39">Электрика</text><circle cx="190" cy="21" r="4" fill="#d9534f"/><text class="amt" x="192" y="50">10</text><title>Электрика</title></g></a>
+<a href="../research/fluid_handling.html"><g class="tn" id="node-fluid_handling" data-id="fluid_handling"><rect x="254" y="12" width="188" height="46" rx="6"/><text x="264" y="39">Трубы и насосы</text><circle cx="432" cy="21" r="4" fill="#d9534f"/><text class="amt" x="434" y="50">15</text><title>Трубы и насосы</title></g></a>
+<a href="../research/steam_power.html"><g class="tn" id="node-steam_power" data-id="steam_power"><rect x="496" y="12" width="188" height="46" rx="6"/><text x="506" y="39">Паровая энергия</text><circle cx="674" cy="21" r="4" fill="#d9534f"/><text class="amt" x="676" y="50">25</text><title>Паровая энергия</title></g></a>
+<a href="../research/accumulators.html"><g class="tn" id="node-accumulators" data-id="accumulators"><rect x="738" y="12" width="188" height="46" rx="6"/><text x="748" y="39">Аккумуляторы</text><circle cx="916" cy="21" r="4" fill="#5f7fd9"/><circle cx="905" cy="21" r="4" fill="#d9534f"/><text class="amt" x="918" y="50">20 + 10</text><title>Аккумуляторы</title></g></a>
+<a href="../research/mining.html"><g class="tn" id="node-mining" data-id="mining"><rect x="254" y="68" width="188" height="46" rx="6"/><text x="264" y="95">Электробур</text><circle cx="432" cy="77" r="4" fill="#d9534f"/><text class="amt" x="434" y="106">15</text><title>Электробур</title></g></a>
+<a href="../research/logistics.html"><g class="tn" id="node-logistics" data-id="logistics"><rect x="496" y="68" width="188" height="46" rx="6"/><text x="506" y="95">Логистика</text><circle cx="674" cy="77" r="4" fill="#d9534f"/><text class="amt" x="676" y="106">20</text><title>Логистика</title></g></a>
+<a href="../research/industry.html"><g class="tn" id="node-industry" data-id="industry"><rect x="496" y="124" width="188" height="46" rx="6"/><text x="506" y="151">Промышленность</text><circle cx="674" cy="133" r="4" fill="#d9534f"/><text class="amt" x="676" y="162">30</text><title>Промышленность</title></g></a>
+<a href="../research/science_automation.html"><g class="tn" id="node-science_automation" data-id="science_automation"><rect x="738" y="124" width="188" height="46" rx="6"/><text x="748" y="151">Автоматизация науки</text><circle cx="916" cy="133" r="4" fill="#d9534f"/><text class="amt" x="918" y="162">35</text><title>Автоматизация науки</title></g></a>
+<a href="../research/science_speed_1.html"><g class="tn" id="node-science_speed_1" data-id="science_speed_1"><rect x="980" y="124" width="188" height="46" rx="6"/><text x="990" y="151">Методика исследований I</text><circle cx="1158" cy="133" r="4" fill="#5f7fd9"/><circle cx="1147" cy="133" r="4" fill="#d9534f"/><text class="amt" x="1160" y="162">40 + 20</text><title>Методика исследований I</title></g></a>
+<a href="../research/science_speed_2.html"><g class="tn" id="node-science_speed_2" data-id="science_speed_2"><rect x="1222" y="124" width="188" height="46" rx="6"/><text x="1232" y="151">Методика исследований II</text><circle cx="1400" cy="133" r="4" fill="#5f7fd9"/><circle cx="1389" cy="133" r="4" fill="#d9534f"/><text class="amt" x="1402" y="162">60 + 30</text><title>Методика исследований II</title></g></a>
+<a href="../research/science_speed_3.html"><g class="tn" id="node-science_speed_3" data-id="science_speed_3"><rect x="1464" y="124" width="188" height="46" rx="6"/><text x="1474" y="151">Методика исследований III</text><circle cx="1642" cy="133" r="4" fill="#5f7fd9"/><circle cx="1631" cy="133" r="4" fill="#d9534f"/><text class="amt" x="1644" y="162">80 + 40</text><title>Методика исследований III</title></g></a>
+<a href="../research/autobuild.html"><g class="tn" id="node-autobuild" data-id="autobuild"><rect x="738" y="180" width="188" height="46" rx="6"/><text x="748" y="207">Автосборка</text><circle cx="916" cy="189" r="4" fill="#d9534f"/><text class="amt" x="918" y="218">40</text><title>Автосборка</title></g></a>
+<a href="../research/science_speed_4.html"><g class="tn" id="node-science_speed_4" data-id="science_speed_4"><rect x="1706" y="124" width="188" height="46" rx="6"/><text x="1716" y="151">Методика исследований IV</text><circle cx="1884" cy="133" r="4" fill="#5f7fd9"/><circle cx="1873" cy="133" r="4" fill="#d9534f"/><text class="amt" x="1886" y="162">100 + 50</text><title>Методика исследований IV</title></g></a>
+<a href="../research/sphalerite.html"><g class="tn" id="node-sphalerite" data-id="sphalerite"><rect x="738" y="236" width="188" height="46" rx="6"/><text x="748" y="263">Сфалерит</text><circle cx="916" cy="245" r="4" fill="#d9534f"/><text class="amt" x="918" y="274">35</text><title>Сфалерит</title></g></a>
+<a href="../research/microchips.html"><g class="tn" id="node-microchips" data-id="microchips"><rect x="980" y="180" width="188" height="46" rx="6"/><text x="990" y="207">Микросхемы</text><circle cx="1158" cy="189" r="4" fill="#d9534f"/><text class="amt" x="1160" y="218">40</text><title>Микросхемы</title></g></a>
+<a href="../research/steel_logistics.html"><g class="tn" id="node-steel_logistics" data-id="steel_logistics"><rect x="1222" y="236" width="188" height="46" rx="6"/><text x="1232" y="263">Стальная логистика</text><circle cx="1400" cy="245" r="4" fill="#5f7fd9"/><circle cx="1389" cy="245" r="4" fill="#d9534f"/><text class="amt" x="1402" y="274">45 + 22</text><title>Стальная логистика</title></g></a>
+<a href="../research/compact_production.html"><g class="tn" id="node-compact_production" data-id="compact_production"><rect x="1222" y="292" width="188" height="46" rx="6"/><text x="1232" y="319">Уплотнение производства</text><circle cx="1400" cy="301" r="4" fill="#5f7fd9"/><circle cx="1389" cy="301" r="4" fill="#d9534f"/><text class="amt" x="1402" y="330">45 + 22</text><title>Уплотнение производства</title></g></a>
+<a href="../research/defense.html"><g class="tn" id="node-defense" data-id="defense"><rect x="254" y="124" width="188" height="46" rx="6"/><text x="264" y="151">Оборона</text><circle cx="432" cy="133" r="4" fill="#d9534f"/><text class="amt" x="434" y="162">25</text><title>Оборона</title></g></a>
+<a href="../research/advanced_defense.html"><g class="tn" id="node-advanced_defense" data-id="advanced_defense"><rect x="1222" y="180" width="188" height="46" rx="6"/><text x="1232" y="207">Продвинутая оборона</text><circle cx="1400" cy="189" r="4" fill="#5f7fd9"/><circle cx="1389" cy="189" r="4" fill="#d9534f"/><text class="amt" x="1402" y="218">45 + 22</text><title>Продвинутая оборона</title></g></a>
+<a href="../research/pad_1.html"><g class="tn" id="node-pad_1" data-id="pad_1"><rect x="496" y="180" width="188" height="46" rx="6"/><text x="506" y="207">Расширение площадки I</text><circle cx="674" cy="189" r="4" fill="#d9534f"/><text class="amt" x="676" y="218">20</text><title>Расширение площадки I</title></g></a>
+<a href="../research/pad_2.html"><g class="tn" id="node-pad_2" data-id="pad_2"><rect x="738" y="292" width="188" height="46" rx="6"/><text x="748" y="319">Расширение площадки II</text><circle cx="916" cy="301" r="4" fill="#d9534f"/><text class="amt" x="918" y="330">30</text><title>Расширение площадки II</title></g></a>
+<a href="../research/pad_3.html"><g class="tn" id="node-pad_3" data-id="pad_3"><rect x="980" y="292" width="188" height="46" rx="6"/><text x="990" y="319">Расширение площадки III</text><circle cx="1158" cy="301" r="4" fill="#d9534f"/><text class="amt" x="1160" y="330">40</text><title>Расширение площадки III</title></g></a>
+<a href="../research/pad_4.html"><g class="tn" id="node-pad_4" data-id="pad_4"><rect x="1222" y="348" width="188" height="46" rx="6"/><text x="1232" y="375">Расширение площадки IV</text><circle cx="1400" cy="357" r="4" fill="#5f7fd9"/><circle cx="1389" cy="357" r="4" fill="#d9534f"/><text class="amt" x="1402" y="386">50 + 25</text><title>Расширение площадки IV</title></g></a>
+<a href="../research/pad_5.html"><g class="tn" id="node-pad_5" data-id="pad_5"><rect x="1464" y="348" width="188" height="46" rx="6"/><text x="1474" y="375">Расширение площадки V</text><circle cx="1642" cy="357" r="4" fill="#5f7fd9"/><circle cx="1631" cy="357" r="4" fill="#d9534f"/><text class="amt" x="1644" y="386">60 + 30</text><title>Расширение площадки V</title></g></a>
+<a href="../research/warp_time_1.html"><g class="tn" id="node-warp_time_1" data-id="warp_time_1"><rect x="738" y="348" width="188" height="46" rx="6"/><text x="748" y="375">Запас хода I</text><circle cx="916" cy="357" r="4" fill="#d9534f"/><text class="amt" x="918" y="386">30</text><title>Запас хода I</title></g></a>
+<a href="../research/warp_time_2.html"><g class="tn" id="node-warp_time_2" data-id="warp_time_2"><rect x="980" y="348" width="188" height="46" rx="6"/><text x="990" y="375">Запас хода II</text><circle cx="1158" cy="357" r="4" fill="#d9534f"/><text class="amt" x="1160" y="386">45</text><title>Запас хода II</title></g></a>
+<a href="../research/warp_time_3.html"><g class="tn" id="node-warp_time_3" data-id="warp_time_3"><rect x="1222" y="404" width="188" height="46" rx="6"/><text x="1232" y="431">Запас хода III</text><circle cx="1400" cy="413" r="4" fill="#d9534f"/><text class="amt" x="1402" y="442">60</text><title>Запас хода III</title></g></a>
+<a href="../research/warp_charge_1.html"><g class="tn" id="node-warp_charge_1" data-id="warp_charge_1"><rect x="738" y="404" width="188" height="46" rx="6"/><text x="748" y="431">Разгон телепорта I</text><circle cx="916" cy="413" r="4" fill="#d9534f"/><text class="amt" x="918" y="442">30</text><title>Разгон телепорта I</title></g></a>
+<a href="../research/warp_time_4.html"><g class="tn" id="node-warp_time_4" data-id="warp_time_4"><rect x="1464" y="404" width="188" height="46" rx="6"/><text x="1474" y="431">Запас хода IV</text><circle cx="1642" cy="413" r="4" fill="#5f7fd9"/><circle cx="1631" cy="413" r="4" fill="#d9534f"/><text class="amt" x="1644" y="442">75 + 37</text><title>Запас хода IV</title></g></a>
+<a href="../research/underground.html"><g class="tn" id="node-underground" data-id="underground"><rect x="496" y="236" width="188" height="46" rx="6"/><text x="506" y="263">Подземный этаж</text><circle cx="674" cy="245" r="4" fill="#d9534f"/><text class="amt" x="676" y="274">15</text><title>Подземный этаж</title></g></a>
+<a href="../research/warp_charge_2.html"><g class="tn" id="node-warp_charge_2" data-id="warp_charge_2"><rect x="980" y="404" width="188" height="46" rx="6"/><text x="990" y="431">Разгон телепорта II</text><circle cx="1158" cy="413" r="4" fill="#d9534f"/><text class="amt" x="1160" y="442">45</text><title>Разгон телепорта II</title></g></a>
+<a href="../research/warp_time_5.html"><g class="tn" id="node-warp_time_5" data-id="warp_time_5"><rect x="1706" y="404" width="188" height="46" rx="6"/><text x="1716" y="431">Запас хода V</text><circle cx="1884" cy="413" r="4" fill="#5f7fd9"/><circle cx="1873" cy="413" r="4" fill="#d9534f"/><text class="amt" x="1886" y="442">90 + 45</text><title>Запас хода V</title></g></a>
+<a href="../research/warp_charge_3.html"><g class="tn" id="node-warp_charge_3" data-id="warp_charge_3"><rect x="1222" y="516" width="188" height="46" rx="6"/><text x="1232" y="543">Разгон телепорта III</text><circle cx="1400" cy="525" r="4" fill="#5f7fd9"/><circle cx="1389" cy="525" r="4" fill="#d9534f"/><text class="amt" x="1402" y="554">60 + 30</text><title>Разгон телепорта III</title></g></a>
+<a href="../research/star_scan_1.html"><g class="tn" id="node-star_scan_1" data-id="star_scan_1"><rect x="738" y="460" width="188" height="46" rx="6"/><text x="748" y="487">Разведка I</text><circle cx="916" cy="469" r="4" fill="#d9534f"/><text class="amt" x="918" y="498">40</text><title>Разведка I</title></g></a>
+<a href="../research/star_scan_2.html"><g class="tn" id="node-star_scan_2" data-id="star_scan_2"><rect x="980" y="460" width="188" height="46" rx="6"/><text x="990" y="487">Разведка II</text><circle cx="1158" cy="469" r="4" fill="#d9534f"/><text class="amt" x="1160" y="498">60</text><title>Разведка II</title></g></a>
+<a href="../research/star_depth_1.html"><g class="tn" id="node-star_depth_1" data-id="star_depth_1"><rect x="1222" y="572" width="188" height="46" rx="6"/><text x="1232" y="599">Дальний обзор I</text><circle cx="1400" cy="581" r="4" fill="#5f7fd9"/><circle cx="1389" cy="581" r="4" fill="#d9534f"/><text class="amt" x="1402" y="610">60 + 30</text><title>Дальний обзор I</title></g></a>
+<a href="../research/star_depth_2.html"><g class="tn" id="node-star_depth_2" data-id="star_depth_2"><rect x="1464" y="572" width="188" height="46" rx="6"/><text x="1474" y="599">Дальний обзор II</text><circle cx="1642" cy="581" r="4" fill="#5f7fd9"/><circle cx="1631" cy="581" r="4" fill="#d9534f"/><text class="amt" x="1644" y="610">90 + 45</text><title>Дальний обзор II</title></g></a>
+<a href="../research/gateway_items.html"><g class="tn" id="node-gateway_items" data-id="gateway_items"><rect x="738" y="516" width="188" height="46" rx="6"/><text x="748" y="543">Передача предметов</text><circle cx="916" cy="525" r="4" fill="#d9534f"/><text class="amt" x="918" y="554">10</text><title>Передача предметов</title></g></a>
+<a href="../research/gateway_ports_1.html"><g class="tn" id="node-gateway_ports_1" data-id="gateway_ports_1"><rect x="980" y="516" width="188" height="46" rx="6"/><text x="990" y="543">Порты шлюза I</text><circle cx="1158" cy="525" r="4" fill="#d9534f"/><text class="amt" x="1160" y="554">20</text><title>Порты шлюза I</title></g></a>
+<a href="../research/gateway_ports_2.html"><g class="tn" id="node-gateway_ports_2" data-id="gateway_ports_2"><rect x="1222" y="628" width="188" height="46" rx="6"/><text x="1232" y="655">Порты шлюза II</text><circle cx="1400" cy="637" r="4" fill="#d9534f"/><text class="amt" x="1402" y="666">30</text><title>Порты шлюза II</title></g></a>
+<a href="../research/gateway_speed_1.html"><g class="tn" id="node-gateway_speed_1" data-id="gateway_speed_1"><rect x="980" y="572" width="188" height="46" rx="6"/><text x="990" y="599">Разгон шлюза I</text><circle cx="1158" cy="581" r="4" fill="#5f7fd9"/><circle cx="1147" cy="581" r="4" fill="#d9534f"/><text class="amt" x="1160" y="610">40 + 20</text><title>Разгон шлюза I</title></g></a>
+<a href="../research/gateway_speed_2.html"><g class="tn" id="node-gateway_speed_2" data-id="gateway_speed_2"><rect x="1222" y="684" width="188" height="46" rx="6"/><text x="1232" y="711">Разгон шлюза II</text><circle cx="1400" cy="693" r="4" fill="#5f7fd9"/><circle cx="1389" cy="693" r="4" fill="#d9534f"/><text class="amt" x="1402" y="722">60 + 30</text><title>Разгон шлюза II</title></g></a>
+<a href="../research/gateway_speed_3.html"><g class="tn" id="node-gateway_speed_3" data-id="gateway_speed_3"><rect x="1464" y="684" width="188" height="46" rx="6"/><text x="1474" y="711">Разгон шлюза III</text><circle cx="1642" cy="693" r="4" fill="#5f7fd9"/><circle cx="1631" cy="693" r="4" fill="#d9534f"/><text class="amt" x="1644" y="722">80 + 40</text><title>Разгон шлюза III</title></g></a>
+<a href="../research/underground_1.html"><g class="tn" id="node-underground_1" data-id="underground_1"><rect x="738" y="572" width="188" height="46" rx="6"/><text x="748" y="590">Расширение подземного</text><text x="748" y="605">этажа I</text><circle cx="916" cy="581" r="4" fill="#d9534f"/><text class="amt" x="918" y="610">20</text><title>Расширение подземного этажа I</title></g></a>
+<a href="../research/underground_2.html"><g class="tn" id="node-underground_2" data-id="underground_2"><rect x="980" y="628" width="188" height="46" rx="6"/><text x="990" y="646">Расширение подземного</text><text x="990" y="661">этажа II</text><circle cx="1158" cy="637" r="4" fill="#d9534f"/><text class="amt" x="1160" y="666">30</text><title>Расширение подземного этажа II</title></g></a>
+<a href="../research/underground_3.html"><g class="tn" id="node-underground_3" data-id="underground_3"><rect x="1222" y="740" width="188" height="46" rx="6"/><text x="1232" y="758">Расширение подземного</text><text x="1232" y="773">этажа III</text><circle cx="1400" cy="749" r="4" fill="#d9534f"/><text class="amt" x="1402" y="778">40</text><title>Расширение подземного этажа III</title></g></a>
+<a href="../research/underground_4.html"><g class="tn" id="node-underground_4" data-id="underground_4"><rect x="1464" y="740" width="188" height="46" rx="6"/><text x="1474" y="758">Расширение подземного</text><text x="1474" y="773">этажа IV</text><circle cx="1642" cy="749" r="4" fill="#5f7fd9"/><circle cx="1631" cy="749" r="4" fill="#d9534f"/><text class="amt" x="1644" y="778">50 + 25</text><title>Расширение подземного этажа IV</title></g></a>
+<a href="../research/underground_5.html"><g class="tn" id="node-underground_5" data-id="underground_5"><rect x="1706" y="740" width="188" height="46" rx="6"/><text x="1716" y="758">Расширение подземного</text><text x="1716" y="773">этажа V</text><circle cx="1884" cy="749" r="4" fill="#5f7fd9"/><circle cx="1873" cy="749" r="4" fill="#d9534f"/><text class="amt" x="1886" y="778">60 + 30</text><title>Расширение подземного этажа V</title></g></a>
+<a href="../research/lift.html"><g class="tn" id="node-lift" data-id="lift"><rect x="980" y="684" width="188" height="46" rx="6"/><text x="990" y="711">Лифт</text><circle cx="1158" cy="693" r="4" fill="#5f7fd9"/><circle cx="1147" cy="693" r="4" fill="#d9534f"/><text class="amt" x="1160" y="722">30 + 15</text><title>Лифт</title></g></a>
+<a href="../research/gateway_power.html"><g class="tn" id="node-gateway_power" data-id="gateway_power"><rect x="738" y="628" width="188" height="46" rx="6"/><text x="748" y="655">Передача энергии</text><circle cx="916" cy="637" r="4" fill="#d9534f"/><text class="amt" x="918" y="666">25</text><title>Передача энергии</title></g></a>
+<a href="../research/gateway_fluids.html"><g class="tn" id="node-gateway_fluids" data-id="gateway_fluids"><rect x="980" y="740" width="188" height="46" rx="6"/><text x="990" y="767">Передача жидкостей</text><circle cx="1158" cy="749" r="4" fill="#d9534f"/><text class="amt" x="1160" y="778">25</text><title>Передача жидкостей</title></g></a>
+<a href="../research/mining_floor.html"><g class="tn" id="node-mining_floor" data-id="mining_floor"><rect x="1222" y="460" width="188" height="46" rx="6"/><text x="1232" y="487">Этаж добычи</text><circle cx="1400" cy="469" r="4" fill="#5f7fd9"/><circle cx="1389" cy="469" r="4" fill="#d9534f"/><text class="amt" x="1402" y="498">50 + 25</text><title>Этаж добычи</title></g></a>
+<a href="../research/mining_room_1.html"><g class="tn" id="node-mining_room_1" data-id="mining_room_1"><rect x="1464" y="460" width="188" height="46" rx="6"/><text x="1474" y="487">Северная комната добычи</text><circle cx="1642" cy="469" r="4" fill="#5f7fd9"/><circle cx="1631" cy="469" r="4" fill="#d9534f"/><text class="amt" x="1644" y="498">60 + 30</text><title>Северная комната добычи</title></g></a>
+<a href="../research/mining_room_2.html"><g class="tn" id="node-mining_room_2" data-id="mining_room_2"><rect x="1706" y="460" width="188" height="46" rx="6"/><text x="1716" y="487">Восточная комната добычи</text><circle cx="1884" cy="469" r="4" fill="#5f7fd9"/><circle cx="1873" cy="469" r="4" fill="#d9534f"/><text class="amt" x="1886" y="498">80 + 40</text><title>Восточная комната добычи</title></g></a>
+<a href="../research/mining_room_3.html"><g class="tn" id="node-mining_room_3" data-id="mining_room_3"><rect x="1948" y="460" width="188" height="46" rx="6"/><text x="1958" y="487">Южная комната добычи</text><circle cx="2126" cy="469" r="4" fill="#5f7fd9"/><circle cx="2115" cy="469" r="4" fill="#d9534f"/><text class="amt" x="2128" y="498">100 + 50</text><title>Южная комната добычи</title></g></a>
+<a href="../research/mining_room_4.html"><g class="tn" id="node-mining_room_4" data-id="mining_room_4"><rect x="2190" y="460" width="188" height="46" rx="6"/><text x="2200" y="487">Западная комната добычи</text><circle cx="2368" cy="469" r="4" fill="#5f7fd9"/><circle cx="2357" cy="469" r="4" fill="#d9534f"/><text class="amt" x="2370" y="498">120 + 60</text><title>Западная комната добычи</title></g></a>
+<a href="../research/boiler_floor.html"><g class="tn" id="node-boiler_floor" data-id="boiler_floor"><rect x="1464" y="236" width="188" height="46" rx="6"/><text x="1474" y="263">Котельная</text><circle cx="1642" cy="245" r="4" fill="#5f7fd9"/><circle cx="1631" cy="245" r="4" fill="#d9534f"/><text class="amt" x="1644" y="274">55 + 27</text><title>Котельная</title></g></a>
+<a href="../research/boiler_size_1.html"><g class="tn" id="node-boiler_size_1" data-id="boiler_size_1"><rect x="1706" y="236" width="188" height="46" rx="6"/><text x="1716" y="263">Расширение котельной I</text><circle cx="1884" cy="245" r="4" fill="#5f7fd9"/><circle cx="1873" cy="245" r="4" fill="#d9534f"/><text class="amt" x="1886" y="274">60 + 30</text><title>Расширение котельной I</title></g></a>
+<a href="../research/boiler_size_2.html"><g class="tn" id="node-boiler_size_2" data-id="boiler_size_2"><rect x="1948" y="236" width="188" height="46" rx="6"/><text x="1958" y="263">Расширение котельной II</text><circle cx="2126" cy="245" r="4" fill="#5f7fd9"/><circle cx="2115" cy="245" r="4" fill="#d9534f"/><text class="amt" x="2128" y="274">80 + 40</text><title>Расширение котельной II</title></g></a>
+<a href="../research/boiler_size_3.html"><g class="tn" id="node-boiler_size_3" data-id="boiler_size_3"><rect x="2190" y="236" width="188" height="46" rx="6"/><text x="2200" y="263">Расширение котельной III</text><circle cx="2368" cy="245" r="4" fill="#5f7fd9"/><circle cx="2357" cy="245" r="4" fill="#d9534f"/><text class="amt" x="2370" y="274">100 + 50</text><title>Расширение котельной III</title></g></a>
+<a href="../research/drone_speed_1.html"><g class="tn" id="node-drone_speed_1" data-id="drone_speed_1"><rect x="12" y="68" width="188" height="46" rx="6"/><text x="22" y="95">Скорость дрона I</text><circle cx="190" cy="77" r="4" fill="#d9534f"/><text class="amt" x="192" y="106">10</text><title>Скорость дрона I</title></g></a>
+<a href="../research/drone_speed_2.html"><g class="tn" id="node-drone_speed_2" data-id="drone_speed_2"><rect x="254" y="180" width="188" height="46" rx="6"/><text x="264" y="207">Скорость дрона II</text><circle cx="432" cy="189" r="4" fill="#d9534f"/><text class="amt" x="434" y="218">20</text><title>Скорость дрона II</title></g></a>
+<a href="../research/drone_speed_3.html"><g class="tn" id="node-drone_speed_3" data-id="drone_speed_3"><rect x="496" y="292" width="188" height="46" rx="6"/><text x="506" y="319">Скорость дрона III</text><circle cx="674" cy="301" r="4" fill="#5f7fd9"/><circle cx="663" cy="301" r="4" fill="#d9534f"/><text class="amt" x="676" y="330">30 + 15</text><title>Скорость дрона III</title></g></a>
+<a href="../research/drone_mining_1.html"><g class="tn" id="node-drone_mining_1" data-id="drone_mining_1"><rect x="254" y="236" width="188" height="46" rx="6"/><text x="264" y="263">Добыча дроном I</text><circle cx="432" cy="245" r="4" fill="#d9534f"/><text class="amt" x="434" y="274">10</text><title>Добыча дроном I</title></g></a>
+<a href="../research/drone_mining_2.html"><g class="tn" id="node-drone_mining_2" data-id="drone_mining_2"><rect x="496" y="348" width="188" height="46" rx="6"/><text x="506" y="375">Добыча дроном II</text><circle cx="674" cy="357" r="4" fill="#d9534f"/><text class="amt" x="676" y="386">20</text><title>Добыча дроном II</title></g></a>
+<a href="../research/drone_mining_3.html"><g class="tn" id="node-drone_mining_3" data-id="drone_mining_3"><rect x="738" y="684" width="188" height="46" rx="6"/><text x="748" y="711">Добыча дроном III</text><circle cx="916" cy="693" r="4" fill="#5f7fd9"/><circle cx="905" cy="693" r="4" fill="#d9534f"/><text class="amt" x="918" y="722">30 + 15</text><title>Добыча дроном III</title></g></a>
+<a href="../research/drone_health_1.html"><g class="tn" id="node-drone_health_1" data-id="drone_health_1"><rect x="254" y="292" width="188" height="46" rx="6"/><text x="264" y="319">Корпус дрона I</text><circle cx="432" cy="301" r="4" fill="#d9534f"/><text class="amt" x="434" y="330">10</text><title>Корпус дрона I</title></g></a>
+<a href="../research/drone_health_2.html"><g class="tn" id="node-drone_health_2" data-id="drone_health_2"><rect x="496" y="404" width="188" height="46" rx="6"/><text x="506" y="431">Корпус дрона II</text><circle cx="674" cy="413" r="4" fill="#d9534f"/><text class="amt" x="676" y="442">20</text><title>Корпус дрона II</title></g></a>
+<a href="../research/drone_health_3.html"><g class="tn" id="node-drone_health_3" data-id="drone_health_3"><rect x="738" y="740" width="188" height="46" rx="6"/><text x="748" y="767">Корпус дрона III</text><circle cx="916" cy="749" r="4" fill="#5f7fd9"/><circle cx="905" cy="749" r="4" fill="#d9534f"/><text class="amt" x="918" y="778">30 + 15</text><title>Корпус дрона III</title></g></a>
+<a href="../research/drone_gun_1.html"><g class="tn" id="node-drone_gun_1" data-id="drone_gun_1"><rect x="254" y="348" width="188" height="46" rx="6"/><text x="264" y="375">Автопушка дрона I</text><circle cx="432" cy="357" r="4" fill="#d9534f"/><text class="amt" x="434" y="386">10</text><title>Автопушка дрона I</title></g></a>
+<a href="../research/drone_gun_2.html"><g class="tn" id="node-drone_gun_2" data-id="drone_gun_2"><rect x="496" y="460" width="188" height="46" rx="6"/><text x="506" y="487">Автопушка дрона II</text><circle cx="674" cy="469" r="4" fill="#d9534f"/><text class="amt" x="676" y="498">20</text><title>Автопушка дрона II</title></g></a>
+<a href="../research/drone_gun_3.html"><g class="tn" id="node-drone_gun_3" data-id="drone_gun_3"><rect x="738" y="796" width="188" height="46" rx="6"/><text x="748" y="823">Автопушка дрона III</text><circle cx="916" cy="805" r="4" fill="#5f7fd9"/><circle cx="905" cy="805" r="4" fill="#d9534f"/><text class="amt" x="918" y="834">30 + 15</text><title>Автопушка дрона III</title></g></a>
+<a href="../research/drone_repair_1.html"><g class="tn" id="node-drone_repair_1" data-id="drone_repair_1"><rect x="254" y="404" width="188" height="46" rx="6"/><text x="264" y="431">Ремонт дроном I</text><circle cx="432" cy="413" r="4" fill="#d9534f"/><text class="amt" x="434" y="442">10</text><title>Ремонт дроном I</title></g></a>
+<a href="../research/drone_repair_2.html"><g class="tn" id="node-drone_repair_2" data-id="drone_repair_2"><rect x="496" y="516" width="188" height="46" rx="6"/><text x="506" y="543">Ремонт дроном II</text><circle cx="674" cy="525" r="4" fill="#d9534f"/><text class="amt" x="676" y="554">20</text><title>Ремонт дроном II</title></g></a>
+<a href="../research/drone_repair_3.html"><g class="tn" id="node-drone_repair_3" data-id="drone_repair_3"><rect x="738" y="852" width="188" height="46" rx="6"/><text x="748" y="879">Ремонт дроном III</text><circle cx="916" cy="861" r="4" fill="#5f7fd9"/><circle cx="905" cy="861" r="4" fill="#d9534f"/><text class="amt" x="918" y="890">30 + 15</text><title>Ремонт дроном III</title></g></a>
+</g>
+</svg>
+</div>
+<p>Не показаны — только для творческого режима: <span class="chips"><a class="chip" href="../research/sandbox.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Полигон</span></a></span></p>
+</main>
+<footer>Страница собрана из данных игры скриптом <code>tools/data/make_wiki.py</code>.</footer>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/wiki.js"></script>
+</body>
+</html>

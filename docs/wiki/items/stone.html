@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Камень — WarpFactor вики</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%23282828' stroke='%23fabd2f' stroke-width='3'/%3E%3Cpath d='M9 10l3 12 4-8 4 8 3-12' fill='none' stroke='%23fe8019' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body data-root="../">
+<svg class="defs" aria-hidden="true"><defs>
+<symbol id="b-assembler" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#26292d" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#5e6670" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#868c94" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#34383e" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#34383e" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#3d4249" rx="2"/></symbol>
+<symbol id="b-coal_drill" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#261e16" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#5f4a38" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#87776a" rx="2" fill-opacity="0.6"/><rect x="11" y="11" width="10" height="10" fill="#3e3024" rx="2"/></symbol>
+<symbol id="b-drill" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#372c1f" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#8a6d4e" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#a7927a" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#4c3c2b" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#4c3c2b" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#5a4733" rx="2"/></symbol>
+<symbol id="b-fabricator" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#31363c" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#7b8796" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#9ca5b0" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#444a52" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#444a52" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#505862" rx="2"/></symbol>
+<symbol id="b-fast_drill" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#463720" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#b0894f" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#c4a67b" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#614b2b" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#614b2b" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#725933" rx="2"/></symbol>
+<symbol id="b-smeltery" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#422d20" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#a5714f" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#bc947b" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#5b3e2b" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#5b3e2b" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#6b4933" rx="2"/></symbol>
+<symbol id="i-brick" viewBox="0 0 32 32"><rect x="3" y="9" width="26" height="14" fill="#422217"/><rect x="5" y="11" width="22" height="10" fill="#a4553a"/><rect x="5" y="17" width="22" height="4" fill="#83442e"/><rect x="7" y="12" width="8" height="2" fill="#c89989"/></symbol>
+<symbol id="i-cartridge_stone" viewBox="0 0 32 32"><polygon points="16,3 30,28 2,28" fill="#3e3d39"/><polygon points="16,6.63 26.92,26.13 5.08,26.13" fill="#9a998f"/><rect x="14" y="11" width="3" height="3" fill="#c2c2bc"/></symbol>
+<symbol id="i-casing_mg" viewBox="0 0 32 32"><polygon points="16,3 30,28 2,28" fill="#504110"/><polygon points="16,6.63 26.92,26.13 5.08,26.13" fill="#c9a227"/><rect x="14" y="11" width="3" height="3" fill="#dfc77d"/></symbol>
+<symbol id="i-stone" viewBox="0 0 32 32"><polygon points="27.69,22.75 16,29.5 4.31,22.75 4.31,9.25 16,2.5 27.69,9.25" fill="#383735"/><polygon points="25.59,21.54 16,27.07 6.41,21.54 6.41,10.47 16,4.93 25.59,10.47" fill="#8b8a84"/><polygon points="24.06,21.5 18,25 11.94,21.5 11.94,14.5 18,11 24.06,14.5" fill="#6f6e6a"/><rect x="9" y="10" width="4" height="2" fill="#b9b9b5"/></symbol>
+<symbol id="r-d9534f" viewBox="0 0 32 32"><path d="M12 4h8v2h-1.5v7.5l7 11.5a2 2 0 0 1-1.7 3H7.2a2 2 0 0 1-1.7-3l7-11.5V6H12Z" fill="#d9534f" stroke="#572120" stroke-width="2" stroke-linejoin="round"/><path d="M9 22h14" stroke="#eaa09e" stroke-width="2"/></symbol>
+</defs></svg>
+<header class="top">
+<div class="bar"><a class="logo" href="../index.html">WarpFactor <span>вики</span></a>
+<div class="search"><input type="search" placeholder="Поиск: предмет, постройка, исследование…" aria-label="Поиск по вики" autocomplete="off" data-search><ul class="results" hidden></ul></div></div>
+<nav class="sections"><a href="../items/index.html" class="on">Предметы</a><a href="../buildings/index.html">Постройки</a><a href="../research/index.html">Исследования</a><a href="../research/tree.html">Дерево</a><a href="../world/index.html">Мир</a><a href="../enemies/index.html">Враги</a><a href="../mechanics/index.html">Механики</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../index.html">Главная</a> <span class="sep">›</span> <a href="../items/index.html">Предметы</a> <span class="sep">›</span> <span aria-current="page">Камень</span></nav>
+<div class="hero"><svg class="ic big" aria-hidden="true"><use href="#i-stone"/></svg><div><h1>Камень</h1><div class="sub"><code>stone</code></div></div></div>
+<div class="tw"><table class="facts"><tbody>
+<tr><th>Раздел</th><td><a href="../items/index.html#cat-raw">Сырьё</a></td></tr>
+<tr><th>Стак</th><td>50 шт.</td></tr>
+</tbody></table></div>
+<section>
+<h2>Где получить</h2>
+<div class="tw"><table class="facts"><tbody>
+<tr><th>Месторождение</th><td><a class="chip" href="../world/index.html#ore-stone"><svg class="ic" aria-hidden="true"><use href="#i-stone"/></svg><span>Каменная порода</span></a> <span class="muted">твёрдость 1</span></td></tr>
+<tr><th>Добывают</th><td><span class="chips"><span class="chip hand"><span>дрон — 2.1 с/шт.</span></span><a class="chip" href="../buildings/coal_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-coal_drill"/></svg><span>Угольный бур</span> <i class="tag">7.5 с/шт.</i></a><a class="chip" href="../buildings/drill.html"><svg class="ic" aria-hidden="true"><use href="#b-drill"/></svg><span>Электробур</span> <i class="tag">1.88 с/шт.</i></a><a class="chip" href="../buildings/fast_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-fast_drill"/></svg><span>Скоростной бур</span> <i class="tag">0.94 с/шт.</i></a></span><div class="muted small">Время бура — когда все клетки под ним средние; богатые клетки быстрее.</div></td></tr>
+</tbody></table></div>
+</section>
+<section>
+<h2>Где нужен</h2>
+<h3>В рецептах</h3>
+<div class="recipe"><div class="flow"><a class="chip" href="../items/stone.html"><svg class="ic" aria-hidden="true"><use href="#i-stone"/></svg><span>Камень</span> <b class="n">×2</b></a><span class="arrow">→</span><a class="chip" href="../items/brick.html"><svg class="ic" aria-hidden="true"><use href="#i-brick"/></svg><span>Кирпич</span> <b class="n">×1</b></a></div><div class="meta">3.2 с · где: <span class="chips"><a class="chip" href="../buildings/furnace.html"><span class="ic spr" style="background-image:url(../assets/sprites/furnace.png);background-size:300% 100%"></span><span>Печь</span></a><a class="chip" href="../buildings/smeltery.html"><svg class="ic" aria-hidden="true"><use href="#b-smeltery"/></svg><span>Плавильня</span></a></span></div></div>
+<div class="recipe"><div class="flow"><a class="chip" href="../items/casing_mg.html"><svg class="ic" aria-hidden="true"><use href="#i-casing_mg"/></svg><span>Пулемётная гильза</span> <b class="n">×1</b></a><a class="chip" href="../items/stone.html"><svg class="ic" aria-hidden="true"><use href="#i-stone"/></svg><span>Камень</span> <b class="n">×1</b></a><span class="arrow">→</span><a class="chip" href="../items/cartridge_stone.html"><svg class="ic" aria-hidden="true"><use href="#i-cartridge_stone"/></svg><span>Патрон: каменный</span> <b class="n">×4</b></a></div><div class="meta">2 с · где: <span class="chips"><a class="chip" href="../buildings/assembler.html"><svg class="ic" aria-hidden="true"><use href="#b-assembler"/></svg><span>Сборщик</span></a><a class="chip" href="../buildings/fabricator.html"><svg class="ic" aria-hidden="true"><use href="#b-fabricator"/></svg><span>Фабрикатор</span></a><span class="chip hand"><span>руками</span></span></span> · открывает <a class="chip" href="../research/defense.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Оборона</span></a></div></div>
+<h3>В стоимости построек</h3>
+<span class="chips"><a class="chip" href="../buildings/furnace.html"><span class="ic spr" style="background-image:url(../assets/sprites/furnace.png);background-size:300% 100%"></span><span>Печь</span> <b class="n">×10</b></a></span><p class="muted small">Столько же уходит и на автосборку этих построек в сборщике.</p>
+</section>
+</main>
+<footer>Страница собрана из данных игры скриптом <code>tools/data/make_wiki.py</code>.</footer>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/wiki.js"></script>
+</body>
+</html>

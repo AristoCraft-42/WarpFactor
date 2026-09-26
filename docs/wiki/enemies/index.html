@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Враги и волны — WarpFactor вики</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%23282828' stroke='%23fabd2f' stroke-width='3'/%3E%3Cpath d='M9 10l3 12 4-8 4 8 3-12' fill='none' stroke='%23fe8019' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body data-root="../">
+<svg class="defs" aria-hidden="true"><defs>
+<symbol id="b-fluid_turret" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#1c3536" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#458588" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#74a4a6" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#26494b" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#26494b" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#2d5658" rx="2"/></symbol>
+<symbol id="b-machine_gun" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#312a22" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#7a6a55" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#9b8f80" rx="2" fill-opacity="0.6"/><rect x="11" y="11" width="10" height="10" fill="#4f4537" rx="2"/></symbol>
+<symbol id="b-repair_turret" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#394d32" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#8ec07c" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#aad09d" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#4e6a44" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#4e6a44" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#5c7d51" rx="2"/></symbol>
+<symbol id="b-stone_wall" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#383735" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#8b8a84" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#a8a7a3" rx="2" fill-opacity="0.6"/><rect x="11" y="11" width="10" height="10" fill="#5a5a56" rx="2"/></symbol>
+<symbol id="b-tesla_turret" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#34423d" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#83a598" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#a2bcb2" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#485b54" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#485b54" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#556b63" rx="2"/></symbol>
+<symbol id="e-brute" viewBox="0 0 48 48"><polygon points="45,24 34.5,42.19 13.5,42.19 3,24 13.5,5.81 34.5,5.81" fill="#1d2021"/><polygon points="42,24 33,39.59 15,39.59 6,24 15,8.41 33,8.41" fill="#8f3a4a"/><polygon points="32,24 27,32.66 17,32.66 12,24 17,15.34 27,15.34" fill="#4f2029"/><line x1="36" y1="14" x2="46" y2="7" stroke="#ebdbb2" stroke-width="4" stroke-linecap="round"/><line x1="36" y1="34" x2="46" y2="41" stroke="#ebdbb2" stroke-width="4" stroke-linecap="round"/><circle cx="32" cy="19" r="2.2" fill="#fe8019"/><circle cx="32" cy="29" r="2.2" fill="#fe8019"/></symbol>
+<symbol id="e-crawler" viewBox="0 0 48 48"><line x1="16" y1="20" x2="12" y2="9" stroke="#1d2021" stroke-width="2.5" stroke-linecap="round"/><line x1="16" y1="28" x2="12" y2="39" stroke="#1d2021" stroke-width="2.5" stroke-linecap="round"/><line x1="23" y1="20" x2="19" y2="9" stroke="#1d2021" stroke-width="2.5" stroke-linecap="round"/><line x1="23" y1="28" x2="19" y2="39" stroke="#1d2021" stroke-width="2.5" stroke-linecap="round"/><line x1="30" y1="20" x2="26" y2="9" stroke="#1d2021" stroke-width="2.5" stroke-linecap="round"/><line x1="30" y1="28" x2="26" y2="39" stroke="#1d2021" stroke-width="2.5" stroke-linecap="round"/><circle cx="24" cy="24" r="13" fill="#1d2021"/><circle cx="24" cy="24" r="10.7" fill="#cc5a3a"/><circle cx="21" cy="24" r="5" fill="#703220"/><line x1="33" y1="20" x2="42" y2="17" stroke="#de947f" stroke-width="2.5" stroke-linecap="round"/><line x1="33" y1="28" x2="42" y2="31" stroke="#de947f" stroke-width="2.5" stroke-linecap="round"/><circle cx="31" cy="21" r="1.6" fill="#fe8019"/><circle cx="31" cy="27" r="1.6" fill="#fe8019"/></symbol>
+<symbol id="e-soldier" viewBox="0 0 48 48"><rect x="10" y="9" width="26" height="6" fill="#1d2021"/><rect x="10" y="33" width="26" height="6" fill="#1d2021"/><rect x="12" y="13" width="22" height="22" fill="#1d2021"/><rect x="14" y="15" width="18" height="18" fill="#b8483f"/><rect x="26" y="22" width="20" height="5" fill="#1d2021"/><rect x="27" y="23" width="18" height="3" fill="#d18882"/><circle cx="23" cy="24" r="5" fill="#652823"/><circle cx="23" cy="24" r="2" fill="#fe8019"/></symbol>
+<symbol id="p-wasteland" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#918273" stroke="#413a34" stroke-width="2"/><path d="M8 12a10 10 0 0 1 8-6" fill="none" stroke="#c2bab2" stroke-width="2" stroke-linecap="round"/><ellipse cx="19" cy="20" rx="5" ry="3" fill="#74685c"/></symbol>
+</defs></svg>
+<header class="top">
+<div class="bar"><a class="logo" href="../index.html">WarpFactor <span>вики</span></a>
+<div class="search"><input type="search" placeholder="Поиск: предмет, постройка, исследование…" aria-label="Поиск по вики" autocomplete="off" data-search><ul class="results" hidden></ul></div></div>
+<nav class="sections"><a href="../items/index.html">Предметы</a><a href="../buildings/index.html">Постройки</a><a href="../research/index.html">Исследования</a><a href="../research/tree.html">Дерево</a><a href="../world/index.html">Мир</a><a href="../enemies/index.html" class="on">Враги</a><a href="../mechanics/index.html">Механики</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../index.html">Главная</a> <span class="sep">›</span> <span aria-current="page">Враги и волны</span></nav>
+<h1>Враги и волны</h1>
+<p>Враги идут к центральному шлюзу по полю потоков, по дороге бьют постройки и дрона в радиусе атаки и ломают постройки, перегородившие путь. Атака мгновенная, без снарядов. Из бюджета волны набираются враги по их стоимости угрозы.</p>
+<section id="list">
+<h2>Враги</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Враг</th><th>Прочность</th><th>Скорость</th><th>Урон</th><th>Пауза</th><th>Урон в секунду</th><th>Дальность атаки</th><th>Стоимость угрозы</th></tr></thead>
+<tbody>
+<tr><td><span id="enemy-crawler"><a class="chip" href="../enemies/index.html#enemy-crawler"><svg class="ic" aria-hidden="true"><use href="#e-crawler"/></svg><span>Ползун</span></a></span></td><td data-label="Прочность"><div>70</div></td><td data-label="Скорость"><div>8.5 тайла/с</div></td><td data-label="Урон"><div>5</div></td><td data-label="Пауза"><div>0.4 с</div></td><td data-label="Урон в секунду"><div>12.5</div></td><td data-label="Дальность атаки"><div>0.15 тайла</div></td><td data-label="Стоимость угрозы"><div>0.7</div></td></tr>
+<tr><td><span id="enemy-soldier"><a class="chip" href="../enemies/index.html#enemy-soldier"><svg class="ic" aria-hidden="true"><use href="#e-soldier"/></svg><span>Стрелок</span></a></span></td><td data-label="Прочность"><div>160</div></td><td data-label="Скорость"><div>5.1 тайла/с</div></td><td data-label="Урон"><div>9</div></td><td data-label="Пауза"><div>0.9 с</div></td><td data-label="Урон в секунду"><div>10</div></td><td data-label="Дальность атаки"><div>3.5 тайла</div></td><td data-label="Стоимость угрозы"><div>2.1</div></td></tr>
+<tr><td><span id="enemy-brute"><a class="chip" href="../enemies/index.html#enemy-brute"><svg class="ic" aria-hidden="true"><use href="#e-brute"/></svg><span>Громила</span></a></span></td><td data-label="Прочность"><div>900</div></td><td data-label="Скорость"><div>3.2 тайла/с</div></td><td data-label="Урон"><div>45</div></td><td data-label="Пауза"><div>1.4 с</div></td><td data-label="Урон в секунду"><div>32.1</div></td><td data-label="Дальность атаки"><div>0.2 тайла</div></td><td data-label="Стоимость угрозы"><div>7</div></td></tr>
+</tbody></table></div>
+</section>
+<section id="threats">
+<h2>Волны по типам планет</h2>
+<span id="threat-normal"></span><span id="threat-rich"></span><span id="threat-wasteland"></span><div class="tw"><table class="stack">
+<thead><tr><th>Что</th><th>Планета</th><th>Рудный мир</th></tr></thead>
+<tbody>
+<tr><td>Первая волна</td><td data-label="Планета"><div>через 10 мин</div></td><td data-label="Рудный мир"><div>через 7 мин</div></td></tr>
+<tr><td>Затишье между волнами</td><td data-label="Планета"><div>240 с, дальше каждое × 0.85</div></td><td data-label="Рудный мир"><div>180 с, дальше каждое × 0.85</div></td></tr>
+<tr><td>Волны встык</td><td data-label="Планета"><div>когда затишье короче 10 с</div></td><td data-label="Рудный мир"><div>когда затишье короче 10 с</div></td></tr>
+<tr><td>Предупреждение</td><td data-label="Планета"><div>за 15 с</div></td><td data-label="Рудный мир"><div>за 15 с</div></td></tr>
+<tr><td>Появление волны</td><td data-label="Планета"><div>8 с + 2.5 с за волну, не дольше 45 с</div></td><td data-label="Рудный мир"><div>8 с + 2.5 с за волну, не дольше 45 с</div></td></tr>
+<tr><td>Бюджет волны</td><td data-label="Планета"><div>4 + 3.4 за волну + 0.5 за минуту на планете</div></td><td data-label="Рудный мир"><div>5 + 4.2 за волну + 0.7 за минуту на планете</div></td></tr>
+<tr><td>Прочность врагов</td><td data-label="Планета"><div>+9 % за волну, +25 % за шаг звёздной карты, не больше ×8</div></td><td data-label="Рудный мир"><div>+12 % за волну, +25 % за шаг звёздной карты, не больше ×8</div></td></tr>
+<tr><td>Урон врагов</td><td data-label="Планета"><div>+7 % за волну, +20 % за шаг карты, не больше ×5</div></td><td data-label="Рудный мир"><div>+9 % за волну, +20 % за шаг карты, не больше ×5</div></td></tr>
+<tr><td>Точек появления</td><td data-label="Планета"><div>3</div></td><td data-label="Рудный мир"><div>4</div></td></tr>
+<tr><td>Врагов на карте</td><td data-label="Планета"><div>до 1500</div></td><td data-label="Рудный мир"><div>до 1500</div></td></tr>
+<tr><td>Кто приходит</td><td data-label="Планета"><div><span class="chips"><a class="chip" href="../enemies/index.html#enemy-crawler"><svg class="ic" aria-hidden="true"><use href="#e-crawler"/></svg><span>Ползун</span> <i class="tag">с 1-й волны, вес 3</i></a><a class="chip" href="../enemies/index.html#enemy-soldier"><svg class="ic" aria-hidden="true"><use href="#e-soldier"/></svg><span>Стрелок</span> <i class="tag">с 4-й волны, вес 2</i></a><a class="chip" href="../enemies/index.html#enemy-brute"><svg class="ic" aria-hidden="true"><use href="#e-brute"/></svg><span>Громила</span> <i class="tag">с 8-й волны, вес 1</i></a></span></div></td><td data-label="Рудный мир"><div><span class="chips"><a class="chip" href="../enemies/index.html#enemy-crawler"><svg class="ic" aria-hidden="true"><use href="#e-crawler"/></svg><span>Ползун</span> <i class="tag">с 1-й волны, вес 3</i></a><a class="chip" href="../enemies/index.html#enemy-soldier"><svg class="ic" aria-hidden="true"><use href="#e-soldier"/></svg><span>Стрелок</span> <i class="tag">с 4-й волны, вес 2</i></a><a class="chip" href="../enemies/index.html#enemy-brute"><svg class="ic" aria-hidden="true"><use href="#e-brute"/></svg><span>Громила</span> <i class="tag">с 8-й волны, вес 1</i></a></span></div></td></tr>
+</tbody></table></div><p>Без врагов: <span class="chips"><a class="chip" href="../world/index.html#planet-wasteland"><svg class="ic" aria-hidden="true"><use href="#p-wasteland"/></svg><span>Пустошь</span></a></span></p>
+</section>
+<section id="defense">
+<h2>Чем обороняться</h2>
+<div class="grid"><a class="card" href="../buildings/stone_wall.html"><svg class="ic mid" aria-hidden="true"><use href="#b-stone_wall"/></svg><span>Каменная стена<small>1×1</small></span></a><a class="card" href="../buildings/machine_gun.html"><svg class="ic mid" aria-hidden="true"><use href="#b-machine_gun"/></svg><span>Пулемётная турель<small>1×1</small></span></a><a class="card" href="../buildings/tesla_turret.html"><svg class="ic mid" aria-hidden="true"><use href="#b-tesla_turret"/></svg><span>Тесла-турель<small>2×2, 180 кВт</small></span></a><a class="card" href="../buildings/repair_turret.html"><svg class="ic mid" aria-hidden="true"><use href="#b-repair_turret"/></svg><span>Ремонтная турель<small>2×2, 120 кВт</small></span></a><a class="card" href="../buildings/fluid_turret.html"><svg class="ic mid" aria-hidden="true"><use href="#b-fluid_turret"/></svg><span>Жидкостная турель<small>2×2</small></span></a></div>
+</section>
+</main>
+<footer>Страница собрана из данных игры скриптом <code>tools/data/make_wiki.py</code>.</footer>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/wiki.js"></script>
+</body>
+</html>
