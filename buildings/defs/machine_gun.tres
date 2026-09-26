@@ -116,4 +116,5 @@ inaccuracy = 3.0
 max_ammo = 40
 artillery = false
 barrel_length = 13.0
+damage_per_upgrade = 0.1
 ammo = Array[ExtResource("6_ammo")]([SubResource("ammo_0"), SubResource("ammo_1"), SubResource("ammo_2"), SubResource("ammo_3"), SubResource("ammo_4")])

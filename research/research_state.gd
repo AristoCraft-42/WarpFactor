@@ -23,6 +23,11 @@ const MANUAL_SECONDS := 12.0
 const QUEUE_MAX := 5
 
 ## Всё открыто (творческий режим). Кнопкой «Исследовать заново» выключается, чтобы пройти дерево.
+## Исследования, которые разделили на несколько: старое id → новые (для старых сохранений).
+const LEGACY_SPLIT: Dictionary[StringName, Array] = {
+	&"advanced_defense": [&"tesla_defense", &"repair_defense", &"fluid_defense"],
+}
+
 var creative: bool = false
 ## Забег творческий: доступен полигон и кнопки управления деревом.
 var sandbox: bool = false
@@ -359,6 +364,10 @@ func load_data(data: Dictionary) -> void:
 	for id in (data.get("done", PackedStringArray()) as PackedStringArray):
 		if Registry.get_research(StringName(id)) != null:
 			done[StringName(id)] = true
+		# Исследование разделили на несколько — в старом сохранении завершены все его части.
+		for part: StringName in LEGACY_SPLIT.get(StringName(id), []):
+			if Registry.get_research(part) != null:
+				done[part] = true
 	var ids: PackedStringArray = data.get("progress_ids", PackedStringArray())
 	var values: Array = data.get("progress_values", [])
 	for i in mini(ids.size(), values.size()):

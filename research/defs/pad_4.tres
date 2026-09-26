@@ -6,11 +6,17 @@
 [ext_resource type="Script" path="res://items/recipe.gd" id="4_recipe_script"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]
 [ext_resource type="Resource" path="res://items/types/science_kit_2.tres" id="kit_science_kit_2"]
+[ext_resource type="Resource" path="res://items/types/science_kit_3.tres" id="kit_science_kit_3"]
 
 [sub_resource type="Resource" id="cost_science_kit_2"]
 script = ExtResource("5_stack")
 item = ExtResource("kit_science_kit_2")
 amount = 25
+
+[sub_resource type="Resource" id="cost_science_kit_3"]
+script = ExtResource("5_stack")
+item = ExtResource("kit_science_kit_3")
+amount = 16
 
 [resource]
 script = ExtResource("1_def")
@@ -20,7 +26,7 @@ description_key = "RESEARCH_PAD_4_DESC"
 sort_order = 104
 cost_item = ExtResource("2_kit")
 cost_amount = 50
-extra_costs = Array[ExtResource("5_stack")]([SubResource("cost_science_kit_2")])
+extra_costs = Array[ExtResource("5_stack")]([SubResource("cost_science_kit_2"), SubResource("cost_science_kit_3")])
 prerequisites = Array[StringName]([&"pad_3"])
 unlock_buildings = Array[ExtResource("3_building_script")]([])
 unlock_recipes = Array[ExtResource("4_recipe_script")]([])

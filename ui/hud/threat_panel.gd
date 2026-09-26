@@ -145,7 +145,13 @@ func refresh() -> void:
 	# С каждой волной и с каждым шагом по звёздной карте враги крепче и бьют больнее.
 	if threat.health_scale() > 1.01 or threat.damage_scale() > 1.01:
 		_enemies_label.text += "  ·  " + tr("THREAT_POWER") % [threat.health_scale(), threat.damage_scale()]
-	_enemies_label.visible = planet.enemies.count > 0 or threat.wave > 0
+	# Развитие игрока (исследования × заводы планеты): от него следующая волна гуще и крепче.
+	var researched := threat.research_count()
+	var factories := threat.factory_count()
+	var progress := researched * factories
+	if progress > 0:
+		_enemies_label.text += "\n" + tr("THREAT_PROGRESS") % [researched, factories, threat.def.get_progress_budget(progress)]
+	_enemies_label.visible = planet.enemies.count > 0 or threat.wave > 0 or progress > 0
 
 	var gate := planet.gateway
 	_gate_row.visible = gate != null and gate.is_damaged()

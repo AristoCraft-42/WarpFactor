@@ -197,7 +197,7 @@ func _tick_chain(tick: int) -> bool:
 	if tick < reload_until:
 		return true
 	# Цепь: каждый следующий враг ближе предыдущего не дальше chain_jump.
-	var damage := d.chain_damage
+	var damage := d.chain_damage * damage_bonus()
 	var from := center
 	var index := first
 	var hit := {}
@@ -288,7 +288,7 @@ func _tick_spray(tick: int) -> bool:
 	var steam := fluid != null and fluid.id == &"steam"
 	for j in hits:
 		if steam:
-			enemies.ignite(j, d.steam_dps, tick + roundi(d.steam_seconds * GameConst.TICK_RATE))
+			enemies.ignite(j, d.steam_dps * damage_bonus(), tick + roundi(d.steam_seconds * GameConst.TICK_RATE))
 		else:
 			enemies.slow(j, d.slow_factor, tick + roundi(d.slow_seconds * GameConst.TICK_RATE))
 	var color := fluid.color if fluid != null else Color(0.4, 0.7, 1.0)
@@ -352,14 +352,15 @@ func _shoot(tick: int, d: TurretDef, ammo_type: TurretAmmo, center: Vector2, aim
 	var dir := Vector2.from_angle(shot_angle)
 	var muzzle := center + dir * d.barrel_length
 	var speed := ammo_type.get_speed_per_tick()
+	var bonus := damage_bonus()
 	if d.artillery:
 		var distance := maxf(muzzle.distance_to(aim), 1.0)
-		world.projectiles.spawn_shell(muzzle, muzzle + dir * distance, ceili(distance / speed), ammo_type.damage,
+		world.projectiles.spawn_shell(muzzle, muzzle + dir * distance, ceili(distance / speed), ammo_type.damage * bonus,
 			ammo_type.get_splash_px(), ammo_type.color)
 	else:
 		var ticks := ceili((d.get_range_px() + GameConst.TILE_SIZE) / speed)
-		var bullet := world.projectiles.spawn_bullet(muzzle, dir * speed, ammo_type.damage, ticks, ammo_type.color)
-		world.projectiles.set_effects(bullet, ammo_type.get_splash_px(), ammo_type.burn_dps, ammo_type.get_burn_ticks())
+		var bullet := world.projectiles.spawn_bullet(muzzle, dir * speed, ammo_type.damage * bonus, ticks, ammo_type.color)
+		world.projectiles.set_effects(bullet, ammo_type.get_splash_px(), ammo_type.burn_dps * bonus, ammo_type.get_burn_ticks())
 	var last := ammo_types.size() - 1
 	ammo_shots[last] -= 1
 	total_shots -= 1
@@ -414,12 +415,23 @@ func get_status() -> Status:
 	return status
 
 
+## Множитель урона от исследований «Урон турелей» (1 — без прибавки).
+func damage_bonus() -> float:
+	var d := get_turret_def()
+	if d.damage_per_upgrade <= 0.0 or world == null or world.research == null:
+		return 1.0
+	return 1.0 + d.damage_per_upgrade * world.research.count_effect(&"turret_damage")
+
+
 func get_info_lines() -> PackedStringArray:
 	var d := get_turret_def()
 	var lines := PackedStringArray()
 	var ammo_type := get_current_ammo()
 	var ammo_name := tr(ammo_type.item.name_key) if ammo_type != null else "—"
 	lines.append(tr("INFO_TURRET_AMMO") % [total_shots, d.max_ammo, ammo_name])
+	var bonus := damage_bonus()
+	if bonus > 1.001:
+		lines.append(tr("INFO_TURRET_DAMAGE_BONUS") % roundi((bonus - 1.0) * 100.0))
 	return lines
 
 

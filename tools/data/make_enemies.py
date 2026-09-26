@@ -37,7 +37,7 @@ THREATS = {
     "normal": {},
     "rich": {"first_wave_seconds": 420.0, "first_gap_seconds": 180.0, "budget_base": 5.0,
              "budget_per_wave": 4.2, "budget_per_minute": 0.7, "health_per_wave": 0.12,
-             "damage_per_wave": 0.09, "spawn_point_count": 4},
+             "damage_per_wave": 0.09, "spawn_point_count": 4, "progress_budget": 0.02},
 }
 
 threat = """[gd_resource type="Resource" script_class="ThreatDef" format=3]
@@ -60,6 +60,9 @@ damage_per_wave = 0.07
 damage_per_depth = 0.2
 max_health_scale = 8.0
 max_damage_scale = 5.0
+progress_budget = 0.015
+progress_budget_max = 80.0
+progress_health = 0.0002
 budget_base = 4.0
 budget_per_wave = 3.4
 budget_per_minute = 0.5

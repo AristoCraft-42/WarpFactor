@@ -19,6 +19,9 @@ var rng := RandomNumberGenerator.new()
 
 ## Глубина звёздной карты, на которой стоит планета: чем дальше от старта, тем злее волны.
 var depth: int = 0
+## Развитие игрока в начале текущей волны: исследования × производственные постройки планеты.
+## От него бюджет волны и прочность её врагов.
+var last_progress: int = 0
 
 var _world: GameWorld
 var _enemies: Array[EnemyDef] = []
@@ -36,7 +39,27 @@ var _queue_cursor: int = 0
 
 ## Во сколько раз крепче враги текущей волны (считается при рождении каждого).
 func health_scale() -> float:
-	return def.get_health_scale(maxi(wave, 1), depth)
+	return def.get_health_scale(maxi(wave, 1), depth, last_progress)
+
+
+## Развитие игрока прямо сейчас: завершённые исследования × производственные постройки на планете.
+func progress_now() -> int:
+	return research_count() * factory_count()
+
+
+func research_count() -> int:
+	return _world.research.done.size() if _world != null and _world.research != null else 0
+
+
+## Производственные постройки планеты: печи, буры, сборщики, цеха и прочее из «Производства».
+func factory_count() -> int:
+	if _world == null:
+		return 0
+	var n := 0
+	for b in _world.buildings.get_all():
+		if b.def.category == BuildingDef.Category.PRODUCTION:
+			n += 1
+	return n
 
 
 ## Во сколько раз больнее они бьют.
@@ -136,7 +159,8 @@ func get_pending_spawns() -> int:
 func _start_wave(tick: int) -> void:
 	wave += 1
 	var minutes := float(tick - start_tick) / (60.0 * GameConst.TICK_RATE)
-	var budget := def.get_budget(wave, minutes)
+	last_progress = progress_now()
+	var budget := def.get_budget(wave, minutes) + def.get_progress_budget(last_progress)
 	last_budget = budget
 	var duration := def.get_spawn_ticks(wave)
 	spawn_end_tick = tick + duration
@@ -203,7 +227,7 @@ func _compose(budget: float) -> PackedInt32Array:
 
 func save_data() -> Dictionary:
 	return {"start": start_tick, "wave": wave, "next": next_wave_tick, "spawn_end": spawn_end_tick, "depth": depth,
-		"budget": last_budget, "rng_seed": rng.seed, "rng_state": rng.state,
+		"budget": last_budget, "progress": last_progress, "rng_seed": rng.seed, "rng_state": rng.state,
 		"queue_ticks": _queue_ticks.slice(_queue_cursor), "queue_types": _queue_types.slice(_queue_cursor),
 		"queue_points": _queue_points.slice(_queue_cursor),
 		"queue_squads": _queue_squads.slice(_queue_cursor), "queue_moods": _queue_moods.slice(_queue_cursor)}
@@ -217,6 +241,7 @@ func load_data(data: Dictionary, type_map: PackedInt32Array) -> void:
 	next_wave_tick = int(data.get("next", next_wave_tick))
 	spawn_end_tick = int(data.get("spawn_end", 0))
 	last_budget = float(data.get("budget", 0.0))
+	last_progress = int(data.get("progress", 0))
 	rng.seed = int(data.get("rng_seed", rng.seed))
 	rng.state = int(data.get("rng_state", rng.state))
 	_queue_ticks.clear()

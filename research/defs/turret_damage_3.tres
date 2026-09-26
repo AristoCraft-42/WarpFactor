@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="ResearchDef" format=3]
 
 [ext_resource type="Script" path="res://research/research_def.gd" id="1_def"]
-[ext_resource type="Resource" path="res://items/types/science_kit.tres" id="2_kit"]
+[ext_resource type="Resource" path="res://items/types/science_kit_military.tres" id="2_kit"]
 [ext_resource type="Script" path="res://buildings/building_def.gd" id="3_building_script"]
 [ext_resource type="Script" path="res://items/recipe.gd" id="4_recipe_script"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]
@@ -11,23 +11,23 @@
 [sub_resource type="Resource" id="cost_science_kit_2"]
 script = ExtResource("5_stack")
 item = ExtResource("kit_science_kit_2")
-amount = 37
+amount = 22
 
 [sub_resource type="Resource" id="cost_science_kit_3"]
 script = ExtResource("5_stack")
 item = ExtResource("kit_science_kit_3")
-amount = 25
+amount = 15
 
 [resource]
 script = ExtResource("1_def")
-id = &"warp_time_4"
-name_key = "RESEARCH_WARP_TIME_4"
-description_key = "RESEARCH_WARP_TIME_4_DESC"
-sort_order = 109
+id = &"turret_damage_3"
+name_key = "RESEARCH_TURRET_DAMAGE_3"
+description_key = "RESEARCH_TURRET_DAMAGE_3_DESC"
+sort_order = 243
 cost_item = ExtResource("2_kit")
-cost_amount = 75
+cost_amount = 45
 extra_costs = Array[ExtResource("5_stack")]([SubResource("cost_science_kit_2"), SubResource("cost_science_kit_3")])
-prerequisites = Array[StringName]([&"warp_time_3"])
+prerequisites = Array[StringName]([&"turret_damage_2"])
 unlock_buildings = Array[ExtResource("3_building_script")]([])
 unlock_recipes = Array[ExtResource("4_recipe_script")]([])
-effects = Array[StringName]([&"planet_time"])
+effects = Array[StringName]([&"turret_damage"])

@@ -5,9 +5,9 @@ extends Resource
 ## После тихого начала идут волны. Каждая волна выпускает врагов равномерно за время появления,
 ## затем наступает затишье до следующей. Затишья сокращаются от волны к волне, время появления растёт;
 ## когда затишье становится короче continuous_below_seconds, волны идут встык — одна бесконечная волна.
-## Бюджет волны (очки угрозы) растёт с номером волны и с временем на планете. От глубины звёздной карты
-## не зависит: потерявший всё игрок должен суметь развиться заново. Позже сила волн будет зависеть
-## от числа построек игрока (см. ROADMAP, решения).
+## Бюджет волны (очки угрозы) растёт с номером волны, с временем на планете и с развитием игрока:
+## развитие = завершённые исследования × производственные постройки на этой планете (считается
+## в начале волны). Потерявший заводы игрок снова встречает слабые волны — развиться заново можно.
 
 ## Тихое начало до первой волны, секунд.
 @export var first_wave_seconds: float = 180.0
@@ -34,6 +34,14 @@ extends Resource
 ## Выше этих множителей сила не растёт.
 @export var max_health_scale: float = 6.0
 @export var max_damage_scale: float = 4.0
+
+@export_group("Развитие")
+## За каждую единицу развития (исследования × производственные постройки планеты) бюджет волны
+## растёт на progress_budget очков, но не больше progress_budget_max; прочность врагов — на progress_health
+## (в общий потолок max_health_scale).
+@export var progress_budget: float = 0.015
+@export var progress_budget_max: float = 80.0
+@export var progress_health: float = 0.0002
 
 @export_group("Бюджет")
 ## Очки угрозы первой волны, прирост за волну и за минуту на планете.
@@ -79,9 +87,15 @@ func get_budget(wave: int, minutes: float) -> float:
 	return budget_base + budget_per_wave * maxi(wave - 1, 0) + budget_per_minute * maxf(minutes, 0.0)
 
 
-## Во сколько раз крепче враги волны wave на глубине depth звёздной карты.
-func get_health_scale(wave: int, depth: int) -> float:
-	return minf(1.0 + health_per_wave * maxi(wave - 1, 0) + health_per_depth * maxi(depth, 0), max_health_scale)
+## Прибавка к бюджету волны от развития игрока (progress — исследования × производственные постройки).
+func get_progress_budget(progress: int) -> float:
+	return minf(progress_budget * maxi(progress, 0), progress_budget_max)
+
+
+## Во сколько раз крепче враги волны wave на глубине depth звёздной карты при развитии progress.
+func get_health_scale(wave: int, depth: int, progress: int = 0) -> float:
+	return minf(1.0 + health_per_wave * maxi(wave - 1, 0) + health_per_depth * maxi(depth, 0)
+		+ progress_health * maxi(progress, 0), max_health_scale)
 
 
 ## Во сколько раз больнее они бьют.

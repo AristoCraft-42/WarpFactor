@@ -103,6 +103,7 @@ func _ready() -> void:
 	_test_repair_turret()
 	_test_fluid_turret()
 	_test_advanced_defense_research()
+	_test_threat_progress()
 	_test_drone_gun_and_repair()
 	_test_walls_route()
 	_test_power_network()
@@ -225,8 +226,8 @@ func _test_registry() -> void:
 	_check(Registry.fluids.size() == 3 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null
 		and Registry.get_fluid(&"oil") != null, "жидкости: вода, пар и нефть")
 	# 16 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 54 and Registry.researches.size() == 77,
-		"54 рецепта и 77 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.recipes.size() == 54 and Registry.researches.size() == 85,
+		"54 рецепта и 85 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16
 		and Registry.base_def.size_step == 6, "параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	var mining_def := Registry.mining_def
@@ -5392,19 +5393,99 @@ func _test_fluid_turret() -> void:
 	run.dispose()
 
 
-## Новая оборона открывается одним исследованием мидгейма — после микросхем.
+## Военная ветка: «Военное дело» открывает военный набор; от него — каждая турель своим
+## исследованием, урон турелей I–V и автопушка дрона. Старое «Продвинутая оборона» в сохранении
+## засчитывается всем трём турелям.
 func _test_advanced_defense_research() -> void:
-	var research := Registry.get_research(&"advanced_defense")
-	_check(research != null and research.prerequisites.has(&"microchips") and research.prerequisites.has(&"defense"),
-		"продвинутая оборона идёт после микросхем и обороны")
-	var ids := PackedStringArray()
-	for b in research.unlock_buildings:
-		ids.append(String(b.id))
-	_check(ids.size() == 3 and ids.has("tesla_turret") and ids.has("repair_turret") and ids.has("fluid_turret"),
-		"исследование открывает три новые турели")
-	var costs := research.costs()
-	_check(costs.size() == 2 and costs[1].item.id == &"science_kit_2" and research.total_cost() > research.cost_amount,
-		"продвинутой обороне нужны наборы второго уровня")
+	var military := Registry.get_research(&"military_science")
+	_check(military != null and military.prerequisites.has(&"defense") and military.prerequisites.has(&"industry")
+		and military.cost_item.id == &"science_kit"
+		and military.unlock_recipes.any(func(r: Recipe) -> bool: return r.id == &"science_kit_military")
+		and not Registry.get_research(&"defense").unlock_recipes.any(func(r: Recipe) -> bool: return r.id == &"science_kit_military"),
+		"военный набор открывает отдельное «Военное дело» (после обороны и промышленности, за первые наборы)")
+	_check(Registry.get_research(&"advanced_defense") == null, "«Продвинутой обороны» больше нет — она разделена")
+	var turrets := {&"tesla_defense": &"tesla_turret", &"repair_defense": &"repair_turret", &"fluid_defense": &"fluid_turret"}
+	var split_ok := true
+	for rid: StringName in turrets:
+		var research := Registry.get_research(rid)
+		split_ok = split_ok and (research != null and research.unlock_buildings.size() == 1
+			and research.unlock_buildings[0].id == turrets[rid] and research.prerequisites.has(&"military_science")
+			and research.cost_item.id == &"science_kit_military")
+	_check(split_ok, "каждая продвинутая турель — своё исследование за военные наборы")
+	_check(Registry.get_research(&"tesla_defense").costs().any(func(s: ItemStack) -> bool: return s.item.id == &"science_kit_2")
+		and Registry.get_research(&"fluid_defense").prerequisites.has(&"fluid_handling"),
+		"тесле нужны и наборы II, жидкостной — трубы")
+	var chain_ok := (Registry.get_research(&"turret_damage_1").prerequisites.has(&"military_science")
+		and Registry.get_research(&"drone_gun_1").prerequisites.has(&"military_science"))
+	for i in range(1, 6):
+		var step := Registry.get_research(StringName("turret_damage_%d" % i))
+		chain_ok = chain_ok and (step != null and step.effects.has(&"turret_damage")
+			and step.cost_item.id == &"science_kit_military")
+	_check(chain_ok, "урон турелей I–V и автопушка дрона растут от «Военного дела»")
+	var legacy := ResearchState.new()
+	legacy.load_data({"done": PackedStringArray(["defense", "advanced_defense"])})
+	_check(legacy.is_done(&"tesla_defense") and legacy.is_done(&"repair_defense") and legacy.is_done(&"fluid_defense")
+		and legacy.is_done(&"defense"), "старое сохранение: «Продвинутая оборона» → все три турели")
+
+	# Урон турелей: две ступени — пуля пулемёта на 20 % сильнее.
+	var run := _defense_run()
+	var planet := run.planet
+	var gate := planet.gateway
+	var gun := planet.buildings.place(Registry.get_building(&"machine_gun"), gate.origin + Vector2i(-2, 1), 0, true) as Turret
+	for i in 5:
+		gun.handle_item(null, _item(&"cartridge_iron"))
+	_check(is_equal_approx(gun.damage_bonus(), 1.0), "без исследований урон обычный")
+	run.research.done[&"turret_damage_1"] = true
+	run.research.done[&"turret_damage_2"] = true
+	_check(is_equal_approx(gun.damage_bonus(), 1.2), "две ступени — +20 %% урона (%.2f)" % gun.damage_bonus())
+	planet.spawn_enemy(Registry.get_enemy(&"crawler"), gate.get_world_center() + Vector2(-9, 0) * GameConst.TILE_SIZE)
+	var shot_damage := -1.0
+	for i in 400:
+		run.step()
+		if planet.projectiles.count > 0:
+			shot_damage = planet.projectiles.damage[0]
+			break
+	var iron_damage := (Registry.get_building(&"machine_gun") as TurretDef).ammo[1].damage
+	_check(is_equal_approx(shot_damage, iron_damage * 1.2), "пуля несёт усиленный урон (%.1f из %.1f)" % [shot_damage, iron_damage])
+	run.dispose()
+
+
+## Прогрессия врагов: бюджет волны и прочность растут от развития — завершённые исследования ×
+## производственные постройки планеты; снёс заводы — волны снова слабые.
+func _test_threat_progress() -> void:
+	var def := ThreatDef.new()
+	def.progress_budget = 0.02
+	def.progress_budget_max = 50.0
+	def.progress_health = 0.001
+	_check(is_equal_approx(def.get_progress_budget(0), 0.0) and is_equal_approx(def.get_progress_budget(100), 2.0)
+		and is_equal_approx(def.get_progress_budget(100000), 50.0), "прибавка к бюджету: 0.02 за единицу, не больше предела")
+	_check(def.get_health_scale(1, 0, 500) > def.get_health_scale(1, 0, 0), "развитие добавляет врагам прочности")
+
+	var run := _defense_run()
+	var planet := run.planet
+	var threat := planet.threat
+	for id: StringName in [&"electricity", &"mining", &"industry", &"defense"]:
+		run.research.done[id] = true
+	var furnace := Registry.get_building(&"furnace")
+	var placed: Array[Building] = []
+	for k in 3:
+		placed.append(planet.buildings.place(furnace, planet.gateway.origin + Vector2i(-12 + k * 3, -8), 0, true))
+	placed.append(planet.buildings.place(Registry.get_building(&"conveyor"), planet.gateway.origin + Vector2i(-12, -5), 0, true))
+	_check(threat.research_count() == 4 and threat.factory_count() == 3 and threat.progress_now() == 12,
+		"развитие: 4 исследования × 3 завода (лента не завод) = %d" % threat.progress_now())
+	var tick := planet.simulation.tick
+	threat._start_wave(tick)
+	var minutes := float(tick - threat.start_tick) / (60.0 * GameConst.TICK_RATE)
+	var plain := threat.def.get_budget(threat.wave, minutes)
+	_check(threat.last_progress == 12 and is_equal_approx(threat.last_budget, plain + threat.def.get_progress_budget(12)),
+		"бюджет волны вырос на развитие (%.2f против %.2f)" % [threat.last_budget, plain])
+	var saved := threat.save_data()
+	_check(int(saved.get("progress", -1)) == 12, "развитие волны сохраняется")
+	for b in placed:
+		planet.buildings.remove(b, true)
+	threat._start_wave(tick)
+	_check(threat.last_progress == 0, "без заводов развитие не давит")
+	run.dispose()
 
 
 func _test_artillery() -> void:
@@ -6023,10 +6104,10 @@ func _test_oil_and_kits() -> void:
 	var kit_military := Registry.get_item(&"science_kit_military")
 	var kit3 := Registry.get_item(&"science_kit_3")
 	_check(Registry.get_research(&"defense").cost_item.id == &"science_kit"
-		and Registry.get_research(&"defense").unlock_recipes.any(func(r: Recipe) -> bool: return r.id == &"science_kit_military"),
-		"«Оборона» — за первые наборы и открывает военный набор")
+		and Registry.get_research(&"military_science").cost_item.id == &"science_kit",
+		"«Оборона» и «Военное дело» — за первые наборы")
 	var military_ok := true
-	for id: StringName in [&"advanced_defense", &"drone_gun_1", &"drone_gun_2", &"drone_gun_3"]:
+	for id: StringName in [&"tesla_defense", &"repair_defense", &"fluid_defense", &"drone_gun_1", &"turret_damage_1"]:
 		military_ok = military_ok and Registry.get_research(id).cost_item == kit_military
 	_check(military_ok, "военные исследования оплачиваются военными наборами")
 	var tops_ok := true
@@ -6034,9 +6115,16 @@ func _test_oil_and_kits() -> void:
 			&"gateway_speed_3", &"mining_room_4", &"boiler_size_3", &"drone_speed_3", &"drone_gun_3"]:
 		var costs := Registry.get_research(id).costs()
 		tops_ok = tops_ok and costs.any(func(s: ItemStack) -> bool: return s.item == kit3)
-	var pad_4_costs := Registry.get_research(&"pad_4").costs()
-	_check(tops_ok and not pad_4_costs.any(func(s: ItemStack) -> bool: return s.item == kit3),
-		"набор III нужен последним ступеням прокачек, а предпоследним — нет")
+	# Сколько ступеней без нефти, зависит от цепочки: у площадки две, у разгона шлюза одна,
+	# порты шлюза и разведка — целиком без неё. Кому нужен набор III, тому и набор II.
+	var has_kit := func(id: StringName, kit: StringName) -> bool:
+		return Registry.get_research(id).costs().any(func(s: ItemStack) -> bool: return s.item.id == kit)
+	_check(tops_ok and not has_kit.call(&"pad_2", &"science_kit_3") and has_kit.call(&"pad_3", &"science_kit_3")
+		and has_kit.call(&"pad_3", &"science_kit_2") and has_kit.call(&"gateway_speed_2", &"science_kit_3")
+		and not has_kit.call(&"gateway_speed_1", &"science_kit_3") and not has_kit.call(&"gateway_ports_2", &"science_kit_3")
+		and not has_kit.call(&"star_scan_2", &"science_kit_3") and has_kit.call(&"turret_damage_3", &"science_kit_3")
+		and not has_kit.call(&"turret_damage_2", &"science_kit_3"),
+		"набор III нужен прокачкам после первых одной-двух ступеней (и вместе с набором II)")
 	var oil_research := Registry.get_research(&"oil_processing")
 	_check(oil_research != null and oil_research.costs().any(func(s: ItemStack) -> bool: return s.item.id == &"science_kit_2")
 		and oil_research.unlock_buildings.has(Registry.get_building(&"oil_derrick"))

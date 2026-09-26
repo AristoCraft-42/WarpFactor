@@ -275,13 +275,15 @@ BUILDINGS = [
      {"rotatable": False}, (360, True), (0.5, 1, 100)),
     ("machine_gun", "turret", "turret", 3, 1, False, True, True, 17, "7a6a55", 20, [("iron_ingot", 10), ("gear", 5), ("resistor", 3)],
      {"rotatable": False, "shoot_range": 8.5, "reload_seconds": 0.3, "rotate_speed": 540.0, "shoot_cone": 12.0,
-      "inaccuracy": 3.0, "max_ammo": 40, "artillery": False, "barrel_length": 13.0, "ammo": MG_AMMO}, (220, True), (1.5, 1, 20)),
+      "inaccuracy": 3.0, "max_ammo": 40, "artillery": False, "barrel_length": 13.0, "damage_per_upgrade": 0.1,
+      "ammo": MG_AMMO}, (220, True), (1.5, 1, 20)),
     # Тесла-турель: молния прыгает по цепи врагов, патронов не просит, но ест ток.
     ("tesla_turret", "turret", "turret", 3, 2, False, True, True, 32, "83a598", 30,
      [("galvanized_steel", 15), ("copper_cable", 25), ("microchip", 4)],
      {"kind": 1, "rotatable": False, "shoot_range": 7.0, "reload_seconds": 0.8, "rotate_speed": 720.0,
       "shoot_cone": 20.0, "inaccuracy": 0.0, "max_ammo": 0, "barrel_length": 10.0, "power_use": 180.0,
-      "chain_damage": 18.0, "chain_targets": 4, "chain_falloff": 0.65, "chain_jump": 3.5}, (320, True), (3.0, 1, 10)),
+      "chain_damage": 18.0, "chain_targets": 4, "chain_falloff": 0.65, "chain_jump": 3.5, "damage_per_upgrade": 0.1},
+     (320, True), (3.0, 1, 10)),
     # Ремонтная турель: чинит самую побитую постройку рядом, а если все целы — дрона.
     ("repair_turret", "turret", "turret", 3, 2, False, True, True, 33, "8ec07c", 32,
      [("galvanized_steel", 10), ("gear", 10), ("microchip", 2)],
@@ -294,7 +296,7 @@ BUILDINGS = [
      {"kind": 3, "rotatable": False, "shoot_range": 8.0, "reload_seconds": 1.2, "rotate_speed": 400.0,
       "shoot_cone": 20.0, "inaccuracy": 0.0, "max_ammo": 0, "barrel_length": 12.0,
       "spray_use": 60.0, "spray_radius": 2.5, "slow_factor": 0.45, "slow_seconds": 4.0,
-      "steam_dps": 14.0, "steam_seconds": 4.0}, (300, True), (3.0, 1, 10)),
+      "steam_dps": 14.0, "steam_seconds": 4.0, "damage_per_upgrade": 0.1}, (300, True), (3.0, 1, 10)),
     # Творческий режим
     ("creative_item_source", "creative", "creative", 0, 1, False, True, True, 30, "b16286", 900, [],
      {"kind": 0, "rates": [1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0], "default_rate": 3, "rotatable": False,
@@ -364,6 +366,9 @@ for _n, (_chain, _effect) in enumerate(DRONE_CHAINS):
             _pre = ["%s_%d" % (_chain, _level - 1)]
         elif _chain == "drone_speed":
             _pre = []
+        elif _chain == "drone_gun":
+            # Урон дрона — часть военной ветки, рядом с уроном турелей.
+            _pre = ["military_science"]
         else:
             _pre = ["drone_speed_1"]
         DRONE_RESEARCH.append((_id, 200 + _n * 10 + _level, 10 * _level, _pre, [], [], [_effect]))
@@ -393,10 +398,12 @@ RESEARCH = [
     ("oil_processing", 95, 50, ["microchips", "fluid_handling"], ["oil_derrick", "chemical_plant"],
      ["polymer", "science_kit_3"], []),
     # Оборона
-    ("defense", 90, 25, ["electricity"], ["machine_gun"],
-     ["casing_mg", "science_kit_military"] + [out for _, out in FILLERS], []),
-    ("advanced_defense", 91, 45, ["microchips", "defense"],
-     ["tesla_turret", "repair_turret", "fluid_turret"], [], []),
+    ("defense", 90, 25, ["electricity"], ["machine_gun"], ["casing_mg"] + [out for _, out in FILLERS], []),
+    # Военное дело: военный научный набор. Всё военное дальше оплачивается им.
+    ("military_science", 91, 30, ["defense", "industry"], [], ["science_kit_military"], []),
+    ("tesla_defense", 92, 45, ["military_science", "microchips"], ["tesla_turret"], [], []),
+    ("repair_defense", 93, 40, ["military_science", "microchips"], ["repair_turret"], [], []),
+    ("fluid_defense", 94, 35, ["military_science", "sphalerite", "fluid_handling"], ["fluid_turret"], [], []),
     # База: этажи, шлюз, лифты
     ("underground", 110, 15, ["mining"], [], [], ["underground"]),
     ("gateway_items", 120, 10, ["underground"], [], [], ["gateway_items"]),
@@ -408,6 +415,9 @@ RESEARCH = [
     # Полигон: бесконечное исследование для замеров скорости науки, видно только в творческом режиме.
     ("sandbox", 300, 1000000, [], [], [], []),
 ] + [("pad_%d" % i, 100 + i, 10 + 10 * i, ["pad_%d" % (i - 1)] if i > 1 else ["mining"], [], [], ["pad_size"]) for i in range(1, 6)] \
+  + [("turret_damage_%d" % i, 240 + i, 15 + 10 * i,
+      ["turret_damage_%d" % (i - 1)] if i > 1 else ["military_science"], [], [], ["turret_damage"])
+     for i in range(1, 6)] \
   + [("science_speed_%d" % i, 81 + i, 20 + 20 * i,
       ["science_speed_%d" % (i - 1)] if i > 1 else ["science_automation"], [], [], ["science_speed"])
      for i in range(1, 5)] \
@@ -438,7 +448,7 @@ LEVELS = [
 # Исследования, которым вдобавок нужны наборы второго уровня: всё, что идёт после «Микросхем».
 # Раньше них наборы второго уровня негде делать — это и задаёт порядок мидгейма.
 KIT2_AFTER = {"steel_logistics", "compact_production", "mining_floor", "accumulators", "lift",
-              "advanced_defense", "boiler_floor", "oil_processing"}
+              "tesla_defense", "repair_defense", "boiler_floor", "oil_processing"}
 KIT2_PREFIXES = ("mining_room_", "science_speed_", "gateway_speed_", "star_depth_", "boiler_size_")
 KIT2_EXACT = {"warp_time_4", "warp_time_5", "warp_charge_3", "underground_4", "underground_5",
               "pad_4", "pad_5", "drone_speed_3", "drone_mining_3", "drone_health_3",
@@ -452,23 +462,39 @@ def kit2_amount(rid, amount):
     return 0
 
 
-# Военные технологии: вместо первого набора — военный (его рецепт открывает «Оборона»,
-# поэтому сама «Оборона» остаётся на первом наборе).
-MILITARY_RESEARCH = {"advanced_defense", "drone_gun_1", "drone_gun_2", "drone_gun_3"}
+# Военные технологии: вместо первого набора — военный. Его рецепт открывает «Военное дело»,
+# поэтому оно само и «Оборона» до него — на первых наборах.
+MILITARY_RESEARCH = {"tesla_defense", "repair_defense", "fluid_defense"} | {
+    r[0] for r in RESEARCH if r[0].startswith(("turret_damage_", "drone_gun_"))}
+
+# Сколько первых ступеней прокачки обходятся без третьего набора (из нефти): дальше — нужен.
+# Длинные и простые цепочки — две ступени, сложные (этажи, шлюз, дальняя разведка) — одна,
+# короткие базовые (порты шлюза, разведка планет) — целиком без нефти.
+KIT3_FREE_LEVELS = {
+    "pad": 2, "underground": 2, "warp_time": 2, "warp_charge": 2, "science_speed": 2,
+    "drone_speed": 2, "drone_mining": 2, "drone_health": 2, "drone_gun": 2, "drone_repair": 2,
+    "turret_damage": 2,
+    "gateway_speed": 1, "mining_room": 1, "boiler_size": 1, "star_depth": 1,
+    "gateway_ports": 2, "star_scan": 2,
+}
 
 
-def _chain_tops():
-    """Последняя ступень каждой прокачки, где ступеней три и больше: pad_5, drone_speed_3…"""
+def _kit3_research():
+    """Ступени прокачек, которым нужен третий набор: номер больше числа «бесплатных» ступеней."""
     levels = {}
     for r in RESEARCH:
         head, _, tail = r[0].rpartition("_")
         if head and tail.isdigit():
             levels[head] = max(levels.get(head, 0), int(tail))
-    return {"%s_%d" % (head, top) for head, top in levels.items() if top >= 3}
+    result = set()
+    for head, top in levels.items():
+        free = KIT3_FREE_LEVELS.get(head, 2 if top >= 3 else top)
+        result |= {"%s_%d" % (head, n) for n in range(free + 1, top + 1)}
+    return result
 
 
-# Третий набор (из нефти) нужен продвинутым прокачкам — последним ступеням всех цепочек.
-KIT3_RESEARCH = _chain_tops()
+# Третий набор нужен продвинутым прокачкам: всем ступеням после первых одной-двух.
+KIT3_RESEARCH = _kit3_research()
 
 
 def research_costs(rid, amount):
@@ -476,6 +502,9 @@ def research_costs(rid, amount):
     first = "science_kit_military" if rid in MILITARY_RESEARCH else "science_kit"
     costs = [(first, amount)]
     kit2 = kit2_amount(rid, amount)
+    # Кому нужен третий набор, тому и второй: уровни идут по порядку.
+    if rid in KIT3_RESEARCH:
+        kit2 = max(kit2, max(5, amount // 2))
     if kit2 > 0:
         costs.append(("science_kit_2", kit2))
     if rid in KIT3_RESEARCH:

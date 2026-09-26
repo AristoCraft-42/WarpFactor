@@ -62,3 +62,4 @@ slow_factor = 0.45
 slow_seconds = 4.0
 steam_dps = 14.0
 steam_seconds = 4.0
+damage_per_upgrade = 0.1

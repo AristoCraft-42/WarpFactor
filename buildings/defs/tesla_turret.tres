@@ -55,3 +55,4 @@ chain_damage = 18.0
 chain_targets = 4
 chain_falloff = 0.65
 chain_jump = 3.5
+damage_per_upgrade = 0.1

@@ -7,13 +7,13 @@
 
 [resource]
 script = ExtResource("1_def")
-id = &"drone_gun_1"
-name_key = "RESEARCH_DRONE_GUN_1"
-description_key = "RESEARCH_DRONE_GUN_1_DESC"
-sort_order = 231
+id = &"turret_damage_1"
+name_key = "RESEARCH_TURRET_DAMAGE_1"
+description_key = "RESEARCH_TURRET_DAMAGE_1_DESC"
+sort_order = 241
 cost_item = ExtResource("2_kit")
-cost_amount = 10
+cost_amount = 25
 prerequisites = Array[StringName]([&"military_science"])
 unlock_buildings = Array[ExtResource("3_building_script")]([])
 unlock_recipes = Array[ExtResource("4_recipe_script")]([])
-effects = Array[StringName]([&"drone_gun"])
+effects = Array[StringName]([&"turret_damage"])

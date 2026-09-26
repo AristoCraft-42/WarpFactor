@@ -54,6 +54,9 @@ enum Kind { BULLET, CHAIN, REPAIR, SPRAY }
 ## Длина ствола на рисунке, пикселей (от центра турели до дула).
 @export var barrel_length: float = 13.0
 @export var ammo: Array[TurretAmmo] = []
+## Прибавка урона за каждую ступень исследования «Урон турелей» (0.1 — +10 %): пули, снаряды,
+## горение, молния и пар. Ремонтной турели не нужна.
+@export var damage_per_upgrade: float = 0.0
 
 
 func get_range_px() -> float:
