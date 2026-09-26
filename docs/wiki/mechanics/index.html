@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Механики — WarpFactor вики</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%23282828' stroke='%23fabd2f' stroke-width='3'/%3E%3Cpath d='M9 10l3 12 4-8 4 8 3-12' fill='none' stroke='%23fe8019' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body data-root="../">
+<svg class="defs" aria-hidden="true"><defs>
+<symbol id="r-5f7fd9" viewBox="0 0 32 32"><path d="M12 4h8v2h-1.5v7.5l7 11.5a2 2 0 0 1-1.7 3H7.2a2 2 0 0 1-1.7-3l7-11.5V6H12Z" fill="#5f7fd9" stroke="#263357" stroke-width="2" stroke-linejoin="round"/><path d="M9 22h14" stroke="#a7b9ea" stroke-width="2"/></symbol>
+<symbol id="r-d9534f" viewBox="0 0 32 32"><path d="M12 4h8v2h-1.5v7.5l7 11.5a2 2 0 0 1-1.7 3H7.2a2 2 0 0 1-1.7-3l7-11.5V6H12Z" fill="#d9534f" stroke="#572120" stroke-width="2" stroke-linejoin="round"/><path d="M9 22h14" stroke="#eaa09e" stroke-width="2"/></symbol>
+</defs></svg>
+<header class="top">
+<div class="bar"><a class="logo" href="../index.html">WarpFactor <span>вики</span></a>
+<div class="search"><input type="search" placeholder="Поиск: предмет, постройка, исследование…" aria-label="Поиск по вики" autocomplete="off" data-search><ul class="results" hidden></ul></div></div>
+<nav class="sections"><a href="../items/index.html">Предметы</a><a href="../buildings/index.html">Постройки</a><a href="../research/index.html">Исследования</a><a href="../research/tree.html">Дерево</a><a href="../world/index.html">Мир</a><a href="../enemies/index.html">Враги</a><a href="../mechanics/index.html" class="on">Механики</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../index.html">Главная</a> <span class="sep">›</span> <span aria-current="page">Механики</span></nav>
+<h1>Механики</h1>
+<p>Краткие правила: добыча, производство, энергия и жидкости, мобильная база и этажи, телепорт и угроза. Таблицы переносятся из <code>docs/CONTENT.md</code>, числа в них — из данных игры. Добыча и устройство карты — в разделе <a href="../world/index.html#rules">Месторождения и планеты</a>, волны — в разделе <a href="../enemies/index.html">Враги и волны</a>.</p>
+<nav class="toc"><a href="#rules-1">Рецепты</a> · <a href="#rules-2">Патроны</a> · <a href="#rules-3">Энергия и жидкости</a> · <a href="#rules-4">Мобильная база: площадка, подземный этаж, шлюз</a> · <a href="#rules-5">Старт и угроза</a> · <a href="#drone">Дрон</a></nav>
+<section id="rules-1">
+<h2>Рецепты</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Где делается</th><th>Как выбирается рецепт</th><th>Питание</th></tr></thead>
+<tbody>
+<tr><td>Печь</td><td data-label="Как выбирается рецепт"><div>сама по пришедшему сырью (<code>RecipeMode.AUTO</code>)</div></td><td data-label="Питание"><div>уголь: 90 кВт, один уголь (4000 кДж) ≈ 44 с работы</div></td></tr>
+<tr><td>Сборщик</td><td data-label="Как выбирается рецепт"><div>в панели настройки (<code>RecipeMode.SELECT</code>)</div></td><td data-label="Питание"><div>электричество 75 кВт</div></td></tr>
+<tr><td>Руками</td><td data-label="Как выбирается рецепт"><div>в окне крафта; промежуточные детали докрафчиваются сами</div></td><td data-label="Питание"><div>не нужно, но переплавка — только в печи</div></td></tr>
+</tbody></table></div>
+</section>
+<section id="rules-2">
+<h2>Патроны</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Из чего патрон</th><th>Что задаёт</th></tr></thead>
+<tbody>
+<tr><td>Гильза</td><td>калибр; сейчас один — пулемётный (<code>casing_mg</code>, 2 гильзы из медного слитка)</td></tr>
+<tr><td>Наполнитель</td><td>эффект патрона: урон, поджог, скорострельность, осколки</td></tr>
+<tr><td>Артиллерийский калибр</td><td>появится вместе с артиллерией (механика в коде есть, в данных нет)</td></tr>
+</tbody></table></div>
+</section>
+<section id="rules-3">
+<h2>Энергия и жидкости</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Что</th><th>Как работает</th></tr></thead>
+<tbody>
+<tr><td>Сеть</td><td>опоры, соединённые проводами, и всё в их зонах 5×5; новая опора сама цепляется к ближайшим в радиусе 7.5 тайла (до 5 проводов)</td></tr>
+<tr><td>Тик сети</td><td>спрос = запросы работающих потребителей, мощность = что могут дать генераторы, удовлетворённость = мощность / спрос (не больше 1)</td></tr>
+<tr><td>Нехватка тока</td><td>все потребители сети работают медленнее, генераторы тратят топливо и пар пропорционально нагрузке</td></tr>
+<tr><td>Кто потребляет</td><td>Электробур 90, Сборщик 75, Скоростной бур 270, Фабрикатор 225, Научный цех 60, Тесла-турель 180, Ремонтная турель 120</td></tr>
+<tr><td>Кто без тока</td><td>печь и плавильня (топливо), пулемётная и жидкостная турели, насос, разгрузчик, ленты и остальная логистика</td></tr>
+<tr><td>Термогенератор</td><td>150 кВт, КПД 50 %: уголь даёт 2000 кДж электричества — около 13 с на полной мощности</td></tr>
+<tr><td>Паровая цепочка</td><td>насос → трубы → бойлер (вода слева, пар справа, R поворачивает) → паровой генератор (порты пара слева и справа, их можно ставить вплотную цепочкой)</td></tr>
+<tr><td>Бойлер</td><td>уголь 1000 кВт даёт 60 ед. пара/с, воды столько же</td></tr>
+<tr><td>Паровой генератор</td><td>30 ед. пара/с даёт 500 кВт; один бойлер кормит 2 таких</td></tr>
+<tr><td>Трубы</td><td>соседние трубы и порты построек — одна сеть с общим запасом; в сети одна жидкость</td></tr>
+<tr><td>Подземные трубы</td><td>вход и выход соединяются под землёй (до 10 тайлов) под постройками и скалами; сверху открыты с одной стороны</td></tr>
+</tbody></table></div>
+</section>
+<section id="rules-4">
+<h2>Мобильная база: площадка, подземный этаж, шлюз</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Этаж или проход</th><th>Размер</th><th>Как работает</th></tr></thead>
+<tbody>
+<tr><td>Площадка шлюза (планета)</td><td data-label="Размер"><div>20 на 20, дальше до 40 на 40</div></td><td data-label="Как работает"><div>верхний этаж базы: всё на ней переезжает при телепорте; «Расширение площадки» даёт +4 по стороне, место под наибольшую расчищает генератор планет</div></td></tr>
+<tr><td>Подземный этаж</td><td data-label="Размер"><div>16 на 16, дальше до 46 на 46</div></td><td data-label="Как работает"><div>открывается исследованием; за краем открытой части пустота, на ней не строят, дрон и камера за край не выходят</div></td></tr>
+<tr><td>Этаж добычи</td><td data-label="Размер"><div>комнаты 16 на 16, туннель 6 на 42</div></td><td data-label="Как работает"><div>центральная комната с шахтой вниз и четыре комнаты добычи с платформами</div></td></tr>
+<tr><td>Котельная</td><td data-label="Размер"><div>16 на 16, дальше до 48 на 48</div></td><td data-label="Как работает"><div>полоса воды по краю открытой части; «Расширение котельной» даёт +8 по стороне, полоса переезжает к новому краю</div></td></tr>
+<tr><td>Центральный шлюз</td><td data-label="Размер"><div>2 на 2, дальше 4 на 4</div></td><td data-label="Как работает"><div>проход между планетой и подземным этажом (F); предметы после «Передачи предметов», число портов — по «Портам шлюза I/II», очередь 10 на порт</div></td></tr>
+<tr><td>Шахты вниз</td><td data-label="Размер"><div>4 на 4</div></td><td data-label="Как работает"><div>по одной на этаж добычи и в котельную, ставятся сами вместе с этажом; четыре входа с одной стороны и четыре выхода с другой, k-й выход отдаёт то, что вошло в k-й вход</div></td></tr>
+<tr><td>Лифт</td><td data-label="Размер"><div>3 на 3</div></td><td data-label="Как работает"><div>ставит игрок: на площадке или в открытой части этажа, пара появляется в том же месте другого этажа; один вход и один выход, буфер 10, направление — общая настройка пары</div></td></tr>
+</tbody></table></div>
+<div class="tw"><table class="stack">
+<thead><tr><th>Что передаётся между этажами</th><th>После какого исследования</th></tr></thead>
+<tbody>
+<tr><td>Предметы</td><td>«Передача предметов» у шлюза, «Порты шлюза I–II» добавляют порты</td></tr>
+<tr><td>Электричество</td><td>«Передача энергии» — опоры у шлюза и лифтов на обоих этажах становятся одной сетью</td></tr>
+<tr><td>Жидкости</td><td>«Передача жидкостей» — трубы у шлюза и лифтов выравнивают заполненность сетей этажей</td></tr>
+<tr><td>Ток и трубы в котельную</td><td>всегда: шахта котельной проводит их сама, ради этого этаж и нужен</td></tr>
+</tbody></table></div>
+</section>
+<section id="rules-5">
+<h2>Старт и угроза</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Что</th><th>Обычная планета</th><th>Рудный мир</th></tr></thead>
+<tbody>
+<tr><td>Первая волна</td><td data-label="Обычная планета"><div>через 10 мин</div></td><td data-label="Рудный мир"><div>через 7 мин</div></td></tr>
+<tr><td>Затишье между волнами</td><td data-label="Обычная планета"><div>240 с, каждое следующее — 0.85 от предыдущего</div></td><td data-label="Рудный мир"><div>180 с, тот же множитель</div></td></tr>
+<tr><td>Волны встык</td><td data-label="Обычная планета"><div>когда затишье короче 10 с</div></td><td data-label="Рудный мир"><div>то же</div></td></tr>
+<tr><td>Бюджет волны</td><td data-label="Обычная планета"><div>4 + 3.4 за волну + 0.5 за минуту на планете</div></td><td data-label="Рудный мир"><div>5 + 4.2 за волну + 0.7 за минуту</div></td></tr>
+<tr><td>Прочность врага</td><td data-label="Обычная планета"><div>+9 % за волну, +25 % за шаг звёздной карты, потолок 8</div></td><td data-label="Рудный мир"><div>+12 % за волну</div></td></tr>
+<tr><td>Урон врага</td><td data-label="Обычная планета"><div>+7 % за волну, +20 % за шаг карты, потолок 5</div></td><td data-label="Рудный мир"><div>+9 % за волну</div></td></tr>
+<tr><td>Кто приходит</td><td data-label="Обычная планета"><div>ползуны с 1-й волны, солдаты с 4-й, громилы с 8-й</div></td><td data-label="Рудный мир"><div>то же, точек появления 4</div></td></tr>
+</tbody></table></div>
+<div class="tw"><table class="stack">
+<thead><tr><th>Старт забега</th><th>Что даёт</th></tr></thead>
+<tbody>
+<tr><td>Стартовый набор</td><td>Конвейер ×20, Печь ×2, Уголь ×20</td></tr>
+<tr><td>Время на планете</td><td>10 мин; «Запас хода» добавляет по 2 мин, последняя ступень снимает срок совсем</td></tr>
+<tr><td>Перезарядка телепорта</td><td>5 мин; «Разгон телепорта» убирает по 1 мин, последняя ступень — без перезарядки</td></tr>
+</tbody></table></div>
+</section>
+<section id="drone">
+<h2>Дрон</h2>
+<div class="tw"><table class="facts"><tbody>
+<tr><th>Скорость</th><td>8 тайлов/с</td></tr>
+<tr><th>Дальность действия</th><td>10 тайлов</td></tr>
+<tr><th>Инвентарь</th><td>40 ячеек</td></tr>
+<tr><th>Добыча</th><td>руда твёрдостью до 1, (1.5 + 0.6 × твёрдость) с на предмет</td></tr>
+<tr><th>Прочность</th><td>150</td></tr>
+<tr><th>Возрождение</th><td>через 6 с, потом 3 с неуязвимости</td></tr>
+<tr><th>Автопушка</th><td>урон 6, пауза 0.35 с, дальность 6.5 тайла</td></tr>
+<tr><th>Ремонт построек</th><td>40 прочности/с</td></tr>
+</tbody></table></div><h3>Улучшения</h3>
+<div class="tw"><table class="stack">
+<thead><tr><th>Ступень даёт</th><th>Исследования</th></tr></thead>
+<tbody>
+<tr><td>дрон быстрее летает (+1 тайл/с к скорости)</td><td><span class="chips"><a class="chip" href="../research/drone_speed_1.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Скорость дрона I</span></a><a class="chip" href="../research/drone_speed_2.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Скорость дрона II</span></a><a class="chip" href="../research/drone_speed_3.html"><svg class="ic" aria-hidden="true"><use href="#r-5f7fd9"/></svg><span>Скорость дрона III</span></a></span></td></tr>
+<tr><td>дрон быстрее добывает (+25 % к скорости добычи)</td><td><span class="chips"><a class="chip" href="../research/drone_mining_1.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Добыча дроном I</span></a><a class="chip" href="../research/drone_mining_2.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Добыча дроном II</span></a><a class="chip" href="../research/drone_mining_3.html"><svg class="ic" aria-hidden="true"><use href="#r-5f7fd9"/></svg><span>Добыча дроном III</span></a></span></td></tr>
+<tr><td>больше прочности дрона (+50 прочности)</td><td><span class="chips"><a class="chip" href="../research/drone_health_1.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Корпус дрона I</span></a><a class="chip" href="../research/drone_health_2.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Корпус дрона II</span></a><a class="chip" href="../research/drone_health_3.html"><svg class="ic" aria-hidden="true"><use href="#r-5f7fd9"/></svg><span>Корпус дрона III</span></a></span></td></tr>
+<tr><td>больше урона автопушки (+3 урона автопушки)</td><td><span class="chips"><a class="chip" href="../research/drone_gun_1.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Автопушка дрона I</span></a><a class="chip" href="../research/drone_gun_2.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Автопушка дрона II</span></a><a class="chip" href="../research/drone_gun_3.html"><svg class="ic" aria-hidden="true"><use href="#r-5f7fd9"/></svg><span>Автопушка дрона III</span></a></span></td></tr>
+<tr><td>дрон быстрее чинит (+20 прочности/с к ремонту)</td><td><span class="chips"><a class="chip" href="../research/drone_repair_1.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Ремонт дроном I</span></a><a class="chip" href="../research/drone_repair_2.html"><svg class="ic" aria-hidden="true"><use href="#r-d9534f"/></svg><span>Ремонт дроном II</span></a><a class="chip" href="../research/drone_repair_3.html"><svg class="ic" aria-hidden="true"><use href="#r-5f7fd9"/></svg><span>Ремонт дроном III</span></a></span></td></tr>
+</tbody></table></div>
+</section>
+</main>
+<footer>Страница собрана из данных игры скриптом <code>tools/data/make_wiki.py</code>.</footer>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/wiki.js"></script>
+</body>
+</html>

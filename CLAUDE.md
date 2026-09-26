@@ -25,7 +25,7 @@
 | `levels/` | Тестовые карты и их содержимое |
 | `audio/` | Звук: `audio_director.gd` (автозагрузка `Audio`: звуки мира из `GameWorld.sounds`, интерфейс, музыка по обстановке), `sound_log.gd`, синтез заглушек (`synth.gd`, `placeholder_sounds.gd`, `placeholder_music.gd`). Свои файлы — `audio/sfx/`, `audio/music/`, формат в `audio/README.md` |
 | `art/buildings/` | Нарисованные спрайты зданий: `<id>.png` — полоса из трёх кадров (работа, простой, выключено). Формат и экспорт из Aseprite — `art/buildings/README.md` |
-| `tools/data/` | Python-генераторы данных: `make_content.py` (постройки, предметы, рецепты, исследования), `make_csv.py` (`i18n/strings.csv`), `make_content_doc.py` (`docs/CONTENT.md`), `make_enemies.py`. Правки контента делаются в них, а не в `.tres` руками |
+| `tools/data/` | Python-генераторы данных: `make_content.py` (постройки, предметы, рецепты, исследования), `make_csv.py` (`i18n/strings.csv`), `make_content_doc.py` (`docs/CONTENT.md`), `make_enemies.py`, `make_wiki.py` (веб-вики `docs/wiki/`: статический сайт по тем же данным, открывается с диска и на GitHub Pages). Правки контента делаются в них, а не в `.tres` руками |
 | `tests/` | `test_runner.tscn` (логические тесты), `autoshot.gd` (автопрогон со скриншотами), `bench_*.tscn` |
 | `docs/` | Уровень 2 — подробности по запросу (ссылки внизу) |
 
@@ -83,7 +83,7 @@ python tools/data/check_strings.py
 - **Аддон GodotSteam необязателен.** Обращаться к нему только через `Engine.get_singleton("Steam")` и `has_method`/`call`, иначе проект перестанет собираться без аддона.
 - **В сетевой игре команда не применяется сразу:** она уходит хосту и возвращается в составе тика. Всё, что влияет на симуляцию, обязано идти командой; пауза и скорость — наоборот, мимо тиков (пакет TIME).
 - **Числа не в коде.** Баланс — только в `.tres`. Новый шаг расширения, порт шлюза или ступень дрона = новый файл исследования с нужным `effects`, а не правка логики.
-- **Контент генерируется.** Таблицы построек, рецептов, исследований и строк живут в `tools/data/*.py`; после правки таблицы прогнать `make_content.py`, `make_csv.py`, `make_content_doc.py` и переимпорт.
+- **Контент генерируется.** Таблицы построек, рецептов, исследований и строк живут в `tools/data/*.py`; после правки таблицы прогнать `make_content.py`, `make_csv.py`, `make_content_doc.py`, `make_wiki.py` и переимпорт.
 - **Не трогать в `.tres`:** `id`, `name_key`, `description_key`, `logic_script`, `script`, `ExtResource`, файлы `.uid`. Удаление предмета ломает старые сохранения.
 - **Тексты** добавляются в `i18n/strings.csv` (ключ, EN, RU), иначе в интерфейсе появится сырой ключ.
 - **Парсер GDScript:** метод не может называться как поле класса; типизированные массивы не складываются через `+`; целочисленное деление обрезает.
@@ -101,6 +101,7 @@ python tools/data/check_strings.py
 - План этапов: [docs/ROADMAP.md](docs/ROADMAP.md)
 - Таблицы контента (генерируются по данным, весь файл — таблицы; у построек есть id и размер полосы спрайта): [docs/CONTENT.md](docs/CONTENT.md)
 - Управление и запуск для игрока: [README.md](README.md)
+- Веб-вики по игре (генерируется `python tools/data/make_wiki.py`, сама проверяет ссылки): [docs/wiki/index.html](docs/wiki/index.html)
 - Заметки и гайд по правке данных для автора: `D:\obsidian\obsi\WarpFactor\`
 - Общая база знаний: `D:\obsidian\obsi\LoreBase\` (страница проекта — `wiki/projects/warpfactor.md`)
 

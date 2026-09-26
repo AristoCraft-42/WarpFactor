@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Месторождения и планеты — WarpFactor вики</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='6' fill='%23282828' stroke='%23fabd2f' stroke-width='3'/%3E%3Cpath d='M9 10l3 12 4-8 4 8 3-12' fill='none' stroke='%23fe8019' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../assets/wiki.css">
+</head>
+<body data-root="../">
+<svg class="defs" aria-hidden="true"><defs>
+<symbol id="b-coal_drill" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#261e16" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#5f4a38" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#87776a" rx="2" fill-opacity="0.6"/><rect x="11" y="11" width="10" height="10" fill="#3e3024" rx="2"/></symbol>
+<symbol id="b-drill" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#372c1f" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#8a6d4e" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#a7927a" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#4c3c2b" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#4c3c2b" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#5a4733" rx="2"/></symbol>
+<symbol id="b-fast_drill" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#463720" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#b0894f" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#c4a67b" rx="2" fill-opacity="0.6"/><line x1="16" y1="4" x2="16" y2="28" stroke="#614b2b" stroke-width="0.8" stroke-linecap="round"/><line x1="4" y1="16" x2="28" y2="16" stroke="#614b2b" stroke-width="0.8" stroke-linecap="round"/><rect x="11" y="11" width="10" height="10" fill="#725933" rx="2"/></symbol>
+<symbol id="b-pump" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" fill="#192c39" rx="4"/><rect x="3" y="3" width="26" height="26" fill="#3f6f8f" rx="3"/><rect x="3" y="3" width="26" height="5" fill="#6f93ab" rx="2" fill-opacity="0.6"/><rect x="11" y="11" width="10" height="10" fill="#29485d" rx="2"/></symbol>
+<symbol id="f-steam" viewBox="0 0 32 32"><path d="M16 3C13 8 6 15 6 21a10 10 0 0 0 20 0C26 15 19 8 16 3Z" fill="#d8dde3" stroke="#56585b" stroke-width="2"/><path d="M11 20a5 5 0 0 0 4 5" fill="none" stroke="#eceef1" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="f-water" viewBox="0 0 32 32"><path d="M16 3C13 8 6 15 6 21a10 10 0 0 0 20 0C26 15 19 8 16 3Z" fill="#3c78d8" stroke="#183056" stroke-width="2"/><path d="M11 20a5 5 0 0 0 4 5" fill="none" stroke="#9ebcec" stroke-width="2" stroke-linecap="round"/></symbol>
+<symbol id="i-coal" viewBox="0 0 32 32"><rect x="5" y="5" width="22" height="22" fill="#121111"/><rect x="7" y="7" width="18" height="18" fill="#2e2b2a"/><rect x="15" y="15" width="10" height="10" fill="#252222"/><rect x="8" y="8" width="4" height="2" fill="#82807f"/></symbol>
+<symbol id="i-hematite" viewBox="0 0 32 32"><polygon points="16,3 29,16 16,29 3,16" fill="#311917"/><polygon points="16,5.6 26.4,16 16,26.4 5.6,16" fill="#7a3f3a"/><polygon points="16,16 26,16 16,26" fill="#62322e"/><rect x="12" y="9" width="3" height="2" fill="#af8c89"/></symbol>
+<symbol id="i-malachite" viewBox="0 0 32 32"><polygon points="16,3 29,16 16,29 3,16" fill="#133924"/><polygon points="16,5.6 26.4,16 16,26.4 5.6,16" fill="#2f8f5b"/><polygon points="16,16 26,16 16,26" fill="#267249"/><rect x="12" y="9" width="3" height="2" fill="#82bc9d"/></symbol>
+<symbol id="i-sphalerite" viewBox="0 0 32 32"><polygon points="16,3 29,16 16,29 3,16" fill="#2b2631"/><polygon points="16,5.6 26.4,16 16,26.4 5.6,16" fill="#6b5f7a"/><polygon points="16,16 26,16 16,26" fill="#564c62"/><rect x="12" y="9" width="3" height="2" fill="#a69faf"/></symbol>
+<symbol id="i-stone" viewBox="0 0 32 32"><polygon points="27.69,22.75 16,29.5 4.31,22.75 4.31,9.25 16,2.5 27.69,9.25" fill="#383735"/><polygon points="25.59,21.54 16,27.07 6.41,21.54 6.41,10.47 16,4.93 25.59,10.47" fill="#8b8a84"/><polygon points="24.06,21.5 18,25 11.94,21.5 11.94,14.5 18,11 24.06,14.5" fill="#6f6e6a"/><rect x="9" y="10" width="4" height="2" fill="#b9b9b5"/></symbol>
+<symbol id="p-normal" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#82a699" stroke="#3a4b45" stroke-width="2"/><path d="M8 12a10 10 0 0 1 8-6" fill="none" stroke="#bacec7" stroke-width="2" stroke-linecap="round"/><ellipse cx="19" cy="20" rx="5" ry="3" fill="#68857a"/></symbol>
+<symbol id="p-rich" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#b8734f" stroke="#533424" stroke-width="2"/><path d="M8 12a10 10 0 0 1 8-6" fill="none" stroke="#d8b29e" stroke-width="2" stroke-linecap="round"/><ellipse cx="19" cy="20" rx="5" ry="3" fill="#935c3f"/></symbol>
+<symbol id="p-wasteland" viewBox="0 0 32 32"><circle cx="16" cy="16" r="13" fill="#918273" stroke="#413a34" stroke-width="2"/><path d="M8 12a10 10 0 0 1 8-6" fill="none" stroke="#c2bab2" stroke-width="2" stroke-linecap="round"/><ellipse cx="19" cy="20" rx="5" ry="3" fill="#74685c"/></symbol>
+</defs></svg>
+<header class="top">
+<div class="bar"><a class="logo" href="../index.html">WarpFactor <span>вики</span></a>
+<div class="search"><input type="search" placeholder="Поиск: предмет, постройка, исследование…" aria-label="Поиск по вики" autocomplete="off" data-search><ul class="results" hidden></ul></div></div>
+<nav class="sections"><a href="../items/index.html">Предметы</a><a href="../buildings/index.html">Постройки</a><a href="../research/index.html">Исследования</a><a href="../research/tree.html">Дерево</a><a href="../world/index.html" class="on">Мир</a><a href="../enemies/index.html">Враги</a><a href="../mechanics/index.html">Механики</a></nav>
+</header>
+<main>
+<nav class="crumbs"><a href="../index.html">Главная</a> <span class="sep">›</span> <span aria-current="page">Месторождения и планеты</span></nav>
+<h1>Месторождения и планеты</h1>
+<p>База телепортируется между планетами разных типов. На каждой — свой набор руд, их богатство и угроза. На стартовой планете есть все руды её типа, дальше каждая руда выпадает со своим шансом.</p>
+<section id="ores">
+<h2>Месторождения</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Месторождение</th><th>Даёт</th><th>Твёрдость</th><th>Кто добывает</th><th>Шанс на планете</th></tr></thead>
+<tbody>
+<tr><td><span id="ore-hematite"><a class="chip" href="../world/index.html#ore-hematite"><svg class="ic" aria-hidden="true"><use href="#i-hematite"/></svg><span>Гематит</span></a></span></td><td data-label="Даёт"><div><a class="chip" href="../items/hematite.html"><svg class="ic" aria-hidden="true"><use href="#i-hematite"/></svg><span>Гематит</span></a></div></td><td data-label="Твёрдость"><div>1</div></td><td data-label="Кто добывает"><div><span class="chips"><span class="chip hand"><span>дрон</span></span><a class="chip" href="../buildings/coal_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-coal_drill"/></svg><span>Угольный бур</span></a><a class="chip" href="../buildings/drill.html"><svg class="ic" aria-hidden="true"><use href="#b-drill"/></svg><span>Электробур</span></a><a class="chip" href="../buildings/fast_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-fast_drill"/></svg><span>Скоростной бур</span></a></span></div></td><td data-label="Шанс на планете"><div>Планета 100 %, Рудный мир 100 %</div></td></tr>
+<tr><td><span id="ore-stone"><a class="chip" href="../world/index.html#ore-stone"><svg class="ic" aria-hidden="true"><use href="#i-stone"/></svg><span>Каменная порода</span></a></span></td><td data-label="Даёт"><div><a class="chip" href="../items/stone.html"><svg class="ic" aria-hidden="true"><use href="#i-stone"/></svg><span>Камень</span></a></div></td><td data-label="Твёрдость"><div>1</div></td><td data-label="Кто добывает"><div><span class="chips"><span class="chip hand"><span>дрон</span></span><a class="chip" href="../buildings/coal_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-coal_drill"/></svg><span>Угольный бур</span></a><a class="chip" href="../buildings/drill.html"><svg class="ic" aria-hidden="true"><use href="#b-drill"/></svg><span>Электробур</span></a><a class="chip" href="../buildings/fast_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-fast_drill"/></svg><span>Скоростной бур</span></a></span></div></td><td data-label="Шанс на планете"><div>Планета 100 %, Рудный мир 100 %</div></td></tr>
+<tr><td><span id="ore-coal"><a class="chip" href="../world/index.html#ore-coal"><svg class="ic" aria-hidden="true"><use href="#i-coal"/></svg><span>Угольная порода</span></a></span></td><td data-label="Даёт"><div><a class="chip" href="../items/coal.html"><svg class="ic" aria-hidden="true"><use href="#i-coal"/></svg><span>Уголь</span></a></div></td><td data-label="Твёрдость"><div>1</div></td><td data-label="Кто добывает"><div><span class="chips"><span class="chip hand"><span>дрон</span></span><a class="chip" href="../buildings/coal_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-coal_drill"/></svg><span>Угольный бур</span></a><a class="chip" href="../buildings/drill.html"><svg class="ic" aria-hidden="true"><use href="#b-drill"/></svg><span>Электробур</span></a><a class="chip" href="../buildings/fast_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-fast_drill"/></svg><span>Скоростной бур</span></a></span></div></td><td data-label="Шанс на планете"><div>Планета 100 %, Рудный мир 100 %</div></td></tr>
+<tr><td><span id="ore-malachite"><a class="chip" href="../world/index.html#ore-malachite"><svg class="ic" aria-hidden="true"><use href="#i-malachite"/></svg><span>Малахит</span></a></span></td><td data-label="Даёт"><div><a class="chip" href="../items/malachite.html"><svg class="ic" aria-hidden="true"><use href="#i-malachite"/></svg><span>Малахит</span></a></div></td><td data-label="Твёрдость"><div>2</div></td><td data-label="Кто добывает"><div><span class="chips"><a class="chip" href="../buildings/drill.html"><svg class="ic" aria-hidden="true"><use href="#b-drill"/></svg><span>Электробур</span></a><a class="chip" href="../buildings/fast_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-fast_drill"/></svg><span>Скоростной бур</span></a></span></div></td><td data-label="Шанс на планете"><div>Планета 90 %, Рудный мир 100 %</div></td></tr>
+<tr><td><span id="ore-sphalerite"><a class="chip" href="../world/index.html#ore-sphalerite"><svg class="ic" aria-hidden="true"><use href="#i-sphalerite"/></svg><span>Сфалерит</span></a></span></td><td data-label="Даёт"><div><a class="chip" href="../items/sphalerite.html"><svg class="ic" aria-hidden="true"><use href="#i-sphalerite"/></svg><span>Сфалерит</span></a></div></td><td data-label="Твёрдость"><div>2</div></td><td data-label="Кто добывает"><div><span class="chips"><a class="chip" href="../buildings/drill.html"><svg class="ic" aria-hidden="true"><use href="#b-drill"/></svg><span>Электробур</span></a><a class="chip" href="../buildings/fast_drill.html"><svg class="ic" aria-hidden="true"><use href="#b-fast_drill"/></svg><span>Скоростной бур</span></a></span></div></td><td data-label="Шанс на планете"><div>Планета 75 %, Рудный мир 100 %</div></td></tr>
+<tr><td><span id="ore-water"><a class="chip" href="../world/index.html#ore-water"><svg class="ic" aria-hidden="true"><use href="#f-water"/></svg><span>Вода</span></a></span></td><td data-label="Даёт"><div><a class="chip" href="../fluids/water.html"><svg class="ic" aria-hidden="true"><use href="#f-water"/></svg><span>Вода</span></a></div></td><td data-label="Твёрдость"><div>0</div></td><td data-label="Кто добывает"><div><span class="chips"><a class="chip" href="../buildings/pump.html"><svg class="ic" aria-hidden="true"><use href="#b-pump"/></svg><span>Насос</span></a></span></div></td><td data-label="Шанс на планете"><div>Планета 80 %, Рудный мир 60 %</div></td></tr>
+</tbody></table></div>
+</section>
+<section id="world-1">
+<h2>Богатство клеток руды</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Клетка</th><th>Множитель добычи</th><th>Где чаще</th><th>Доля на обычной планете</th></tr></thead>
+<tbody>
+<tr><td>бедная</td><td data-label="Множитель добычи"><div>×0.5</div></td><td data-label="Где чаще"><div>край мелкой залежи</div></td><td data-label="Доля на обычной планете"><div>≈ 14 %</div></td></tr>
+<tr><td>средняя</td><td data-label="Множитель добычи"><div>×1</div></td><td data-label="Где чаще"><div>основная масса залежи</div></td><td data-label="Доля на обычной планете"><div>≈ 64 %</div></td></tr>
+<tr><td>богатая</td><td data-label="Множитель добычи"><div>×1.6</div></td><td data-label="Где чаще"><div>середина залежи, крупные жилы</div></td><td data-label="Доля на обычной планете"><div>≈ 20 %</div></td></tr>
+<tr><td>ультра-концентрированная</td><td data-label="Множитель добычи"><div>×2.5</div></td><td data-label="Где чаще"><div>сердце крупной жилы</div></td><td data-label="Доля на обычной планете"><div>≈ 2 %</div></td></tr>
+</tbody></table></div>
+<div class="tw"><table class="stack">
+<thead><tr><th>Правило</th><th>Как работает</th></tr></thead>
+<tbody>
+<tr><td>Оценка клетки</td><td>0.65 × близость к центру + 0.25 × крупность жилы (радиус 6 → 0, 12 → 1) + бонус планеты ± 0.15 разброс</td></tr>
+<tr><td>Пороги</td><td>&gt; 0.75 ультра, &gt; 0.5 богатая, &gt; 0.15 средняя, иначе бедная</td></tr>
+<tr><td>Бонус планеты</td><td><code>ore_richness</code> типа планеты: обычная 0, рудный мир 0.15 (в среднем ×1.5 против ×1.1)</td></tr>
+<tr><td>Наложение залежей</td><td>клетке остаётся лучшее богатство из двух</td></tr>
+<tr><td>Как видно</td><td>бедная тусклее и с парой самородков, богатая и ультра — светлее и гуще; подсказка над рудой пишет богатство и скорость</td></tr>
+</tbody></table></div>
+</section>
+<section id="planets">
+<h2>Типы планет</h2>
+<div class="planet" id="planet-normal"><h3><svg class="ic mid" aria-hidden="true"><use href="#p-normal"/></svg> Планета</h3><p>Мир с месторождениями. Здесь враг будет искать базу.</p><div class="tw"><table class="facts"><tbody>
+<tr><th>Опасность</th><td><a href="../enemies/index.html#threat-normal">волны врагов</a></td></tr>
+<tr><th>Как часто выпадает</th><td>57.7 %</td></tr>
+<tr><th>Размер карты</th><td>от 336×252 до 480×360 тайлов</td></tr>
+<tr><th>Руды</th><td><span class="chips"><a class="chip" href="../world/index.html#ore-hematite"><svg class="ic" aria-hidden="true"><use href="#i-hematite"/></svg><span>Гематит</span> <i class="tag">100 %</i></a><a class="chip" href="../world/index.html#ore-stone"><svg class="ic" aria-hidden="true"><use href="#i-stone"/></svg><span>Каменная порода</span> <i class="tag">100 %</i></a><a class="chip" href="../world/index.html#ore-coal"><svg class="ic" aria-hidden="true"><use href="#i-coal"/></svg><span>Угольная порода</span> <i class="tag">100 %</i></a><a class="chip" href="../world/index.html#ore-malachite"><svg class="ic" aria-hidden="true"><use href="#i-malachite"/></svg><span>Малахит</span> <i class="tag">90 %</i></a><a class="chip" href="../world/index.html#ore-sphalerite"><svg class="ic" aria-hidden="true"><use href="#i-sphalerite"/></svg><span>Сфалерит</span> <i class="tag">75 %</i></a><a class="chip" href="../world/index.html#ore-water"><svg class="ic" aria-hidden="true"><use href="#f-water"/></svg><span>Вода</span> <i class="tag">80 %</i></a></span></td></tr>
+<tr><th>Залежей на 10 000 тайлов</th><td>0.7</td></tr>
+<tr><th>Озёр на 10 000 тайлов</th><td>0.35</td></tr>
+<tr><th>Плотность скал</th><td>8 %</td></tr>
+</tbody></table></div></div>
+<div class="planet" id="planet-rich"><h3><svg class="ic mid" aria-hidden="true"><use href="#p-rich"/></svg> Рудный мир</h3><p>Месторождения повсюду, между ними — скальные гряды. Зато волны приходят раньше и злее.</p><div class="tw"><table class="facts"><tbody>
+<tr><th>Опасность</th><td><a href="../enemies/index.html#threat-rich">волны врагов</a></td></tr>
+<tr><th>Как часто выпадает</th><td>23.1 %</td></tr>
+<tr><th>Размер карты</th><td>от 288×216 до 384×288 тайлов</td></tr>
+<tr><th>Руды</th><td><span class="chips"><a class="chip" href="../world/index.html#ore-hematite"><svg class="ic" aria-hidden="true"><use href="#i-hematite"/></svg><span>Гематит</span> <i class="tag">100 %</i></a><a class="chip" href="../world/index.html#ore-stone"><svg class="ic" aria-hidden="true"><use href="#i-stone"/></svg><span>Каменная порода</span> <i class="tag">100 %</i></a><a class="chip" href="../world/index.html#ore-coal"><svg class="ic" aria-hidden="true"><use href="#i-coal"/></svg><span>Угольная порода</span> <i class="tag">100 %</i></a><a class="chip" href="../world/index.html#ore-malachite"><svg class="ic" aria-hidden="true"><use href="#i-malachite"/></svg><span>Малахит</span> <i class="tag">100 %</i></a><a class="chip" href="../world/index.html#ore-sphalerite"><svg class="ic" aria-hidden="true"><use href="#i-sphalerite"/></svg><span>Сфалерит</span> <i class="tag">100 %</i></a><a class="chip" href="../world/index.html#ore-water"><svg class="ic" aria-hidden="true"><use href="#f-water"/></svg><span>Вода</span> <i class="tag">60 %</i></a></span></td></tr>
+<tr><th>Залежей на 10 000 тайлов</th><td>1.3</td></tr>
+<tr><th>Бонус богатства руды</th><td>+0.15</td></tr>
+<tr><th>Озёр на 10 000 тайлов</th><td>0.2</td></tr>
+<tr><th>Плотность скал</th><td>14 %</td></tr>
+</tbody></table></div></div>
+<div class="planet" id="planet-wasteland"><h3><svg class="ic mid" aria-hidden="true"><use href="#p-wasteland"/></svg> Пустошь</h3><p>Ничего полезного, но враг не нападает: время перестроить базу и перевести дух.</p><div class="tw"><table class="facts"><tbody>
+<tr><th>Опасность</th><td>враг не нападает</td></tr>
+<tr><th>Как часто выпадает</th><td>19.2 %</td></tr>
+<tr><th>Размер карты</th><td>от 240×180 до 336×252 тайлов</td></tr>
+<tr><th>Руды</th><td><span class="muted">нет</span></td></tr>
+<tr><th>Залежей на 10 000 тайлов</th><td>0</td></tr>
+<tr><th>Плотность скал</th><td>11 %</td></tr>
+</tbody></table></div></div>
+</section>
+<section id="fluids">
+<h2>Жидкости</h2>
+<div class="grid"><a class="card" href="../fluids/water.html"><svg class="ic mid" aria-hidden="true"><use href="#f-water"/></svg><span>Вода</span></a><a class="card" href="../fluids/steam.html"><svg class="ic mid" aria-hidden="true"><use href="#f-steam"/></svg><span>Пар</span></a></div><div class="tw"><table class="stack">
+<thead><tr><th>Жидкость</th><th>Откуда</th><th>Где живёт</th></tr></thead>
+<tbody>
+<tr><td>Вода</td><td data-label="Откуда"><div>насос на месторождении воды</div></td><td data-label="Где живёт"><div>трубы и порты построек; в инвентарь и на ленты не попадает</div></td></tr>
+<tr><td>Пар</td><td data-label="Откуда"><div>бойлер (вода + топливо)</div></td><td data-label="Где живёт"><div>трубы и порты построек</div></td></tr>
+</tbody></table></div>
+</section>
+<section id="rules">
+<h2>Правила добычи и карты</h2>
+<div class="tw"><table class="stack">
+<thead><tr><th>Правило</th><th>Как работает</th></tr></thead>
+<tbody>
+<tr><td>Добыча дроном</td><td>2.5 + 1 × твёрдость секунд на предмет, делённые на множитель богатства клетки; твёрдость только до 1 (малахит и сфалерит — буром)</td></tr>
+<tr><td>Добыча буром</td><td>(6 + 1.5 × твёрдость) / сумма множителей богатства клеток руды под ним, 90 кВт</td></tr>
+<tr><td>Руды на планете</td><td>на стартовой есть все руды её типа; дальше малахит с шансом 90 %, вода — 80 %</td></tr>
+<tr><td>Из чего карта</td><td>области разного пола, скальные гряды с проходами, озёра (если узлу выпала вода) и рудные поля</td></tr>
+<tr><td>Рудные поля</td><td>у каждой руды своя сторона карты, первая залежь — у посадки; к каждому полю есть проход по земле</td></tr>
+<tr><td>Типы планет</td><td>обычная, рудный мир (руды больше, волны раньше и злее), пустошь (ни руд, ни врагов) — <code>world/planet_types/*.tres</code></td></tr>
+<tr><td>Строить на воде</td><td>только трубы, подземные трубы, насосы и баки</td></tr>
+</tbody></table></div>
+</section>
+</main>
+<footer>Страница собрана из данных игры скриптом <code>tools/data/make_wiki.py</code>.</footer>
+<script src="../assets/search-index.js"></script>
+<script src="../assets/wiki.js"></script>
+</body>
+</html>
