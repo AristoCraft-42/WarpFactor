@@ -263,8 +263,7 @@ func _build_recipe_picker() -> void:
 		var tip := PackedStringArray(["%s ×%d" % [tr(main.item.name_key), main.amount]])
 		var parts := PackedStringArray()
 		for c in recipe.consumes:
-			for s in c.display_stacks():
-				parts.append("%s ×%d" % [tr(s.item.name_key), s.amount])
+			parts.append(c.describe())
 		tip.append(tr("CRAFT_INGREDIENTS") % ", ".join(parts))
 		tip.append(tr("CRAFT_TIME") % recipe.craft_time)
 		b.tooltip_text = "\n".join(tip)

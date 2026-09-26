@@ -1,0 +1,56 @@
+[gd_resource type="Resource" script_class="CrafterDef" format=3]
+
+[ext_resource type="Script" path="res://buildings/production/crafter_def.gd" id="1_def"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
+[ext_resource type="Script" path="res://buildings/production/crafter.gd" id="3_logic"]
+[ext_resource type="Script" path="res://items/recipe.gd" id="7_recipe_script"]
+[ext_resource type="Resource" path="res://items/recipes/polymer.tres" id="recipe_polymer"]
+[ext_resource type="Resource" path="res://items/types/galvanized_steel.tres" id="item_galvanized_steel"]
+[ext_resource type="Resource" path="res://items/types/buildings/pipe.tres" id="item_pipe"]
+[ext_resource type="Resource" path="res://items/types/microchip.tres" id="item_microchip"]
+[ext_resource type="Resource" path="res://items/types/brick.tres" id="item_brick"]
+
+[sub_resource type="Resource" id="cost_0"]
+script = ExtResource("2_stack")
+item = ExtResource("item_galvanized_steel")
+amount = 12
+
+[sub_resource type="Resource" id="cost_1"]
+script = ExtResource("2_stack")
+item = ExtResource("item_pipe")
+amount = 6
+
+[sub_resource type="Resource" id="cost_2"]
+script = ExtResource("2_stack")
+item = ExtResource("item_microchip")
+amount = 3
+
+[sub_resource type="Resource" id="cost_3"]
+script = ExtResource("2_stack")
+item = ExtResource("item_brick")
+amount = 10
+
+[resource]
+script = ExtResource("1_def")
+id = &"chemical_plant"
+name_key = "BUILDING_CHEMICAL_PLANT"
+description_key = "BUILDING_CHEMICAL_PLANT_DESC"
+category = 1
+size = 2
+removable = true
+player_buildable = true
+line_placement = false
+sort_order = 45
+cost = Array[ExtResource("2_stack")]([SubResource("cost_0"), SubResource("cost_1"), SubResource("cost_2"), SubResource("cost_3")])
+craft_time = 4.0
+craft_amount = 1
+health = 280.0
+solid = true
+color = Color(0.435, 0.310, 0.478, 1)
+glyph = 24
+logic_script = ExtResource("3_logic")
+recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_polymer")])
+recipe_mode = 0
+item_capacity = 10
+power_use = 120.0
+fluid_capacity = 120.0

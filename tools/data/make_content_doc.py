@@ -34,7 +34,23 @@ def fmt(v):
 
 
 def stacks(lst):
-    return ", ".join("%s ×%s" % (item_name(i), fmt(a)) for i, a in lst) if lst else "—"
+    """Входы и выходы текстом. «any:<группа>» — любые разные предметы группы, «fluid:<id>» — жидкость."""
+    if not lst:
+        return "—"
+    parts = []
+    groups = {}
+    for key, amount in lst:
+        if key.startswith("any:"):
+            groups.setdefault(key[4:], []).append(amount)
+        elif key.startswith("fluid:"):
+            parts.append("%s ×%s (по трубам)" % (item_name(key[6:]), fmt(amount)))
+        else:
+            parts.append("%s ×%s" % (item_name(key), fmt(amount)))
+    for group, amounts in groups.items():
+        members = ", ".join(item_name(i) for i in ns["ITEM_GROUPS"][group])
+        parts.append("%d разных вида из «%s» по %s (%s)" % (len(amounts), names.get(ns["GROUP_KEYS"][group], group),
+                                                          fmt(amounts[0]), members))
+    return ", ".join(parts)
 
 
 ITEMS = ns["ITEMS"]
@@ -44,6 +60,7 @@ BUILDINGS = ns["BUILDINGS"]
 RESEARCH = ns["RESEARCH"]
 MG_AMMO = ns["MG_AMMO"]
 kit2_amount = ns["kit2_amount"]
+research_costs = ns["research_costs"]
 START_ITEMS = ns["START_ITEMS"]
 CATEGORIES = ["Логистика", "Производство", "Энергия", "Оборона"]
 
@@ -119,26 +136,42 @@ table(["Про файл", "Что здесь"], [
     ["Откуда числа", "из данных (`*.tres`); файл собирает `tools/data/make_content_doc.py`"],
     ["Единицы", "время — секунды, мощность — кВт, энергия — кДж, скорость — предметов в секунду"],
     ["Сколько сделано", "**Early game**, **Early midgame** и первая колонка **Midgame** из `WarpFactor/Заметки.md`"],
-    ["Чего ещё нет", "нефть, боксит, киноварь, аутунит"],
+    ["Чего ещё нет", "боксит, киноварь, аутунит"],
 ])
 w("## 1. Месторождения и сырьё")
 w("")
 w("| Месторождение | Даёт | Твёрдость | Кто добывает | Этап |")
 w("|---|---|---|---|---|")
 stage = {"hematite": "Early game", "stone": "Early game", "coal": "Early game", "malachite": "Early midgame",
-         "water": "Early midgame", "sphalerite": "Midgame"}
+         "water": "Early midgame", "sphalerite": "Midgame", "oil": "Midgame"}
+
+
+def pump_of(fluid):
+    """Чем качать жидкость: постройка-насос с этой жидкостью (или любой)."""
+    for b in BUILDINGS:
+        p = b[12]
+        if b[1] == "fluid" and p.get("role") == 1 and p.get("pump_fluid", fluid) == fluid:
+            power = ", %g кВт" % p["power_use"] if p.get("power_use") else ""
+            return "%s (1 тайл = %g ед./с%s)" % (building_name(b[0]).lower(), p["pump_per_tile"], power)
+    return "—"
+
+
 for oid, (kind, target), hardness, _ in ORES:
-    who = "насос (1 тайл воды = 120 ед./с)" if kind == "fluid" else ("дрон и бур" if hardness <= 1 else "только бур")
+    who = pump_of(target) if kind == "fluid" else ("дрон и бур" if hardness <= 1 else "только бур")
     w("| %s | %s | %d | %s | %s |" % (names.get("ORE_" + oid.upper(), oid), item_name(target), hardness, who, stage[oid]))
 w("")
 table(["Правило", "Как работает"], [
     ["Добыча дроном", "2.5 + 1 × твёрдость секунд на предмет, делённые на множитель богатства клетки; твёрдость только до 1 (малахит и сфалерит — буром)"],
     ["Добыча буром", "(6 + 1.5 × твёрдость) / сумма множителей богатства клеток руды под ним, 90 кВт"],
-    ["Руды на планете", "на стартовой есть все руды её типа; дальше малахит с шансом 90 %, вода — 80 %"],
-    ["Из чего карта", "области разного пола, скальные гряды с проходами, озёра (если узлу выпала вода) и рудные поля"],
+    ["Руды на планете", "на стартовой есть все руды её типа; дальше по шансам типа: %s" % "; ".join(
+        "%s — %s" % ({"normal": "обычная", "rich": "рудный мир"}[t], ", ".join(
+            "%s %d %%" % (names.get("ORE_" + o.upper(), o).lower(), round(c * 100)) for o, c in ores if c < 1))
+        for t, ores in ns["PLANET_ORES"].items())],
+    ["Из чего карта", "области разного пола, скальные гряды с проходами, озёра (если узлу выпала вода), рудные поля и нефтяные скважины"],
+    ["Нефтяные скважины", "небольшие пятна (радиус 1.6–2.6) вдали от посадки, к каждой прорублен проход; на обычной планете около 3, на рудном мире больше"],
     ["Рудные поля", "у каждой руды своя сторона карты, первая залежь — у посадки; к каждому полю есть проход по земле"],
     ["Типы планет", "обычная, рудный мир (руды больше, волны раньше и злее), пустошь (ни руд, ни врагов) — `world/planet_types/*.tres`"],
-    ["Строить на воде", "только трубы, подземные трубы, насосы и баки"],
+    ["Строить на воде", "только трубы, подземные трубы, насосы и баки; на нефти — что угодно (она под землёй)"],
 ])
 w("### Богатство клеток руды")
 w("")
@@ -175,8 +208,19 @@ w("## 3. Рецепты")
 w("")
 w("| Рецепт | Входы | Выход | Время | Где делается | Исследование |")
 w("|---|---|---|---|---|---|")
+# Где делается рецепт: заводы, у которых он в списке (печь, сборщик, химзавод…).
+makers_of = {}
+for _b in BUILDINGS:
+    for _r in _b[12].get("recipes", []):
+        makers_of.setdefault(_r, []).append(building_name(_b[0]).lower())
 for rid, ins, outs, t, hand, _ in RECIPES:
-    where = "печь" if rid.startswith("smelt_") else ("руками и в сборщике" if hand else "сборщик")
+    if rid.startswith("build_"):
+        continue
+    makers = makers_of.get(rid, [])
+    # Сборщик и фабрикатор делают одно и то же — хватает первого.
+    if "сборщик" in makers:
+        makers = [m for m in makers if m != "фабрикатор"]
+    where = ("руками, " if hand else "") + (", ".join(makers) or "—")
     w("| `%s` | %s | %s | %s | %s | %s |" % (rid, stacks(ins), stacks(outs), fmt(t), where,
                                             research_name(research_of[rid]) if rid in research_of else "—"))
 w("")
@@ -367,10 +411,7 @@ for rid, _, cost, pre, blds, recs, _effects in sorted(RESEARCH, key=lambda r: r[
         opens.append("рецепты автосборки для всех открытых построек (%d)" % len(build_recipes))
     if rid in EFFECT_OVERRIDE:
         opens = [EFFECT_OVERRIDE[rid]]
-    price = "%d × %s" % (cost, item_name("science_kit"))
-    kit2 = kit2_amount(rid, cost)
-    if kit2 > 0:
-        price += " + %d × %s" % (kit2, item_name("science_kit_2"))
+    price = " + ".join("%d × %s" % (n, item_name(kit)) for kit, n in research_costs(rid, cost))
     w("| %s | %s | %s | %s |" % (research_name(rid), price,
                                  ", ".join(research_name(p) for p in pre) or "—", ", ".join(opens) or "—"))
 w("")
@@ -378,6 +419,11 @@ table(["Правило", "Как работает"], [
     ["Что открыто сразу", ", ".join(building_name(b[0]) for b in BUILDINGS
         if b[7] and b[1] != "creative" and b[0] not in research_of) or "—"],
     ["Ручная сдача", "окно J, кнопка «Сдать наборы»: только наборы первого уровня, только в выбранное исследование, 12 с на набор"],
+    ["Виды наборов", "первый (руками и в сборщике) → военный (стена и два разных вида патронов, сборщик) → второй (микросхема и сталь) → третий (резисторы и полимеры из нефти); кроме первого — только в научный цех"],
+    ["Военный набор", "им, а не первым набором, платят все военные исследования: %s. «Оборона» — за первые наборы: она и открывает патроны и сам военный набор" % ", ".join(
+        research_name(r) for r in sorted(ns["MILITARY_RESEARCH"]))],
+    ["Третий набор", "нужен последним ступеням всех прокачек (где ступеней три и больше): %s" % ", ".join(
+        research_name(r) for r in sorted(ns["KIT3_RESEARCH"]))],
     ["Очередь", "ПКМ по карточке ставит её в очередь (до 5); текущее завершилось — берётся первое доступное"],
     ["Научный цех", "берёт наборы с ленты или руками, %g с на набор, %g кВт" % (
         params_of("science_workshop").get("seconds_per_kit", 2), params_of("science_workshop").get("power_use", 0))],

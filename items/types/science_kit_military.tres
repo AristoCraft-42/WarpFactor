@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"science_kit_military"
+name_key = "ITEM_SCIENCE_KIT_MILITARY"
+color = Color(0.596, 0.592, 0.102, 1)
+icon_shape = 9
+sort_order = 301
+stack_size = 100
+fuel_value = 0.0
+science_tier = 2

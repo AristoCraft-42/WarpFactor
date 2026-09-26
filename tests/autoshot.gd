@@ -74,6 +74,7 @@ func _run_game(game: Game) -> void:
 	await _run_production_chain(game, base)
 	await _run_factory(game, base)
 	await _run_power(game, base)
+	await _run_oil(game, base)
 	await _run_logistics(game, base)
 	await _run_enemies(game, base)
 	await _run_defense(game)
@@ -509,7 +510,8 @@ func _run_enemies(game: Game, base: Vector2i) -> void:
 
 
 ## Свободный от зданий и строимый прямоугольник size рядом с center (поиск по кольцам).
-func _find_clear_rect(world: GameWorld, size: Vector2i, center: Vector2i, radius: int) -> Vector2i:
+## no_ore — ещё и без месторождений (чтобы трубы и заводы не упёрлись в воду).
+func _find_clear_rect(world: GameWorld, size: Vector2i, center: Vector2i, radius: int, no_ore: bool = false) -> Vector2i:
 	for r in range(0, radius):
 		for y in range(center.y - r, center.y + r + 1):
 			for x in range(center.x - r, center.x + r + 1):
@@ -519,9 +521,43 @@ func _find_clear_rect(world: GameWorld, size: Vector2i, center: Vector2i, radius
 				for yy in range(y, y + size.y):
 					for xx in range(x, x + size.x):
 						ok = ok and world.grid.in_bounds(xx, yy) and world.grid.is_buildable(xx, yy) and world.buildings.get_at(Vector2i(xx, yy)) == null
+						ok = ok and (not no_ore or world.grid.get_ore(xx, yy) == 0)
 				if ok:
 					return Vector2i(x, y)
 	return Vector2i(-1, -1)
+
+
+## Нефть: скважина (кладём прямо в сетку — в тестовой карте её нет), вышка, трубы и химзавод.
+func _run_oil(game: Game, base: Vector2i) -> void:
+	var world := game.world
+	var bm := world.buildings
+	var oil := Registry.get_ore(&"oil")
+	var spot := _find_clear_rect(world, Vector2i(9, 4), base + Vector2i(12, 10), 30, true)
+	_expect(spot.x >= 0, "есть место под нефтяную установку")
+	if spot.x < 0:
+		return
+	for y in range(spot.y, spot.y + 3):
+		for x in range(spot.x, spot.x + 3):
+			world.grid.ores[world.grid.index_of(x, y)] = oil.index + 1
+	world.terrain_changed.emit(Rect2i(spot, Vector2i(3, 3)))
+	var derrick := bm.place(Registry.get_building(&"oil_derrick"), spot, 0, true) as Pump
+	for x in range(2, 5):
+		bm.place(Registry.get_building(&"pipe"), spot + Vector2i(x, 0), 0, true)
+	var plant := bm.place(Registry.get_building(&"chemical_plant"), spot + Vector2i(5, 0), 0, true) as Crafter
+	_expect(derrick != null and plant != null, "вышка на скважине и химзавод стоят")
+	if derrick == null or plant == null:
+		return
+	var coal := Registry.get_item(&"coal").index
+	while plant.accept_item(null, coal):
+		plant.handle_item(null, coal)
+	_power_up(world, [derrick, plant])
+	await _drone_to(game, spot + Vector2i(3, 4))
+	game.camera.focus_on(Vector2((spot + Vector2i(4, 1)) * GameConst.TILE_SIZE), 1.6)
+	await _wait_ticks(world, 8 * GameConst.TICK_RATE)
+	await _shot("p07_oil.png")
+	var polymer := Registry.get_item(&"polymer").index
+	_expect(derrick.last_rate > 0.0 and plant.outputs[polymer] > 0,
+		"нефть идёт по трубам, химзавод делает полимер (%.0f/с, полимеров %d)" % [derrick.last_rate, plant.outputs[polymer]])
 
 
 ## Оборона: турель из меню, патроны через окно турели, стены линией, радиусы (T), бой, ремонт дроном.

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="FluidDef" format=3]
+
+[ext_resource type="Script" path="res://fluids/fluid_def.gd" id="1_def"]
+
+[resource]
+script = ExtResource("1_def")
+id = &"oil"
+name_key = "FLUID_OIL"
+color = Color(0.169, 0.141, 0.125, 1)
+sort_order = 30

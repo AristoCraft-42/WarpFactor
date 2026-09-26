@@ -12,6 +12,8 @@
 [ext_resource type="Resource" path="res://items/recipes/galvanized_steel.tres" id="recipe_galvanized_steel"]
 [ext_resource type="Resource" path="res://items/recipes/microchip.tres" id="recipe_microchip"]
 [ext_resource type="Resource" path="res://items/recipes/science_kit_2.tres" id="recipe_science_kit_2"]
+[ext_resource type="Resource" path="res://items/recipes/science_kit_military.tres" id="recipe_science_kit_military"]
+[ext_resource type="Resource" path="res://items/recipes/science_kit_3.tres" id="recipe_science_kit_3"]
 [ext_resource type="Resource" path="res://items/recipes/cartridge_stone.tres" id="recipe_cartridge_stone"]
 [ext_resource type="Resource" path="res://items/recipes/cartridge_iron.tres" id="recipe_cartridge_iron"]
 [ext_resource type="Resource" path="res://items/recipes/cartridge_coal.tres" id="recipe_cartridge_coal"]
@@ -34,6 +36,7 @@
 [ext_resource type="Resource" path="res://items/recipes/build_drill.tres" id="recipe_build_drill"]
 [ext_resource type="Resource" path="res://items/recipes/build_smeltery.tres" id="recipe_build_smeltery"]
 [ext_resource type="Resource" path="res://items/recipes/build_fast_drill.tres" id="recipe_build_fast_drill"]
+[ext_resource type="Resource" path="res://items/recipes/build_chemical_plant.tres" id="recipe_build_chemical_plant"]
 [ext_resource type="Resource" path="res://items/recipes/build_science_workshop.tres" id="recipe_build_science_workshop"]
 [ext_resource type="Resource" path="res://items/recipes/build_small_power_pole.tres" id="recipe_build_small_power_pole"]
 [ext_resource type="Resource" path="res://items/recipes/build_thermal_generator.tres" id="recipe_build_thermal_generator"]
@@ -41,6 +44,7 @@
 [ext_resource type="Resource" path="res://items/recipes/build_underground_pipe.tres" id="recipe_build_underground_pipe"]
 [ext_resource type="Resource" path="res://items/recipes/build_water_tank.tres" id="recipe_build_water_tank"]
 [ext_resource type="Resource" path="res://items/recipes/build_pump.tres" id="recipe_build_pump"]
+[ext_resource type="Resource" path="res://items/recipes/build_oil_derrick.tres" id="recipe_build_oil_derrick"]
 [ext_resource type="Resource" path="res://items/recipes/build_boiler.tres" id="recipe_build_boiler"]
 [ext_resource type="Resource" path="res://items/recipes/build_steam_generator.tres" id="recipe_build_steam_generator"]
 [ext_resource type="Resource" path="res://items/recipes/build_accumulator.tres" id="recipe_build_accumulator"]
@@ -87,7 +91,7 @@ solid = true
 color = Color(0.482, 0.529, 0.588, 1)
 glyph = 9
 logic_script = ExtResource("3_logic")
-recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_gear"), ExtResource("recipe_copper_cable"), ExtResource("recipe_science_kit"), ExtResource("recipe_resistor"), ExtResource("recipe_casing_mg"), ExtResource("recipe_galvanized_steel"), ExtResource("recipe_microchip"), ExtResource("recipe_science_kit_2"), ExtResource("recipe_cartridge_stone"), ExtResource("recipe_cartridge_iron"), ExtResource("recipe_cartridge_coal"), ExtResource("recipe_cartridge_copper"), ExtResource("recipe_cartridge_brick"), ExtResource("recipe_build_conveyor"), ExtResource("recipe_build_junction"), ExtResource("recipe_build_router"), ExtResource("recipe_build_sorter"), ExtResource("recipe_build_bridge_conveyor"), ExtResource("recipe_build_unloader"), ExtResource("recipe_build_steel_conveyor"), ExtResource("recipe_build_steel_junction"), ExtResource("recipe_build_steel_router"), ExtResource("recipe_build_lift"), ExtResource("recipe_build_container"), ExtResource("recipe_build_large_container"), ExtResource("recipe_build_furnace"), ExtResource("recipe_build_coal_drill"), ExtResource("recipe_build_drill"), ExtResource("recipe_build_smeltery"), ExtResource("recipe_build_fast_drill"), ExtResource("recipe_build_science_workshop"), ExtResource("recipe_build_small_power_pole"), ExtResource("recipe_build_thermal_generator"), ExtResource("recipe_build_pipe"), ExtResource("recipe_build_underground_pipe"), ExtResource("recipe_build_water_tank"), ExtResource("recipe_build_pump"), ExtResource("recipe_build_boiler"), ExtResource("recipe_build_steam_generator"), ExtResource("recipe_build_accumulator"), ExtResource("recipe_build_stone_wall"), ExtResource("recipe_build_machine_gun"), ExtResource("recipe_build_tesla_turret"), ExtResource("recipe_build_repair_turret"), ExtResource("recipe_build_fluid_turret")])
+recipes = Array[ExtResource("7_recipe_script")]([ExtResource("recipe_gear"), ExtResource("recipe_copper_cable"), ExtResource("recipe_science_kit"), ExtResource("recipe_resistor"), ExtResource("recipe_casing_mg"), ExtResource("recipe_galvanized_steel"), ExtResource("recipe_microchip"), ExtResource("recipe_science_kit_2"), ExtResource("recipe_science_kit_military"), ExtResource("recipe_science_kit_3"), ExtResource("recipe_cartridge_stone"), ExtResource("recipe_cartridge_iron"), ExtResource("recipe_cartridge_coal"), ExtResource("recipe_cartridge_copper"), ExtResource("recipe_cartridge_brick"), ExtResource("recipe_build_conveyor"), ExtResource("recipe_build_junction"), ExtResource("recipe_build_router"), ExtResource("recipe_build_sorter"), ExtResource("recipe_build_bridge_conveyor"), ExtResource("recipe_build_unloader"), ExtResource("recipe_build_steel_conveyor"), ExtResource("recipe_build_steel_junction"), ExtResource("recipe_build_steel_router"), ExtResource("recipe_build_lift"), ExtResource("recipe_build_container"), ExtResource("recipe_build_large_container"), ExtResource("recipe_build_furnace"), ExtResource("recipe_build_coal_drill"), ExtResource("recipe_build_drill"), ExtResource("recipe_build_smeltery"), ExtResource("recipe_build_fast_drill"), ExtResource("recipe_build_chemical_plant"), ExtResource("recipe_build_science_workshop"), ExtResource("recipe_build_small_power_pole"), ExtResource("recipe_build_thermal_generator"), ExtResource("recipe_build_pipe"), ExtResource("recipe_build_underground_pipe"), ExtResource("recipe_build_water_tank"), ExtResource("recipe_build_pump"), ExtResource("recipe_build_oil_derrick"), ExtResource("recipe_build_boiler"), ExtResource("recipe_build_steam_generator"), ExtResource("recipe_build_accumulator"), ExtResource("recipe_build_stone_wall"), ExtResource("recipe_build_machine_gun"), ExtResource("recipe_build_tesla_turret"), ExtResource("recipe_build_repair_turret"), ExtResource("recipe_build_fluid_turret")])
 recipe_mode = 2
 item_capacity = 30
 craft_speed = 2.0

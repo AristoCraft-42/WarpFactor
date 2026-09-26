@@ -2,7 +2,7 @@
 class_name Consume
 extends Resource
 ## Вход рецепта. Базовые реализации — «ничего не нужно», подклассы переопределяют нужное.
-## Сейчас есть ConsumeItems; ConsumePower и ConsumeLiquid добавятся позже тем же интерфейсом.
+## Есть ConsumeItems (предметы), ConsumeAny (любые разные из группы) и ConsumeFluid (жидкость по трубам).
 
 
 ## Принимает ли завод этот предмет как вход.
@@ -43,6 +43,19 @@ func describe_missing(_crafter: Crafter) -> PackedStringArray:
 ## Стеки для отображения рецепта (иконка и количество).
 func display_stacks() -> Array[ItemStack]:
 	return []
+
+
+## Пояснение к иконкам рецепта («любые 2 разных…», «нефть ×30»); пусто — иконок достаточно.
+func display_note() -> String:
+	return ""
+
+
+## Вход текстом — для подсказок и характеристик.
+func describe() -> String:
+	var parts := PackedStringArray()
+	for s in display_stacks():
+		parts.append("%d %s" % [s.amount, tr(s.item.name_key)])
+	return ", ".join(parts)
 
 
 func validate() -> PackedStringArray:

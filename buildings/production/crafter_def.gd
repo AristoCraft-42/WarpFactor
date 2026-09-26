@@ -14,6 +14,9 @@ enum RecipeMode { FIXED, AUTO, SELECT }
 ## но выдают больше. Топливо и ток они тратят пропорционально (fuel_use, power_use — уже итоговые).
 @export var craft_speed: float = 1.0
 
+## Буфер жидкости, единиц (0 — у завода нет труб). Нужен рецептам с ConsumeFluid.
+@export var fluid_capacity: float = 0.0
+
 @export_group("Топливо")
 ## Мощность сжигания топлива во время работы, кВт (0 — топливо не нужно).
 @export var fuel_use: float = 0.0
@@ -33,7 +36,7 @@ func get_stat_lines() -> PackedStringArray:
 	for recipe in recipes:
 		if recipe == null:
 			continue
-		lines.append(tr("STAT_RECIPE") % [_stacks_text(_consume_stacks(recipe)), _produce_text(recipe),
+		lines.append(tr("STAT_RECIPE") % [_consume_text(recipe), _produce_text(recipe),
 			recipe.craft_time / maxf(craft_speed, 0.01)])
 	if power_use > 0.0:
 		lines.append(tr("STAT_POWER_USE") % roundi(power_use))
@@ -42,11 +45,14 @@ func get_stat_lines() -> PackedStringArray:
 	return lines
 
 
-static func _consume_stacks(recipe: Recipe) -> Array[ItemStack]:
-	var result: Array[ItemStack] = []
+## Входы рецепта текстом: каждый вид входа описывает себя сам (предметы, «любые разные», жидкость).
+static func _consume_text(recipe: Recipe) -> String:
+	var parts := PackedStringArray()
 	for c in recipe.consumes:
-		result.append_array(c.display_stacks())
-	return result
+		var text := c.describe()
+		if not text.is_empty():
+			parts.append(text)
+	return ", ".join(parts)
 
 
 static func _produce_text(recipe: Recipe) -> String:
@@ -59,11 +65,4 @@ static func _produce_text(recipe: Recipe) -> String:
 			if i < chances.size():
 				text += " (%d%%)" % roundi(chances[i] * 100.0)
 			parts.append(text)
-	return ", ".join(parts)
-
-
-static func _stacks_text(stacks: Array[ItemStack]) -> String:
-	var parts := PackedStringArray()
-	for s in stacks:
-		parts.append("%d %s" % [s.amount, TranslationServer.translate(s.item.name_key)])
 	return ", ".join(parts)

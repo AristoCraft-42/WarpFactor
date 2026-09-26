@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+[ext_resource type="Resource" path="res://buildings/defs/oil_derrick.tres" id="2_building"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"oil_derrick"
+name_key = "BUILDING_OIL_DERRICK"
+color = Color(0.227, 0.208, 0.188, 1)
+sort_order = 1245
+stack_size = 10
+building = ExtResource("2_building")

@@ -33,7 +33,8 @@ def clear(pattern):
 
 
 # --- Жидкости ---
-FLUIDS = [("water", "FLUID_WATER", "3c78d8", 10), ("steam", "FLUID_STEAM", "d8dde3", 20)]
+FLUIDS = [("water", "FLUID_WATER", "3c78d8", 10), ("steam", "FLUID_STEAM", "d8dde3", 20),
+          ("oil", "FLUID_OIL", "2b2420", 30)]
 
 # --- Предметы: id, форма иконки, цвет, порядок, стак, топливо (кДж), уровень набора ---
 # Формы: CIRCLE 0, SQUARE 1, DIAMOND 2, TRIANGLE 3, HEXAGON 4, CROSS 5, RING 6, BAR 7, STAR 8, FRAME 9, INGOT 10
@@ -51,8 +52,12 @@ ITEMS = [
     ("zinc_plate", 10, "9aa7b5", 130, 100, 0.0, 0),
     ("galvanized_steel", 7, "b5c0cc", 220, 100, 0.0, 0),
     ("microchip", 9, "5f9e7a", 230, 100, 0.0, 0),
+    ("polymer", 4, "d5c4a1", 240, 100, 0.0, 0),
+    # Научные наборы по порядку открытия: первый, военный, второй, третий (последний столбец — уровень).
     ("science_kit", 9, "d9534f", 300, 100, 0.0, 1),
-    ("science_kit_2", 9, "5f7fd9", 301, 100, 0.0, 2),
+    ("science_kit_military", 9, "98971a", 301, 100, 0.0, 2),
+    ("science_kit_2", 9, "5f7fd9", 302, 100, 0.0, 3),
+    ("science_kit_3", 9, "b16286", 303, 100, 0.0, 4),
     ("resistor", 7, "c8b27a", 310, 100, 0.0, 0),
     ("casing_mg", 3, "c9a227", 400, 100, 0.0, 0),
     ("cartridge_stone", 3, "9a998f", 410, 200, 0.0, 0),
@@ -70,11 +75,28 @@ ORES = [
     ("malachite", ("item", "malachite"), 2, 40),
     ("sphalerite", ("item", "sphalerite"), 2, 45),
     ("water", ("fluid", "water"), 0, 50),
+    ("oil", ("fluid", "oil"), 0, 55),
 ]
+# Жидкости под землёй: строить на месторождении можно, генератор кладёт его скважинами, а не озёрами.
+UNDERGROUND_FLUIDS = {"oil"}
+
+# Руды типов планет и шанс каждой: остальное в world/planet_types/*.tres правится руками.
+PLANET_ORES = {
+    "normal": [("hematite", 1), ("stone", 1), ("coal", 1), ("malachite", 0.9), ("sphalerite", 0.75),
+               ("water", 0.8), ("oil", 0.6)],
+    "rich": [("hematite", 1), ("stone", 1), ("coal", 1), ("malachite", 1), ("sphalerite", 1),
+             ("water", 0.6), ("oil", 0.85)],
+}
 
 # --- Рецепты: id, входы, выходы, время, вручную ли, порядок ---
+# Вход ("any:<группа>", n) — любой предмет группы ITEM_GROUPS по n штук; несколько таких входов
+# одной группы в рецепте — обязательно РАЗНЫЕ предметы. Вход ("fluid:<жидкость>", n) — n единиц
+# жидкости по трубам (заводу нужен fluid_capacity).
 FILLERS = [("stone", "cartridge_stone"), ("iron_ingot", "cartridge_iron"), ("coal", "cartridge_coal"),
            ("copper_ingot", "cartridge_copper"), ("brick", "cartridge_brick")]
+ITEM_GROUPS = {"cartridge": [out for _, out in FILLERS]}
+# Ключ названия группы в строках (для подсказок «любые 2 разных патрона»).
+GROUP_KEYS = {"cartridge": "ITEM_GROUP_CARTRIDGE"}
 RECIPES = [
     ("smelt_iron", [("hematite", 1)], [("iron_ingot", 1)], 3.2, False, 10),
     ("smelt_brick", [("stone", 2)], [("brick", 1)], 3.2, False, 20),
@@ -87,6 +109,11 @@ RECIPES = [
     ("galvanized_steel", [("iron_ingot", 2), ("zinc_plate", 1)], [("galvanized_steel", 1)], 1.5, False, 140),
     ("microchip", [("galvanized_steel", 1), ("copper_cable", 4), ("resistor", 2)], [("microchip", 1)], 3.0, False, 150),
     ("science_kit_2", [("microchip", 1), ("galvanized_steel", 2)], [("science_kit_2", 1)], 6.0, False, 160),
+    # Военный набор: стена и два РАЗНЫХ вида патронов.
+    ("science_kit_military", [("stone_wall", 1), ("any:cartridge", 2), ("any:cartridge", 2)],
+     [("science_kit_military", 2)], 6.0, False, 125),
+    ("polymer", [("fluid:oil", 30), ("coal", 1)], [("polymer", 2)], 3.0, False, 170),
+    ("science_kit_3", [("resistor", 2), ("polymer", 3)], [("science_kit_3", 1)], 8.0, False, 180),
     ("casing_mg", [("copper_ingot", 1)], [("casing_mg", 2)], 1.0, True, 200),
 ] + [(out, [("casing_mg", 1), (filler, 1)], [(out, 4)], 2.0, True, 210 + i) for i, (filler, out) in enumerate(FILLERS)]
 RECIPE_IDS = {r[0] for r in RECIPES}
@@ -189,7 +216,8 @@ BUILDINGS = [
      {"tier": 2, "base_seconds": 6.0, "hardness_seconds": 1.5, "item_capacity": 10, "power_use": 90.0}, (180, True), (2.0, 1, 20)),
     ("assembler", "crafter", "crafter", 1, 2, False, True, True, 9, "5e6670", 30, [("resistor", 4), ("gear", 6), ("copper_ingot", 10)],
      {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg",
-                  "galvanized_steel", "microchip", "science_kit_2"] + [out for _, out in FILLERS],
+                  "galvanized_steel", "microchip", "science_kit_2", "science_kit_military", "science_kit_3"]
+                 + [out for _, out in FILLERS],
       "recipe_mode": 2, "item_capacity": 20, "power_use": 75.0}, (220, True), (3.0, 1, 20)),
     ("smeltery", "crafter", "crafter", 1, 2, False, True, True, 11, "a5714f", 11,
      [("brick", 20), ("galvanized_steel", 10), ("gear", 10)],
@@ -202,8 +230,14 @@ BUILDINGS = [
     ("fabricator", "crafter", "crafter", 1, 2, False, True, True, 9, "7b8796", 31,
      [("microchip", 4), ("gear", 20), ("galvanized_steel", 12)],
      {"recipes": ["gear", "copper_cable", "science_kit", "resistor", "casing_mg",
-                  "galvanized_steel", "microchip", "science_kit_2"] + [out for _, out in FILLERS],
+                  "galvanized_steel", "microchip", "science_kit_2", "science_kit_military", "science_kit_3"]
+                 + [out for _, out in FILLERS],
       "recipe_mode": 2, "item_capacity": 30, "craft_speed": 2.0, "power_use": 225.0}, (300, True), (5.0, 1, 20)),
+    # Химический завод: полимер из нефти (по трубам) и угля.
+    ("chemical_plant", "crafter", "crafter", 1, 2, False, True, True, 24, "6f4f7a", 45,
+     [("galvanized_steel", 12), ("pipe", 6), ("microchip", 3), ("brick", 10)],
+     {"recipes": ["polymer"], "recipe_mode": 0, "item_capacity": 10, "power_use": 120.0, "fluid_capacity": 120.0},
+     (280, True), (4.0, 1, 10)),
     ("science_workshop", "workshop", "workshop", 1, 2, False, True, True, 24, "6a5a7a", 40,
      [("copper_cable", 10), ("iron_ingot", 10), ("resistor", 5)],
      {"seconds_per_kit": 2.0, "kit_capacity": 10, "power_use": 60.0}, (220, True), (3.0, 1, 10)),
@@ -220,7 +254,13 @@ BUILDINGS = [
     ("water_tank", "fluid", "pipe", 2, 2, False, True, True, 29, "4a6b7a", 36, [("iron_ingot", 12), ("brick", 8)],
      {"role": 0, "fluid_capacity": 4000.0, "rotatable": False, "allowed_on_fluid": True}, (260, True), (3.0, 1, 10)),
     ("pump", "fluid", "pump", 2, 1, False, True, True, 20, "3f6f8f", 40, [("iron_ingot", 5), ("gear", 3), ("pipe", 2)],
-     {"role": 1, "pump_per_tile": 120.0, "rotatable": False, "allowed_on_fluid": True}, (100, True), (1.0, 1, 20)),
+     {"role": 1, "pump_per_tile": 120.0, "pump_fluid": "water", "rotatable": False, "allowed_on_fluid": True},
+     (100, True), (1.0, 1, 20)),
+    # Нефтяная вышка: насос на нефтяной скважине, работает от электричества.
+    ("oil_derrick", "fluid", "pump", 2, 2, False, True, True, 20, "3a3530", 45,
+     [("galvanized_steel", 10), ("gear", 10), ("pipe", 4), ("microchip", 2)],
+     {"role": 1, "pump_per_tile": 10.0, "pump_fluid": "oil", "power_use": 90.0, "rotatable": False},
+     (300, True), (4.0, 1, 10)),
     ("boiler", "fluid", "boiler", 2, 2, False, True, True, 21, "7a4a3a", 50, [("brick", 12), ("iron_ingot", 6), ("pipe", 4)],
      {"role": 2, "fuel_power": 1000.0, "steam_per_second": 60.0, "fuel_capacity": 10,
       "water_fluid": "water", "steam_fluid": "steam"}, (240, True), (2.0, 1, 10)),
@@ -349,8 +389,12 @@ RESEARCH = [
       ["boiler_size_%d" % (i - 1)] if i > 1 else ["boiler_floor"], [], [], ["boiler_size"])
      for i in range(1, 4)] + [
     ("compact_production", 89, 45, ["microchips"], ["smeltery", "fabricator", "fast_drill", "large_container"], [], []),
+    # Нефть: вышка, химзавод, полимер и третий научный набор.
+    ("oil_processing", 95, 50, ["microchips", "fluid_handling"], ["oil_derrick", "chemical_plant"],
+     ["polymer", "science_kit_3"], []),
     # Оборона
-    ("defense", 90, 25, ["electricity"], ["machine_gun"], ["casing_mg"] + [out for _, out in FILLERS], []),
+    ("defense", 90, 25, ["electricity"], ["machine_gun"],
+     ["casing_mg", "science_kit_military"] + [out for _, out in FILLERS], []),
     ("advanced_defense", 91, 45, ["microchips", "defense"],
      ["tesla_turret", "repair_turret", "fluid_turret"], [], []),
     # База: этажи, шлюз, лифты
@@ -394,7 +438,7 @@ LEVELS = [
 # Исследования, которым вдобавок нужны наборы второго уровня: всё, что идёт после «Микросхем».
 # Раньше них наборы второго уровня негде делать — это и задаёт порядок мидгейма.
 KIT2_AFTER = {"steel_logistics", "compact_production", "mining_floor", "accumulators", "lift",
-              "advanced_defense", "boiler_floor"}
+              "advanced_defense", "boiler_floor", "oil_processing"}
 KIT2_PREFIXES = ("mining_room_", "science_speed_", "gateway_speed_", "star_depth_", "boiler_size_")
 KIT2_EXACT = {"warp_time_4", "warp_time_5", "warp_charge_3", "underground_4", "underground_5",
               "pad_4", "pad_5", "drone_speed_3", "drone_mining_3", "drone_health_3",
@@ -406,6 +450,37 @@ def kit2_amount(rid, amount):
     if rid in KIT2_AFTER or rid in KIT2_EXACT or rid.startswith(KIT2_PREFIXES):
         return max(5, amount // 2)
     return 0
+
+
+# Военные технологии: вместо первого набора — военный (его рецепт открывает «Оборона»,
+# поэтому сама «Оборона» остаётся на первом наборе).
+MILITARY_RESEARCH = {"advanced_defense", "drone_gun_1", "drone_gun_2", "drone_gun_3"}
+
+
+def _chain_tops():
+    """Последняя ступень каждой прокачки, где ступеней три и больше: pad_5, drone_speed_3…"""
+    levels = {}
+    for r in RESEARCH:
+        head, _, tail = r[0].rpartition("_")
+        if head and tail.isdigit():
+            levels[head] = max(levels.get(head, 0), int(tail))
+    return {"%s_%d" % (head, top) for head, top in levels.items() if top >= 3}
+
+
+# Третий набор (из нефти) нужен продвинутым прокачкам — последним ступеням всех цепочек.
+KIT3_RESEARCH = _chain_tops()
+
+
+def research_costs(rid, amount):
+    """Все наборы исследования по порядку: первый (или военный), затем второй и третий уровни."""
+    first = "science_kit_military" if rid in MILITARY_RESEARCH else "science_kit"
+    costs = [(first, amount)]
+    kit2 = kit2_amount(rid, amount)
+    if kit2 > 0:
+        costs.append(("science_kit_2", kit2))
+    if rid in KIT3_RESEARCH:
+        costs.append(("science_kit_3", max(5, amount // 3)))
+    return costs
 
 
 def item_path(item):
@@ -441,13 +516,33 @@ def write_ores():
               '[ext_resource type="Script" path="res://world/ore_def.gd" id="1_script"]',
               f'[ext_resource type="Resource" path="{res_path}" id="2_target"]', "", "[resource]",
               'script = ExtResource("1_script")', f'id = &"{oid}"', f'name_key = "ORE_{oid.upper()}"',
-              f'{kind} = ExtResource("2_target")', f"hardness = {hardness}", f"sort_order = {order}", ""])
+              f'{kind} = ExtResource("2_target")', f"hardness = {hardness}", f"sort_order = {order}"]
+              + (["fluid_surface = false"] if oid in UNDERGROUND_FLUIDS else []) + [""])
+
+
+def split_inputs(inputs):
+    """Входы рецепта по видам: предметы, группы «любые разные» {группа: (штук, сколько разных)}, жидкости."""
+    items, groups, fluids = [], {}, []
+    for key, amount in inputs:
+        if key.startswith("any:"):
+            group = key[4:]
+            prev = groups.get(group)
+            if prev is not None and prev[0] != amount:
+                raise ValueError("группа %s: разное количество в одном рецепте" % group)
+            groups[group] = (amount, (prev[1] if prev else 0) + 1)
+        elif key.startswith("fluid:"):
+            fluids.append((key[6:], amount))
+        else:
+            items.append((key, amount))
+    return items, groups, fluids
 
 
 def write_recipes():
     clear("items/recipes/*.tres")
     for rid, inputs, outputs, time, hand, order in RECIPES:
-        uniq = list(dict.fromkeys([i for i, _ in inputs] + [o for o, _ in outputs]))
+        items, groups, fluids = split_inputs(inputs)
+        group_items = [i for g in groups for i in ITEM_GROUPS[g]]
+        uniq = list(dict.fromkeys([i for i, _ in items] + group_items + [o for o, _ in outputs]))
         out = ['[gd_resource type="Resource" script_class="Recipe" format=3]', "",
                '[ext_resource type="Script" path="res://items/recipe.gd" id="1_recipe"]',
                '[ext_resource type="Script" path="res://items/consume.gd" id="2_consume"]',
@@ -455,15 +550,35 @@ def write_recipes():
                '[ext_resource type="Script" path="res://items/produce.gd" id="4_produce"]',
                '[ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]',
                '[ext_resource type="Script" path="res://items/produce_items.gd" id="6_produce_items"]']
+        if groups:
+            out += ['[ext_resource type="Script" path="res://items/consume_any.gd" id="7_consume_any"]',
+                    '[ext_resource type="Script" path="res://items/item_type.gd" id="8_item_type"]']
+        if fluids:
+            out.append('[ext_resource type="Script" path="res://items/consume_fluid.gd" id="9_consume_fluid"]')
         for item in uniq:
             out.append(f'[ext_resource type="Resource" path="{item_path(item)}" id="item_{item}"]')
+        for fid, _ in fluids:
+            out.append(f'[ext_resource type="Resource" path="res://fluids/defs/{fid}.tres" id="fluid_{fid}"]')
         out.append("")
-        for i, (item, amount) in enumerate(inputs):
-            out += [f'[sub_resource type="Resource" id="in_{i}"]', 'script = ExtResource("5_stack")',
-                    f'item = ExtResource("item_{item}")', f"amount = {amount}", ""]
-        subs = ", ".join(f'SubResource("in_{i}")' for i in range(len(inputs)))
-        out += ['[sub_resource type="Resource" id="consume_0"]', 'script = ExtResource("3_consume_items")',
-                f'stacks = Array[ExtResource("5_stack")]([{subs}])', ""]
+        consumes = []
+        if items:
+            for i, (item, amount) in enumerate(items):
+                out += [f'[sub_resource type="Resource" id="in_{i}"]', 'script = ExtResource("5_stack")',
+                        f'item = ExtResource("item_{item}")', f"amount = {amount}", ""]
+            subs = ", ".join(f'SubResource("in_{i}")' for i in range(len(items)))
+            out += ['[sub_resource type="Resource" id="consume_0"]', 'script = ExtResource("3_consume_items")',
+                    f'stacks = Array[ExtResource("5_stack")]([{subs}])', ""]
+            consumes.append("consume_0")
+        for group, (amount, slots) in groups.items():
+            choices = ", ".join(f'ExtResource("item_{i}")' for i in ITEM_GROUPS[group])
+            out += [f'[sub_resource type="Resource" id="consume_any_{group}"]', 'script = ExtResource("7_consume_any")',
+                    f'choices = Array[ExtResource("8_item_type")]([{choices}])', f"amount = {amount}",
+                    f"slots = {slots}", f'group_key = "{GROUP_KEYS[group]}"', ""]
+            consumes.append(f"consume_any_{group}")
+        for fid, amount in fluids:
+            out += [f'[sub_resource type="Resource" id="consume_fluid_{fid}"]', 'script = ExtResource("9_consume_fluid")',
+                    f'fluid = ExtResource("fluid_{fid}")', f"amount = {fmt(float(amount))}", ""]
+            consumes.append(f"consume_fluid_{fid}")
         for i, (item, amount) in enumerate(outputs):
             out += [f'[sub_resource type="Resource" id="out_{i}"]', 'script = ExtResource("5_stack")',
                     f'item = ExtResource("item_{item}")', f"amount = {amount}", ""]
@@ -472,10 +587,14 @@ def write_recipes():
                 f'stacks = Array[ExtResource("5_stack")]([{subs}])', ""]
         out += ["[resource]", 'script = ExtResource("1_recipe")', f'id = &"{rid}"', f"sort_order = {order}",
                 f"hand_craftable = {fmt(hand)}",
-                'consumes = Array[ExtResource("2_consume")]([SubResource("consume_0")])',
+                'consumes = Array[ExtResource("2_consume")]([%s])' % ", ".join(f'SubResource("{c}")' for c in consumes),
                 'produces = Array[ExtResource("4_produce")]([SubResource("produce_0")])',
                 f"craft_time = {fmt(float(time))}", ""]
         write(f"items/recipes/{rid}.tres", out)
+
+
+# Параметры построек, которые ссылаются на жидкость (пишутся ссылкой на fluids/defs/<id>.tres).
+FLUID_PARAMS = ("water_fluid", "steam_fluid", "pump_fluid")
 
 
 # Нарисованные спрайты: art/buildings/<id>.png — полоса кадров состояний (работа, простой,
@@ -505,7 +624,7 @@ def write_building(b):
         ext.append(("Script", "res://items/recipe.gd", "7_recipe_script"))
     for i, rid in enumerate(params.get("recipes", [])):
         ext.append(("Resource", f"res://items/recipes/{rid}.tres", f"recipe_{rid}"))
-    for key in ("water_fluid", "steam_fluid"):
+    for key in FLUID_PARAMS:
         if key in params:
             ext.append(("Resource", f"res://fluids/defs/{params[key]}.tres", f"fluid_{params[key]}"))
     item_ids = []
@@ -556,7 +675,7 @@ def write_building(b):
             out.append(f'recipes = Array[ExtResource("7_recipe_script")]([{subs}])')
         elif k == "throughput":
             out.append('throughput_of = ExtResource("5_throughput")')
-        elif k in ("water_fluid", "steam_fluid"):
+        elif k in FLUID_PARAMS:
             out.append(f'{k} = ExtResource("fluid_{v}")')
         elif isinstance(v, list):
             out.append("%s = PackedFloat32Array(%s)" % (k, ", ".join(fmt(x) for x in v)))
@@ -591,19 +710,23 @@ def write_research():
             ext.append(f'[ext_resource type="Resource" path="res://buildings/defs/{bid}.tres" id="b_{bid}"]')
         for rec in recipes:
             ext.append(f'[ext_resource type="Resource" path="res://items/recipes/{rec}.tres" id="r_{rec}"]')
-        kit2 = kit2_amount(rid, amount)
+        # Первый в списке — основная стоимость (cost_item), остальные наборы — extra_costs.
+        costs = research_costs(rid, amount)
+        ext[1] = f'[ext_resource type="Resource" path="res://items/types/{costs[0][0]}.tres" id="2_kit"]'
         subs = []
-        if kit2 > 0:
+        if len(costs) > 1:
             ext.append('[ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]')
-            ext.append('[ext_resource type="Resource" path="res://items/types/science_kit_2.tres" id="6_kit2"]')
-            subs = ['[sub_resource type="Resource" id="kit2"]', 'script = ExtResource("5_stack")',
-                    'item = ExtResource("6_kit2")', f"amount = {kit2}", ""]
+        for kit, kit_amount in costs[1:]:
+            ext.append(f'[ext_resource type="Resource" path="res://items/types/{kit}.tres" id="kit_{kit}"]')
+            subs += [f'[sub_resource type="Resource" id="cost_{kit}"]', 'script = ExtResource("5_stack")',
+                     f'item = ExtResource("kit_{kit}")', f"amount = {kit_amount}", ""]
         out = ['[gd_resource type="Resource" script_class="ResearchDef" format=3]', ""] + ext + [""] + subs + ["[resource]",
                'script = ExtResource("1_def")', f'id = &"{rid}"', f'name_key = "RESEARCH_{rid.upper()}"',
                f'description_key = "RESEARCH_{rid.upper()}_DESC"', f"sort_order = {order}",
-               'cost_item = ExtResource("2_kit")', f"cost_amount = {amount}"]
-        if kit2 > 0:
-            out.append('extra_costs = Array[ExtResource("5_stack")]([SubResource("kit2")])')
+               'cost_item = ExtResource("2_kit")', f"cost_amount = {costs[0][1]}"]
+        if len(costs) > 1:
+            refs = ", ".join(f'SubResource("cost_{kit}")' for kit, _ in costs[1:])
+            out.append(f'extra_costs = Array[ExtResource("5_stack")]([{refs}])')
         pre = ", ".join(f'&"{p}"' for p in prereqs)
         out.append(f"prerequisites = Array[StringName]([{pre}])")
         subs = ", ".join(f'ExtResource("b_{bid}")' for bid in buildings)
@@ -655,16 +778,16 @@ def write_levels_and_run():
 
 
 def patch_planet_types():
-    p = os.path.join(ROOT, "world", "planet_types", "normal.tres")
-    s = open(p, encoding="utf-8").read()
-    lines = s.split("\n")
-    for i, line in enumerate(lines):
-        if line.startswith("ore_ids = "):
-            lines[i] = ('ore_ids = Array[StringName]([&"hematite", &"stone", &"coal", &"malachite",'
-                        ' &"sphalerite", &"water"])')
-        elif line.startswith("ore_chances = "):
-            lines[i] = "ore_chances = PackedFloat32Array(1, 1, 1, 0.9, 0.75, 0.8)"
-    open(p, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
+    for type_id, ores in PLANET_ORES.items():
+        p = os.path.join(ROOT, "world", "planet_types", "%s.tres" % type_id)
+        s = open(p, encoding="utf-8").read()
+        lines = s.split("\n")
+        for i, line in enumerate(lines):
+            if line.startswith("ore_ids = "):
+                lines[i] = "ore_ids = Array[StringName]([%s])" % ", ".join('&"%s"' % o for o, _ in ores)
+            elif line.startswith("ore_chances = "):
+                lines[i] = "ore_chances = PackedFloat32Array(%s)" % ", ".join(fmt(float(c)) if c != 1 else "1" for _, c in ores)
+        open(p, "w", encoding="utf-8", newline="\n").write("\n".join(lines))
 
 
 write_fluids()

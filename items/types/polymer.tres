@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemType" format=3]
+
+[ext_resource type="Script" path="res://items/item_type.gd" id="1_script"]
+
+[resource]
+script = ExtResource("1_script")
+id = &"polymer"
+name_key = "ITEM_POLYMER"
+color = Color(0.835, 0.769, 0.631, 1)
+icon_shape = 4
+sort_order = 240
+stack_size = 100
+fuel_value = 0.0
+science_tier = 0

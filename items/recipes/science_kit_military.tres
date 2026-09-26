@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="Recipe" format=3]
+
+[ext_resource type="Script" path="res://items/recipe.gd" id="1_recipe"]
+[ext_resource type="Script" path="res://items/consume.gd" id="2_consume"]
+[ext_resource type="Script" path="res://items/consume_items.gd" id="3_consume_items"]
+[ext_resource type="Script" path="res://items/produce.gd" id="4_produce"]
+[ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]
+[ext_resource type="Script" path="res://items/produce_items.gd" id="6_produce_items"]
+[ext_resource type="Script" path="res://items/consume_any.gd" id="7_consume_any"]
+[ext_resource type="Script" path="res://items/item_type.gd" id="8_item_type"]
+[ext_resource type="Resource" path="res://items/types/buildings/stone_wall.tres" id="item_stone_wall"]
+[ext_resource type="Resource" path="res://items/types/cartridge_stone.tres" id="item_cartridge_stone"]
+[ext_resource type="Resource" path="res://items/types/cartridge_iron.tres" id="item_cartridge_iron"]
+[ext_resource type="Resource" path="res://items/types/cartridge_coal.tres" id="item_cartridge_coal"]
+[ext_resource type="Resource" path="res://items/types/cartridge_copper.tres" id="item_cartridge_copper"]
+[ext_resource type="Resource" path="res://items/types/cartridge_brick.tres" id="item_cartridge_brick"]
+[ext_resource type="Resource" path="res://items/types/science_kit_military.tres" id="item_science_kit_military"]
+
+[sub_resource type="Resource" id="in_0"]
+script = ExtResource("5_stack")
+item = ExtResource("item_stone_wall")
+amount = 1
+
+[sub_resource type="Resource" id="consume_0"]
+script = ExtResource("3_consume_items")
+stacks = Array[ExtResource("5_stack")]([SubResource("in_0")])
+
+[sub_resource type="Resource" id="consume_any_cartridge"]
+script = ExtResource("7_consume_any")
+choices = Array[ExtResource("8_item_type")]([ExtResource("item_cartridge_stone"), ExtResource("item_cartridge_iron"), ExtResource("item_cartridge_coal"), ExtResource("item_cartridge_copper"), ExtResource("item_cartridge_brick")])
+amount = 2
+slots = 2
+group_key = "ITEM_GROUP_CARTRIDGE"
+
+[sub_resource type="Resource" id="out_0"]
+script = ExtResource("5_stack")
+item = ExtResource("item_science_kit_military")
+amount = 2
+
+[sub_resource type="Resource" id="produce_0"]
+script = ExtResource("6_produce_items")
+stacks = Array[ExtResource("5_stack")]([SubResource("out_0")])
+
+[resource]
+script = ExtResource("1_recipe")
+id = &"science_kit_military"
+sort_order = 125
+hand_craftable = false
+consumes = Array[ExtResource("2_consume")]([SubResource("consume_0"), SubResource("consume_any_cartridge")])
+produces = Array[ExtResource("4_produce")]([SubResource("produce_0")])
+craft_time = 6.0

@@ -42,6 +42,12 @@ extends Resource
 ## Пол полосы берега вокруг озера.
 @export var shore_floor: StringName = &"gravel"
 
+@export_group("Скважины")
+## Сколько скважин подземной жидкости (нефти) на 10 000 тайлов, если она выпала узлу, и их размеры.
+@export var wells_per_10k: float = 0.25
+@export var well_min_radius: float = 1.6
+@export var well_max_radius: float = 2.6
+
 @export_group("Руды")
 ## Руды, которые могут встретиться, и шанс каждой (0..1). Пустой список — руды нет вовсе.
 @export var ore_ids: Array[StringName] = []

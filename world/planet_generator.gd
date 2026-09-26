@@ -81,6 +81,7 @@ static func generate(node: StarMap.StarNode, pad_size: int, clear_size: int = 0)
 		map.spawn_points = SpawnPoints.find(w, h, map.floors, center, type.threat.spawn_point_count, spawn_rng, base_floor)
 
 	_place_ores(map, node, character, rng, center, clear_radius)
+	_place_wells(map, node, center, clear_radius)
 
 	# Площадка — металлическая платформа без руды.
 	var half := pad_size / 2
@@ -192,7 +193,7 @@ static func _place_lakes(map: LevelMap, node: StarMap.StarNode, character: Chara
 	var type := node.type
 	var water := -1
 	for ore_index in node.ores:
-		if Registry.ores[ore_index].fluid != null:
+		if Registry.ores[ore_index].blocks_building():
 			water = ore_index
 	if water < 0 or character.lakes_per_10k <= 0.0:
 		return
@@ -225,6 +226,48 @@ static func _lake(map: LevelMap, center: Vector2, radius: float, ore_value: int,
 				map.set_ore(x, y, ore_value)
 			elif d <= edge + 2.0:
 				map.set_floor(x, y, shore)
+
+
+## Скважины подземных жидкостей (нефть): небольшие пятна по всей карте, дальше от посадки,
+## не поверх руд, озёр и скал; к каждой прорубается проход. Свой генератор случайных чисел —
+## чтобы появление нефти не сдвигало остальную генерацию.
+static func _place_wells(map: LevelMap, node: StarMap.StarNode, center: Vector2i, clear_radius: float) -> void:
+	var type := node.type
+	if type.wells_per_10k <= 0.0:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([node.planet_seed, "wells"])
+	var rock := _floor_index(&"rock", &"rock")
+	var area := float(map.width * map.height)
+	var reach := Vector2(map.width, map.height).length() * 0.45
+	var points: Array[Vector2i] = []
+	for ore_index in node.ores:
+		var ore := Registry.ores[ore_index]
+		if ore.fluid == null or ore.fluid_surface:
+			continue
+		var count := maxi(2, roundi(type.wells_per_10k * area / 10000.0))
+		for i in count:
+			var radius := rng.randf_range(type.well_min_radius, maxf(type.well_min_radius, type.well_max_radius))
+			# Несколько попыток найти место: не на скале и не на чужом месторождении.
+			for attempt in 12:
+				var dist := rng.randf_range(clear_radius + 12.0, maxf(clear_radius + 13.0, reach))
+				var at := Vector2(center) + Vector2.from_angle(rng.randf() * TAU) * dist
+				var tile := Vector2i(at.round())
+				if not map.in_bounds(tile.x, tile.y) or map.get_floor(tile.x, tile.y) == rock or map.get_ore(tile.x, tile.y) != 0:
+					continue
+				var placed := 0
+				var r := ceili(radius)
+				for y in range(tile.y - r, tile.y + r + 1):
+					for x in range(tile.x - r, tile.x + r + 1):
+						if not map.in_bounds(x, y) or map.get_floor(x, y) == rock or map.get_ore(x, y) != 0:
+							continue
+						if Vector2(x - tile.x, y - tile.y).length() <= radius:
+							map.set_ore(x, y, ore_index + 1)
+							placed += 1
+				if placed > 0:
+					points.append(tile)
+					break
+	SpawnPoints.connect_all(map.width, map.height, map.floors, points, center, _floor_index(type.base_floor, &"stone"))
 
 
 ## Руды полями: каждой руде выпадает своя сторона карты, вокруг неё ложатся несколько залежей

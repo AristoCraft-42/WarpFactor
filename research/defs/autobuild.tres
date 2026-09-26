@@ -21,6 +21,7 @@
 [ext_resource type="Resource" path="res://items/recipes/build_drill.tres" id="r_build_drill"]
 [ext_resource type="Resource" path="res://items/recipes/build_smeltery.tres" id="r_build_smeltery"]
 [ext_resource type="Resource" path="res://items/recipes/build_fast_drill.tres" id="r_build_fast_drill"]
+[ext_resource type="Resource" path="res://items/recipes/build_chemical_plant.tres" id="r_build_chemical_plant"]
 [ext_resource type="Resource" path="res://items/recipes/build_science_workshop.tres" id="r_build_science_workshop"]
 [ext_resource type="Resource" path="res://items/recipes/build_small_power_pole.tres" id="r_build_small_power_pole"]
 [ext_resource type="Resource" path="res://items/recipes/build_thermal_generator.tres" id="r_build_thermal_generator"]
@@ -28,6 +29,7 @@
 [ext_resource type="Resource" path="res://items/recipes/build_underground_pipe.tres" id="r_build_underground_pipe"]
 [ext_resource type="Resource" path="res://items/recipes/build_water_tank.tres" id="r_build_water_tank"]
 [ext_resource type="Resource" path="res://items/recipes/build_pump.tres" id="r_build_pump"]
+[ext_resource type="Resource" path="res://items/recipes/build_oil_derrick.tres" id="r_build_oil_derrick"]
 [ext_resource type="Resource" path="res://items/recipes/build_boiler.tres" id="r_build_boiler"]
 [ext_resource type="Resource" path="res://items/recipes/build_steam_generator.tres" id="r_build_steam_generator"]
 [ext_resource type="Resource" path="res://items/recipes/build_accumulator.tres" id="r_build_accumulator"]
@@ -47,5 +49,5 @@ cost_item = ExtResource("2_kit")
 cost_amount = 40
 prerequisites = Array[StringName]([&"industry"])
 unlock_buildings = Array[ExtResource("3_building_script")]([])
-unlock_recipes = Array[ExtResource("4_recipe_script")]([ExtResource("r_build_conveyor"), ExtResource("r_build_junction"), ExtResource("r_build_router"), ExtResource("r_build_sorter"), ExtResource("r_build_bridge_conveyor"), ExtResource("r_build_unloader"), ExtResource("r_build_steel_conveyor"), ExtResource("r_build_steel_junction"), ExtResource("r_build_steel_router"), ExtResource("r_build_lift"), ExtResource("r_build_container"), ExtResource("r_build_large_container"), ExtResource("r_build_furnace"), ExtResource("r_build_coal_drill"), ExtResource("r_build_drill"), ExtResource("r_build_smeltery"), ExtResource("r_build_fast_drill"), ExtResource("r_build_science_workshop"), ExtResource("r_build_small_power_pole"), ExtResource("r_build_thermal_generator"), ExtResource("r_build_pipe"), ExtResource("r_build_underground_pipe"), ExtResource("r_build_water_tank"), ExtResource("r_build_pump"), ExtResource("r_build_boiler"), ExtResource("r_build_steam_generator"), ExtResource("r_build_accumulator"), ExtResource("r_build_stone_wall"), ExtResource("r_build_machine_gun"), ExtResource("r_build_tesla_turret"), ExtResource("r_build_repair_turret"), ExtResource("r_build_fluid_turret")])
+unlock_recipes = Array[ExtResource("4_recipe_script")]([ExtResource("r_build_conveyor"), ExtResource("r_build_junction"), ExtResource("r_build_router"), ExtResource("r_build_sorter"), ExtResource("r_build_bridge_conveyor"), ExtResource("r_build_unloader"), ExtResource("r_build_steel_conveyor"), ExtResource("r_build_steel_junction"), ExtResource("r_build_steel_router"), ExtResource("r_build_lift"), ExtResource("r_build_container"), ExtResource("r_build_large_container"), ExtResource("r_build_furnace"), ExtResource("r_build_coal_drill"), ExtResource("r_build_drill"), ExtResource("r_build_smeltery"), ExtResource("r_build_fast_drill"), ExtResource("r_build_chemical_plant"), ExtResource("r_build_science_workshop"), ExtResource("r_build_small_power_pole"), ExtResource("r_build_thermal_generator"), ExtResource("r_build_pipe"), ExtResource("r_build_underground_pipe"), ExtResource("r_build_water_tank"), ExtResource("r_build_pump"), ExtResource("r_build_oil_derrick"), ExtResource("r_build_boiler"), ExtResource("r_build_steam_generator"), ExtResource("r_build_accumulator"), ExtResource("r_build_stone_wall"), ExtResource("r_build_machine_gun"), ExtResource("r_build_tesla_turret"), ExtResource("r_build_repair_turret"), ExtResource("r_build_fluid_turret")])
 effects = Array[StringName]([])

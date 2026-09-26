@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://buildings/fluid/fluid_building_def.gd" id="1_def"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="2_stack"]
 [ext_resource type="Script" path="res://buildings/fluid/pump.gd" id="3_logic"]
+[ext_resource type="Resource" path="res://fluids/defs/water.tres" id="fluid_water"]
 [ext_resource type="Resource" path="res://items/types/iron_ingot.tres" id="item_iron_ingot"]
 [ext_resource type="Resource" path="res://items/types/gear.tres" id="item_gear"]
 [ext_resource type="Resource" path="res://items/types/buildings/pipe.tres" id="item_pipe"]
@@ -43,5 +44,6 @@ glyph = 20
 logic_script = ExtResource("3_logic")
 role = 1
 pump_per_tile = 120.0
+pump_fluid = ExtResource("fluid_water")
 rotatable = false
 allowed_on_fluid = true

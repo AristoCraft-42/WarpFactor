@@ -74,7 +74,7 @@ func check_place(def: BuildingDef, origin: Vector2i, rotation: int) -> Check:
 				return Check.BAD_TERRAIN
 			if not def.allowed_on_fluid:
 				var ore := grid.get_ore_def(x, y)
-				if ore != null and ore.fluid != null:
+				if ore != null and ore.blocks_building():
 					return Check.ON_FLUID
 			var id := grid.building_ids[grid.index_of(x, y)]
 			if id != 0:
@@ -113,7 +113,7 @@ func check_move(building: Building, offset: Vector2i, inside: Dictionary[Vector2
 				return Check.BAD_TERRAIN
 			if not def.allowed_on_fluid:
 				var ore := grid.get_ore_def(x, y)
-				if ore != null and ore.fluid != null:
+				if ore != null and ore.blocks_building():
 					return Check.ON_FLUID
 			if grid.building_ids[grid.index_of(x, y)] != 0 and not inside.has(Vector2i(x, y)):
 				return Check.OCCUPIED

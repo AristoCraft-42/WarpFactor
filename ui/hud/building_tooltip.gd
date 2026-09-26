@@ -104,6 +104,12 @@ func _rebuild() -> void:
 	_recipe_row.visible = recipe != null
 	if recipe != null:
 		for c in recipe.consumes:
+			# «Любые 2 разных…» и жидкость — пояснение перед иконками (у жидкости иконок нет).
+			var note := c.display_note()
+			if not note.is_empty():
+				var note_label := _make_label(&"DimLabel")
+				note_label.text = note
+				_recipe_row.add_child(note_label)
 			for s in c.display_stacks():
 				_add_stack(s, -1.0)
 		var arrow := _make_label(&"DimLabel")
@@ -132,10 +138,14 @@ func _rebuild_ore() -> void:
 	_status.visible = false
 	var lines := PackedStringArray()
 	if _ore.fluid != null:
-		var pump := Registry.get_building(&"pump") as FluidBuildingDef
-		if pump != null:
-			lines.append(tr("TOOLTIP_FLUID_PUMP") % [tr(pump.name_key), pump.pump_per_tile])
-		lines.append(tr("TOOLTIP_FLUID_BUILD"))
+		# Чем качать: первая постройка-насос, которая берёт эту жидкость.
+		for def in Registry.buildings:
+			var pump := def as FluidBuildingDef
+			if pump != null and pump.role == FluidBuildingDef.Role.PUMP and pump.player_buildable and pump.pumps(_ore):
+				lines.append(tr("TOOLTIP_FLUID_PUMP") % [tr(pump.name_key), pump.pump_per_tile])
+				break
+		if _ore.fluid_surface:
+			lines.append(tr("TOOLTIP_FLUID_BUILD"))
 	else:
 		lines.append(tr("TOOLTIP_ORE_HARDNESS") % _ore.hardness)
 		# Богатство клетки под курсором: множитель к скорости добычи с неё.

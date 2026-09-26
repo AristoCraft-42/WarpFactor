@@ -8,6 +8,13 @@ extends Building
 ## Цикл идёт по тикам: скорость = удовлетворённость электросети (если нужен ток) и 0 без топлива
 ## (если нужно топливо). Пока идёт цикл, завод бодрствует и просит ток; без сырья спит до прихода
 ## предмета, с полным выходом — до освобождения места у соседей.
+##
+## Жидкость (CrafterDef.fluid_capacity > 0): порты труб на всех сторонах, одна сеть; завод сам
+## забирает из неё жидкость своего рецепта в буфер. Ждёт жидкость, просыпаясь раз в FLUID_POLL тиков.
+## Что списано в начале цикла, помнит consumed — это возвращается при смене рецепта и сносе
+## (вход «любые из группы» списывает разные предметы, сам рецепт этого не знает).
+
+const FLUID_POLL := 10
 
 var inputs: PackedInt32Array = PackedInt32Array()
 var outputs: PackedInt32Array = PackedInt32Array()
@@ -19,6 +26,12 @@ var crafting: bool = false
 ## Доля выполнения цикла 0..1.
 var progress: float = 0.0
 var status: Status = Status.IDLE
+## Списанное в начале текущего цикла: предметы по индексу и жидкость.
+var consumed: PackedInt32Array = PackedInt32Array()
+var consumed_fluid: float = 0.0
+## Буфер жидкости: индекс FluidDef (-1 — пусто) и количество.
+var fluid_index: int = -1
+var fluid_amount: float = 0.0
 
 var _output_cursor: int = 0
 
@@ -30,6 +43,8 @@ func _init() -> void:
 	outputs.fill(0)
 	fuel_counts.resize(Registry.items.size())
 	fuel_counts.fill(0)
+	consumed.resize(Registry.items.size())
+	consumed.fill(0)
 
 
 func get_crafter_def() -> CrafterDef:
@@ -63,11 +78,59 @@ func get_progress(_tick: int = 0) -> float:
 
 
 func on_placed() -> void:
+	if has_fluid_input():
+		world.fluids.mark_dirty()
 	wake()
+
+
+func on_removed() -> void:
+	if has_fluid_input():
+		world.fluids.mark_dirty()
 
 
 func on_proximity_changed() -> void:
 	wake()
+
+
+# --- Жидкость ---
+
+func has_fluid_input() -> bool:
+	return get_crafter_def().fluid_capacity > 0.0
+
+
+## Жидкий вход текущего рецепта (null — рецепт без жидкости).
+func get_fluid_consume() -> ConsumeFluid:
+	var recipe := get_recipe()
+	if recipe == null:
+		return null
+	for c in recipe.consumes:
+		if c is ConsumeFluid:
+			return c
+	return null
+
+
+## Порты на всех сторонах, одна сеть; принимают только жидкость рецепта.
+func get_fluid_ports() -> Array[FluidGraph.Port]:
+	var ports: Array[FluidGraph.Port] = []
+	if not has_fluid_input():
+		return ports
+	var need := get_fluid_consume()
+	for side in 4:
+		ports.append(FluidGraph.Port.new(side, need.fluid if need != null else null, 0))
+	return ports
+
+
+## Добрать жидкость рецепта из сети в буфер. Чужая жидкость (остаток прежнего рецепта) выливается.
+func _pull_fluid(need: ConsumeFluid) -> void:
+	if fluid_index != need.fluid.index:
+		fluid_index = need.fluid.index
+		fluid_amount = 0.0
+	var room := get_crafter_def().fluid_capacity - fluid_amount
+	if room <= 0.0:
+		return
+	var net := world.fluids.get_port_network(self, 0)
+	if net != null:
+		fluid_amount += net.extract(need.fluid.index, room)
 
 
 # --- Предметы ---
@@ -142,6 +205,8 @@ func update_tick(_tick: int) -> bool:
 					p.produce(self, world.rng)
 				crafting = false
 				progress = 0.0
+				consumed.fill(0)
+				consumed_fluid = 0.0
 				# Разгрузчики, ждущие продукцию.
 				if world.simulation.has_waiters(id):
 					notify_space()
@@ -150,14 +215,21 @@ func update_tick(_tick: int) -> bool:
 		else:
 			status = Status.WORKING if rate > 0.0 else _stall_status()
 
+	var need_fluid := get_fluid_consume() if has_fluid_input() else null
+	if need_fluid != null:
+		_pull_fluid(need_fluid)
 	if not crafting:
 		if not _inputs_ready(recipe):
 			status = Status.NO_INPUT
 		elif not _outputs_free(recipe):
 			status = Status.OUTPUT_BLOCKED
 		else:
+			var before := inputs.duplicate()
+			consumed_fluid = 0.0
 			for c in recipe.consumes:
 				c.consume(self)
+			for i in inputs.size():
+				consumed[i] = before[i] - inputs[i]
 			crafting = true
 			progress = 0.0
 			status = Status.WORKING
@@ -176,6 +248,9 @@ func update_tick(_tick: int) -> bool:
 		running = false
 	if running or (has_outputs and dumped):
 		return true
+	# Ждём жидкость: из труб она не будит завод, поэтому проверяем сами время от времени.
+	if need_fluid != null and not crafting and status == Status.NO_INPUT:
+		sleep_until(_tick + FLUID_POLL)
 	return false
 
 
@@ -222,9 +297,9 @@ func _take_fuel() -> int:
 func collect_contents(out: PackedInt32Array) -> void:
 	for i in inputs.size():
 		out[i] += inputs[i] + outputs[i] + fuel_counts[i]
-	if crafting and get_recipe() != null:
-		for c in get_recipe().consumes:
-			c.refund(out)
+	if crafting:
+		for i in consumed.size():
+			out[i] += consumed[i]
 
 
 # --- Настройка (сборщик) ---
@@ -248,13 +323,19 @@ func set_config(value: Variant) -> void:
 	var index := d.find_recipe_index(StringName(value)) if (value is StringName or value is String) else -1
 	if index == recipe_index:
 		return
-	if crafting and get_recipe() != null:
-		for c in get_recipe().consumes:
-			c.refund(inputs)
+	if crafting:
+		for i in consumed.size():
+			inputs[i] += consumed[i]
+		fluid_amount += consumed_fluid
+	consumed.fill(0)
+	consumed_fluid = 0.0
 	crafting = false
 	progress = 0.0
 	recipe_index = index
 	if world != null:
+		if has_fluid_input():
+			# У портов сменилась жидкость — сети надо собрать заново.
+			world.fluids.mark_dirty()
 		wake()
 		notify_space()
 
@@ -270,9 +351,14 @@ func get_display_item() -> int:
 # --- Состояние ---
 
 func save_state() -> Dictionary:
-	return {"inputs": inputs.duplicate(), "outputs": outputs.duplicate(), "fuel": fuel_counts.duplicate(),
+	var state := {"inputs": inputs.duplicate(), "outputs": outputs.duplicate(), "fuel": fuel_counts.duplicate(),
 		"energy": fuel_energy, "recipe": recipe_index, "crafting": crafting, "progress": progress,
-		"cursor": _output_cursor, "status": status, "power": power_request}
+		"cursor": _output_cursor, "status": status, "power": power_request, "consumed": consumed.duplicate()}
+	if has_fluid_input():
+		state["fluid"] = String(Registry.fluids[fluid_index].id) if fluid_index >= 0 else ""
+		state["fluid_amount"] = fluid_amount
+		state["consumed_fluid"] = consumed_fluid
+	return state
 
 
 func load_state(state: Dictionary) -> void:
@@ -293,6 +379,20 @@ func load_state(state: Dictionary) -> void:
 	_output_cursor = clampi(SaveContext.item(int(state.get("cursor", 0))), 0, maxi(outputs.size() - 1, 0))
 	status = int(state.get("status", Status.IDLE)) as Status
 	power_request = float(state.get("power", 0.0))
+	consumed.fill(0)
+	if state.has("consumed"):
+		var src_consumed := SaveContext.counts(state.get("consumed", PackedInt32Array()))
+		for i in mini(src_consumed.size(), consumed.size()):
+			consumed[i] = src_consumed[i]
+	elif crafting and get_recipe() != null:
+		# Сохранение до появления consumed: списано ровно то, что вернул бы рецепт.
+		for c in get_recipe().consumes:
+			c.refund(consumed)
+	var fluid_id := StringName(state.get("fluid", ""))
+	var saved_fluid := Registry.get_fluid(fluid_id) if fluid_id != &"" else null
+	fluid_index = saved_fluid.index if saved_fluid != null else -1
+	fluid_amount = float(state.get("fluid_amount", 0.0)) if saved_fluid != null else 0.0
+	consumed_fluid = float(state.get("consumed_fluid", 0.0))
 	wake()
 
 
@@ -397,6 +497,9 @@ func get_info_lines() -> PackedStringArray:
 			out_parts.append("%s %d/%d" % [tr(Registry.items[item].name_key), outputs[item], get_output_capacity()])
 		if not out_parts.is_empty():
 			lines.append(tr("INFO_OUTPUTS") % ", ".join(out_parts))
+		var need := get_fluid_consume() if has_fluid_input() else null
+		if need != null:
+			lines.append(tr("INFO_FLUID_BUFFER") % [tr(need.fluid.name_key), fluid_amount, d.fluid_capacity])
 	if d.fuel_use > 0.0:
 		lines.append(tr("INFO_FUEL") % total_fuel())
 	if d.power_use > 0.0:
@@ -481,6 +584,10 @@ func get_window_sections() -> Array[WindowSection]:
 		out_stacks.append(Vector2i(-1, 0))
 		out_hints.append(-1)
 	sections.append(WindowSection.slots(tr("WINDOW_INPUTS"), in_stacks, in_hints))
+	var need := get_fluid_consume() if has_fluid_input() else null
+	if need != null:
+		sections.append(WindowSection.bar(tr(need.fluid.name_key), fluid_amount / maxf(d.fluid_capacity, 0.001),
+			tr("WINDOW_FLUID_OF") % [fluid_amount, d.fluid_capacity], need.fluid.color))
 	if d.fuel_use > 0.0:
 		sections.append(WindowSection.fuel_slot(fuel_counts))
 	sections.append(WindowSection.slots(tr("WINDOW_OUTPUTS"), out_stacks, out_hints))

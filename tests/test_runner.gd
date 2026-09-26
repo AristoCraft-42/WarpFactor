@@ -115,6 +115,7 @@ func _ready() -> void:
 	_test_drill_front_output()
 	_test_ore_richness()
 	_test_sound()
+	_test_oil_and_kits()
 	_test_underground_pipes()
 	_test_pole_drag_and_camera()
 	_test_building_windows()
@@ -216,15 +217,16 @@ func _collect(dir: String, out: PackedStringArray) -> void:
 
 func _test_registry() -> void:
 	Registry.ensure_loaded()
-	_check(Registry.ores.size() == 6, "ожидалось 6 месторождений, есть %d" % Registry.ores.size())
+	_check(Registry.ores.size() == 7, "ожидалось 7 месторождений, есть %d" % Registry.ores.size())
 	_check(Registry.floors.size() >= 4, "мало типов пола")
-	_check(Registry.buildings.size() == 44,
-		"ожидалось 44 здания (34 обычных, 4 творческих, шлюз с парой, две шахты, пульт и якорь платформы), есть %d"
+	_check(Registry.buildings.size() == 46,
+		"ожидалось 46 зданий (36 обычных, 4 творческих, шлюз с парой, две шахты, пульт и якорь платформы), есть %d"
 		% Registry.buildings.size())
-	_check(Registry.fluids.size() == 2 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null, "жидкости: вода и пар")
-	# 13 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
-	_check(Registry.recipes.size() == 49 and Registry.researches.size() == 76,
-		"49 рецептов и 76 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
+	_check(Registry.fluids.size() == 3 and Registry.get_fluid(&"water") != null and Registry.get_fluid(&"steam") != null
+		and Registry.get_fluid(&"oil") != null, "жидкости: вода, пар и нефть")
+	# 16 рецептов компонентов и по одному на каждую постройку, которую умеет собирать сборщик.
+	_check(Registry.recipes.size() == 54 and Registry.researches.size() == 77,
+		"54 рецепта и 77 исследований (%d / %d)" % [Registry.recipes.size(), Registry.researches.size()])
 	_check(Registry.base_def != null and Registry.base_def.size == 46 and Registry.base_def.start_size == 16
 		and Registry.base_def.size_step == 6, "параметры подземного этажа загружены (16 → 46 шагами по 6)")
 	var mining_def := Registry.mining_def
@@ -238,7 +240,7 @@ func _test_registry() -> void:
 		_check(Rect2i(Vector2i.ZERO, Vector2i(mining_def.size, mining_def.size)).encloses(mining_def.room_rect(i)),
 			"комната %d помещается на карту этажа" % i)
 	_check(Registry.planet_types.size() == 3 and Registry.run_def != null and Registry.run_def.first_planet_type != null, "типы планет и параметры забега загружены")
-	_check(Registry.items.size() == 22 + 38, "ожидалось 22 предмета и 38 предметов-построек, есть %d" % Registry.items.size())
+	_check(Registry.items.size() == 25 + 40, "ожидалось 25 предметов и 40 предметов-построек, есть %d" % Registry.items.size())
 	for id in [&"overflow_gate", &"underflow_gate", &"inverted_sorter", &"artillery", &"titanium_conveyor", &"vault"]:
 		_check(Registry.get_building(id) == null, "постройки %s в ранней игре нет" % id)
 	for def in Registry.buildings:
@@ -1199,13 +1201,13 @@ func _test_recipes_data() -> void:
 			for recipe in (def as CrafterDef).recipes:
 				_check(recipe != null and not recipe.consumes.is_empty() and not recipe.output_items().is_empty(), "рецепт %s завода %s" % [recipe.id, def.id])
 			_check(not def.get_stat_lines().is_empty(), "характеристики завода %s для меню" % def.id)
-	_check(crafters == 4, "заводов 4: печь, плавильня, сборщик и фабрикатор (%d)" % crafters)
+	_check(crafters == 5, "заводов 5: печь, плавильня, сборщик, фабрикатор и химзавод (%d)" % crafters)
 	var furnace := Registry.get_building(&"furnace") as CrafterDef
 	_check(furnace.recipe_mode == CrafterDef.RecipeMode.AUTO and furnace.fuel_use > 0.0 and furnace.power_use == 0.0
 		and furnace.recipes.size() == 4, "печь: четыре переплавки на топливе, рецепт по сырью (%d)" % furnace.recipes.size())
 	var assembler := Registry.get_building(&"assembler") as CrafterDef
-	_check(assembler.recipe_mode == CrafterDef.RecipeMode.SELECT and assembler.power_use > 0.0 and assembler.recipes.size() == 45,
-		"сборщик: 13 рецептов компонентов и 32 постройки на выбор (%d)" % assembler.recipes.size())
+	_check(assembler.recipe_mode == CrafterDef.RecipeMode.SELECT and assembler.power_use > 0.0 and assembler.recipes.size() == 49,
+		"сборщик: 15 рецептов компонентов и 34 постройки на выбор (%d)" % assembler.recipes.size())
 	# Улучшенные версии занимают ту же клетку, но выдают больше — на это и опирается ветка уплотнения.
 	var smeltery := Registry.get_building(&"smeltery") as CrafterDef
 	var furnace_def := Registry.get_building(&"furnace") as CrafterDef
@@ -4294,7 +4296,10 @@ func _test_midgame_chain() -> void:
 	_check(on_normal, "сфалерит встречается на обычных планетах")
 	for id in [&"zinc_plate", &"galvanized_steel", &"microchip", &"science_kit_2"]:
 		_check(Registry.get_item(id) != null, "предмет %s есть в данных" % id)
-	_check(Registry.get_item(&"science_kit_2").science_tier == 2, "набор II — второго уровня")
+	_check(Registry.get_item(&"science_kit").science_tier < Registry.get_item(&"science_kit_military").science_tier
+		and Registry.get_item(&"science_kit_military").science_tier < Registry.get_item(&"science_kit_2").science_tier
+		and Registry.get_item(&"science_kit_2").science_tier < Registry.get_item(&"science_kit_3").science_tier,
+		"уровни наборов: первый < военный < второй < третий")
 	var steel := Registry.get_building(&"steel_conveyor") as ConveyorDef
 	var plain := Registry.get_building(&"conveyor") as ConveyorDef
 	_check(steel != null and steel.tiles_per_second > plain.tiles_per_second * 1.9,
@@ -4320,7 +4325,7 @@ func _test_midgame_chain() -> void:
 	var steel_research := Registry.get_research(&"steel_logistics")
 	_check(chips != null and chips.extra_costs.is_empty(), "«Микросхемы» стоят только наборов первого уровня")
 	_check(steel_research != null and steel_research.extra_costs.size() == 1
-		and steel_research.extra_costs[0].item.science_tier == 2, "«Стальная логистика» требует и наборы II")
+		and steel_research.extra_costs[0].item.id == &"science_kit_2", "«Стальная логистика» требует и наборы II")
 
 	var state := ResearchState.new()
 	state.done[&"electricity"] = true
@@ -6008,6 +6013,144 @@ func _test_sound() -> void:
 		"музыка: в бой сразу, из боя — с выдержкой")
 	_check(AudioDirector._base_id("shot_2") == "shot" and AudioDirector._base_id("wave_start") == "wave_start",
 		"варианты звука: shot_2 → shot, wave_start остаётся собой")
+
+
+## Нефть и новые научные наборы: оплата исследований, военный набор из двух разных патронов,
+## нефтяная вышка, химзавод и полимер, набор III, скважины на сгенерированной планете.
+func _test_oil_and_kits() -> void:
+	# Кто чем платит: «Оборона» — первым набором (иначе военный набор не сделать), остальная
+	# оборона — военным; последняя ступень каждой прокачки — ещё и третьим.
+	var kit_military := Registry.get_item(&"science_kit_military")
+	var kit3 := Registry.get_item(&"science_kit_3")
+	_check(Registry.get_research(&"defense").cost_item.id == &"science_kit"
+		and Registry.get_research(&"defense").unlock_recipes.any(func(r: Recipe) -> bool: return r.id == &"science_kit_military"),
+		"«Оборона» — за первые наборы и открывает военный набор")
+	var military_ok := true
+	for id: StringName in [&"advanced_defense", &"drone_gun_1", &"drone_gun_2", &"drone_gun_3"]:
+		military_ok = military_ok and Registry.get_research(id).cost_item == kit_military
+	_check(military_ok, "военные исследования оплачиваются военными наборами")
+	var tops_ok := true
+	for id: StringName in [&"pad_5", &"underground_5", &"warp_time_5", &"warp_charge_3", &"science_speed_4",
+			&"gateway_speed_3", &"mining_room_4", &"boiler_size_3", &"drone_speed_3", &"drone_gun_3"]:
+		var costs := Registry.get_research(id).costs()
+		tops_ok = tops_ok and costs.any(func(s: ItemStack) -> bool: return s.item == kit3)
+	var pad_4_costs := Registry.get_research(&"pad_4").costs()
+	_check(tops_ok and not pad_4_costs.any(func(s: ItemStack) -> bool: return s.item == kit3),
+		"набор III нужен последним ступеням прокачек, а предпоследним — нет")
+	var oil_research := Registry.get_research(&"oil_processing")
+	_check(oil_research != null and oil_research.costs().any(func(s: ItemStack) -> bool: return s.item.id == &"science_kit_2")
+		and oil_research.unlock_buildings.has(Registry.get_building(&"oil_derrick"))
+		and oil_research.unlock_buildings.has(Registry.get_building(&"chemical_plant")),
+		"«Нефтехимия»: вышка и химзавод, стоит наборов II")
+
+	# Военный набор: стена и два РАЗНЫХ вида патронов по два.
+	var world := Worlds.empty_world(40, 24)
+	Worlds.power_area(world, Vector2i(2, 2), 20, Vector2i(3, 3))
+	var assembler := _place(world, &"assembler", Vector2i(6, 6)) as Crafter
+	world.configure(assembler, &"science_kit_military")
+	var wall := _item(&"stone_wall")
+	var iron := _item(&"cartridge_iron")
+	var copper := _item(&"cartridge_copper")
+	var stone := _item(&"cartridge_stone")
+	assembler.handle_item(null, wall)
+	for i in 4:
+		assembler.handle_item(null, iron)
+	Worlds.run_ticks(world, 30)
+	_check(not assembler.crafting and assembler.get_status() == Building.Status.NO_INPUT,
+		"одного вида патронов мало — набор не собирается")
+	for i in 2:
+		assembler.handle_item(null, copper)
+	Worlds.run_ticks(world, 2)
+	_check(assembler.crafting and assembler.consumed[iron] == 2 and assembler.consumed[copper] == 2 and assembler.consumed[wall] == 1,
+		"с двумя видами пошёл цикл: списано по 2 каждого и стена")
+	# Сохранение посреди цикла помнит, что списано; смена рецепта всё возвращает.
+	var state := assembler.save_state()
+	var copy := Crafter.new()
+	copy.def = assembler.def
+	copy.load_state(state)
+	_check(copy.consumed == assembler.consumed and copy.crafting, "списанное переживает сохранение")
+	world.configure(assembler, &"gear")
+	_check(assembler.inputs[iron] == 4 and assembler.inputs[copper] == 2 and assembler.inputs[wall] == 1 and not assembler.crafting,
+		"смена рецепта возвращает списанное во вход")
+	world.configure(assembler, &"science_kit_military")
+	for i in 4:
+		assembler.handle_item(null, stone)
+	Worlds.run_ticks(world, roundi(6.0 * GameConst.TICK_RATE / assembler.get_crafter_def().craft_speed) + 10)
+	_check(assembler.outputs[kit_military.index] == 2, "военных наборов — два за цикл (%d)" % assembler.outputs[kit_military.index])
+	# Списываются виды, которых больше всего: железа и камня было по 4, меди 2.
+	_check(assembler.inputs[iron] == 2 and assembler.inputs[stone] == 2 and assembler.inputs[copper] == 2,
+		"списаны самые многочисленные виды (железо %d, камень %d, медь %d)" % [assembler.inputs[iron], assembler.inputs[stone], assembler.inputs[copper]])
+	world.dispose()
+
+	# Нефть: вышка на скважине, насос её не берёт, строить на нефти можно, на воде — нет.
+	var map := LevelMap.new(40, 24, Registry.get_floor(&"stone").index)
+	var oil_ore := Registry.get_ore(&"oil")
+	for y in range(6, 8):
+		for x in range(6, 8):
+			map.set_ore(x, y, oil_ore.index + 1)
+	map.set_ore(20, 20, Registry.get_ore(&"water").index + 1)
+	world = GameWorld.create(null, map, true)
+	var bm := world.buildings
+	_check(not oil_ore.blocks_building() and Registry.get_ore(&"water").blocks_building(), "нефть под землёй, вода — на поверхности")
+	_check(bm.check_place(Registry.get_building(&"pump"), Vector2i(6, 6), 0) == BuildingManager.Check.NO_ORE,
+		"обычный насос нефть не качает")
+	_check(bm.check_place(Registry.get_building(&"conveyor"), Vector2i(7, 7), 0) == BuildingManager.Check.OK
+		and bm.check_place(Registry.get_building(&"conveyor"), Vector2i(20, 20), 0) == BuildingManager.Check.ON_FLUID,
+		"на нефтяной скважине строить можно, на воде — нет")
+	var derrick := bm.place(Registry.get_building(&"oil_derrick"), Vector2i(6, 6), 0, true) as Pump
+	for x in range(8, 11):
+		bm.place(Registry.get_building(&"pipe"), Vector2i(x, 6), 0, true)
+	var plant := bm.place(Registry.get_building(&"chemical_plant"), Vector2i(11, 6), 0, true) as Crafter
+	for i in 5:
+		plant.handle_item(null, _item(&"coal"))
+	Worlds.run_ticks(world, 3 * GameConst.TICK_RATE)
+	_check(derrick.get_status() == Building.Status.NO_POWER and derrick.last_rate == 0.0, "без тока вышка стоит")
+	Worlds.power_area(world, Vector2i(2, 2), 20, Vector2i(3, 3))
+	Worlds.run_ticks(world, 10 * GameConst.TICK_RATE)
+	_check(derrick.tiles == 4 and derrick.fluid == Registry.get_fluid(&"oil") and derrick.last_rate > 0.0,
+		"вышка качает нефть с четырёх клеток (%.0f/с)" % derrick.last_rate)
+	var polymer := _item(&"polymer")
+	_check(plant.has_fluid_input() and plant.outputs[polymer] >= 4,
+		"химзавод делает полимер из нефти и угля (%d)" % plant.outputs[polymer])
+	var plant_state := plant.save_state()
+	_check(String(plant_state.get("fluid", "")) == "oil" and float(plant_state.get("fluid_amount", -1.0)) >= 0.0,
+		"буфер нефти химзавода сохраняется")
+	world.dispose()
+
+	# Набор III: резисторы и полимеры в сборщике.
+	world = Worlds.empty_world(40, 24)
+	Worlds.power_area(world, Vector2i(2, 2), 20, Vector2i(3, 3))
+	assembler = _place(world, &"assembler", Vector2i(6, 6)) as Crafter
+	world.configure(assembler, &"science_kit_3")
+	for i in 2:
+		assembler.handle_item(null, _item(&"resistor"))
+	for i in 3:
+		assembler.handle_item(null, polymer)
+	Worlds.run_ticks(world, roundi(8.0 * GameConst.TICK_RATE / assembler.get_crafter_def().craft_speed) + 10)
+	_check(assembler.outputs[kit3.index] == 1, "сборщик собрал набор III из резисторов и полимеров")
+	world.dispose()
+
+	# Скважины на сгенерированной планете: есть, не на площадке, и к ним можно дойти.
+	var star_map := StarMap.new(777, Registry.run_def, Registry.planet_types)
+	var node := star_map.get_current()
+	_check(node.ores.has(oil_ore.index), "на стартовой планете есть нефть")
+	var planet_map := PlanetGenerator.generate(node, Registry.run_def.pad_start_size)
+	var center := Vector2i(planet_map.width / 2, planet_map.height / 2)
+	var reach := SpawnPoints.reachable(planet_map.width, planet_map.height, planet_map.floors, center)
+	var oil_tiles := 0
+	var reachable_oil := 0
+	var near_pad := 0
+	for y in planet_map.height:
+		for x in planet_map.width:
+			if planet_map.get_ore(x, y) != oil_ore.index + 1:
+				continue
+			oil_tiles += 1
+			if reach[y * planet_map.width + x] == 1:
+				reachable_oil += 1
+			if absi(x - center.x) <= Registry.run_def.pad_start_size and absi(y - center.y) <= Registry.run_def.pad_start_size:
+				near_pad += 1
+	_check(oil_tiles >= 16 and oil_tiles < 1000 and near_pad == 0, "скважины: небольшие пятна вдали от посадки (%d клеток)" % oil_tiles)
+	_check(reachable_oil > oil_tiles / 2, "к нефти можно дойти (%d из %d)" % [reachable_oil, oil_tiles])
 
 
 ## Какие виды событий журнал записал начиная с номера from.

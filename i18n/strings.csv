@@ -484,7 +484,7 @@ BUILDING_THERMAL_GENERATOR_DESC,Burns fuel into electricity. Simple but wasteful
 BUILDING_PIPE,Pipe,Труба
 BUILDING_PIPE_DESC,Carries water and steam. Connects to neighbouring pipes and machine ports. Pipes and pumps are the only buildings allowed on water.,Проводит воду и пар. Соединяется с соседними трубами и портами машин. На воде можно ставить только трубы и насосы.
 BUILDING_PUMP,Pump,Насос
-BUILDING_PUMP_DESC,Placed on water. Pumps water into connected pipes. Works without power.,Ставится на воду. Качает воду в подключённые трубы. Работает без электричества.
+BUILDING_PUMP_DESC,Placed on water. Pumps water into connected pipes. Works without power. Oil needs an oil derrick.,Ставится на воду. Качает воду в подключённые трубы. Работает без электричества. Нефть качает только нефтяная вышка.
 BUILDING_BOILER,Boiler,Бойлер
 BUILDING_BOILER_DESC,"Burns fuel and turns water into steam: water on the left side, steam on the right.","Жжёт топливо и превращает воду в пар: вода — слева, пар — справа."
 BUILDING_STEAM_GENERATOR,Steam Generator,Паровой генератор
@@ -592,6 +592,22 @@ ITEM_ZINC_PLATE,Zinc plate,Цинковая пластина
 ITEM_GALVANIZED_STEEL,Galvanized steel,Оцинкованная сталь
 ITEM_MICROCHIP,Microchip,Микросхема
 ITEM_SCIENCE_KIT_2,Science kit II,Научный набор II
+ITEM_SCIENCE_KIT_MILITARY,Military science kit,Военный научный набор
+ITEM_SCIENCE_KIT_3,Science kit III,Научный набор III
+ITEM_POLYMER,Polymer,Полимер
+ITEM_GROUP_CARTRIDGE,Cartridges,Патроны
+FLUID_OIL,Oil,Нефть
+ORE_OIL,Oil well,Нефтяная скважина
+BUILDING_OIL_DERRICK,Oil Derrick,Нефтяная вышка
+BUILDING_OIL_DERRICK_DESC,Placed on an oil well. Pumps oil into connected pipes. Needs power.,Ставится на нефтяную скважину. Качает нефть в подключённые трубы. Нужно электричество.
+BUILDING_CHEMICAL_PLANT,Chemical Plant,Химический завод
+BUILDING_CHEMICAL_PLANT_DESC,Makes polymers from oil (by pipe) and coal. Needs power.,Делает полимеры из нефти (по трубам) и угля. Нужно электричество.
+RESEARCH_OIL_PROCESSING,Petrochemistry,Нефтехимия
+RESEARCH_OIL_PROCESSING_DESC,"Oil derricks, chemical plants, polymers and science kits III. The last level of every upgrade needs kits III.","Нефтяные вышки, химзаводы, полимеры и научные наборы III. Последняя ступень каждой прокачки требует наборов III."
+RECIPE_ANY_DISTINCT,"%s: any %d different kinds, %d each",%s: любые %d разных вида по %d
+RECIPE_FLUID,%s ×%.0f,%s ×%.0f
+INFO_FLUID_BUFFER,%s: %.0f/%.0f,%s: %.0f/%.0f
+WINDOW_FLUID_OF,%.0f / %.0f,%.0f / %.0f
 BUILDING_STEEL_CONVEYOR,Steel conveyor,Стальной конвейер
 BUILDING_STEEL_CONVEYOR_DESC,Twice as fast as the plain belt; made of galvanized steel.,"Вдвое быстрее обычной ленты, делается из оцинкованной стали."
 BUILDING_STEEL_JUNCTION,Steel junction,Стальной перекрёсток
@@ -656,7 +672,7 @@ RESEARCH_LOGISTICS_DESC,"Sorters, unloaders and bridge conveyors.","Сортир
 RESEARCH_INDUSTRY,Industry,Промышленность
 RESEARCH_INDUSTRY_DESC,The Assembler makes components automatically.,Сборщик делает компоненты автоматически.
 RESEARCH_DEFENSE,Defense,Оборона
-RESEARCH_DEFENSE_DESC,"Machine-gun turrets, casings and cartridges.","Пулемётные турели, гильзы и патроны."
+RESEARCH_DEFENSE_DESC,"Machine-gun turrets, casings and cartridges, and military science kits (a wall and two different kinds of cartridges). All other military research is paid in military kits.","Пулемётные турели, гильзы и патроны, а ещё военные научные наборы (стена и два разных вида патронов). Все остальные военные исследования оплачиваются военными наборами."
 PROBLEM_ON_FLUID,Only pipes and pumps can be built on water,На воде можно ставить только трубы и насосы
 BUILDING_UNDERGROUND_PIPE,Underground pipe,Подземная труба
 BUILDING_UNDERGROUND_PIPE_DESC,"Carries fluid under buildings and terrain up to 10 tiles. Place the entrance, then the exit with the same rotation — it turns to face the entrance by itself.","Проводит жидкость под постройками и землёй на расстояние до 10 тайлов. Поставьте вход, затем выход тем же поворотом — он сам развернётся ко входу."

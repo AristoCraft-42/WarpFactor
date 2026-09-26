@@ -8,11 +8,11 @@
 [ext_resource type="Resource" path="res://buildings/defs/steel_junction.tres" id="b_steel_junction"]
 [ext_resource type="Resource" path="res://buildings/defs/steel_router.tres" id="b_steel_router"]
 [ext_resource type="Script" path="res://items/item_stack.gd" id="5_stack"]
-[ext_resource type="Resource" path="res://items/types/science_kit_2.tres" id="6_kit2"]
+[ext_resource type="Resource" path="res://items/types/science_kit_2.tres" id="kit_science_kit_2"]
 
-[sub_resource type="Resource" id="kit2"]
+[sub_resource type="Resource" id="cost_science_kit_2"]
 script = ExtResource("5_stack")
-item = ExtResource("6_kit2")
+item = ExtResource("kit_science_kit_2")
 amount = 22
 
 [resource]
@@ -23,7 +23,7 @@ description_key = "RESEARCH_STEEL_LOGISTICS_DESC"
 sort_order = 88
 cost_item = ExtResource("2_kit")
 cost_amount = 45
-extra_costs = Array[ExtResource("5_stack")]([SubResource("kit2")])
+extra_costs = Array[ExtResource("5_stack")]([SubResource("cost_science_kit_2")])
 prerequisites = Array[StringName]([&"microchips"])
 unlock_buildings = Array[ExtResource("3_building_script")]([ExtResource("b_steel_conveyor"), ExtResource("b_steel_junction"), ExtResource("b_steel_router")])
 unlock_recipes = Array[ExtResource("4_recipe_script")]([])

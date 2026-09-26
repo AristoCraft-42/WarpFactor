@@ -9,6 +9,10 @@ extends Resource
 @export var item: ItemType
 ## Жидкость месторождения (тогда item пуст).
 @export var fluid: FluidDef
+## Жидкость на поверхности (вода — озеро): строить на ней можно только трубы, насосы и баки,
+## генератор кладёт её озёрами. false — жидкость под землёй (нефть): на месторождении строится
+## что угодно, а генератор кладёт его небольшими скважинами.
+@export var fluid_surface: bool = true
 ## Твёрдость: влияет на скорость добычи и требуемый уровень бура (этап 2).
 @export_range(0, 5) var hardness: int = 1
 @export var sort_order: int = 0
@@ -28,6 +32,11 @@ var index: int = -1
 
 
 ## Множитель выхода клетки с богатством richness (неизвестное значение — как средняя).
+## Месторождение, на котором нельзя строить обычные постройки (открытая жидкость).
+func blocks_building() -> bool:
+	return fluid != null and fluid_surface
+
+
 static func yield_of(richness: int) -> float:
 	return RICHNESS_YIELD[richness] if richness >= 0 and richness < RICHNESS_YIELD.size() else 1.0
 
